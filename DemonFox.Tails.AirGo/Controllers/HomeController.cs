@@ -36,7 +36,7 @@ namespace DemonFox.Tails.AirGo.Controllers
                             where users.IsDelete=0
                             ";
             if (!string.IsNullOrEmpty(Request.Form["sql"]))
-            {
+            {                
                 sql = Request.Form["sql"];
             }
             if (!string.IsNullOrEmpty(Request.Form["connectionString"]))
@@ -225,6 +225,11 @@ namespace DemonFox.Tails.AirGo.Controllers
         public IActionResult Error()
         {
             return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
+        }
+
+        public IActionResult Prepare()
+        {
+            return View();
         }
     }
 }
