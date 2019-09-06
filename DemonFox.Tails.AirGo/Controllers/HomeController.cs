@@ -248,15 +248,15 @@ namespace DemonFox.Tails.AirGo.Controllers
             StringBuilder builder = new StringBuilder();
             builder.Append(@"    <title></title>
     <link href=""/styles/layout.css"" rel=""stylesheet"" type=""text/css"" />
-    <script src = ""/Scripts/comm.js"" type = ""text/javascript""></ script>
-    <script src = ""/Scripts/common.js"" type = ""text/javascript""></ script>
-    <script type = ""text/javascript"" src = ""/scripts/My97DatePicker/WdatePicker.js""></ script>
+    <script src = ""/Scripts/comm.js"" type = ""text/javascript""></script>
+    <script src = ""/Scripts/common.js"" type = ""text/javascript""></script>
+    <script type = ""text/javascript"" src = ""/scripts/My97DatePicker/WdatePicker.js""></script>
     <style type = ""text/css"">
         .hidden{ display: none; }
         .greenColor{ color: green; }
-        a{ text - decoration:none; }
-        a: hover{ text - decoration:none}
-    </ style> ").Append(newLine).Append(newLine)
+        a{ text-decoration:none; }
+        a:hover{ text-decoration:none}
+    </style> ").Append(newLine).Append(newLine)
                 .Append("----------------------------------------Body---------------------------------------").Append(newLine).Append(newLine)
                 .Append(@"    <form id=""form1"" runat=""server"">
         <!-- 头部菜单 Start -->
@@ -267,9 +267,10 @@ namespace DemonFox.Tails.AirGo.Controllers
                     </div>
                 </td>
                 <td width=""1232"" height=""25"" valign=""center"" align=""left"">
+                    <!--nmnm-->
                     你当前位置：客服中心 - XXXX
                     &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                    玩家返现统计：<asp:Label runat=""server"" ID=""AllCashback"" CssClass=""greenColor""></asp:Label>
+                    统计：<asp:Label runat=""server"" ID=""AllCashback"" CssClass=""greenColor""></asp:Label>
                 </td>
                
             </tr>
@@ -313,14 +314,14 @@ namespace DemonFox.Tails.AirGo.Controllers
                             <ItemTemplate >
                                 <tr align = ""center"" class=""list"" onmouseover=""currentcolor=this.style.backgroundColor;this.style.backgroundColor='#caebfc';this.style.cursor='default';""
                                     onmouseout=""this.style.backgroundColor=currentcolor"">").Append(newLine);
-
+            //奇数行
             foreach (string columnName in columnNames)
             {
                 builder.Append($@"                                    <td>
                                         <%# Eval(""{columnName}"") %>
                                     </td> ").Append(newLine);
             }
-
+            //偶数行
             builder.Append(@"                                </tr>
                             </ItemTemplate>
                             <AlternatingItemTemplate>
@@ -337,8 +338,9 @@ namespace DemonFox.Tails.AirGo.Controllers
             builder.Append(@"                                </tr>
                             </AlternatingItemTemplate>
                         </asp:Repeater>
-                        <asp:Literal runat=""server"" ID=""litNoData"" Visible=""true"" Text="" < tr class='tdbg'><td colspan = '100' align='center'><br>没有任何信息!<br><br></td></tr>""></asp:Literal>
+                        <asp:Literal runat=""server"" ID=""litNoData"" Visible=""true"" Text=""<tr class='tdbg'><td colspan = '100' align='center'><br>没有任何信息!<br><br></td></tr>""></asp:Literal>
                         <asp:Button runat = ""server"" ID =""ReOrderBtn"" CssClass =""hidden"" OnClick =""ReOrderBtn_Click"" />
+                        <asp:Button runat=""server"" ID =""RefreshBtn"" CssClass =""hidden"" OnClick =""RefreshBtn_Click"" />
                         <asp:HiddenField runat = ""server"" ID = ""OrderFieldName"" ClientIDMode = ""Static"" />
                     </table>
 
@@ -362,19 +364,21 @@ namespace DemonFox.Tails.AirGo.Controllers
         prm.add_endRequest(function () {
             //异步刷新后也要执行 ""给列头绑定click事件的代码"", 否则异步刷新后""th""的click事件失效
             bindOrder();
-    });
-        function bindOrder()
-    {
-            $(""th"").click(function() {
-            var fieldName = $(this).attr(""field_name"")
-                if (fieldName.length > 0)
-            {
-                OrderFieldName.value = fieldName;
-                ReOrderBtn.click();
-            }
         });
-    }
-    bindOrder();                
+        function bindOrder() {
+            $(""th"").click(function() {
+                var fieldName = $(this).attr(""field_name"")
+                if (fieldName.length > 0) {
+                    OrderFieldName.value = fieldName;
+                    ReOrderBtn.click();
+                }
+            });
+        }
+        bindOrder();                
+        //重新加载表格-当前分页
+        function reloadTable() {
+            document.getElementById(""RefreshBtn"").click();
+        }
     </script>").Append(newLine).Append(newLine)
     .Append("----------------------------------------Code---------------------------------------").Append(newLine).Append(newLine)
     .Append(@"        private static string _orderByField = ""record.RecordID"";
@@ -423,6 +427,7 @@ namespace DemonFox.Tails.AirGo.Controllers
             string orderByDirection = _isAsc ? ""ASC"" : ""DESC"";
             if (string.IsNullOrEmpty(_orderByField))
             {
+                //aideGUser=new GUserFacade();
                 dataSet = aideGUser.GetTransferList(pageIndex, pageSize, _orderByField, orderByDirection, searchStr);
             }
             else
@@ -444,7 +449,7 @@ namespace DemonFox.Tails.AirGo.Controllers
             rptUserList.DataBind();
             anpUserList.RecordCount = Convert.ToInt32(dataSet.Tables[1].Rows[0][0]);
 
-            //所有玩家的 返现请求总和
+            //所有玩家的 返现请求总和  nmnm
             AllCashback.Text = !string.IsNullOrEmpty(dataSet.Tables[1].Rows[0][""AllSwap""].ToString()) ?
                 TextUtility.FormatMoney(Convert.ToDecimal(dataSet.Tables[1].Rows[0][""AllSwap""].ToString()) / pic) :
                 ""0.00"";
@@ -475,10 +480,19 @@ namespace DemonFox.Tails.AirGo.Controllers
             anpUserList.CurrentPageIndex = 1;
             if (!string.IsNullOrEmpty(OrderFieldName.Value))
             {
-                _orderByField = OrderFieldName.Value == ""RowNumber"" ? ""Id"" : OrderFieldName.Value;
+                _orderByField = OrderFieldName.Value == ""RowNumber"" ? ""Id"" : OrderFieldName.Value;//nmnm
             }
 
             _isAsc = !_isAsc;
+            BindData();
+        }
+        /// <summary>
+        /// 刷新当前页（因为分页控件的 CurrentPageIndex 属性记录了当前页，所以pageIndex 值还是当前页，重新查询数据即可）
+        /// </summary>
+        /// <param name=""sender""></param>
+        /// <param name=""e""></param>
+        protected void RefreshBtn_Click(object sender, EventArgs e)
+        {
             BindData();
         }").Append(newLine).Append(newLine);
             return Content(builder.ToString(), "text/plain", Encoding.UTF8);
