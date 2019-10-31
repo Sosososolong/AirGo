@@ -2,7 +2,34 @@
 @{
     ViewData["Title"] = "Prepare";
 }
+@*select
+        top (@pageSize) *
+    from
+        (select
+            ROW_NUMBER() over(order by record.RecordID DESC) as RowNumber,
+            record.RecordID,
+            record.SourceUserID,
+            account.GameID,
+            account.NickName,
+            record.SourceGold,
+            record.SourceBank,
+            record.SourceEndGold,
+            record.SourceEndBank,
+            record.TargetUserID,
+            record.TargetGold,
+            record.TargetBank,
+            record.TargetEndGold,
+            record.TargetEndBank,
+            record.SwapScore,
+            record.Revenue,
+            record.CollectDate,
+            record.CollectNote,
+            record.TradeStatus
+        from SQTreasureDB.dbo.RecordInsure as record,SQAccountsDB.dbo.AccountsInfo as account
+        where record.SourceUserID=account.UserID
+        and record.TradeStatus>9) as temp
 
+    where temp.RowNumber>(@pageIndex-1)* @@pageSize*@
     <form class="needs-validation" method="post" action="" novalidate>
         <div class="form-group">
             <label class="col-sm-2 col-form-label">Connectiong String</label>
@@ -28,12 +55,12 @@
         <button class="btn btn-primary" formtarget="_blank" target-action="/Home/GameBackend" type="submit">GameBackend</button>
     </form>
 
-@section Scripts{
-<script>
-    $('form button').click(function () {
-        var target_url = $(this).attr('target-action');
-        $('form').attr('action', target_url)        
-    })
-</script>    
-}
+    @section Scripts{
+        <script>
+            $('form button').click(function () {
+                var target_url = $(this).attr('target-action');
+                $('form').attr('action', target_url)
+            })
+        </script>
+    }
 
