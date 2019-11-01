@@ -1,65 +1,97 @@
 ﻿
 @{
-    ViewData["Title"] = "Prepare";
+    ViewData["Title"] = "Prepare";     
 }
-@*select
-        top (@pageSize) *
-    from
-        (select
-            ROW_NUMBER() over(order by record.RecordID DESC) as RowNumber,
-            record.RecordID,
-            record.SourceUserID,
-            account.GameID,
-            account.NickName,
-            record.SourceGold,
-            record.SourceBank,
-            record.SourceEndGold,
-            record.SourceEndBank,
-            record.TargetUserID,
-            record.TargetGold,
-            record.TargetBank,
-            record.TargetEndGold,
-            record.TargetEndBank,
-            record.SwapScore,
-            record.Revenue,
-            record.CollectDate,
-            record.CollectNote,
-            record.TradeStatus
-        from SQTreasureDB.dbo.RecordInsure as record,SQAccountsDB.dbo.AccountsInfo as account
-        where record.SourceUserID=account.UserID
-        and record.TradeStatus>9) as temp
+    <div class="container">
+        <form class="needs-validation" method="post" action="" novalidate>
+            <div class="form-group">
+                <label class="col-sm-2 col-form-label">Connectiong String</label>
+                <div class="col-sm-10">
+                    <input class="form-control" type="text" name="connectionString" value="server=45.113.200.25,2366;uid=WebAccounts;pwd=U54DOFTCyAARqfdU0TcT;" required />
+                    <div class="invalid-feedback">
+                        Please choose a username.
+                    </div>
+                </div>
+            </div>
 
-    where temp.RowNumber>(@pageIndex-1)* @@pageSize*@
-    <form class="needs-validation" method="post" action="" novalidate>
-        <div class="form-group">
-            <label class="col-sm-2 col-form-label">Connectiong String</label>
-            <div class="col-sm-10">
-                <input class="form-control" type="text" name="connectionString" value="server=45.113.200.25,2366;uid=WebAccounts;pwd=U54DOFTCyAARqfdU0TcT;" required />
-                <div class="invalid-feedback">
-                    Please choose a username.
+            <div class="form-group">
+                <label class="col-sm-2 col-form-label" data-toggle="modal" data-target="#modal_sql_example"><a href="javascript:void(0)">SQL Statement</a></label>
+                <div class="col-sm-10">
+                    <textarea class="form-control" name="sql" cols="70" rows="20" required></textarea>
+                    <div class="invalid-feedback">
+                        Please provide a valid sql statement.
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" formtarget="_blank" target-action="/Home/Index" type="submit">Normal</button>
+            <button class="btn btn-primary" formtarget="_blank" target-action="/Home/GameBackend" type="submit">GameBackend</button>
+        </form>
+        <!--SQL Statement Example-->
+        <div class="modal fade" id="modal_sql_example">
+            <div class="modal-dialog modal-dialog-scrollable">
+                <div class="modal-content">
+
+                    <div class="modal-header">Example</div>
+                    <div class="modal-body">
+                        <div style="font-size:12px; word-spacing:3px;">
+                            select<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;top (@@pageSize) *<br />
+                            from<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;(select<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;ROW_NUMBER() over(order by record.RecordID DESC) as RowNumber,<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;record.RecordID,<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;record.SourceUserID,<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;account.GameID,<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;account.NickName,<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;record.SourceGold,<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;record.SourceBank,<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;record.SourceEndGold,<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;record.SourceEndBank,<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;record.TargetUserID,<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;record.TargetGold,<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;record.TargetBank,<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;record.TargetEndGold,<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;record.TargetEndBank,<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;record.SwapScore,<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;record.Revenue,<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;record.CollectDate,<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;record.CollectNote,<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;record.TradeStatus<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;from SQTreasureDB.dbo.RecordInsure as record,SQAccountsDB.dbo.AccountsInfo as account<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;where record.SourceUserID=account.UserID<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;and record.TradeStatus>9) as temp<br /><br />
+
+                            where temp.RowNumber>(@@pageIndex-1)*@@pageSize
+                        </div>
+                    </div>
+                    <div class="modal-footer"><button class="btn btn-secondary" data-dismiss="modal">Close</button></div>
+
                 </div>
             </div>
         </div>
-
-        <div class="form-group">
-            <label class="col-sm-2 col-form-label">SQL Statement</label>
-            <div class="col-sm-10">
-                <textarea class="form-control" name="sql" cols="70" rows="20" required></textarea>
-                <div class="invalid-feedback">
-                    Please choose a username.
-                </div>
-            </div>
-        </div>
-
-        <button class="btn btn-primary" formtarget="_blank" target-action="/Home/Index" type="submit">Normal</button>
-        <button class="btn btn-primary" formtarget="_blank" target-action="/Home/GameBackend" type="submit">GameBackend</button>
-    </form>
+    </div>
 
     @section Scripts{
         <script>
             $('form button').click(function () {
                 var target_url = $(this).attr('target-action');
                 $('form').attr('action', target_url)
+            })  
+
+            $(function () {
+                // Fetch all the forms we want to apply custom Bootstrap validation styles to
+                var forms = document.getElementsByClassName('needs-validation');
+                // Loop over them and prevent submission
+                var validation = Array.prototype.filter.call(forms, function(form) {
+                  form.addEventListener('submit', function(event) {
+                    if (form.checkValidity() === false) {
+                      event.preventDefault();
+                      event.stopPropagation();
+                    }
+                    form.classList.add('was-validated');
+                  }, false);
+                });
             })
         </script>
     }
