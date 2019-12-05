@@ -62,7 +62,15 @@
                             &nbsp;&nbsp;&nbsp;&nbsp;where record.SourceUserID=account.UserID<br />
                             &nbsp;&nbsp;&nbsp;&nbsp;and record.TradeStatus>9) as temp<br /><br />
 
-                            where temp.RowNumber>(@@pageIndex-1)*@@pageSize
+                            where temp.RowNumber>(@@pageIndex-1)*@@pageSize<br /><br />
+
+                            select<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;count(*)<br />
+                            from<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;SQTreasureDB.dbo.RecordInsure as record,SQAccountsDB.dbo.AccountsInfo as account<br />
+                            where<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;record.SourceUserID=account.UserID<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;and record.TradeStatus>9
                         </div>
                     </div>
                     <div class="modal-footer"><button class="btn btn-secondary" data-dismiss="modal">Close</button></div>
