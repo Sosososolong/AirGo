@@ -256,6 +256,7 @@ namespace DemonFox.Tails.AirGo.Controllers
         .greenColor{ color: green; }
         a{ text-decoration:none; }
         a:hover{ text-decoration:none}
+        .listTitle2,.listTitle:hover{cursor:pointer;}
     </style> ").Append(newLine).Append(newLine)
                 .Append("----------------------------------------Body---------------------------------------").Append(newLine).Append(newLine)
                 .Append(@"    <form id=""form1"" runat=""server"">
@@ -306,7 +307,7 @@ namespace DemonFox.Tails.AirGo.Controllers
             //拼接表格所有的列
             foreach (string columnName in columnNames)
             {
-                builder.AppendFormat(@"                            <th class=""need-order"" field_name=""{0}"">{0}</th>", columnName).Append(newLine);
+                builder.AppendFormat(@"                            <th class=""listTitle2 need-order"" field_name=""{0}"">{0}</th>", columnName).Append(newLine);
             }
 
             builder.Append(@"                        </tr>
@@ -421,7 +422,7 @@ namespace DemonFox.Tails.AirGo.Controllers
             //获取数据
             int pageIndex = anpUserList.CurrentPageIndex;
 
-            int pageSize = 14;
+            int pageSize = anpUserList.PageSize;
 
             DataSet dataSet;
             string orderByDirection = _isAsc ? ""ASC"" : ""DESC"";
