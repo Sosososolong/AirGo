@@ -74,6 +74,7 @@ namespace DemonFox.Tails.AirGo.Controllers
                 .Append(@"    <form id=""form1"" runat = ""server"" >
         < div class=""popover-content"">
             <asp:ScriptManager runat = ""server"" ID = ""MyScriptManager""></asp:ScriptManager>
+            <%--UpdateMode属性的值: Always:一个UpdatePanel中的按钮将会触发所有UpdatePanel的更新; Conditional: 每个UpdatePanel中的控件只触发控件所在UpdatePanel中内容的更新--%>
             <asp:UpdatePanel runat = ""server"" ID=""TableUpdatePanel"" UpdateMode=""Conditional"">
                 <ContentTemplate>
                     <table class=""table table-bordered"">
@@ -115,6 +116,12 @@ namespace DemonFox.Tails.AirGo.Controllers
                         <% --假设当前页码为2, 点击6欲跳到第6页, onpagechanging触发时CurrentPageIndex值为2, OnPageChanged触发时: CurrentPageIndex值为6-- %>
                     </ div >
                 </ ContentTemplate>
+                <Triggers>
+                    <%--异步 可指定触发当前UpdatePanel更新的控件以及控件的事件, 如果指定的是另一个UpdatePanel中的Button, 那么这个Button被点击时将会触发这两个UpdatePanel内容的更新--%>
+                    <%--若干个UpdatePanel中的""AsyncPostBackTrigger""的ControlID可设置为同一个Button(或其他控件)的ID, 这样那个Button(或其他控件)可以一次触发若干个UpdatePanel内容的更新--%>
+                    <%--如果页面不是很复杂, 完全可以不设置""AsyncPostBackTrigger""控件, 在UpdatePanel的UpdateModel值为""Conditional""的情况下, 每个UpdatePanel中的控件只触发当前UpdatePanel中的内容--%>
+                    <%--<asp:AsyncPostBackTrigger ControlID=""Button2"" EventName=""Click"" />--%>
+                </Triggers>
             </ asp:UpdatePanel>
         </ div>
     </ form>").Append(newLine).Append(newLine);
@@ -299,6 +306,7 @@ namespace DemonFox.Tails.AirGo.Controllers
         <div id=""content"">           
             <asp:ScriptManager ID=""ScriptManager1"" runat=""server"">
             </asp:ScriptManager>
+            <%--UpdateMode属性的值: Always:一个UpdatePanel中的按钮将会触发所有UpdatePanel的更新; Conditional: 每个UpdatePanel中的控件只触发控件所在UpdatePanel中内容的更新--%>
             <asp:UpdatePanel ID = ""UpdatePanel1"" runat = ""server"" UpdateMode = ""Conditional"" >
                 <ContentTemplate>
                     <table width = ""97%"" border = ""0"" align = ""center"" cellpadding = ""0"" cellspacing = ""0"" class=""box Tmg7"" id=""list"">
@@ -356,6 +364,12 @@ namespace DemonFox.Tails.AirGo.Controllers
                         </tr>
                     </table>
                 </ContentTemplate>
+                <Triggers>
+                    <%--异步 可指定触发当前UpdatePanel更新的控件以及控件的事件, 如果指定的是另一个UpdatePanel中的Button, 那么这个Button被点击时将会触发这两个UpdatePanel内容的更新--%>
+                    <%--若干个UpdatePanel中的""AsyncPostBackTrigger""的ControlID可设置为同一个Button(或其他控件)的ID, 这样那个Button(或其他控件)可以一次触发若干个UpdatePanel内容的更新--%>
+                    <%--如果页面不是很复杂, 完全可以不设置""AsyncPostBackTrigger""控件, 在UpdatePanel的UpdateModel值为""Conditional""的情况下, 每个UpdatePanel中的控件只触发当前UpdatePanel中的内容--%>
+                    <%--<asp:AsyncPostBackTrigger ControlID=""Button2"" EventName=""Click"" />--%>
+                </Triggers>
             </asp:UpdatePanel>
         </div>        
     </form>
