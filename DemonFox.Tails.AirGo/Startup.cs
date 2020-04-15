@@ -53,7 +53,7 @@ namespace DemonFox.Tails.AirGo
             {
                 routes.MapRoute(
                     name: "default",
-                    template: "{controller=Home}/{action=Index}/{id?}");
+                    template: "{controller=Home}/{action=Prepare}/{id?}");
             });
         }
     }
