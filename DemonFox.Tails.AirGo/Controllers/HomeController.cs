@@ -555,7 +555,7 @@ namespace DemonFox.Tails.AirGo.Controllers
                     .AppendFormat(@"<th width=""50"" align=""center"">{0}", colName.ToLower().IndexOf("time") >= 0 ? $@"orderfield=""{primaryKey}"" class=""<%= orderBy{colName}Direction %>""" : "") // 按时间排序其实就是按主键排序
                     .Append(Environment.NewLine)
                     .Append(OneTabSpace + FourTabsSpace)
-                    .Append(colName)
+                    .Append(colName).Append(Environment.NewLine)
                     .Append(FourTabsSpace).Append("</th>")
                     .Append(Environment.NewLine);
             }
