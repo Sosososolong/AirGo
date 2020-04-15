@@ -9,12 +9,17 @@ using System.Text;
 using System.Data;
 using System.Data.Common;
 using DemonFox.Tails.Database.SqlServer;
+using System.IO;
+using System.Text.RegularExpressions;
 
 namespace DemonFox.Tails.AirGo.Controllers
 {
     public class HomeController : Controller
     {
         private DemonProvider db = new DemonProvider();
+        private string OneTabSpace = "    ";
+        private string TwoTabsSpace = "        ";
+        private string FourTabsSpace = "                ";     
         /// <summary>
         /// 需要的参数："sql", "connectionString", 
         /// </summary>
@@ -234,7 +239,7 @@ namespace DemonFox.Tails.AirGo.Controllers
             //string sql = Request.Query["sql"];
             //string connectionString = DemonProvider.ConnectionString = Request.Query["connectionString"];
 
-            if (sql.IndexOf("@pageIndex") == 0 || sql.IndexOf("@pageSize") == 0)
+            if (sql.ToLower().IndexOf("@pageIndex".ToLower()) == -1 || sql.ToLower().IndexOf("@pageSize".ToLower()) == -1)
             {
                 return Content($"sql语句: {sql}中, 没有@pageIndex和@pageSize参数");
             }
@@ -511,6 +516,93 @@ namespace DemonFox.Tails.AirGo.Controllers
             BindData();
         }").Append(newLine).Append(newLine);
             return Content(builder.ToString(), "text/plain", Encoding.UTF8);
+        }
+
+        public IActionResult GameBackend619()
+        {
+            string sql = Request.Form["sql"];
+            DemonProvider.ConnectionString = Request.Form["connectionString"];
+            //string sql = Request.Query["sql"];
+            //string connectionString = DemonProvider.ConnectionString = Request.Query["connectionString"];
+
+            if (sql.ToUpper().IndexOf("@pageIndex".ToUpper()) == -1 || sql.ToLower().IndexOf("@pageSize".ToLower()) == -1)
+            {
+                return Content($"sql语句: {sql}中, 没有@pageIndex和@pageSize参数");
+            }
+            DbParameter[] parameters = new DbParameter[2]
+            {
+                db.CreateDbParameter("pageIndex", 1),
+                db.CreateDbParameter("pageSize", 10)
+            };
+            DataSet set = db.ExecuteQuerySql(sql, parameters);
+            DataTable dataTable = set.Tables[0];
+            List<string> columnNames = new List<string>();
+            foreach (DataColumn column in dataTable.Columns)
+            {
+                columnNames.Add(column.ColumnName);
+            }
+            StringBuilder sb = new StringBuilder();
+            // 假设SQL查询结果中, 主键在第二列(第一列是为排序添加的RowNumber序号)
+            string primaryKey = columnNames[1];
+            List<string> orderByDirectionFields = new List<string>();
+            foreach (string colName in columnNames)
+            {
+                if (colName.ToLower().IndexOf("time") >= 0)
+                {
+                    orderByDirectionFields.Add($@"protected string orderBy{colName}Direction = ""desc"";");
+                }
+                sb.Append(FourTabsSpace)
+                    .AppendFormat(@"<th width=""50"" align=""center"">{0}", colName.ToLower().IndexOf("time") >= 0 ? $@"orderfield=""{primaryKey}"" class=""<%= orderBy{colName}Direction %>""" : "") // 按时间排序其实就是按主键排序
+                    .Append(Environment.NewLine)
+                    .Append(OneTabSpace + FourTabsSpace)
+                    .Append(colName)
+                    .Append(FourTabsSpace).Append("</th>")
+                    .Append(Environment.NewLine);
+            }
+            
+            // 读取模板内容
+            string templateFile = "templates/game_639backend_template.html";
+            FileStream fileStream = new FileStream(templateFile, FileMode.Open);
+            string templateCon = "";
+            using (StreamReader reader = new StreamReader(fileStream))
+            {                
+                templateCon = reader.ReadToEnd();                
+            }
+            // 替换列标题的部分{ColumnTitles}
+            Regex reg = new Regex("{ColumnTitles}");
+            string modifiedTemplate = reg.Replace(templateCon, sb.ToString());
+            // 替换数据{TableRows}
+            sb.Clear(); // 清空sb内容,继续使用这个对象拼接字符串            
+            foreach (string colName in columnNames)
+            {
+                sb.Append(TwoTabsSpace + FourTabsSpace)
+                    .Append("<td>").Append(Environment.NewLine)
+                    .Append(OneTabSpace + TwoTabsSpace + FourTabsSpace);
+                if (columnNames.Contains("UserID") && (colName.IndexOf("GameID") != -1 || colName.IndexOf("Accounts") != -1 || colName.IndexOf("NickName") != -1))
+                {
+                    sb.Append($@"<a class=""edit"" href ='/Module/AccountManager/UserInfo.aspx?relId=<%=relId %>&userid=<%#((DataRowView)Container.DataItem)[""UserID""]%>'
+                                target = ""navTab"" rel = ""edituser <%=relId %>"" title = ""玩家明细"" >
+                                <%#Eval(""{colName}"")%></a>");
+                }
+                else
+                {
+                    sb.Append($@"<%# Eval(""{colName}"") %>");
+                }
+                sb.Append(Environment.NewLine)
+                    .Append(TwoTabsSpace + FourTabsSpace).Append("</td>").Append(Environment.NewLine);
+            }
+            reg = new Regex("{TableRows}");
+            modifiedTemplate = reg.Replace(modifiedTemplate, sb.ToString());
+            // 替换后台代码
+            sb.Clear();
+            foreach (string item in orderByDirectionFields)
+            {
+                sb.Append(TwoTabsSpace)
+                    .Append(item).Append(Environment.NewLine);                    
+            }
+            reg = new Regex("{orderByDirectionFields}");
+            modifiedTemplate = reg.Replace(modifiedTemplate, sb.ToString());            
+            return Content(modifiedTemplate, "text/plain", Encoding.UTF8);
         }
 
         public IActionResult Privacy()

@@ -1,0 +1,230 @@
+﻿<%@ Page Language="C#" AutoEventWireup="true" CodeBehind="RecordDrawInfo_Feiqinx.aspx.cs" Inherits="Game.Web.Module.AccountManager.RecordDrawInfo_Feiqinx" %>
+
+<%@ Import Namespace="System.Data" %>
+<script type="text/javascript">
+    selectedNumPerPage("<%=numPerPage%>");
+    function openDialog(url, rel, title) {
+        var ids = _getIds("ids");
+        if (!ids) {
+            alertMsg.error("请先选中需要批量操作项！");
+            return false;
+        }
+        $.pdialog.open(url + "&userid=" + ids, rel, title, { height: 300, width: 580, minH: 40, minW: 50, total: 20, max: false, mask: true, resizable: true, drawable: true, maxable: true, minable: true, fresh: true });
+        function _getIds(selectedIds) {
+            var ids = "";
+            var $box = navTab.getCurrentPanel();
+            $box.find("input:checked").filter("[name='" + selectedIds + "']").each(function (i) {
+                var val = $(this).val();
+                ids += i == 0 ? val : "," + val;
+            });
+            return ids;
+        }
+    }
+    $('a[rev="title"]').each(function () {
+        var u = $.trim($(this).html());
+        $(this).html(SetSub(u, 10))
+    });
+</script>
+
+<!--翻页的时候发送Ajax信息传递的参数 start-->
+<form id="pagerForm" method="post" action="<%=Request.Url%>">
+<input type="hidden" name="pageNum" value="<%=pageNum %>" />
+<input type="hidden" name="numPerPage" value="<%=numPerPage %>" />
+<input type="hidden" name="orderField" value="<%=OrderField %>" />
+<input type="hidden" name="orderDirection" value="<%=OrderDirection %>" />
+<input type="hidden" name="keyWord" value="<%=keyWord %>" />
+<input type="hidden" name="isFirstLoad" value="false" />
+<!--将检索表单的信息也放进去, 使得分页的时候也会带上查询条件................-->
+<input type="hidden" name="mindate" value="<%=mindate %>" />
+<input type="hidden" name="maxdate" value="<%=maxdate %>" />
+</form>
+<!--翻页的时候发送Ajax信息传递的参数 end-->
+
+<div class="pageHeader">
+    <form rel="Form<%=relId %>" onsubmit="return navTabSearch(this);" action="<%=Request.Url%>"
+    method="post">
+    <div class="searchBar">
+        <table class="searchContent">
+            <tr>
+                <td>
+                    &nbsp;
+                </td>
+                <%--<td>
+                    关键字&nbsp;&nbsp;<input type="text" name="keyWord" value="<%=keyWord %>" onkeyup="value=value.replace(/[^\d\_\a-zA-Z\u4E00-\u9FA5]/g,'')"
+                        maxlength="20" size="35" alt="标识、帐号、昵称" />
+                    <input type="hidden" name="isFirstLoad" value="false" />
+                </td>--%>
+                <%--<td>
+                    <select class="combox" name="findType">
+                        <option value="" selected="selected">请选择类型</option>
+                        <option value="存款">存款</option>
+                        <option value="取款">取款</option>
+                        <option value="转账">转账</option>
+                    </select>
+                </td>--%>
+                <td>
+                    开始时间&nbsp;&nbsp;<input type="text" name="mindate" class="date" datefmt="yyyy-MM-dd" mindate="{%y-1}-%M-%d"
+                        maxdate="%y-%M-{%d-1}" readonly="readonly" value="<%=mindate %>" />
+                </td>
+                <td>
+                    结束时间&nbsp;&nbsp;<input type="text" name="maxdate" class="date" datefmt="yyyy-MM-dd" mindate="{%y-1}-%M-%d"
+                        maxdate="{%y}-%M-{%d+1}" readonly="readonly" value="<%=maxdate %>" />
+                </td>
+            </tr>
+        </table>
+        <div class="subBar">
+            <ul>
+                <li>
+                    <div class="buttonActive">
+                        <div class="buttonContent">
+                            <button type="button" onclick="navTabPageBreak()">
+                                刷新</button></div>
+                    </div>
+                </li>
+                <li>
+                    <div class="buttonActive">
+                        <div class="buttonContent">
+                            <button type="submit">
+                                检索</button></div>
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </div>
+    </form>
+</div>
+<div class="pageContent">
+    <div class="panelBar" style="display: block;">
+        <ul class="toolBar">            
+            <li><a class="add" href="javascript:;" onclick="openDialog('<%=FullPath %>/Module/AccountManager/GrantTreasure.aspx?relId=<%=relId %>','sendtreasure<%=relId %>','批量赠送金币');"
+                rel="sendtreasure<%=relId %>" title="赠送金币"><span>批量赠送金币</span></a></li>
+            <li class="line">line</li>
+            <li><a class="delete" href="javascript:;" onclick="openDialog('<%=FullPath %>/Module/AccountManager/GrantFlee.aspx?relId=<%=relId %>','grantflee<%=relId %>','批量清零逃率');"
+                rel="grantflee<%=relId %>" title="清零逃率"><span>批量清零逃率</span></a></li>
+            <li class="line">line</li>
+            <li><a class="edit" href="<%=FullPath %>/Module/AccountManager/GrantTreasureInfo.aspx?relId=<%=relId %>&userid={sid_user}"
+                target="dialog" rel="granttreinfo<%=relId %>" title="更改金币"><span>更改金币</span></a></li>
+            <li class="line">line</li>
+            <li><a class="edit" href="<%=FullPath %>/Module/AccountManager/GrantInfo.aspx?relId=<%=relId %>&userid={sid_user}"
+                target="dialog" rel="grantinfo<%=relId %>" title="更改存款"><span>更改存款</span></a></li>
+            <li style="display: none;"><a class="icon" href='<%=FullPath %>/Module/AccountManager/UserInfo.aspx?relId=<%=relId %>&userid={sid_user}'
+                target="navTab" rel="edituser<%=relId %>" title="玩家明细"><span>玩家明细</span></a></li>
+        </ul>
+    </div>
+    <table class="table" width="100%" layouth="138">
+        <thead>
+            <tr>      
+                <%--<th width="22" align="center">
+                    <input type="checkbox" group="ids" class="checkboxCtrl" />
+                </th>--%>
+                <th width="33" align="center">
+                    序号
+                </th>
+{ColumnTitles}        
+            </tr>
+        </thead>
+        <tbody>
+            <asp:repeater id="rpt" runat="server" enableviewstate="false">
+                <ItemTemplate>
+                    <tr target="sid_user" rel="<%#((DataRowView)Container.DataItem)["UserID"]%>" ondblclick='$(".icon[rel=edituser<%=relId %>]").click();'
+                        title="双击可查看该帐号详细信息">
+                        <%--<td>
+                            <input name="ids" value="<%#((DataRowView)Container.DataItem)["UserID"]%>" type="checkbox" />
+                        </td>--%>
+                        <td>
+                            <center style="color: #999999;">
+                                <%#(Container.ItemIndex + 1).ToString("00")%></center>
+                        </td>
+{TableRows}                                           
+                    </tr>
+                </ItemTemplate>
+            </asp:repeater>
+        </tbody>
+    </table>
+    <div class="panelBar">
+        <div class="pages">
+            <span>显示</span>
+            <select class="combox" name="numPerPage" onchange="navTabPageBreak({numPerPage:this.value})">
+                <option value="30">30</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="200">200</option>
+            </select>
+            <span>条，共<%=Total %>条</span>
+        </div>
+        <div class="pagination" targettype="navTab" totalcount="<%=Total %>" numperpage="<%=numPerPage %>"
+            pagenumshown="10" currentpage="<%=pageNum %>">
+        </div>
+    </div>
+</div>
+
+
+<!--------------------------------------------------------code(members)-------------------------------------------------------->
+
+
+{orderByDirectionFields}
+        protected string mindate = string.Empty;
+        protected string maxdate = string.Empty;
+        protected void Page_Load(object sender, EventArgs e)
+        {
+            this.mindate = GameRequest.GetFormString("mindate");
+            this.maxdate = GameRequest.GetFormString("maxdate");
+            if (!IsPostBack)
+            {
+                BindDatas();
+            }
+        }
+
+        private void BindDatas()
+        {
+            //获取数据................................
+            var pagerSet = aideTreasureFacade.GetFeiqinRecords(pageNum, numPerPage, QueryCondition, OrderBy);
+
+            base.PageBind(rpt, pagerSet);
+        }
+        /// <summary>
+        /// 查询条件............................
+        /// </summary>
+        private string QueryCondition
+        {
+            get
+            {
+                string baseCondition = $"where KindID={123}"; //飞禽走兽的KindID=123
+                string timeCondition = GetTimeCondition("InsertTime", mindate, maxdate);
+                if (!string.IsNullOrEmpty(timeCondition))
+                {
+                    Response.Write(baseCondition + " and " + timeCondition);
+                }                
+                return string.IsNullOrEmpty(timeCondition) ? baseCondition : baseCondition + " and " + timeCondition;
+            }
+        }
+        /// <summary>
+        /// 排序字段+排序方向(如: "DrawID DESC")............................
+        /// </summary>
+        private new string OrderBy
+        {
+            get
+            {
+                if (!string.IsNullOrEmpty(GameRequest.GetFormString("orderField")))
+                {
+                    this.OrderField = GameRequest.GetFormString("orderField");
+                    this.OrderDirection = GameRequest.GetFormString("orderDirection");
+                    string orderField = this.OrderField;
+                    if (orderField != null)
+                    {
+                        switch (orderField)
+                        {
+                            case "DrawID":
+                                {
+                                    this.orderBy_InsertTime_Direction = this.OrderDirection?? "DESC";
+                                    break;
+                                }
+                            default:
+                                break;
+                        }
+                    }
+                    return this.OrderField + " " + this.OrderDirection;                    
+                }
+                return "DrawID DESC";
+            }
+        }
