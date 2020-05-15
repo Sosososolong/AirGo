@@ -26,12 +26,12 @@
     });
 </script>
 
-<!--翻页的时候发送Ajax信息传递的参数 start-->
+<!--翻页或者切换排序的时候发送Ajax信息传递的参数 start-->
 <form id="pagerForm" method="post" action="<%=Request.Url%>">
 <input type="hidden" name="pageNum" value="<%=pageNum %>" />
 <input type="hidden" name="numPerPage" value="<%=numPerPage %>" />
-<input type="hidden" name="orderField" value="<%=OrderField %>" />
-<input type="hidden" name="orderDirection" value="<%=OrderDirection %>" />
+<input type="hidden" name="orderField" value="<%=OrderField %>" /> <!--来自列标题orderfield属性-->
+<input type="hidden" name="orderDirection" value="<%=OrderDirection %>" /> <!--来自列标题class的值(asc/desc)-->
 <input type="hidden" name="keyWord" value="<%=keyWord %>" />
 <input type="hidden" name="isFirstLoad" value="false" />
 <!--将检索表单的信息也放进去, 使得分页的时候也会带上查询条件................-->
@@ -41,6 +41,7 @@
 <!--翻页的时候发送Ajax信息传递的参数 end-->
 
 <div class="pageHeader">
+    <!--有时候仅需要刷新局部div:  onsubmit="return divSearch(this,'jbsxBox');"-->
     <form rel="Form<%=relId %>" onsubmit="return navTabSearch(this);" action="<%=Request.Url%>"
     method="post">
     <div class="searchBar">
@@ -107,6 +108,7 @@
             <li class="line">line</li>
             <li><a class="edit" href="<%=FullPath %>/Module/AccountManager/GrantInfo.aspx?relId=<%=relId %>&userid={sid_user}"
                 target="dialog" rel="grantinfo<%=relId %>" title="更改存款"><span>更改存款</span></a></li>
+            <!--实现双击数据记录即可打开玩家详情页-->
             <li style="display: none;"><a class="icon" href='<%=FullPath %>/Module/AccountManager/UserInfo.aspx?relId=<%=relId %>&userid={sid_user}'
                 target="navTab" rel="edituser<%=relId %>" title="玩家明细"><span>玩家明细</span></a></li>
         </ul>
@@ -153,7 +155,7 @@
             <span>条，共<%=Total %>条</span>
         </div>
         <div class="pagination" targettype="navTab" totalcount="<%=Total %>" numperpage="<%=numPerPage %>"
-            pagenumshown="10" currentpage="<%=pageNum %>">
+            pagenumshown="10" currentpage="<%=pageNum %>"><!--如果需要局部div需添加rel属性: rel="jbsxBox"-->
         </div>
     </div>
 </div>
@@ -178,7 +180,7 @@
         private void BindDatas()
         {
             //获取数据................................
-            var pagerSet = aideTreasureFacade.GetFeiqinRecords(pageNum, numPerPage, QueryCondition, OrderBy);
+            var pagerSet = aideTreasureFacade.GetFeiqinRecords(pageNum, numPerPage, QueryCondition, OrderBy);/
 
             base.PageBind(rpt, pagerSet);
         }
@@ -190,11 +192,7 @@
             get
             {
                 string baseCondition = $"where KindID={123}"; //飞禽走兽的KindID=123
-                string timeCondition = GetTimeCondition("InsertTime", mindate, maxdate);
-                if (!string.IsNullOrEmpty(timeCondition))
-                {
-                    Response.Write(baseCondition + " and " + timeCondition);
-                }                
+                string timeCondition = GetTimeCondition("InsertTime", mindate, maxdate);                               
                 return string.IsNullOrEmpty(timeCondition) ? baseCondition : baseCondition + " and " + timeCondition;
             }
         }

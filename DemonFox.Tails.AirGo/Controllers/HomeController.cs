@@ -552,7 +552,7 @@ namespace DemonFox.Tails.AirGo.Controllers
                     orderByDirectionFields.Add($@"protected string orderBy{colName}Direction = ""desc"";");
                 }
                 sb.Append(FourTabsSpace)
-                    .AppendFormat(@"<th width=""50"" align=""center"">{0}", colName.ToLower().IndexOf("time") >= 0 ? $@"orderfield=""{primaryKey}"" class=""<%= orderBy{colName}Direction %>""" : "") // 按时间排序其实就是按主键排序
+                    .AppendFormat(@"<th width=""50"" align=""center"" {0}>", colName.ToLower().IndexOf("time") >= 0 ? $@"orderfield=""{primaryKey}"" class=""<%= orderBy{colName}Direction %>"">" : "") // 按时间排序其实就是按主键排序
                     .Append(Environment.NewLine)
                     .Append(OneTabSpace + FourTabsSpace)
                     .Append(colName).Append(Environment.NewLine)
@@ -566,7 +566,7 @@ namespace DemonFox.Tails.AirGo.Controllers
             string templateCon = "";
             using (StreamReader reader = new StreamReader(fileStream))
             {                
-                templateCon = reader.ReadToEnd();                
+                templateCon = reader.ReadToEnd();       
             }
             // 替换列标题的部分{ColumnTitles}
             Regex reg = new Regex("{ColumnTitles}");
@@ -581,7 +581,7 @@ namespace DemonFox.Tails.AirGo.Controllers
                 if (columnNames.Contains("UserID") && (colName.IndexOf("GameID") != -1 || colName.IndexOf("Accounts") != -1 || colName.IndexOf("NickName") != -1))
                 {
                     sb.Append($@"<a class=""edit"" href ='/Module/AccountManager/UserInfo.aspx?relId=<%=relId %>&userid=<%#((DataRowView)Container.DataItem)[""UserID""]%>'
-                                target = ""navTab"" rel = ""edituser <%=relId %>"" title = ""玩家明细"" >
+                                target = ""navTab"" rel = ""edituser<%=relId %>"" title = ""玩家明细"" >
                                 <%#Eval(""{colName}"")%></a>");
                 }
                 else
