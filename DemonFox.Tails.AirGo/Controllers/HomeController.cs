@@ -16,7 +16,7 @@ namespace DemonFox.Tails.AirGo.Controllers
 {
     public class HomeController : Controller
     {
-        private DemonProvider db = new DemonProvider();
+        private readonly DemonProvider db = new DemonProvider();
         private string OneTabSpace = "    ";
         private string TwoTabsSpace = "        ";
         private string FourTabsSpace = "                ";     

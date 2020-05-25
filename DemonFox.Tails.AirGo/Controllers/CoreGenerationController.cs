@@ -16,7 +16,7 @@ namespace DemonFox.Tails.AirGo.Controllers
     {
         [Route("Index")]
         public IActionResult Index()
-        {
+        {            
             return View();
         }
         

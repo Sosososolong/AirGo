@@ -1,4 +1,5 @@
-﻿using System;
+﻿using DemonFox.Tails.Core.Entities.Generator;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
@@ -8,12 +9,16 @@ namespace DemonFox.Tails.Utils
 {
     public class SystemCmd
     {
-        public SystemCmd(string companyName, string projectName = "Demo", string mvcProjName = "API", string libCoreName = "Core", string libInfrastructureName = "Infrastructure")
+        public SystemCmd(ProjectInfo projectInfo)
         {
-            SolutionName = string.IsNullOrEmpty(companyName) ? projectName : companyName + "." + projectName;
-            UIProjName = SolutionName + "." + mvcProjName;
-            CoreProjName = SolutionName + "." + libCoreName;
-            InfrastructureProjName = SolutionName + "." + libInfrastructureName;
+            SolutionName = projectInfo.SolutionName;
+            UIProjName = projectInfo.UIProjName;
+            CoreProjName = projectInfo.CoreProjName;
+            InfrastructureProjName = projectInfo.InfrastructureProjName;
+            SolutionFile = projectInfo.SolutionFile;
+            UIProjFile = projectInfo.UIProjFile;
+            CoreProjFile = projectInfo.CoreProjFile;
+            InfrastructureProjFile = projectInfo.InfrastructureProjFile;
         }
         public string SolutionName { get; set; }
         // MVC层的名字，"BlogDemo.API"
@@ -22,10 +27,11 @@ namespace DemonFox.Tails.Utils
         public string CoreProjName { get; set; }
         // Infrastructure层的名字, BlogDemo.Infrastructure
         public string InfrastructureProjName { get; set; }
-        public string SolutionFile => SolutionName + ".sln";
-        public string UIProjFile => UIProjName + ".csproj";
-        public string CoreProjFile => CoreProjName + ".csproj";
-        public string InfrastructureProjFile => InfrastructureProjName + ".csproj";
+
+        public string SolutionFile { get; }
+        public string UIProjFile { get; }
+        public string CoreProjFile { get; }
+        public string InfrastructureProjFile { get; }
 
         // "dotnet cli" - 创建项目
         public string CreateSlnStatement { get { return "dotnet new sln -o " + SolutionName + "; cd " + SolutionName; } }
@@ -60,6 +66,7 @@ namespace DemonFox.Tails.Utils
             //向cmd窗口发送输入信息
             foreach (string cmdItem in cmdStrs)
             {
+                // 执行一个cmd命令
                 await p.StandardInput.WriteLineAsync(cmdItem);
             }
             
