@@ -1,4 +1,5 @@
-﻿using DemonFox.Tails.Utils;
+﻿using DemonFox.Tails.Core.Entities.Generator;
+using DemonFox.Tails.Utils;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -9,32 +10,21 @@ using System.Threading.Tasks;
 namespace DemonFox.Tails.Infrastructure
 {
     public class GeneratorContext
-    {
-        public GeneratorContext(string baseDir, string companyName, string projName)
-        {
-            BaseDir = baseDir;
-            CmdHandler = new SystemCmd(companyName, projName);
-
-            SlnPath = baseDir + "/" + CmdHandler.SolutionName;
-            FileHandler = new FileOp(SlnPath);
-        }
+    {           
         public SystemCmd CmdHandler { get; set; }
         public FileOp FileHandler { get; set; }
-        /// <summary>
-        /// 初始文件夹，包含解决方案文件夹
-        /// </summary>
-        public string BaseDir { get; set; }
-        public List<string> ProjectFiles
-        {
-            get
-            {
-                return FileHandler.FindFilesRecursive(SlnPath);
-            }
+        public ProjectInfo CurrentProject { get; set; }
+
+        public GeneratorContext(string baseDir, string companyName, string projName = "Demo", string uiProjName = "API", string coreProjName = "Core", string infrastructureProjName = "Infrastructure")
+        {                  
+            
+            string solutionName = string.IsNullOrEmpty(companyName) ? projName : companyName + "." + projName;
+            CurrentProject = new ProjectInfo(baseDir, solutionName, uiProjName, coreProjName, infrastructureProjName);
+                                             
+            CmdHandler = new SystemCmd(CurrentProject);
+            FileHandler = new FileOp();
         }
-        /// <summary>
-        /// 解决方案文件夹（"F:/工作/T11/BlogDemo.Auto/BlogDemo"）
-        /// </summary>
-        public string SlnPath { get; }
+        
 
         /// <summary>
         /// 初始化一个项目（包含 API, Core, Infrastructure)
@@ -42,9 +32,9 @@ namespace DemonFox.Tails.Infrastructure
         /// <returns></returns>
         public async Task<string> InitialProjectAsync()
         {
-            if (!Directory.Exists(BaseDir))
+            if (!Directory.Exists(CurrentProject.BaseDir))
             {
-                Directory.CreateDirectory(BaseDir);
+                Directory.CreateDirectory(CurrentProject.BaseDir);
             }
             string result = await CmdHandler.ExeCmdAsync(new List<string> {
                 CmdHandler.CreateSlnStatement
@@ -60,9 +50,9 @@ namespace DemonFox.Tails.Infrastructure
                 CmdHandler.AddinSlnCore
                 ,
                 CmdHandler.AddinSlnInfrastructure
-            }, BaseDir);
+            }, CurrentProject.BaseDir);
             
-            FileHandler.DeleteFiles(ProjectFiles.Where(f => f.EndsWith("Class1.cs")).Select(f=>f).ToList());
+            FileHandler.DeleteFiles(CurrentProject.SolutionFiles.Where(f => f.EndsWith("Class1.cs")).Select(f=>f).ToList());
 
             return result;
         } 

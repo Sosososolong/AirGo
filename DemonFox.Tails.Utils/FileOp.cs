@@ -7,17 +7,11 @@ using System.Text;
 namespace DemonFox.Tails.Utils
 {
     public class FileOp
-    {
-        public string ProjectDir { get; set; }        
-        public FileOp(string slnDir)
-        {
-            ProjectDir = slnDir;
-        }
+    {        
         public void DeleteFiles(List<string> files)
         {
             foreach (string file in files)
-            {
-                Console.WriteLine("Deleting file ................... " + file);
+            {                
                 File.Delete(file);                
             }
         }
