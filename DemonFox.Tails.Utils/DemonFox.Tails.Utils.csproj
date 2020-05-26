@@ -8,4 +8,8 @@
     <PackageReference Include="Microsoft.AspNetCore.App" Version="2.2.6" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\DemonFox.Tails.Core\DemonFox.Tails.Core.csproj" />
+  </ItemGroup>
+
 </Project>
