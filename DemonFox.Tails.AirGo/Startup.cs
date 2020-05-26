@@ -39,7 +39,7 @@ namespace DemonFox.Tails.AirGo
 
             //services.AddScoped<ProjectInfo>(serviceProvider=> {
             //    return new ProjectInfo();
-            });
+            //});
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
