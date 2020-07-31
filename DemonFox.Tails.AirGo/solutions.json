@@ -1,0 +1,59 @@
+﻿{
+  "Type001": {
+    "Describe": "这是一个很小的项目架构方式,所有的操作都集成在了AspNetCore Web项目中",
+    "Paths": [
+      {
+        "Host": "WqlDesktopPC",
+        "Directory": "D:/asp.net/Routine"
+      }
+    ],
+    "Operations": {
+      "OrderByAdd": {
+        "OrderByServicesDir": {
+          "Path": "D:/asp.net/Routine/Routine/Services",
+          "Namespace": "Routine.Services"
+        }
+      },
+      "OrderByDtoToEntityMaping": {
+        "OrderByMappingContainer": "D:/asp.net/Routine/Routine/Services/PropertyMappingService.cs",
+        "ModelsPropertyMapping": "D:/asp.net/Routine/Routine/Services/ModelsPropertyMapping.cs",
+        "PropertyMappingValue": "D:/asp.net/Routine/Routine/Services/PropertyMappingValue.cs",
+        "DtoParametersDirectory": {
+          "Path": "D:\\asp.net\\Routine\\Routine\\DtoParameters",
+          "Namespace": "Routine.DtoParameters"
+        }
+      },
+      "AddActionConstraints": {
+        "Directory": "D:\\asp.net\\Routine\\Routine\\ActionConstraints",
+        "Namespace": "Routine.ActionConstraints"
+      },
+      "AddApiForEntity": {
+        "MyDbContextDirectory": {
+          "Path": "D:\\asp.net\\Routine\\Routine\\Database",
+          "Namespace": "Routine.Database"
+        }
+      },
+      "InitializeCustomDbContext": {
+        "MyDbContextDirectory": {
+          "Path": "D:\\asp.net\\Routine\\Routine\\Database",
+          "Namespace": "Routine.Database"
+        }
+      }
+    },
+    "WebAppProgramFile": "D:\\asp.net\\Routine\\Routine\\Program.cs",
+    "WebAppStartupFile": "D:\\asp.net\\Routine\\Routine\\Startup.cs",
+    "EntityProjectDirectory": {
+      "Path": "D:\\asp.net\\Routine\\Routine",
+      "Namespace": "Routine.Entities"
+    },
+    "DtoProjectDirectory": "D:/asp.net/Routine/Routine",
+    "ExtensionsDirectory": {
+      "Path": "D:\\asp.net\\Routine\\Routine\\Helps",
+      "Namespace": "Routine.Helps"
+    },
+    "RepositoryDirectory": {
+      "Path": "D:\\asp.net\\Routine\\Routine\\Services",
+      "Namespace": "Routine.Services"
+    }
+  }
+}

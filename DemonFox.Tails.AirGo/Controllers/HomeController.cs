@@ -11,6 +11,8 @@ using System.Data.Common;
 using DemonFox.Tails.Database.SqlServer;
 using System.IO;
 using System.Text.RegularExpressions;
+using Newtonsoft.Json.Linq;
+using DemonFox.Tails.Utils;
 
 namespace DemonFox.Tails.AirGo.Controllers
 {
@@ -19,7 +21,36 @@ namespace DemonFox.Tails.AirGo.Controllers
         private readonly DemonProvider db = new DemonProvider();
         private string OneTabSpace = "    ";
         private string TwoTabsSpace = "        ";
-        private string FourTabsSpace = "                ";     
+        private string FourTabsSpace = "                ";
+
+        // ASP.NET Core 项目
+        // 配置文件
+        private static string _operationSettingsFile = "";
+        private static string _currentOperationType = "Type001"; // 项目type001
+
+        // 所有的操作方案
+        private static List<string> _allOperationTypes = new List<string>();
+
+        // 当前操作方案
+        private static dynamic _settingsObj = null;
+
+        // 当前操作方案的所有操作的细节参数配置
+        private static dynamic _operationsInfo = null;
+
+        // 所有操作对应的操作方法
+        private static Dictionary<string, OperationDetails> Operations = new Dictionary<string, OperationDetails>(StringComparer.OrdinalIgnoreCase)
+        {
+            //{"000", new OperationDetails("ChangeOperationType", "修改当前所采用的操作方案", ChangeOperationType) },
+            // {"001", new OperationDetails("AddApiForEntity", "为一个Entity及相关Model完成相关API", AddApiForEntity) },
+            //{"002", new OperationDetails("OrderByAdd", "排序: 添加排序功能(初始化,创建一些文件)", AddOrderBy) },
+            //{"003", new OperationDetails("OrderByDtoToEntityMaping", "排序: 添加Dto到Model的映射", AddDtoToEntityMapForOrderBy) },
+            //{"004", new OperationDetails("AddActionConstraints", "特性: 添加Action约束(通过请求Header的媒体类型约束)", AddActionConstraints) },
+            //{"005", new OperationDetails("InitializeCustomDbContext", "初始化DbContext", InitializeCustomDbContext) },
+            //{"006", new OperationDetails("DbManyToManyRelationship", "多对多的表示方式", DbManyToManyRelationship) },
+            //{"999", new OperationDetails("Test", "TEST: 测试程序", Test) }
+        };
+
+
         /// <summary>
         /// 需要的参数："sql", "connectionString", 
         /// </summary>
@@ -615,10 +646,112 @@ namespace DemonFox.Tails.AirGo.Controllers
         {
             return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
         }
-
+        /// <summary>
+        /// 代码生成首页视图
+        /// </summary>
+        /// <returns></returns>
         public IActionResult Prepare()
         {
+            Init();
             return View();
         }
+
+        private void Init()
+        {
+            // 读取配置
+            GetSettings();
+            // 界面渲染结束
+            // Start();
+        }
+        /// <summary>
+        /// 获取配置文件和配置文件的配置内容
+        /// </summary>
+        private void GetSettings()
+        {
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string settingsFile = baseDir.Remove(baseDir.IndexOf(@"\bin")) + @"\solutions.json";
+            if (!System.IO.File.Exists(settingsFile))
+            {
+                Console.WriteLine($"配置文件{settingsFile}不存在, 将在根目录寻找配置文件");
+                settingsFile = baseDir + @"\solutions.json";
+                if (!System.IO.File.Exists(settingsFile))
+                {
+                    throw new Exception($"配置文件{settingsFile}不存在, 请添加配置文件再重新启动程序!");                    
+                }
+                _operationSettingsFile = settingsFile;
+            }
+
+            // JObject 实现了IEnumerable<KeyValuePair<string, JToken?>>, 可以进行遍历
+            JObject settings = FileOp.SettingsRead(settingsFile);
+
+            // 所有的操作方案
+            foreach (var item in settings)
+            {
+                _allOperationTypes.Add(item.Key);
+            }
+
+            _settingsObj = settings[_currentOperationType];
+
+            _operationsInfo = _settingsObj["Operations"];
+        }
+        /// <summary>
+        /// 显示操作面板
+        /// </summary>
+        //private void Start()
+        //{
+        //    while (true)
+        //    {
+        //        Console.WriteLine();
+        //        Console.WriteLine("请选择需要的操作:");
+        //        ShowOperations();
+        //        string operationNo = Console.ReadLine();
+
+        //        OperationDetails op = null;
+        //        if (Operations.ContainsKey(operationNo))
+        //        {
+        //            op = Operations[operationNo];
+        //        }
+        //        if (op == null)
+        //        {
+        //            Console.WriteLine($"操作编号{operationNo}输入不正确, 请重新输入");
+        //            continue;
+        //        }
+
+        //        // 已经正确得到用户选择的操作, 执行操作
+        //        try
+        //        {
+        //            op.OperationHandler(op);
+        //        }
+        //        catch (Exception ex)
+        //        {
+        //            Console.WriteLine("出错了: " + ex.Message);
+        //            continue;
+        //        }
+
+        //        Console.WriteLine("执行已经完成...");
+        //    }
+        //}
+        private void ShowOperations()
+        {
+            // 从配置文件获取当前解决方案的所有操作(名称)
+            JObject ops = _settingsObj["Operations"]; // 数组是JArray, 得到对象是JObject(实现了IDictionary, 可以按此类型遍历)
+            List<string> allOperationNamesOfCurrentSolution = new List<string>();
+            foreach (var item in ops)
+            {
+                allOperationNamesOfCurrentSolution.Add(item.Key.ToString());
+            }
+            // 为了保证随时能够切换方案和执行测试代码
+            allOperationNamesOfCurrentSolution.Add("ChangeOperationType");
+            allOperationNamesOfCurrentSolution.Add("Test");
+            allOperationNamesOfCurrentSolution.Add("DbManyToManyRelationship");
+            // 过滤出当前操作方案里面有的操作
+            var neededOperations = Operations.Where(kv => allOperationNamesOfCurrentSolution.Contains(kv.Value.OperationName)).Select(kv => kv).ToList();
+            foreach (var item in neededOperations)
+            {
+                Console.WriteLine(item.Key + " " + item.Value.OperationDescribe);
+            }
+        }
+
+
     }
 }
