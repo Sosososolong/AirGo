@@ -13,6 +13,10 @@ using System.IO;
 using System.Text.RegularExpressions;
 using Newtonsoft.Json.Linq;
 using DemonFox.Tails.Utils;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Newtonsoft.Json;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace DemonFox.Tails.AirGo.Controllers
 {
@@ -27,15 +31,16 @@ namespace DemonFox.Tails.AirGo.Controllers
         // 配置文件
         private static string _operationSettingsFile = "";
         private static string _currentOperationType = "Type001"; // 项目type001
+        private static string _currentOperationPath = "Path001"; // 表示不同的项目, 相同类型的项目可能会有好几个, 解决方案目录和项目根目录相关信息
 
         // 所有的操作方案
         private static List<string> _allOperationTypes = new List<string>();
 
-        // 当前操作方案
-        private static dynamic _settingsObj = null;
+        // 当前操作方案 - settings[_currentOperationType]
+        private static dynamic _settingsObj;
 
         // 当前操作方案的所有操作的细节参数配置
-        private static dynamic _operationsInfo = null;
+        private static dynamic _operationsInfo;
 
         // 所有操作对应的操作方法
         private static Dictionary<string, OperationDetails> Operations = new Dictionary<string, OperationDetails>(StringComparer.OrdinalIgnoreCase)
@@ -49,6 +54,12 @@ namespace DemonFox.Tails.AirGo.Controllers
             //{"006", new OperationDetails("DbManyToManyRelationship", "多对多的表示方式", DbManyToManyRelationship) },
             //{"999", new OperationDetails("Test", "TEST: 测试程序", Test) }
         };
+
+        private readonly IWebHostEnvironment _env;
+        public HomeController(IWebHostEnvironment env)
+        {
+            _env = env ?? throw new ArgumentNullException(nameof(env));
+        }
 
 
         /// <summary>
@@ -651,107 +662,101 @@ namespace DemonFox.Tails.AirGo.Controllers
         /// </summary>
         /// <returns></returns>
         public IActionResult Prepare()
-        {
-            Init();
+        {            
+            if (Request.Method != "GET" || _operationsInfo == null)
+            {
+                ViewBag.Cached = "NOCACHED";                
+                Init();
+                return View();
+            }
+            ViewBag.Cached = "CACHED";
+            SetDataForFronted();
             return View();
         }
 
         private void Init()
-        {
-            // 读取配置
+        {            
+            // 读取配置文件的相关信息
             GetSettings();
-            // 界面渲染结束
-            // Start();
+            // 传值给前端
+            SetDataForFronted();
         }
         /// <summary>
         /// 获取配置文件和配置文件的配置内容
         /// </summary>
         private void GetSettings()
-        {
-            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            string settingsFile = baseDir.Remove(baseDir.IndexOf(@"\bin")) + @"\solutions.json";
+        {            
+            string settingsFile = Path.Combine(_env.ContentRootPath, "solutions.json");
             if (!System.IO.File.Exists(settingsFile))
-            {
-                Console.WriteLine($"配置文件{settingsFile}不存在, 将在根目录寻找配置文件");
-                settingsFile = baseDir + @"\solutions.json";
-                if (!System.IO.File.Exists(settingsFile))
-                {
-                    throw new Exception($"配置文件{settingsFile}不存在, 请添加配置文件再重新启动程序!");                    
-                }
-                _operationSettingsFile = settingsFile;
+            {                
+                throw new Exception($"配置文件{settingsFile}不存在, 请添加配置文件再重新启动程序!");                
             }
+            _operationSettingsFile = settingsFile;
 
+            string settingsStringContent = FileOp.Read(settingsFile);
             // JObject 实现了IEnumerable<KeyValuePair<string, JToken?>>, 可以进行遍历
             JObject settings = FileOp.SettingsRead(settingsFile);
 
+            // 处理配置文件中的模板变量
+            settings = ReplaceSettingsTemplateVariable(settingsStringContent, settings);
+
             // 所有的操作方案
+            _allOperationTypes.RemoveAll(s => true); // 重新赋值的时候, 需要先清空
             foreach (var item in settings)
-            {
+            {            
                 _allOperationTypes.Add(item.Key);
-            }
+            }            
 
             _settingsObj = settings[_currentOperationType];
 
-            _operationsInfo = _settingsObj["Operations"];
+            // 数组是JArray, 对象是JObject(实现了IDictionary, 可以按此类型遍历)   
+            _operationsInfo = _settingsObj["Operations"];                        
         }
-        /// <summary>
-        /// 显示操作面板
-        /// </summary>
-        //private void Start()
-        //{
-        //    while (true)
-        //    {
-        //        Console.WriteLine();
-        //        Console.WriteLine("请选择需要的操作:");
-        //        ShowOperations();
-        //        string operationNo = Console.ReadLine();
 
-        //        OperationDetails op = null;
-        //        if (Operations.ContainsKey(operationNo))
-        //        {
-        //            op = Operations[operationNo];
-        //        }
-        //        if (op == null)
-        //        {
-        //            Console.WriteLine($"操作编号{operationNo}输入不正确, 请重新输入");
-        //            continue;
-        //        }
-
-        //        // 已经正确得到用户选择的操作, 执行操作
-        //        try
-        //        {
-        //            op.OperationHandler(op);
-        //        }
-        //        catch (Exception ex)
-        //        {
-        //            Console.WriteLine("出错了: " + ex.Message);
-        //            continue;
-        //        }
-
-        //        Console.WriteLine("执行已经完成...");
-        //    }
-        //}
-        private void ShowOperations()
+        private void SetDataForFronted()
         {
-            // 从配置文件获取当前解决方案的所有操作(名称)
-            JObject ops = _settingsObj["Operations"]; // 数组是JArray, 得到对象是JObject(实现了IDictionary, 可以按此类型遍历)
-            List<string> allOperationNamesOfCurrentSolution = new List<string>();
-            foreach (var item in ops)
-            {
-                allOperationNamesOfCurrentSolution.Add(item.Key.ToString());
-            }
-            // 为了保证随时能够切换方案和执行测试代码
-            allOperationNamesOfCurrentSolution.Add("ChangeOperationType");
-            allOperationNamesOfCurrentSolution.Add("Test");
-            allOperationNamesOfCurrentSolution.Add("DbManyToManyRelationship");
-            // 过滤出当前操作方案里面有的操作
-            var neededOperations = Operations.Where(kv => allOperationNamesOfCurrentSolution.Contains(kv.Value.OperationName)).Select(kv => kv).ToList();
-            foreach (var item in neededOperations)
-            {
-                Console.WriteLine(item.Key + " " + item.Value.OperationDescribe);
-            }
+            ViewBag.OperationInfo = _operationsInfo;
+
+            ViewBag.CurrentPath = _currentOperationPath;
+            ViewBag.CurrentType = _currentOperationType;
+            ViewBag.OperationTypes = _allOperationTypes;
+            ViewBag.ProjectPathInfos = _settingsObj["Paths"];
         }
 
+        private JObject ReplaceSettingsTemplateVariable(string allSettingsString, JObject allSettingsObj)
+        {
+            JObject currentProjectPathInfo = allSettingsObj[_currentOperationType]["Paths"][_currentOperationPath] as JObject;
+            foreach (var item in currentProjectPathInfo)
+            {
+                string template = $@"{{{item.Key}}}";
+                string value = item.Value.ToString();
+                
+                Regex regex = new Regex(template);
+                allSettingsString = regex.Replace(allSettingsString, value);
+            }
+            return JsonConvert.DeserializeObject(allSettingsString) as JObject;
+        }
 
+        // 切换项目
+        public IActionResult ChangingProject()
+        {
+            string target = Request.Form["target"];
+            string value = Request.Form["value"];
+            if (target == "type") // 对项目类型进行切换
+            {
+                _currentOperationPath = "Path001"; // 将项目目录切换到Path001, 因为当前的项目类型的项目路径可能只有Path001
+                _currentOperationType = value;
+            }
+            else if (target == "path") // 同项目类型切换项目
+            {
+                _currentOperationPath = value;
+            }
+            GetSettings();
+            return Content($@"{{""code"": 1, ""msg"": """", ""data"": {JsonConvert.SerializeObject(_settingsObj["Paths"])}}}");
+        }
+        public IActionResult Test()
+        {
+                       
+        }
     }
 }

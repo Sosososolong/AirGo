@@ -254,9 +254,10 @@ namespace DemonFox.Tails.Utils
         /// <summary>
         /// 获取json文件的内容并反序列化为对象
         /// </summary>
-        /// <param name="settingsFile"></param>
+        /// <param name="settingsFile">json配置文件</param>
+        /// <param name="settingsHandler">反序列化前对配置文件的内容进行预处理</param>
         /// <returns></returns>
-        public static dynamic SettingsRead(string settingsFile)
+        public static dynamic SettingsRead(string settingsFile, Func<string, string> settingsHandler = null)
         {
             if (!File.Exists(settingsFile))
             {
@@ -313,7 +314,7 @@ namespace DemonFox.Tails.Utils
         }
 
         /// <summary>
-        /// 使用UTF8编码将内容写入文件
+        /// 将内容写入文件
         /// </summary>
         /// <param name="file"></param>
         /// <param name="input"></param>

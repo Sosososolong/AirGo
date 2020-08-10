@@ -1,59 +1,123 @@
 ﻿{
   "Type001": {
-    "Describe": "这是一个很小的项目架构方式,所有的操作都集成在了AspNetCore Web项目中",
-    "Paths": [
-      {
+    "Describe": "很小的项目架构方式,所有的操作都集成在了AspNetCore Web项目中",
+    "Paths": {
+      "Path001": {
         "Host": "WqlDesktopPC",
-        "Directory": "D:/asp.net/Routine"
+        "SolutionDirectory": "D:/asp.net/Routine",
+        "ClientPosition": "Routine"
       }
-    ],
+    },
     "Operations": {
       "OrderByAdd": {
         "OrderByServicesDir": {
-          "Path": "D:/asp.net/Routine/Routine/Services",
-          "Namespace": "Routine.Services"
+          "Path": "{SolutionDirectory}/{ClientPosition}/Services",
+          "Namespace": "{ClientPosition}.Services"
         }
       },
       "OrderByDtoToEntityMaping": {
-        "OrderByMappingContainer": "D:/asp.net/Routine/Routine/Services/PropertyMappingService.cs",
-        "ModelsPropertyMapping": "D:/asp.net/Routine/Routine/Services/ModelsPropertyMapping.cs",
-        "PropertyMappingValue": "D:/asp.net/Routine/Routine/Services/PropertyMappingValue.cs",
+        "OrderByMappingContainer": "{SolutionDirectory}/{ClientPosition}/Services/PropertyMappingService.cs",
+        "ModelsPropertyMapping": "{SolutionDirectory}/{ClientPosition}/Services/ModelsPropertyMapping.cs",
+        "PropertyMappingValue": "{SolutionDirectory}/{ClientPosition}/Services/PropertyMappingValue.cs",
         "DtoParametersDirectory": {
-          "Path": "D:\\asp.net\\Routine\\Routine\\DtoParameters",
-          "Namespace": "Routine.DtoParameters"
+          "Path": "{SolutionDirectory}/{ClientPosition}/DtoParameters",
+          "Namespace": "{ClientPosition}.DtoParameters"
         }
       },
       "AddActionConstraints": {
-        "Directory": "D:\\asp.net\\Routine\\Routine\\ActionConstraints",
-        "Namespace": "Routine.ActionConstraints"
+        "Directory": "{SolutionDirectory}/{ClientPosition}/ActionConstraints",
+        "Namespace": "{ClientPosition}.ActionConstraints"
       },
       "AddApiForEntity": {
         "MyDbContextDirectory": {
-          "Path": "D:\\asp.net\\Routine\\Routine\\Database",
-          "Namespace": "Routine.Database"
+          "Path": "{SolutionDirectory}/{ClientPosition}/Database",
+          "Namespace": "{ClientPosition}.Database"
         }
       },
       "InitializeCustomDbContext": {
         "MyDbContextDirectory": {
-          "Path": "D:\\asp.net\\Routine\\Routine\\Database",
-          "Namespace": "Routine.Database"
+          "Path": "{SolutionDirectory}/{ClientPosition}/Database",
+          "Namespace": "{ClientPosition}.Database"
         }
       }
     },
-    "WebAppProgramFile": "D:\\asp.net\\Routine\\Routine\\Program.cs",
-    "WebAppStartupFile": "D:\\asp.net\\Routine\\Routine\\Startup.cs",
+    "WebAppProgramFile": "{SolutionDirectory}/{ClientPosition}/Program.cs",
+    "WebAppStartupFile": "{SolutionDirectory}/{ClientPosition}/Startup.cs",
     "EntityProjectDirectory": {
-      "Path": "D:\\asp.net\\Routine\\Routine",
-      "Namespace": "Routine.Entities"
+      "Path": "{SolutionDirectory}/{ClientPosition}",
+      "Namespace": "{ClientPosition}.Entities"
     },
-    "DtoProjectDirectory": "D:/asp.net/Routine/Routine",
+    "DtoProjectDirectory": "{SolutionDirectory}/{ClientPosition}",
     "ExtensionsDirectory": {
-      "Path": "D:\\asp.net\\Routine\\Routine\\Helps",
-      "Namespace": "Routine.Helps"
+      "Path": "{SolutionDirectory}/{ClientPosition}/Helps",
+      "Namespace": "{ClientPosition}.Helps"
     },
     "RepositoryDirectory": {
-      "Path": "D:\\asp.net\\Routine\\Routine\\Services",
-      "Namespace": "Routine.Services"
+      "Path": "{SolutionDirectory}/{ClientPosition}/Services",
+      "Namespace": "{ClientPosition}.Services"
+    }
+  },
+  "Type002": {
+    "Describe": "嘻嘻嘻嘻xxxxxx",
+    "Paths": {
+      "Path001": {
+        "Host": "WqlDesktopPC",
+        "SolutionDirectory": "E:/asp.net/Routine",
+        "ClientPosition": "MyRoutine"
+      },
+      "Path002": {
+        "Host": "WqlDesktopPC",
+        "SolutionDirectory": "E:/asp.net/Routine",
+        "ClientPosition": "MyRoutine"
+      }
+    },
+    "Operations": {
+      "OrderByAdd": {
+        "OrderByServicesDir": {
+          "Path": "{SolutionDirectory}/{ClientPosition}/Services",
+          "Namespace": "{ClientPosition}.Services"
+        }
+      },
+      "OrderByDtoToEntityMaping": {
+        "OrderByMappingContainer": "{SolutionDirectory}/{ClientPosition}/Services/PropertyMappingService.cs",
+        "ModelsPropertyMapping": "{SolutionDirectory}/{ClientPosition}/Services/ModelsPropertyMapping.cs",
+        "PropertyMappingValue": "{SolutionDirectory}/{ClientPosition}/Services/PropertyMappingValue.cs",
+        "DtoParametersDirectory": {
+          "Path": "{SolutionDirectory}/{ClientPosition}/DtoParameters",
+          "Namespace": "{ClientPosition}.DtoParameters"
+        }
+      },
+      "AddActionConstraints": {
+        "Directory": "{SolutionDirectory}/{ClientPosition}/ActionConstraints",
+        "Namespace": "{ClientPosition}.ActionConstraints"
+      },
+      "AddApiForEntity": {
+        "MyDbContextDirectory": {
+          "Path": "{SolutionDirectory}/{ClientPosition}/Database",
+          "Namespace": "{ClientPosition}.Database"
+        }
+      },
+      "InitializeCustomDbContext": {
+        "MyDbContextDirectory": {
+          "Path": "{SolutionDirectory}/{ClientPosition}/Database",
+          "Namespace": "{ClientPosition}.Database"
+        }
+      }
+    },
+    "WebAppProgramFile": "{SolutionDirectory}/{ClientPosition}/Program.cs",
+    "WebAppStartupFile": "{SolutionDirectory}/{ClientPosition}/Startup.cs",
+    "EntityProjectDirectory": {
+      "Path": "{SolutionDirectory}/{ClientPosition}",
+      "Namespace": "{ClientPosition}.Entities"
+    },
+    "DtoProjectDirectory": "{SolutionDirectory}/{ClientPosition}",
+    "ExtensionsDirectory": {
+      "Path": "{SolutionDirectory}/{ClientPosition}/Helps",
+      "Namespace": "{ClientPosition}.Helps"
+    },
+    "RepositoryDirectory": {
+      "Path": "{SolutionDirectory}/{ClientPosition}/Services",
+      "Namespace": "{ClientPosition}.Services"
     }
   }
 }
