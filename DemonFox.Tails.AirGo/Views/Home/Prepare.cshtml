@@ -1,14 +1,19 @@
 ﻿
 @{
-    ViewData["Title"] = "Prepare";     
+    ViewData["Title"] = "Prepare";
+    Newtonsoft.Json.Linq.JObject OperationInfo = ViewBag.OperationInfo;
 }
     <div class="container">
-        <p>            
+        <p>
             <button class="btn btn-primary" type="button" data-toggle="collapse" data-target="#generateCodeBySql" aria-expanded="false" aria-controls="generateCodeBySql">
                 Generate code by sql
             </button>
+            <button class="btn btn-primary" type="button" data-toggle="collapse" data-target="#aspNetCoreGenerator" aria-expanded="false" aria-controls="aspNetCoreGenerator">
+                ASP.NET Core Generator
+            </button>
         </p>
         <div class="collapse" id="generateCodeBySql">
+            <div class="card-header">通过sql语句生成webform的前台后台代码</div>
             <div class="card card-body">
                 <form class="needs-validation" method="post" action="" novalidate>
                     <div class="form-group">
@@ -89,29 +94,126 @@
 
             </div>
         </div>
-    </div>
 
-    @section Scripts{
-        <script>
-            $('form button').click(function () {
-                var target_url = $(this).attr('target-action');
-                $('form').attr('action', target_url)
-            })  
+        <div class="collapse" id="aspNetCoreGenerator">
+            <div class="card-header">
+                <div class="form-row">
+                    <div class="form-group col-md-6">
+                        <label for="operationTypeInfo">项目类型</label>
+                        <select class="form-control projects-select" id="operationTypeInfo" target-type="type">
+                            <option value="hello">hello</option>
+                            @foreach (string item in ViewBag.OperationTypes)
+                            {
+                                @if (item == ViewBag.CurrentType as string)
+                                {
+                                    <option value="@item" selected="selected">@item</option>
+                                }
+                                else
+                                {
+                                    <option value="@item">@item</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="form-group col-md-6">
+                        <label id="operatinPathInfo">项目路径</label>
+                        <select class="form-control projects-select" id="operatinPathInfo" target-type="path">                            
+                            @foreach (var item in ViewBag.ProjectPathInfos as Newtonsoft.Json.Linq.JObject)
+                            {
+                                @if (ViewBag.CurrentPath as string == item.Key)
+                                {
+                                    <option value="@item.Key" selected="selected" data-toggle="tooltip" data-placement="right" title="@item.Value["SolutionDirectory"] - @item.Value["ClientPosition"]">@item.Key</option>
+                                }
+                                else
+                                {
+                                    <option value="@item.Key" data-toggle="tooltip" data-placement="right" title="@item.Value["SolutionDirectory"] - @item.Value["ClientPosition"]">@item.Key</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="card card-body">
+                <p>
+                    <button class="btn btn-outline-info" type="button">
+                        创建新项目(WebApp)
+                    </button>
+                    <button class="btn btn-outline-info" type="button">
+                        创建新项目(WebApp/Core/Infrastructure)
+                    </button>
+                </p>
+            </div>
+        </div>
 
-            $(function () {
-                // Fetch all the forms we want to apply custom Bootstrap validation styles to
-                var forms = document.getElementsByClassName('needs-validation');
-                // Loop over them and prevent submission
-                var validation = Array.prototype.filter.call(forms, function(form) {
-                  form.addEventListener('submit', function(event) {
-                    if (form.checkValidity() === false) {
-                      event.preventDefault();
-                      event.stopPropagation();
-                    }
-                    form.classList.add('was-validated');
-                  }, false);
-                });
-            })
-        </script>
-    }
+        <!--模态框-->
+        <div class="modal" tabindex="-1" role="dialog" id="myLoadingModal">
+            <div class="modal-dialog modal-dialog-centered modal-sm">
+                <div class="modal-content bg-transparent">
+                    @*<div class="modal-header">Title</div>*@
+                    <div class="modal-body" style="text-align:center;">
+                        loading...
+                    </div>
+                    @*<div class="modal-footer">Footer</div>*@
+                </div>
+            </div>
+        </div>        
+
+        @section Scripts{
+                <script>
+                // 根据点击的按钮, 改变表单访问的接口
+                $('form button').click(function () {
+                    var target_url = $(this).attr('target-action');
+                    $('form').attr('action', target_url)
+                })
+                $(function () {
+                    // Fetch all the forms we want to apply custom Bootstrap validation styles to
+                    var forms = document.getElementsByClassName('needs-validation');
+                    // Loop over them and prevent submission
+                    var validation = Array.prototype.filter.call(forms, function (form) {
+                        form.addEventListener('submit', function (event) {
+                            if (form.checkValidity() === false) {
+                                event.preventDefault();
+                                event.stopPropagation();
+                            }
+                            form.classList.add('was-validated');
+                        }, false);
+                    });
+
+                    // 切换项目
+                    $('.projects-select').change(async function () {
+                        let currentSelect = $(this);
+
+                        $('#myLoadingModal').modal('show');
+                        var result = await $.ajax({
+                            type: "post",
+                            url: "ChangingProject",
+                            data: { "target": currentSelect.attr("target-type"), "value": currentSelect.val() },
+                            dataType: "json",
+                            xhrFields: {
+                                withCredentials: true  // 请求头会带上origin字段，配合服务端Access-Control-Allow-Origin设置的值与之对应即可实现跨域
+                            },
+                        });
+                        $('#myLoadingModal').modal('hide');
+                        
+                        if (currentSelect.attr("target-type") == 'type') { // 如果项目类型的改变的话, 重新加载该类型下项目路径
+                            $('.projects-select').last().empty();
+                            $.each(result.data, function (key, value) {
+                                $('.projects-select').last().append("<option value='" + key + "' data-toggle='tooltip' data-placement='right' title= '" + value.SolutionDirectory + " - " + value.ClientPosition + "'>" + key + "</option>")
+                            });
+                        }                                                
+                    })
+                })
+
+                async function test() {
+                    //var result = await $.ajax({
+                    //    type: "post",
+                    //    url: "Test",
+                    //    xhrFields: {
+                    //        withCredentials: true  // 请求头会带上origin字段，配合服务端Access-Control-Allow-Origin设置的值与之对应即可实现跨域
+                    //    },
+                    //});
+                    //$('#btnTest').text(result);
+                }
+                </script>
+        }
 

@@ -37,6 +37,7 @@ namespace DemonFox.Tails.AirGo
                 options.EnableEndpointRouting = false;
             });
 
+            
             //services.AddScoped<ProjectInfo>(serviceProvider=> {
             //    return new ProjectInfo();
             //});
