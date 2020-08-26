@@ -100,24 +100,23 @@
                 <div class="form-row">
                     <div class="form-group col-md-6">
                         <label for="operationTypeInfo">项目类型</label>
-                        <select class="form-control projects-select" id="operationTypeInfo" target-type="type">
-                            <option value="hello">hello</option>
-                            @foreach (string item in ViewBag.OperationTypes)
+                        <select class="form-control projects-select" id="operationTypeInfo" target-type="type">                            
+                            @foreach (Tuple<string, Newtonsoft.Json.Linq.JObject> type in ViewBag.OperationTypes)
                             {
-                                @if (item == ViewBag.CurrentType as string)
+                                @if (type.Item1 == ViewBag.CurrentType as string)
                                 {
-                                    <option value="@item" selected="selected">@item</option>
+                                    <option value="@type.Item1" selected="selected" data-toggle="tooltip" data-placement="right" title="@type.Item2["Describe"]">@type.Item1</option>
                                 }
                                 else
                                 {
-                                    <option value="@item">@item</option>
+                                    <option value="@type.Item1" data-toggle="tooltip" data-placement="right" title="@type.Item2["Describe"]">@type.Item1</option>
                                 }
                             }
                         </select>
                     </div>
                     <div class="form-group col-md-6">
                         <label id="operatinPathInfo">项目路径</label>
-                        <select class="form-control projects-select" id="operatinPathInfo" target-type="path">                            
+                        <select class="form-control projects-select" id="operatinPathInfo" target-type="path">
                             @foreach (var item in ViewBag.ProjectPathInfos as Newtonsoft.Json.Linq.JObject)
                             {
                                 @if (ViewBag.CurrentPath as string == item.Key)
@@ -135,11 +134,14 @@
             </div>
             <div class="card card-body">
                 <p>
-                    <button class="btn btn-outline-info" type="button">
+                    @*<button class="btn btn-outline-info" type="button">
                         创建新项目(WebApp)
                     </button>
                     <button class="btn btn-outline-info" type="button">
                         创建新项目(WebApp/Core/Infrastructure)
+                    </button>*@
+                    <button class="btn btn-outline-info operation" type="button" action-name="InitializeCustomDbContext">
+                        添加Entity Framework Core
                     </button>
                 </p>
             </div>
@@ -156,10 +158,10 @@
                     @*<div class="modal-footer">Footer</div>*@
                 </div>
             </div>
-        </div>        
+        </div>
 
         @section Scripts{
-                <script>
+            <script>                
                 // 根据点击的按钮, 改变表单访问的接口
                 $('form button').click(function () {
                     var target_url = $(this).attr('target-action');
@@ -194,14 +196,28 @@
                             },
                         });
                         $('#myLoadingModal').modal('hide');
-                        
+
                         if (currentSelect.attr("target-type") == 'type') { // 如果项目类型的改变的话, 重新加载该类型下项目路径
                             $('.projects-select').last().empty();
                             $.each(result.data, function (key, value) {
                                 $('.projects-select').last().append("<option value='" + key + "' data-toggle='tooltip' data-placement='right' title= '" + value.SolutionDirectory + " - " + value.ClientPosition + "'>" + key + "</option>")
                             });
-                        }                                                
+                        }
                     })
+
+                    // 对项目进行操作
+                    $('.operation').click(async function () {
+                        var result = await $.ajax({
+                            type: "post",
+                            url: $(this).attr("action-name"),
+                            data: {},
+                            dataType: "json",
+                            xhrFields: {
+                                withCredentials: true
+                            }
+                        })
+                        
+                    });
                 })
 
                 async function test() {
@@ -214,6 +230,8 @@
                     //});
                     //$('#btnTest').text(result);
                 }
-                </script>
+            </script>
         }
-
+        <!--test-->
+    
+    </div>

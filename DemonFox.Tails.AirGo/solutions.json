@@ -5,7 +5,14 @@
       "Path001": {
         "Host": "WqlDesktopPC",
         "SolutionDirectory": "D:/asp.net/Routine",
-        "ClientPosition": "Routine"
+        "ClientPosition": "Routine",
+        "ConnectionStrings": "Data Source=routine.db"
+      },
+      "Path002": {
+        "Host": "WqlDesktopPC",
+        "SolutionDirectory": "D:/asp.net/Routine",
+        "ClientPosition": "PracticeRoutine",
+        "ConnectionStrings": "Data Source=practiceRoutine.db"
       }
     },
     "Operations": {
@@ -20,40 +27,41 @@
         "ModelsPropertyMapping": "{SolutionDirectory}/{ClientPosition}/Services/ModelsPropertyMapping.cs",
         "PropertyMappingValue": "{SolutionDirectory}/{ClientPosition}/Services/PropertyMappingValue.cs",
         "DtoParametersDirectory": {
-          "Path": "{SolutionDirectory}/{ClientPosition}/DtoParameters",
+          "Path": "{SolutionDirectory}/{ClientPosition}/DtoParameters/",
           "Namespace": "{ClientPosition}.DtoParameters"
         }
       },
       "AddActionConstraints": {
-        "Directory": "{SolutionDirectory}/{ClientPosition}/ActionConstraints",
+        "Directory": "{SolutionDirectory}/{ClientPosition}/ActionConstraints/",
         "Namespace": "{ClientPosition}.ActionConstraints"
       },
       "AddApiForEntity": {
         "MyDbContextDirectory": {
-          "Path": "{SolutionDirectory}/{ClientPosition}/Database",
+          "Path": "{SolutionDirectory}/{ClientPosition}/Database/",
           "Namespace": "{ClientPosition}.Database"
         }
       },
-      "InitializeCustomDbContext": {
+      "InitializeCustomDbContext": {        
         "MyDbContextDirectory": {
-          "Path": "{SolutionDirectory}/{ClientPosition}/Database",
+          "Path": "{SolutionDirectory}/{ClientPosition}/Database/",
           "Namespace": "{ClientPosition}.Database"
         }
       }
     },
     "WebAppProgramFile": "{SolutionDirectory}/{ClientPosition}/Program.cs",
     "WebAppStartupFile": "{SolutionDirectory}/{ClientPosition}/Startup.cs",
+    "WebAppProjectDirectory": "{SolutionDirectory}/{ClientPosition}/",
     "EntityProjectDirectory": {
-      "Path": "{SolutionDirectory}/{ClientPosition}",
+      "Path": "{SolutionDirectory}/{ClientPosition}/",
       "Namespace": "{ClientPosition}.Entities"
     },
-    "DtoProjectDirectory": "{SolutionDirectory}/{ClientPosition}",
+    "DtoProjectDirectory": "{SolutionDirectory}/{ClientPosition}/",
     "ExtensionsDirectory": {
-      "Path": "{SolutionDirectory}/{ClientPosition}/Helps",
+      "Path": "{SolutionDirectory}/{ClientPosition}/Helps/",
       "Namespace": "{ClientPosition}.Helps"
     },
     "RepositoryDirectory": {
-      "Path": "{SolutionDirectory}/{ClientPosition}/Services",
+      "Path": "{SolutionDirectory}/{ClientPosition}/Services/",
       "Namespace": "{ClientPosition}.Services"
     }
   },
