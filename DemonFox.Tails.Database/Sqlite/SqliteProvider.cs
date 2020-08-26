@@ -1,24 +1,25 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Text;
+using System.Data.SQLite;
 using System.Data;
 using System.Data.Common;
-using System.Data.SqlClient;
 
-namespace DemonFox.Tails.Database.SqlServer
+namespace DemonFox.Tails.Database.Sqlite
 {
-    public class DemonProvider
-    {        
+    public class SqliteProvider
+    {
         /// <summary>
         /// 数据库连接字符串
         /// </summary>
-        private string _connectionString;
-        public string ConnectionString
+        private static string _connectionString;
+        public static string ConnectionString
         {
             get
             {
-                //....
                 if (string.IsNullOrEmpty(_connectionString))
                 {
-                    _connectionString = "server=.;uid=sa;pwd=123456;database=T10";
+                    throw new Exception("未设置数据库连接字符串");
                 }
                 return _connectionString;
             }
@@ -27,7 +28,6 @@ namespace DemonFox.Tails.Database.SqlServer
                 _connectionString = value;
             }
         }
-
         /// <summary>
         /// 获取与某个C#数据类型对应的在SQL server数据库中的类型
         /// </summary>
@@ -81,7 +81,6 @@ namespace DemonFox.Tails.Database.SqlServer
             }
             return SqlDbType.Int;
         }
-
         /// <summary>
         /// 执行sql语句,获取DataSet
         /// </summary>
@@ -90,7 +89,7 @@ namespace DemonFox.Tails.Database.SqlServer
         /// <param name="commandText"></param>
         /// <param name="dbParameters"></param>
         /// <returns></returns>
-        public DataSet ExecuteDataset(DbConnection connection, CommandType commandType, string commandText, params DbParameter[] dbParameters)
+        public DataSet ExecuteDataset(SQLiteConnection connection, CommandType commandType, string commandText, SQLiteParameterCollection dbParameters)
         {
             //验证连接字符串
             if (connection == null)
@@ -98,10 +97,11 @@ namespace DemonFox.Tails.Database.SqlServer
                 throw new Exception("ConnectionString Empty");
             }
 
-            DbCommand command = SqlClientFactory.Instance.CreateCommand();
+            SQLiteCommand command = new SQLiteCommand();
             bool mustCloseConn = false;
             PrepareCommand(connection, command, null, commandType, commandText, dbParameters, out mustCloseConn);
-            using (DbDataAdapter adapter = SqlClientFactory.Instance.CreateDataAdapter())
+            
+            using (SQLiteDataAdapter adapter = new SQLiteDataAdapter())
             {
                 adapter.SelectCommand = command;
                 DataSet dataSet = new DataSet();
@@ -117,7 +117,6 @@ namespace DemonFox.Tails.Database.SqlServer
             }
 
         }
-
         /// <summary>
         /// 执行SQL语句之前的准备工作
         /// </summary>
@@ -128,7 +127,7 @@ namespace DemonFox.Tails.Database.SqlServer
         /// <param name="commandText"></param>
         /// <param name="commandParameters"></param>
         /// <param name="mustCloseConn"></param>
-        private void PrepareCommand(DbConnection connection, DbCommand command, DbTransaction transaction, CommandType commandType, string commandText, DbParameter[] commandParameters, out bool mustCloseConn)
+        private void PrepareCommand(DbConnection connection, DbCommand command, DbTransaction transaction, CommandType commandType, string commandText, SQLiteParameterCollection commandParameters, out bool mustCloseConn)
         {
             if (connection.State != ConnectionState.Open)
             {
@@ -152,11 +151,10 @@ namespace DemonFox.Tails.Database.SqlServer
             command.CommandType = commandType;
             if (commandParameters != null)
             {
-                this.AttachParameters(command, commandParameters);
+                AttachParameters(command, commandParameters);
             }
         }
-
-        private void AttachParameters(DbCommand command, DbParameter[] commandParameters)
+        private void AttachParameters(DbCommand command, SQLiteParameterCollection commandParameters)
         {
             if (command == null)
             {
@@ -178,100 +176,6 @@ namespace DemonFox.Tails.Database.SqlServer
             }
         }
 
-        //...........................................................................................................
-
-        public DataSet ExecuteQuerySql(string sqlStr, DbParameter[] parameters)
-        {
-            //初始化 与数据库交互的一些对象
-            DbConnection conn = SqlClientFactory.Instance.CreateConnection();
-            DbCommand command = SqlClientFactory.Instance.CreateCommand();
-
-            conn.ConnectionString = ConnectionString;
-            conn.Open();
-
-            command.Connection = conn;
-            command.CommandType = CommandType.Text;
-            command.CommandText = sqlStr;
-
-            if (parameters.Length > 0)
-            {
-                AttachParametersForSql(command, parameters);
-            }
-
-            DataSet dataSet = new DataSet();
-            using (DbDataAdapter adapter = SqlClientFactory.Instance.CreateDataAdapter())
-            {
-                adapter.SelectCommand = command;
-                adapter.Fill(dataSet);
-                command.Parameters.Clear();
-                conn.Close();
-            }
-            return dataSet;
-        }
-
-        /// <summary>
-        /// 当SQL语句有非字符串参数的时候, 创建一个DbParameter参数对象, 不用指定参数的长度
-        /// </summary>
-        /// <param name="paramName">参数名称</param>
-        /// <param name="paramValue">参数的值</param>
-        /// <returns></returns>
-        public DbParameter CreateDbParameter(string paramName, object paramValue)
-        {
-            SqlParameter parameter = new SqlParameter();
-            //设置参数名称
-            parameter.ParameterName = paramName;
-            //设置参数类型
-            if (parameter != null)
-            {
-                parameter.SqlDbType = (SqlDbType)ConvertToLocalDbType(paramValue.GetType());
-            }
-            //设置参数值
-            parameter.Value = paramValue == null ? DBNull.Value : paramValue;
-            //设置参数传入还是传出方向, 默认传入
-            parameter.Direction = ParameterDirection.Input;
-            return parameter;
-        }
-
-        /// <summary>
-        /// 当SQL语句有字符串参数的时候, 创建一个DbParameter参数对象, 需指定参数长度, 可以让数据库重用执行计划, 提高SQL执行速度
-        /// </summary>
-        /// <param name="paramName"></param>
-        /// <param name="paramValue"></param>
-        /// <param name="size"></param>
-        /// <returns></returns>
-        public DbParameter CreateDbParameter(string paramName, object paramValue, int size)
-        {
-            SqlParameter parameter = new SqlParameter();
-            //设置参数名称
-            parameter.ParameterName = "@" + paramName;
-            //设置参数类型(不为空的情况)
-            if (paramValue != null)
-            {
-                parameter.SqlDbType = (SqlDbType)(ConvertToLocalDbType(paramValue.GetType()));
-            }
-            //设置参数值
-            parameter.Value = paramValue == null ? DBNull.Value : paramValue;
-            //设置参数传入还是传出方向, 默认传入
-            parameter.Direction = ParameterDirection.Input;
-            //设置参数长度
-            parameter.Size = size;
-            return parameter;
-        }
-
-        /// <summary>
-        /// 为SQL语句加上它所需要的参数
-        /// </summary>
-        /// <param name="command">由SqlClientFactory.Instance.CreateCommand()创建的DbCommand实例</param>
-        /// <param name="parameters"></param>
-        public void AttachParametersForSql(DbCommand command, DbParameter[] parameters)
-        {
-            foreach (DbParameter parameter in parameters)
-            {
-                if (parameter != null)
-                {
-                    command.Parameters.Add(parameter);
-                }
-            }
-        }
+        
     }
 }

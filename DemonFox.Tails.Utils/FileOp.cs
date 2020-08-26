@@ -170,7 +170,7 @@ namespace DemonFox.Tails.Utils
             }
 
             return dirs;
-        }
+        }        
 
         /// <summary>
         /// 在一个文件中插入代码片段, 思路是把原始文本经过替换部分字符串的方式得到的新代码重新覆盖写入文件

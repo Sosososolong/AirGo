@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <PackageReference Include="System.Data.SqlClient" Version="4.5.0" />
+    <PackageReference Include="System.Data.SQLite.Core" Version="1.0.113.1" />
   </ItemGroup>
 
   <!--根据这个"引用程序集的配置"，项目生成的时候就会在vs中显示此dll引用项-->

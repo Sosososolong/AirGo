@@ -17,11 +17,13 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Newtonsoft.Json;
 using Microsoft.Extensions.Caching.Memory;
+using DemonFox.Tails.Infrastructure;
 
 namespace DemonFox.Tails.AirGo.Controllers
 {
     public class HomeController : Controller
     {
+        private readonly AspNetCoreOperations _coreOperations = new AspNetCoreOperations();
         private readonly DemonProvider db = new DemonProvider();
         private string OneTabSpace = "    ";
         private string TwoTabsSpace = "        ";
@@ -34,13 +36,18 @@ namespace DemonFox.Tails.AirGo.Controllers
         private static string _currentOperationPath = "Path001"; // 表示不同的项目, 相同类型的项目可能会有好几个, 解决方案目录和项目根目录相关信息
 
         // 所有的操作方案
-        private static List<string> _allOperationTypes = new List<string>();
+        private static List<Tuple<string, JObject>> _allOperationTypes = new List<Tuple<string, JObject>>();
 
         // 当前操作方案 - settings[_currentOperationType]
         private static dynamic _settingsObj;
 
         // 当前操作方案的所有操作的细节参数配置
         private static dynamic _operationsInfo;
+
+        // 数据库连接字符串
+        private static string _connectionString;
+
+        private static string _customDbContextFile;
 
         // 所有操作对应的操作方法
         private static Dictionary<string, OperationDetails> Operations = new Dictionary<string, OperationDetails>(StringComparer.OrdinalIgnoreCase)
@@ -92,7 +99,7 @@ namespace DemonFox.Tails.AirGo.Controllers
             }
             if (!string.IsNullOrEmpty(Request.Form["connectionString"]))
             {
-                DemonProvider.ConnectionString = Request.Form["connectionString"];
+                db.ConnectionString = Request.Form["connectionString"];
             }
 
             if (sql.IndexOf("@pageIndex") == 0 || sql.IndexOf("@pageSize") == 0)
@@ -277,7 +284,7 @@ namespace DemonFox.Tails.AirGo.Controllers
         public IActionResult GameBackend()
         {
             string sql = Request.Form["sql"];
-            string connectionString = DemonProvider.ConnectionString = Request.Form["connectionString"];
+            string connectionString = db.ConnectionString = Request.Form["connectionString"];
             //string sql = Request.Query["sql"];
             //string connectionString = DemonProvider.ConnectionString = Request.Query["connectionString"];
 
@@ -563,7 +570,7 @@ namespace DemonFox.Tails.AirGo.Controllers
         public IActionResult GameBackend619()
         {
             string sql = Request.Form["sql"];
-            DemonProvider.ConnectionString = Request.Form["connectionString"];
+            db.ConnectionString = Request.Form["connectionString"];
             //string sql = Request.Query["sql"];
             //string connectionString = DemonProvider.ConnectionString = Request.Query["connectionString"];
 
@@ -667,22 +674,25 @@ namespace DemonFox.Tails.AirGo.Controllers
             {
                 ViewBag.Cached = "NOCACHED";                
                 Init();
+                SetDataForFronted();
                 return View();
             }
             ViewBag.Cached = "CACHED";
             SetDataForFronted();
             return View();
         }
-
+        /// <summary>
+        /// 第一次进入程序或者每次切换项目, 需要 1.进行读取并更新配置; 2.检查数据库连接字符串(本地.db文件需要设置绝对路径); 3.扫描目标项目的完整度(各种插件是否安装完毕)
+        /// </summary>
         private void Init()
         {            
-            // 读取配置文件的相关信息
+            // 读取配置文件并更新相关数据
             GetSettings();
-            // 传值给前端
-            SetDataForFronted();
+            // 查看并设置数据库连接字符串
+            SetDbConnectionString();            
         }
         /// <summary>
-        /// 获取配置文件和配置文件的配置内容
+        /// 获取配置文件和配置文件的配置内容(给各种字段赋值)
         /// </summary>
         private void GetSettings()
         {            
@@ -704,13 +714,13 @@ namespace DemonFox.Tails.AirGo.Controllers
             _allOperationTypes.RemoveAll(s => true); // 重新赋值的时候, 需要先清空
             foreach (var item in settings)
             {            
-                _allOperationTypes.Add(item.Key);
+                _allOperationTypes.Add(Tuple.Create(item.Key, item.Value as JObject));
             }            
 
             _settingsObj = settings[_currentOperationType];
 
             // 数组是JArray, 对象是JObject(实现了IDictionary, 可以按此类型遍历)   
-            _operationsInfo = _settingsObj["Operations"];                        
+            _operationsInfo = _settingsObj["Operations"];
         }
 
         private void SetDataForFronted()
@@ -725,9 +735,13 @@ namespace DemonFox.Tails.AirGo.Controllers
 
         private JObject ReplaceSettingsTemplateVariable(string allSettingsString, JObject allSettingsObj)
         {
-            JObject currentProjectPathInfo = allSettingsObj[_currentOperationType]["Paths"][_currentOperationPath] as JObject;
+            JObject currentProjectPathInfo = allSettingsObj[_currentOperationType]["Paths"][_currentOperationPath] as JObject;            
             foreach (var item in currentProjectPathInfo)
             {
+                if (item.Key == "ConnectionStrings")
+                {
+                    _connectionString = item.Value.ToString();
+                }
                 string template = $@"{{{item.Key}}}";
                 string value = item.Value.ToString();
                 
@@ -736,6 +750,24 @@ namespace DemonFox.Tails.AirGo.Controllers
             }
             return JsonConvert.DeserializeObject(allSettingsString) as JObject;
         }
+        // 读取配置文件完成后, 查看数据库连接字符串信息, 如果是本地数据库文件, 将数据库文件设置为绝对路径
+        private void SetDbConnectionString()
+        {
+            if (_connectionString.Contains(".db"))
+            {
+                // sqlite数据库                
+                string clientProjectDir = _settingsObj["WebAppProjectDirectory"];
+                string dbFile = _connectionString.Split('=')[1];
+                db.ConnectionString = Path.Join(clientProjectDir, dbFile);
+            }
+        }
+
+        // 读取配置文件, 检查数据库链接字符串后, 查看EFCore的初始化情况
+        //private void CheckEFCore()
+        //{
+        //    string dbContextDirectory = _settingsObj["Operations"]["InitializeCustomDbContext"]["MyDbContextDirectory"]["Path"];
+        //    _customDbContextFile = FileOp.FindFilesRecursive(dbContextDirectory, f => f.Contains("DbContext"), files => files.Count > 0, null).FirstOrDefault();
+        //}
 
         // 切换项目
         public IActionResult ChangingProject()
@@ -751,12 +783,32 @@ namespace DemonFox.Tails.AirGo.Controllers
             {
                 _currentOperationPath = value;
             }
-            GetSettings();
+            Init();
             return Content($@"{{""code"": 1, ""msg"": """", ""data"": {JsonConvert.SerializeObject(_settingsObj["Paths"])}}}");
         }
-        public IActionResult Test()
+        public IActionResult InitializeCustomDbContext()
         {
-                       
+            string dbContextFileName = "MyDbContext.cs";
+
+            string dbContextDirectory = _settingsObj["Operations"]["InitializeCustomDbContext"]["MyDbContextDirectory"]["Path"];
+            if (!Directory.Exists(dbContextDirectory))
+            {
+                Directory.CreateDirectory(dbContextDirectory);
+            }
+            string dbContextNamespace = _settingsObj["Operations"]["InitializeCustomDbContext"]["MyDbContextDirectory"]["Namespace"];
+            string dbContextFilePath = Path.Join(dbContextDirectory, dbContextFileName);
+            if (System.IO.File.Exists(dbContextFilePath))
+            {
+                return Content("");
+            }
+            // 创建文件
+            string myDbContextContent = _coreOperations.GetMyDbContextContent(dbContextNamespace);            
+            FileOp.Write(dbContextFilePath, myDbContextContent, false, Encoding.UTF8);
+            return Content(dbContextFilePath);
         }
+        //public IActionResult Test()
+        //{
+
+        //}
     }
 }
