@@ -285,7 +285,7 @@ namespace DemonFox.Tails.Utils
             using (StreamReader sr = new StreamReader(classFile, Encoding.UTF8))
             {
                 string fileCon = sr.ReadToEnd();
-                Regex reg = new Regex(@"public\s+\w+\s+(\w+)\s*{\s*get;\s*set;\s*}");
+                Regex reg = new Regex(@"public\s+.+\s+(\w+)\s*{\s*get;\s*set;\s*}");
                 MatchCollection matches = reg.Matches(fileCon);
 
                 foreach (Match item in matches)

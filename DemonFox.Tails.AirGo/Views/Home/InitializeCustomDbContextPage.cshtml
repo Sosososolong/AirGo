@@ -1,0 +1,115 @@
+﻿
+@{
+    ViewData["Title"] = "InitializeCustomDbContextPage";    
+}
+
+    <div class="container">
+        <form class="needs-validation myDbContextForm" method="post" id="tt" action="" novalidate>
+
+            <div class="form-group">
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="fromEntityOrDb" id="fromEntityOrDb1" value="0" checked>
+                    <label class="form-check-label" for="exampleRadios1">
+                        From Entity
+                    </label>
+                </div>
+            </div>
+            <div class="form-group">
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="fromEntityOrDb" id="fromEntityOrDb2" value="1">
+                    <label class="form-check-label" for="exampleRadios2">
+                        From Db
+                    </label>
+                </div>
+            </div>
+            <div style="border:1px solid #ddd; padding:10px; margin:10px;">
+                <div class="fromDbOrEntitiesData">
+
+                </div>
+                <button class="btn btn-primary operationBtn addEntitySetsBtn" target-action="@ViewBag.MyDbContextBtnText.Split('-')[1]" type="submit">@ViewBag.MyDbContextBtnText.Split('-')[0]</button>
+            </div>
+        </form>
+    </div>
+@section Scripts{
+    <script>
+        $(function () {
+            // 因为每次刷新页面, 其实只有第一个radio有checked属性, 但是radio的选中状态还保留上次的选择状态, 第一个radio的UI不一定是选中状态, 所以每次刷新页面后, 需要点击一次第一个radio, 使得它被选中
+            $('input[name="fromEntityOrDb"][checked]').click();
+            // 根据所选择的从实体操作还是从数据库操作, 显示不同表单内容
+            checkFromEntitiesOrDb($('input[name="fromEntityOrDb"]'));
+            $('input[name="fromEntityOrDb"]').change(function () {
+                checkFromEntitiesOrDb($(this));
+            })
+        })
+        function checkFromEntitiesOrDb(jqObj) {
+            if (jqObj.val() == "0") {
+                showEntities();
+                removeDbTables();
+            } else {
+                showDbTables();
+                removeEntities();
+            }
+        }
+        
+
+        function showEntities() {
+            $(".fromDbOrEntitiesData").append(`<div class="form-row align-items-center entitiesCon">                
+                @foreach (string entity in ViewBag.AllEntities)
+                {
+                    <div class="col-auto my-1">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="entity-@entity">
+                        <label class="form-check-label" for="@entity">
+                            @entity
+                        </label>
+                    </div>
+                </div>
+                }
+            </div>`);
+            // 如果没有新的实体需要加入自定义的MyDbContext中
+            if ($(".fromDbOrEntitiesData").find('.entitiesCon').find('.form-check').length === 0) {
+                // 显示信息
+                $(".fromDbOrEntitiesData").find('.entitiesCon').append('<div style="padding:10px 5px">所有实体在自定义DbContext类中均有对应的实体集属性</div>')
+                // 隐藏添加实体集的按钮
+                $('.addEntitySetsBtn').remove();
+            }
+        }
+        function removeEntities() {
+            $('.entitiesCon').remove();
+        }
+        function showDbTables() {
+            $(".fromDbOrEntitiesData").append(`<div class="tablesCon" style="color:red;">Hello world</div>`);
+        }
+        function removeDbTables() {
+            $(".tablesCon").remove();
+        }
+
+        // 点击按钮 - 为MyDbContext添加实体集属性
+        $('.operationBtn').click(async function (e) {
+            e.preventDefault();
+            e.stopPropagation();            
+            var type = $(this).attr("target-action");
+
+            var formSerial = {};
+            $($("#tt").serializeArray()).each(function () {
+                formSerial[this.name] = this.value;
+            });
+            formSerial["type"] = type;
+
+            
+            var result = await $.ajax({
+                type: "post",
+                url: "DbContextDoingSomething",
+                data: formSerial,
+                dataType: "json", // 对应请求头"Accept"的值，指定API返回的数据格式(比如text，html)，如果API不支持指定的格式将会返回API的默认格式的数据或者返回406(Not Acceptable)状态码
+                xhrFields: {
+                    withCredentials: true  // 请求头会带上origin字段，配合服务端Access-Control-Allow-Origin设置的值与之对应即可实现跨域
+                },
+            });
+            location.reload(true);
+
+            // alert(result.msg)
+        })
+    </script>
+}
+
