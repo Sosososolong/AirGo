@@ -51,8 +51,8 @@
     "WebAppProgramFile": "{SolutionDirectory}/{ClientPosition}/Program.cs",
     "WebAppStartupFile": "{SolutionDirectory}/{ClientPosition}/Startup.cs",
     "WebAppProjectDirectory": "{SolutionDirectory}/{ClientPosition}/",
-    "EntityProjectDirectory": {
-      "Path": "{SolutionDirectory}/{ClientPosition}/",
+    "EntitiesDirectory": {
+      "Path": "{SolutionDirectory}/{ClientPosition}/Entities/",
       "Namespace": "{ClientPosition}.Entities"
     },
     "DtoProjectDirectory": "{SolutionDirectory}/{ClientPosition}/",

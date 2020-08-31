@@ -18,6 +18,11 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Newtonsoft.Json;
 using Microsoft.Extensions.Caching.Memory;
 using DemonFox.Tails.Infrastructure;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Internal;
+using Microsoft.AspNetCore.Http;
+using System.Runtime.InteropServices.WindowsRuntime;
+using System.Reflection.Metadata;
 
 namespace DemonFox.Tails.AirGo.Controllers
 {
@@ -786,9 +791,47 @@ namespace DemonFox.Tails.AirGo.Controllers
             Init();
             return Content($@"{{""code"": 1, ""msg"": """", ""data"": {JsonConvert.SerializeObject(_settingsObj["Paths"])}}}");
         }
-        public IActionResult InitializeCustomDbContext()
+        
+        public IActionResult InitializeCustomDbContextPage()
+        {
+            // 获取所有的实体类
+            string entitiesDir = _settingsObj["EntitiesDirectory"]["Path"];
+            
+            string myDbContextDir = _settingsObj["Operations"]["InitializeCustomDbContext"]["MyDbContextDirectory"]["Path"];
+            if (!Directory.Exists(myDbContextDir))
+            {
+                Directory.CreateDirectory(myDbContextDir);
+            }
+            string dbContextFile = FileOp.FindFilesRecursive(myDbContextDir, f => f.Contains("DbContext.cs")).FirstOrDefault();
+            // 找到所有的实体/Entity
+            var allEntities = FileOp.FindFilesRecursive(entitiesDir, f => !f.Contains("Entity.cs"), null, null).Select(f => f.Replace(entitiesDir, string.Empty).Replace(".cs", string.Empty));
+            // 如果已经存在自定义MyDbContext类, 操作按钮信息为modify, 并且需要过滤掉已经在MyDbContext中注册的实体集的对应的实体
+            if (!string.IsNullOrEmpty(dbContextFile))
+            {
+                List<string> allEntitySets = _coreOperations.ToSingulars(FileOp.GetProperties(dbContextFile));
+                allEntities = allEntities.Where(s => !allEntitySets.Contains(s)).Select(s => s);
+
+                // 操作按钮信息
+                ViewBag.MyDbContextBtnText = "向自定义DbContext中添加实体集属性-modify";
+            }
+            else
+            {
+                // 无需过滤实体,显示所有实体, 操作按钮信息为create
+                ViewBag.MyDbContextBtnText = "自定义DbContext并添加添加实体集属性-create";
+            }
+            ViewBag.AllEntities = allEntities.ToList();
+            
+            return View();
+        }
+        public IActionResult DbContextDoingSomething()
         {
             string dbContextFileName = "MyDbContext.cs";
+            string type = Request.Form["type"]; // create modify
+            List<string> entityNamesParams = Request.Form.Where(p => p.Key.StartsWith("entity-")).Select(p=>p.Key.Replace("entity-", string.Empty)).ToList();
+            if (entityNamesParams.Count <= 0)
+            {
+                return Json(new { code = 0, msg = "请勾选对应的实体类" });
+            }
 
             string dbContextDirectory = _settingsObj["Operations"]["InitializeCustomDbContext"]["MyDbContextDirectory"]["Path"];
             if (!Directory.Exists(dbContextDirectory))
@@ -796,16 +839,28 @@ namespace DemonFox.Tails.AirGo.Controllers
                 Directory.CreateDirectory(dbContextDirectory);
             }
             string dbContextNamespace = _settingsObj["Operations"]["InitializeCustomDbContext"]["MyDbContextDirectory"]["Namespace"];
-            string dbContextFilePath = Path.Join(dbContextDirectory, dbContextFileName);
-            if (System.IO.File.Exists(dbContextFilePath))
+            string dbContextFilePath = Path.Join(dbContextDirectory, dbContextFileName);            
+
+            if (type.ToLower() == "create")
             {
-                return Content("");
+                // 创建文件, 初始化文件内容
+                string myDbContextContent = _coreOperations.GetMyDbContextContent(dbContextNamespace, entityNamesParams);
+                FileOp.Write(dbContextFilePath, myDbContextContent, false, Encoding.UTF8);
             }
-            // 创建文件
-            string myDbContextContent = _coreOperations.GetMyDbContextContent(dbContextNamespace);            
-            FileOp.Write(dbContextFilePath, myDbContextContent, false, Encoding.UTF8);
-            return Content(dbContextFilePath);
+            if (type.ToLower() == "modify")
+            {
+                // 添加实体集的代码
+                StringBuilder codes = new StringBuilder();
+                foreach (string entityName in entityNamesParams)
+                {
+                    codes.Append($"public DbSet<{entityName}> {_coreOperations.ToPlural(entityName)} {{ get; set; }}").Append(Environment.NewLine).Append(TwoTabsSpace);
+                }
+                _coreOperations.InsertPropertyLevelCode(dbContextFilePath, codes.ToString().TrimEnd());
+            }
+            
+            return Json(new { code = 1, msg = "" });
         }
+        
         //public IActionResult Test()
         //{
 
