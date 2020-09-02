@@ -195,6 +195,35 @@ namespace {dbContextNamespace}
                 return originCode.Replace(firstMethodStatement, newCodeBeforeFirstMethodStatement);
             });
         }
+        /// <summary>
+        /// EF表示两个表之间的关联关系的代码
+        /// </summary>
+        /// <param name="type">"0"一对一, "1"一对多</param>
+        /// <param name="twoTables"></param>
+        /// <returns></returns>
+        public string GetTwoTablesRelationshipCode(string type, string foreignKeyTableEntityName, string primaryKeyTableEntityName, string foreignKey)
+        {
+            if (type == "0") // 一对一
+            {
+                return $@"modelBuilder.Entity<{foreignKeyTableEntityName}>()
+                .HasOne(x => x.{primaryKeyTableEntityName})
+                .HasOne(x => x.{foreignKeyTableEntityName})
+                .HasForeignKey(x => x.{foreignKey}) // 外键表中的外键
+                .OnDelete(DeleteBehavior.Restrict); // 不允许级联删除";
+            }
+            else if (type == "1") // 一对多
+            {
+                return $@"modelBuilder.Entity<{foreignKeyTableEntityName}>()
+                .HasOne(x => x.{primaryKeyTableEntityName})
+                .WithMany(x => x.{foreignKeyTableEntityName})
+                .HasForeignKey(x => x.{foreignKey}) // 外键表中的外键
+                .OnDelete(DeleteBehavior.Restrict); // 不允许级联删除";
+            }
+            else
+            {
+                return "";
+            }
+        }
         #endregion
 
     }

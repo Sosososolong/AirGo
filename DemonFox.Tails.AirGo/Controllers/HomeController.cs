@@ -791,7 +791,7 @@ namespace DemonFox.Tails.AirGo.Controllers
             Init();
             return Content($@"{{""code"": 1, ""msg"": """", ""data"": {JsonConvert.SerializeObject(_settingsObj["Paths"])}}}");
         }
-        
+        // 操作界面
         public IActionResult InitializeCustomDbContextPage()
         {
             // 获取所有的实体类
@@ -808,8 +808,10 @@ namespace DemonFox.Tails.AirGo.Controllers
             // 如果已经存在自定义MyDbContext类, 操作按钮信息为modify, 并且需要过滤掉已经在MyDbContext中注册的实体集的对应的实体
             if (!string.IsNullOrEmpty(dbContextFile))
             {
+                // MyDbContext中所有的实体集(对应一个数据表)对应的实体名称集合
                 List<string> allEntitySets = _coreOperations.ToSingulars(FileOp.GetProperties(dbContextFile));
-                allEntities = allEntities.Where(s => !allEntitySets.Contains(s)).Select(s => s);
+                ViewBag.AllRegistedEntity = allEntitySets;
+                allEntities = allEntities.Where(s => !allEntitySets.Contains(s)).Select(s => s);                
 
                 // 操作按钮信息
                 ViewBag.MyDbContextBtnText = "向自定义DbContext中添加实体集属性-modify";
@@ -823,9 +825,14 @@ namespace DemonFox.Tails.AirGo.Controllers
             
             return View();
         }
+        // 添加自定义DbContext类 / 添加实体集属性
         public IActionResult DbContextDoingSomething()
         {
             string dbContextFileName = "MyDbContext.cs";
+            if (!string.IsNullOrWhiteSpace(Request.Form["myDbContextName"]) && Request.Form["myDbContextName"] != "MyDbContext")
+            {
+                dbContextFileName = Request.Form["myDbContextName"] + ".cs";
+            }
             string type = Request.Form["type"]; // create modify
             List<string> entityNamesParams = Request.Form.Where(p => p.Key.StartsWith("entity-")).Select(p=>p.Key.Replace("entity-", string.Empty)).ToList();
             if (entityNamesParams.Count <= 0)
@@ -861,9 +868,21 @@ namespace DemonFox.Tails.AirGo.Controllers
             return Json(new { code = 1, msg = "" });
         }
         
-        //public IActionResult Test()
-        //{
+        public IActionResult DbContextBuildRelationship()
+        {
+            List<string> relationshipingEntities = Request.Form.Where(p => p.Key.StartsWith("rel-entity-")).Select(p => p.Key.Replace("rel-entity-", string.Empty)).ToList();
+            if (relationshipingEntities.Count != 2)
+            {
+                return Json(new { code = 0, msg = "请选择且仅选择两个实体" });
+            }
+            // "0"一对一, "1"一对多
+            string code = _coreOperations.GetTwoTablesRelationshipCode();
+            return Json(new { code = 1, msg = "" });
+        }
 
-        //}
+        public IActionResult GetEntityProperties()
+        {
+            string entity = Request.Form[""]
+        }
     }
 }
