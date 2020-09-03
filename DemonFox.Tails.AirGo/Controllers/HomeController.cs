@@ -867,22 +867,43 @@ namespace DemonFox.Tails.AirGo.Controllers
             
             return Json(new { code = 1, msg = "" });
         }
-        
+
+        public IActionResult GetEntityProperties()
+        {
+            string entity = Request.Form["entityNameOfForeignKeyTable"];
+            // 找到对应实体
+            string entitiesDir = _settingsObj["EntitiesDirectory"]["Path"];
+            string choosedEntity = FileOp.FindFilesRecursive(entitiesDir, f => f.Contains($"/{entity}.cs") || f.Contains($"\\{entity}.cs"), null, null).FirstOrDefault();
+            List<string> entityProps = FileOp.GetProperties(choosedEntity);
+            return Json(new { code = 0, msg = entity, data = entityProps });
+        }
         public IActionResult DbContextBuildRelationship()
         {
+            string relationshipType = Request.Form["relationshipType"];
             List<string> relationshipingEntities = Request.Form.Where(p => p.Key.StartsWith("rel-entity-")).Select(p => p.Key.Replace("rel-entity-", string.Empty)).ToList();
+            string foreignKeyTable = Request.Form["foreignKeyTable"];
+            string foreignKey = Request.Form["foreignKey"];            
+            if (!relationshipingEntities.Contains(foreignKeyTable))
+            {
+                return Json(new { code = 0, msg = "外键表不是要建立关系的两个表之一" });
+            }
+            if (string.IsNullOrWhiteSpace(foreignKey))
+            {
+                return Json(new { code = 0, msg = "未选择外键" });
+            }
             if (relationshipingEntities.Count != 2)
             {
                 return Json(new { code = 0, msg = "请选择且仅选择两个实体" });
             }
-            // "0"一对一, "1"一对多
-            string code = _coreOperations.GetTwoTablesRelationshipCode();
-            return Json(new { code = 1, msg = "" });
-        }
+            relationshipingEntities.Remove(foreignKeyTable);
 
-        public IActionResult GetEntityProperties()
-        {
-            string entity = Request.Form[""]
+            // "0"一对一, "1"一对多
+            string code = _coreOperations.GetTwoTablesRelationshipCode(relationshipType, foreignKeyTable, relationshipingEntities[0], foreignKey);
+            if (string.IsNullOrEmpty(code))
+            {
+                return Json(new { code = 0, msg = $"两表关系类型为: {relationshipType}, 生成的代码为空!" });
+            }
+            return Json(new { code = 1, msg = "" });
         }
     }
 }

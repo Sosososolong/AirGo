@@ -103,14 +103,12 @@
 
                         
             // 两个实体(数据表)之间的关联关系
-            $('.entitiiesRel').click(function () {
-                alert("lkjl")
-                //showRelationshipingEntities();
+            $('.entitiiesRel').click(function () {                
+                relationshipingEntities();
             });
-            $('select[name="relationshipType"]').change(function () {
-                alert("lkjslkjf")
-                showRelationshipingEntities();
-            })
+            $('select[name="relationshipType"]').change(function () {                
+                relationshipingEntities();
+            })            
         })
         function checkFromEntitiesOrDb(jqObj) {
             if (jqObj.val() == "0") {
@@ -192,7 +190,56 @@
                 alert(result.msg);
                 console.log(result);
             }
-        })
+        })        
+        // 当选择的两个数据表是一对一的关系, 指定"外键表"和"外键"
+        function relationshipingEntities() {
+            // 先移除之前的
+            $('.chooseForeignKeyTableDiv').remove();
+            $('.chooseForeignKeyDiv').remove();
+            if ($(':checked[name^="rel-entity"]').length == 2 && $('select[name="relationshipType"]')[0].selectedIndex > 0) {
+                // 先显示 指定外键表 下拉框, 指定外键表                
+                $('.relationshipCon').append(`<div class="form-group chooseForeignKeyTableDiv">
+                            <label for="foreignKeyTable">指定外键表</label>
+                            <select class="custom-select" name="foreignKeyTable" id="foreignKeyTable">
+                                <option selected disabled value="">Choose...</option>
+                                <option value="` + $(':checked[name^="rel-entity"]')[0].labels[0].innerText + `">` + $(':checked[name^="rel-entity"]')[0].labels[0].innerText + `</option>
+                                <option value="` + $(':checked[name^="rel-entity"]')[1].labels[0].innerText + `">` + $(':checked[name^="rel-entity"]')[1].labels[0].innerText + `</option>
+                            </select>
+                        </div>`);
+
+                $('select[name="foreignKeyTable"]').change(async function () {
+                    let result = await $.ajax({
+                        type: "post",
+                        url: "GetEntityProperties",
+                        data: { "entityNameOfForeignKeyTable": $(this).val() },
+                        dataType: "json", // 对应请求头"Accept"的值，指定API返回的数据格式(比如text，html)，如果API不支持指定的格式将会返回API的默认格式的数据或者返回406(Not Acceptable)状态码
+                        xhrFields: {
+                            withCredentials: true  // 请求头会带上origin字段，配合服务端Access-Control-Allow-Origin设置的值与之对应即可实现跨域
+                        },
+                    });
+
+                    let foreignKeyTableColumns = result.data;
+                    $('.chooseForeignKeyDiv').remove();
+                    // 再显示 指定外键 下拉框, 指定外键
+                    let columnsOptions = "";
+                    for (var i = 0; i < foreignKeyTableColumns.length; i++) {
+                        columnsOptions += '<option value="' + foreignKeyTableColumns[i] + '">' + foreignKeyTableColumns[i] + '</option>';
+                    }
+                    
+                    $('.relationshipCon').append(`<div class="form-group chooseForeignKeyDiv">
+                            <label for="foreignKey">指定外键</label>
+                            <select class="custom-select" name="foreignKey" id="foreignKey">
+                                <option selected disabled value="">Choose...</option>
+                                ` + columnsOptions + `
+                            </select>
+                        </div>`);                    
+                });
+                
+            } else {
+                $('.chooseForeignKeyTableDiv').remove();
+                $('.chooseForeignKeyDiv').remove();
+            }
+        }
         // 两个实体(数据表)之间的关联关系
         $('.addRelationshipBtn').click(async function (e) {
             e.preventDefault();
@@ -203,6 +250,20 @@
                 formData[this.name] = this.value;
             });
             formData["relationshipType"] = $('select[name="relationshipType"]').val();
+            if ($(':checked[name^="rel-entity"]').length == 2 && $('select[name="relationshipType"]')[0].selectedIndex > 0) {
+                if ($('select[name="foreignKeyTable"]')[0].selectedIndex === 0) {
+                    alert("请选择外键表");
+                    return;
+                }
+                if ($('select[name="foreignKey"]')[0].selectedIndex === 0) {
+                    alert("请选择外键");
+                    return;
+                }
+                formData["foreignKeyTable"] = $('select[name="foreignKeyTable"]').val();                
+                formData["foreignKey"] = $('select[name="foreignKey"]').val();
+            } else {
+                alert("请选择两个具有关联关系的数据表对应的实体类")
+            }
             var result = await $.ajax({
                 type: "post",
                 url: "DbContextBuildRelationship",
@@ -213,26 +274,6 @@
                 },
             });
         })
-        
-        function showRelationshipingEntities() {
-            alert("showRelationshipingEntities")
-            if ($(':checked[name^="rel-entity"]').length == 2) {
-                if ($('input[name="relationshipType"]').val() === "0") {
-                    $('.relationshipCon').append(`<div class="form-row align-items-center">
-                                <label for="foreignKeyTable">关系</label>
-                                <select class="custom-select" name="foreignKeyTable" id="foreignKeyTable">
-                                    <option selected disabled value="">Choose...</option>
-                                    <option value="0">` + $(':checked[name^="rel-entity"]')[0] + `</option>
-                                    <option value="1">` + $(':checked[name^="rel-entity"]')[1] + `</option>
-                                </select>
-                            </div>`);
-
-                    $('select[name="foreignKeyTable"]').change(function () {
-                        alert(this.value);
-                    });
-                }
-            }
-        }
     </script>
 }
 
