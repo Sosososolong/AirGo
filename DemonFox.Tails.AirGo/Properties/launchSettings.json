@@ -22,7 +22,7 @@
       "applicationUrl": "http://localhost:5000",
       "launchUrl": "CoreGenerator/DeleteDefaultFile",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development" //Development Production
       }
     }
   }

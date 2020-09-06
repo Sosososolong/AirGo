@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using DemonFox.Tails.Core.Entities.Generator;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -36,21 +37,33 @@ namespace DemonFox.Tails.AirGo
             {
                 options.EnableEndpointRouting = false;
             });
-
-
+                         
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
-        {            
+        {
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
             }
             else
             {
-                app.UseExceptionHandler("/Home/Error");
+                //app.UseExceptionHandler("/Home/Error");
+                app.UseExceptionHandler(new ExceptionHandlerOptions
+                {
+                    ExceptionHandler = async httpContext =>
+                    {
+                        // ExceptionHandlerOptions的"异常处理器"属性                    
+                        httpContext.Response.ContentType = "application/json";
+                        httpContext.Response.Clear();
+                        Exception ex = httpContext.Features.Get<IExceptionHandlerPathFeature>().Error;
+                        await httpContext.Response.WriteAsync($@"{{""code"": 0, ""msg"": ""{ex.Message}""}}");
+                    }
+                });
             }
+
+
 
             app.UseStaticFiles();
             app.UseCookiePolicy();
@@ -66,7 +79,7 @@ namespace DemonFox.Tails.AirGo
                 routes.MapRoute(
                     name: "default",
                     template: "{controller}/{action}/{id?}");
-            });
+            });            
         }
     }
 }

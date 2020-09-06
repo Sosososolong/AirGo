@@ -726,6 +726,9 @@ namespace DemonFox.Tails.AirGo.Controllers
 
             // 数组是JArray, 对象是JObject(实现了IDictionary, 可以按此类型遍历)   
             _operationsInfo = _settingsObj["Operations"];
+
+            string dbContextDirectory = _settingsObj["Operations"]["InitializeCustomDbContext"]["MyDbContextDirectory"]["Path"];
+            _customDbContextFile = FileOp.FindFilesRecursive(dbContextDirectory, f => f.Contains("DbContext"), files => files.Count > 0, null).FirstOrDefault();
         }
 
         private void SetDataForFronted()
@@ -862,7 +865,7 @@ namespace DemonFox.Tails.AirGo.Controllers
                 {
                     codes.Append($"public DbSet<{entityName}> {_coreOperations.ToPlural(entityName)} {{ get; set; }}").Append(Environment.NewLine).Append(TwoTabsSpace);
                 }
-                _coreOperations.InsertPropertyLevelCode(dbContextFilePath, codes.ToString().TrimEnd());
+                FileOp.InsertCodePropertyLevel(dbContextFilePath, codes.ToString().TrimEnd());
             }
             
             return Json(new { code = 1, msg = "" });
@@ -877,8 +880,13 @@ namespace DemonFox.Tails.AirGo.Controllers
             List<string> entityProps = FileOp.GetProperties(choosedEntity);
             return Json(new { code = 0, msg = entity, data = entityProps });
         }
+        /// <summary>
+        /// 按下"确定"按钮, 向自定义DbContext中插入两个表关系的代码
+        /// </summary>
+        /// <returns></returns>
         public IActionResult DbContextBuildRelationship()
         {
+            // "0"一对一, "1"一对多
             string relationshipType = Request.Form["relationshipType"];
             List<string> relationshipingEntities = Request.Form.Where(p => p.Key.StartsWith("rel-entity-")).Select(p => p.Key.Replace("rel-entity-", string.Empty)).ToList();
             string foreignKeyTable = Request.Form["foreignKeyTable"];
@@ -896,13 +904,24 @@ namespace DemonFox.Tails.AirGo.Controllers
                 return Json(new { code = 0, msg = "请选择且仅选择两个实体" });
             }
             relationshipingEntities.Remove(foreignKeyTable);
-
-            // "0"一对一, "1"一对多
-            string code = _coreOperations.GetTwoTablesRelationshipCode(relationshipType, foreignKeyTable, relationshipingEntities[0], foreignKey);
-            if (string.IsNullOrEmpty(code))
+            
+            string twoTablesRelationshipCode = _coreOperations.GetTwoTablesRelationshipCode(relationshipType, foreignKeyTable, relationshipingEntities[0], foreignKey);
+            if (string.IsNullOrEmpty(twoTablesRelationshipCode))
             {
                 return Json(new { code = 0, msg = $"两表关系类型为: {relationshipType}, 生成的代码为空!" });
             }
+            // 将指定关联关系的代码插入自定义DbContext文件中
+            // FileOp.InsertCodeToMethodTail(_customDbContextFile, "OnModelCreating", twoTablesRelationshipCode);
+            FileOp.InsertCodeToMethod(
+                _customDbContextFile, 
+                "OnModelCreating",
+                twoTablesRelationshipCode,
+                statement => statement.ToString().Contains(".HasOne") || statement.ToString().Contains(".WithMany"),
+                statement => (statement.ToString().Contains(".HasOne") || statement.ToString().Contains(".WithMany"))
+                                && (statement.ToString().Contains(foreignKeyTable) || statement.ToString().Contains(_coreOperations.ToPlural(foreignKeyTable)))
+                                && statement.ToString().Contains(relationshipingEntities[0])
+                );
+
             return Json(new { code = 1, msg = "" });
         }
     }

@@ -262,9 +262,10 @@
                 formData["foreignKeyTable"] = $('select[name="foreignKeyTable"]').val();                
                 formData["foreignKey"] = $('select[name="foreignKey"]').val();
             } else {
-                alert("请选择两个具有关联关系的数据表对应的实体类")
+                alert("请选择两个具有关联关系的数据表对应的实体类, 并指定它们的关系")
             }
-            var result = await $.ajax({
+            
+            $.ajax({
                 type: "post",
                 url: "DbContextBuildRelationship",
                 data: formData,
@@ -272,7 +273,20 @@
                 xhrFields: {
                     withCredentials: true  // 请求头会带上origin字段，配合服务端Access-Control-Allow-Origin设置的值与之对应即可实现跨域
                 },
+                success: function (result) {
+                    if (result.code === 0) {
+                        alert(result.msg)
+                    } else {
+                        alert("操作成功")
+                    }
+                },
+                error: function (result) {
+                    alert(result.responseText.substring(0, result.responseText.indexOf("\r\n")));       
+                    console.log(result.responseText);
+                }
             });
+
+            
         })
     </script>
 }
