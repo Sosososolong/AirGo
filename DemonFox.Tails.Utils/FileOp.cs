@@ -1,4 +1,7 @@
-﻿using Newtonsoft.Json;
+﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -10,7 +13,10 @@ using System.Text.RegularExpressions;
 namespace DemonFox.Tails.Utils
 {
     public class FileOp
-    {        
+    {
+        private static string OneTabSpace = "    ";
+        private static string TwoTabsSpace = "        ";
+        private static string FourTabsSpace = "                ";
         public static void DeleteFiles(List<string> files)
         {
             foreach (string file in files)
@@ -382,6 +388,94 @@ namespace DemonFox.Tails.Utils
             fs.Close();
             fs.Dispose();
             return encoding;
+        }
+        /// <summary>
+        /// 插入代码 - 属性
+        /// </summary>
+        /// <param name="classFile"></param>
+        /// <param name="codes"></param>
+        public static void InsertCodePropertyLevel(string classFile, string codes)
+        {
+            FileOp.InsertContent(classFile, originCode =>
+            {
+                if (originCode.Contains(codes))
+                {
+                    throw new Exception("要插入的代码已经存在");
+                }
+                // 找到最后一个属性
+                Regex regex = new Regex(@"public\s+.+\s+\w+\s*{\s*get;\s*set;\s*}");
+                Match lastProperty = regex.Matches(originCode).LastOrDefault();
+                if (lastProperty != null)
+                {
+                    string lastPropertyString = lastProperty.Value; // "public DbSet<Employee> Employees { get; set; }"
+                    string modifiedPropertyString = lastPropertyString + Environment.NewLine + TwoTabsSpace + codes;
+                    return originCode.Replace(lastPropertyString, modifiedPropertyString); // 匹配的属性应该是独一无二的, 所以这里肯定只是替换一次
+                }
+                // 添加第一个属性
+                regex = new Regex(@"\s{8}.+\(");
+                // 找到文件中第一个方法的声明语句
+                string firstMethodStatement = regex.Match(originCode).Value;
+                if (string.IsNullOrEmpty(firstMethodStatement))
+                {
+                    regex = new Regex(@"\s{4}{");
+
+                    string classLeftBrackets = regex.Match(originCode).Value;
+                    classLeftBrackets = classLeftBrackets + Environment.NewLine + TwoTabsSpace + codes;
+
+                    return regex.Replace(originCode, classLeftBrackets, 1); // 只替换一次
+                }
+                string newCodeBeforeFirstMethodStatement = codes + firstMethodStatement;
+                return originCode.Replace(firstMethodStatement, newCodeBeforeFirstMethodStatement);
+            });
+            
+        }
+        public static void InsertCodeToMethodTail(string classFile, string methodName, string codes)
+        {
+            InsertContent(classFile, originCode =>
+            {
+                if (originCode.Contains(codes))
+                {
+                    throw new Exception("要插入的代码已经存在");
+                }
+                Regex regex = new Regex(methodName + @"[<\w>]*\(.*\r\n\s{8}{[\w\W]*\s{8}}");
+                Match onModelCreatingMatch = regex.Match(originCode);
+                string oldPart = onModelCreatingMatch.Value;
+                string newPart = onModelCreatingMatch.Value.TrimEnd('}') + OneTabSpace + codes + Environment.NewLine + TwoTabsSpace + "}";
+                return originCode.Replace(oldPart, newPart);
+            });
+        }
+
+        public static void InsertCodeToMethod(string classFile, string methodName, string codes, Func<StatementSyntax, bool> insertPositionPredicate, Func<StatementSyntax, bool> codesExistPredicate = null)
+        {            
+            InsertContent(classFile, originCode =>
+            {                
+                SyntaxTree tree = CSharpSyntaxTree.ParseText(originCode);
+                SyntaxNode root = tree.GetRoot();
+                MethodDeclarationSyntax method = root.DescendantNodes().OfType<MethodDeclarationSyntax>().Where(m => m.Identifier.ValueText == methodName).First();
+                SyntaxList<StatementSyntax> methodStatements = method.Body.Statements;
+                // 如果方法中没有代码
+                if (methodStatements.FirstOrDefault() == null)
+                {
+                    Regex regex = new Regex(methodName + @"[<\w>]*\(.*\r\n\s{8}{[\w\W]*\s{8}}");
+                    Match onModelCreatingMatch = regex.Match(originCode);
+                    string oldPart = onModelCreatingMatch.Value;
+                    string newPart = onModelCreatingMatch.Value.TrimEnd('}') + OneTabSpace + codes + Environment.NewLine + TwoTabsSpace + "}";
+                    return originCode.Replace(oldPart, newPart);
+                }
+                // 如果要插入的语句已经存在
+                if (methodStatements.Where(codesExistPredicate).FirstOrDefault() != null)
+                {
+                    throw new Exception("要插入的代码已经存在");
+                }
+                
+                string insertPosition = methodStatements.Where(insertPositionPredicate).LastOrDefault()?.ToString();                
+                if (string.IsNullOrEmpty(insertPosition))
+                {
+                    insertPosition = methodStatements.LastOrDefault().ToString();
+                }                
+                string newCodes = insertPosition + Environment.NewLine + Environment.NewLine + OneTabSpace + TwoTabsSpace + codes;
+                return originCode.Replace(insertPosition, newCodes);
+            });
         }
     }
 }

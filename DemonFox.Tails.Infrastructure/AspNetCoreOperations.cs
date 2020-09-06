@@ -1,4 +1,7 @@
 ﻿using DemonFox.Tails.Utils;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -159,47 +162,13 @@ namespace {dbContextNamespace}
 }}
 ";
         }
-
-        #region 修改代码操作, 如果根项目结构相关就放这里, 如果够通用化可以考虑放到FileOp中
-        public void InsertPropertyLevelCode(string classFile, string codes)
-        {
-            FileOp.InsertContent(classFile, originCode =>
-            {
-                if (originCode.Contains(codes))
-                {
-                    throw new Exception("要插入的代码已经存在");
-                }
-                // 找到最后一个属性
-                Regex regex = new Regex(@"public\s+.+\s+\w+\s*{\s*get;\s*set;\s*}");
-                Match lastProperty = regex.Matches(originCode).LastOrDefault();
-                if (lastProperty != null)
-                {
-                    string lastPropertyString = lastProperty.Value; // "public DbSet<Employee> Employees { get; set; }"
-                    string modifiedPropertyString = lastPropertyString + Environment.NewLine + TwoTabsSpace + codes;
-                    return originCode.Replace(lastPropertyString, modifiedPropertyString); // 匹配的属性应该是独一无二的, 所以这里肯定只是替换一次
-                }
-                // 添加第一个属性
-                regex = new Regex(@"\s{8}.+\(");
-                // 找到文件中第一个方法的声明语句
-                string firstMethodStatement = regex.Match(originCode).Value;
-                if (string.IsNullOrEmpty(firstMethodStatement))
-                {
-                    regex = new Regex(@"\s{4}{");                    
-                    
-                    string classLeftBrackets = regex.Match(originCode).Value;
-                    classLeftBrackets = classLeftBrackets + Environment.NewLine + TwoTabsSpace + codes;
-
-                    return regex.Replace(originCode, classLeftBrackets, 1); // 只替换一次
-                }
-                string newCodeBeforeFirstMethodStatement = codes + firstMethodStatement;
-                return originCode.Replace(firstMethodStatement, newCodeBeforeFirstMethodStatement);
-            });
-        }
         /// <summary>
-        /// EF表示两个表之间的关联关系的代码
+        /// 返回自定义DbContext中定义两个表之间的关联关系的代码
         /// </summary>
-        /// <param name="type">"0"一对一, "1"一对多</param>
-        /// <param name="twoTables"></param>
+        /// <param name="type"></param>
+        /// <param name="foreignKeyTableEntityName">外键表对应的实体名称</param>
+        /// <param name="primaryKeyTableEntityName">主键表对应的实体名称</param>
+        /// <param name="foreignKey"></param>
         /// <returns></returns>
         public string GetTwoTablesRelationshipCode(string type, string foreignKeyTableEntityName, string primaryKeyTableEntityName, string foreignKey)
         {
@@ -215,7 +184,7 @@ namespace {dbContextNamespace}
             {
                 return $@"modelBuilder.Entity<{foreignKeyTableEntityName}>()
                 .HasOne(x => x.{primaryKeyTableEntityName})
-                .WithMany(x => x.{foreignKeyTableEntityName})
+                .WithMany(x => x.{ToPlural(foreignKeyTableEntityName)})
                 .HasForeignKey(x => x.{foreignKey}) // 外键表中的外键
                 .OnDelete(DeleteBehavior.Restrict); // 不允许级联删除";
             }
@@ -223,6 +192,46 @@ namespace {dbContextNamespace}
             {
                 return "";
             }
+        }
+
+        #region 修改/验证代码的操作
+        // Roslyn
+
+        // CompilationUnit 
+        //  UsingDirective
+        //  UsingDirective
+        //  NamespaceDeclaration
+        //  EndOfFileToken
+
+        // DotToken -> . | SemicolonToken -> , | OpenBraceToken -> { | CloseBraceToken -> } | OpenParenToken -> ( | CloseParenToken: )
+        // EndOfLineTrivia 表示换行, WhitespaceTrivia 表示空格, EndOfFileToken 表示文件的末尾
+        // EqualsValueClause 赋值语句
+        // LocalDeclarationStatement 本地声明语句
+        // ExpressionStatement 表达式语句
+
+        // EqualsExpression 相等判断表达式，即 a == b。
+        // InvocationExpression  调用表达式, 即 Class.Method(xxx) 或 instance.Method
+        // SimpleMemberAccessExpression 是方法调用除去参数列表的部分，即 Class.Method 或 instance.Method
+        // ParenthesizedLambdaExpression 带括号的 lambda 表达式 如: (a) => xxx
+        // SimpleLambdaExpression 不带括号的 lambda 表达式 如: a => xxx
+
+        public void InsertTwoTablesRelationshipCode(string customDbContextFile, string codes)
+        {
+            FileOp.InsertContent(customDbContextFile, originCode =>
+            {
+                SyntaxTree tree = CSharpSyntaxTree.ParseText(originCode);
+                SyntaxNode root = tree.GetRoot();
+                MethodDeclarationSyntax method = root.DescendantNodes().OfType<MethodDeclarationSyntax>().Where(m => m.Identifier.ValueText == "OnModelCreating").First();                
+                SyntaxList<StatementSyntax> methodStatements = method.Body.Statements;
+                string insertPosition = methodStatements.Where(statement => statement.ToString().Contains(".HasOne") || statement.ToString().Contains(".WithMany")).LastOrDefault().ToString();
+                if (string.IsNullOrEmpty(insertPosition))
+                {                    
+                    insertPosition = methodStatements.LastOrDefault().ToString();
+                }
+
+                string newCodes = insertPosition + Environment.NewLine + OneTabSpace + TwoTabsSpace + codes;
+                return originCode.Replace(insertPosition, newCodes);
+            });            
         }
         #endregion
 

@@ -140,8 +140,8 @@
                     <button class="btn btn-outline-info" type="button">
                         创建新项目(WebApp/Core/Infrastructure)
                     </button>*@
-                    <button class="btn btn-outline-info operation" type="button" action-name="InitializeCustomDbContext">
-                        添加Entity Framework Core
+                    <button class="btn btn-outline-info operation" type="button" action-name="InitializeCustomDbContextPage">
+                        Entity Framework Core
                     </button>
                 </p>
             </div>
@@ -207,7 +207,11 @@
 
                     
                 })
-
+                $('.operation').click(function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.open($(this).attr("action-name"));
+                })
                 async function test() {
                     //var result = await $.ajax({
                     //    type: "post",
