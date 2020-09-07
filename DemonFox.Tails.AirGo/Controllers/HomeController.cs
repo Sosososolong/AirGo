@@ -805,14 +805,14 @@ namespace DemonFox.Tails.AirGo.Controllers
             {
                 Directory.CreateDirectory(myDbContextDir);
             }
-            string dbContextFile = FileOp.FindFilesRecursive(myDbContextDir, f => f.Contains("DbContext.cs")).FirstOrDefault();
+            _customDbContextFile = FileOp.FindFilesRecursive(myDbContextDir, f => f.Contains("DbContext.cs")).FirstOrDefault();
             // 找到所有的实体/Entity
             var allEntities = FileOp.FindFilesRecursive(entitiesDir, f => !f.Contains("Entity.cs"), null, null).Select(f => f.Replace(entitiesDir, string.Empty).Replace(".cs", string.Empty));
             // 如果已经存在自定义MyDbContext类, 操作按钮信息为modify, 并且需要过滤掉已经在MyDbContext中注册的实体集的对应的实体
-            if (!string.IsNullOrEmpty(dbContextFile))
+            if (!string.IsNullOrEmpty(_customDbContextFile))
             {
                 // MyDbContext中所有的实体集(对应一个数据表)对应的实体名称集合
-                List<string> allEntitySets = _coreOperations.ToSingulars(FileOp.GetProperties(dbContextFile));
+                List<string> allEntitySets = _coreOperations.ToSingulars(FileOp.GetProperties(_customDbContextFile));
                 ViewBag.AllRegistedEntity = allEntitySets;
                 allEntities = allEntities.Where(s => !allEntitySets.Contains(s)).Select(s => s);                
 
@@ -850,12 +850,20 @@ namespace DemonFox.Tails.AirGo.Controllers
             }
             string dbContextNamespace = _settingsObj["Operations"]["InitializeCustomDbContext"]["MyDbContextDirectory"]["Namespace"];
             string dbContextFilePath = Path.Join(dbContextDirectory, dbContextFileName);            
-
+            // 1. 创建或修改自定义DbContext文件, 添加实体集属性
             if (type.ToLower() == "create")
             {
                 // 创建文件, 初始化文件内容
                 string myDbContextContent = _coreOperations.GetMyDbContextContent(dbContextNamespace, entityNamesParams);
                 FileOp.Write(dbContextFilePath, myDbContextContent, false, Encoding.UTF8);
+
+                // 2. Startup中将自定义DbCotext注册到容器中
+                string startupFile = _settingsObj["WebAppStartupFile"];
+                string addDbContextToContainerCodes = $@"services.AddDbContext<{dbContextFileName.Replace(".cs", string.Empty)}>(options =>
+            {{
+                options.UseSqlite(""{_connectionString}""); //UseSqlServer(Microsoft.EntityFrameworkCore.SqlServer) UseMySQL(Pomelo.EntityFrameworkCore.MySql)
+            }}); ";
+                FileOp.InsertCodeToMethod(startupFile, "ConfigureServices", addDbContextToContainerCodes);
             }
             if (type.ToLower() == "modify")
             {
@@ -866,7 +874,7 @@ namespace DemonFox.Tails.AirGo.Controllers
                     codes.Append($"public DbSet<{entityName}> {_coreOperations.ToPlural(entityName)} {{ get; set; }}").Append(Environment.NewLine).Append(TwoTabsSpace);
                 }
                 FileOp.InsertCodePropertyLevel(dbContextFilePath, codes.ToString().TrimEnd());
-            }
+            }            
             
             return Json(new { code = 1, msg = "" });
         }

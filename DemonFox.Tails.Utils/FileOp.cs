@@ -88,9 +88,9 @@ namespace DemonFox.Tails.Utils
             {
                 throw new ArgumentNullException(nameof(dir));
             }
-            if (!Directory.Exists(dir))
+            if (!Directory.Exists(dir)) // 目录都不存在, 那么文件肯定不存在, 返回空集合即可
             {
-                throw new ArgumentException($"目录{dir}不存在");
+                return new List<string>();
             }
             if (filter == null)
             {
@@ -437,16 +437,23 @@ namespace DemonFox.Tails.Utils
                 {
                     throw new Exception("要插入的代码已经存在");
                 }
-                Regex regex = new Regex(methodName + @"[<\w>]*\(.*\r\n\s{8}{[\w\W]*\s{8}}");
+                Regex regex = new Regex(methodName + @"\(.*\r\n\s{8}{[\w\W]*?\s{8}}");
                 Match onModelCreatingMatch = regex.Match(originCode);
                 string oldPart = onModelCreatingMatch.Value;
                 string newPart = onModelCreatingMatch.Value.TrimEnd('}') + OneTabSpace + codes + Environment.NewLine + TwoTabsSpace + "}";
                 return originCode.Replace(oldPart, newPart);
             });
         }
-
-        public static void InsertCodeToMethod(string classFile, string methodName, string codes, Func<StatementSyntax, bool> insertPositionPredicate, Func<StatementSyntax, bool> codesExistPredicate = null)
-        {            
+        /// <summary>
+        /// 向一个方法中插入代码
+        /// </summary>
+        /// <param name="classFile">方法所在的类文件</param>
+        /// <param name="methodName">方法名</param>
+        /// <param name="codes">要插入的代码</param>
+        /// <param name="insertPositionPredicate">怎么找到插入代码的位置(插到找到的位置后面)</param>
+        /// <param name="codesExistPredicate">如果只插入一句代码, 怎么判断要插入的代码是否存在, 如果插入的是代码段的话暂时不传参数</param>
+        public static void InsertCodeToMethod(string classFile, string methodName, string codes, Func<StatementSyntax, bool> insertPositionPredicate = null, Func<StatementSyntax, bool> codesExistPredicate = null)
+        {                        
             InsertContent(classFile, originCode =>
             {                
                 SyntaxTree tree = CSharpSyntaxTree.ParseText(originCode);
@@ -456,19 +463,29 @@ namespace DemonFox.Tails.Utils
                 // 如果方法中没有代码
                 if (methodStatements.FirstOrDefault() == null)
                 {
-                    Regex regex = new Regex(methodName + @"[<\w>]*\(.*\r\n\s{8}{[\w\W]*\s{8}}");
+                    Regex regex = new Regex(methodName + @"\(.*\r\n\s{8}{[\w\W]*?\s{8}}");
                     Match onModelCreatingMatch = regex.Match(originCode);
                     string oldPart = onModelCreatingMatch.Value;
                     string newPart = onModelCreatingMatch.Value.TrimEnd('}') + OneTabSpace + codes + Environment.NewLine + TwoTabsSpace + "}";
                     return originCode.Replace(oldPart, newPart);
                 }
+                if (codesExistPredicate == null)
+                {
+                    if (method.Body.ToString().Contains(codes))
+                    {
+                        throw new Exception("要插入的代码已经存在");
+                    }                    
+                }
                 // 如果要插入的语句已经存在
-                if (methodStatements.Where(codesExistPredicate).FirstOrDefault() != null)
+                else if (methodStatements.Where(codesExistPredicate).FirstOrDefault() != null)
                 {
                     throw new Exception("要插入的代码已经存在");
                 }
-                
-                string insertPosition = methodStatements.Where(insertPositionPredicate).LastOrDefault()?.ToString();                
+
+                string insertPosition = insertPositionPredicate != null
+                                            ? methodStatements.Where(insertPositionPredicate).LastOrDefault()?.ToString()
+                                            : methodStatements.LastOrDefault()?.ToString();
+                // 没有找到符合条件的代码 也取最后一个代码表达式
                 if (string.IsNullOrEmpty(insertPosition))
                 {
                     insertPosition = methodStatements.LastOrDefault().ToString();

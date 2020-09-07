@@ -190,8 +190,9 @@
                 alert(result.msg);
                 console.log(result);
             }
-        })        
-        // 当选择的两个数据表是一对一的关系, 指定"外键表"和"外键"
+        })
+
+        // 当选择两张表之后, 需指定"外键表"和"外键"
         function relationshipingEntities() {
             // 先移除之前的
             $('.chooseForeignKeyTableDiv').remove();
