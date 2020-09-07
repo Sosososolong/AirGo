@@ -105,11 +105,11 @@
                             {
                                 @if (type.Item1 == ViewBag.CurrentType as string)
                                 {
-                                    <option value="@type.Item1" selected="selected" data-toggle="tooltip" data-placement="right" title="@type.Item2["Describe"]">@type.Item1</option>
+                            <option value="@type.Item1" selected="selected" data-toggle="tooltip" data-placement="right" title="@type.Item2["Describe"]">@type.Item1 (@type.Item2["Describe"])</option>
                                 }
                                 else
                                 {
-                                    <option value="@type.Item1" data-toggle="tooltip" data-placement="right" title="@type.Item2["Describe"]">@type.Item1</option>
+                        <option value="@type.Item1" data-toggle="tooltip" data-placement="right" title="@type.Item2["Describe"]">@type.Item1 (@type.Item2["Describe"])</option>
                                 }
                             }
                         </select>
@@ -121,14 +121,14 @@
                             {
                                 @if (ViewBag.CurrentPath as string == item.Key)
                                 {
-                                    <option value="@item.Key" selected="selected" data-toggle="tooltip" data-placement="right" title="@item.Value["SolutionDirectory"] - @item.Value["ClientPosition"]">@item.Key</option>
+                            <option value="@item.Key" selected="selected" data-toggle="tooltip" data-placement="right" title="@item.Value["SolutionDirectory"] - @item.Value["ClientPosition"]">@item.Key (@item.Value["SolutionDirectory"] - @item.Value["ClientPosition"])</option>
                                 }
                                 else
                                 {
-                                    <option value="@item.Key" data-toggle="tooltip" data-placement="right" title="@item.Value["SolutionDirectory"] - @item.Value["ClientPosition"]">@item.Key</option>
+                        <option value="@item.Key" data-toggle="tooltip" data-placement="right" title="@item.Value["SolutionDirectory"] - @item.Value["ClientPosition"]">@item.Key (@item.Value["SolutionDirectory"] - @item.Value["ClientPosition"])</option>
                                 }
                             }
-                        </select>
+                        </select>                        
                     </div>
                 </div>
             </div>

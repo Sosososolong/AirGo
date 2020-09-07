@@ -20,7 +20,7 @@
       "commandName": "Project",
       "launchBrowser": true,
       "applicationUrl": "http://localhost:5000",
-      "launchUrl": "CoreGenerator/DeleteDefaultFile",
+      "launchUrl": "Home/Prepare",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development" //Development Production
       }
