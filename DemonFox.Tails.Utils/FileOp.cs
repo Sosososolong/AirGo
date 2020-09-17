@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Runtime.Serialization;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -445,7 +446,7 @@ namespace DemonFox.Tails.Utils
             });
         }
         /// <summary>
-        /// 向一个方法中插入代码
+        /// 向一个方法中插入代码段字符串
         /// </summary>
         /// <param name="classFile">方法所在的类文件</param>
         /// <param name="methodName">方法名</param>
@@ -481,16 +482,24 @@ namespace DemonFox.Tails.Utils
                 {
                     throw new Exception("要插入的代码已经存在");
                 }
+                
 
-                string insertPosition = insertPositionPredicate != null
-                                            ? methodStatements.Where(insertPositionPredicate).LastOrDefault()?.ToString()
-                                            : methodStatements.LastOrDefault()?.ToString();
-                // 没有找到符合条件的代码 也取最后一个代码表达式
-                if (string.IsNullOrEmpty(insertPosition))
+                StatementSyntax insertPositionStatement = insertPositionPredicate != null
+                                            ? methodStatements.Where(insertPositionPredicate).LastOrDefault()
+                                            : methodStatements.LastOrDefault();
+                if (insertPositionStatement == null) // 根据匹配条件没有找到匹配的代码
                 {
-                    insertPosition = methodStatements.LastOrDefault().ToString();
-                }                
-                string newCodes = insertPosition + Environment.NewLine + Environment.NewLine + OneTabSpace + TwoTabsSpace + codes;
+                    insertPositionStatement = methodStatements.LastOrDefault();
+                }
+
+                string insertPositionTrivia = insertPositionStatement.GetTrailingTrivia().ToString();
+                if (string.IsNullOrEmpty(insertPositionTrivia))
+                {
+                    insertPositionTrivia = Environment.NewLine;
+                }
+
+                string insertPosition = insertPositionStatement.ToString();
+                string newCodes = insertPosition.ToString() + insertPositionTrivia + Environment.NewLine + OneTabSpace + TwoTabsSpace + codes;
                 return originCode.Replace(insertPosition, newCodes);
             });
         }

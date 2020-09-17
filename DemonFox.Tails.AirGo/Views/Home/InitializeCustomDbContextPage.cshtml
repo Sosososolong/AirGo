@@ -37,10 +37,22 @@
                                     <input class="form-control" type="text" name="myDbContextName" value="MyDbContext" />
                                 </div>
                             </div>
+                            <div class="form-group">
+                                <label class="col-sm-2 col-form-label" for="dbType">请选择数据库类型</label>
+                                <div class="col-sm-10">
+                                    <select class="custom-select" name="dbType" id="dbType">
+                                        <option selected value="0">SQL server</option>
+                                        <option value="1">MySQL</option>
+                                        <option value="2">Sqlite</option>
+                                    </select>
+                                </div>                                
+                            </div>
                         }
+
                         <button class="btn btn-primary operationBtn addEntitySetsBtn" target-action="@ViewBag.MyDbContextBtnText.Split('-')[1]" type="submit">@ViewBag.MyDbContextBtnText.Split('-')[0]</button>
                     </div>
                 </form>
+                
             </div>
         </div>
 
@@ -264,6 +276,7 @@
                 formData["foreignKey"] = $('select[name="foreignKey"]').val();
             } else {
                 alert("请选择两个具有关联关系的数据表对应的实体类, 并指定它们的关系")
+                return;
             }
             
             $.ajax({
