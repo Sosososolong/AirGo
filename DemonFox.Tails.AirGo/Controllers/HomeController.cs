@@ -835,8 +835,8 @@ namespace DemonFox.Tails.AirGo.Controllers
             if (!string.IsNullOrWhiteSpace(Request.Form["myDbContextName"]) && Request.Form["myDbContextName"] != "MyDbContext")
             {
                 dbContextFileName = Request.Form["myDbContextName"] + ".cs";
-            }
-            string type = Request.Form["type"]; // create modify
+            }            
+            string type = Request.Form["type"]; // create modify            
             List<string> entityNamesParams = Request.Form.Where(p => p.Key.StartsWith("entity-")).Select(p=>p.Key.Replace("entity-", string.Empty)).ToList();
             if (entityNamesParams.Count <= 0)
             {
@@ -858,10 +858,26 @@ namespace DemonFox.Tails.AirGo.Controllers
                 FileOp.Write(dbContextFilePath, myDbContextContent, false, Encoding.UTF8);
 
                 // 2. Startup中将自定义DbCotext注册到容器中
+                string dbType = Request.Form["dbType"];
+                string useMethodName = string.Empty;
+                switch (dbType)
+                {
+                    case "0":
+                        useMethodName = "UseSqlServer";
+                        break;
+                    case "1":
+                        useMethodName = "UseMySQL";
+                        break;
+                    case "2":
+                        useMethodName = "UseSqlite";
+                        break;
+                    default:
+                        break;
+                }
                 string startupFile = _settingsObj["WebAppStartupFile"];
                 string addDbContextToContainerCodes = $@"services.AddDbContext<{dbContextFileName.Replace(".cs", string.Empty)}>(options =>
             {{
-                options.UseSqlite(""{_connectionString}""); //UseSqlServer(Microsoft.EntityFrameworkCore.SqlServer) UseMySQL(Pomelo.EntityFrameworkCore.MySql)
+                options.{useMethodName}(""{_connectionString}""); //UseSqlServer(Microsoft.EntityFrameworkCore.SqlServer) UseMySQL(Pomelo.EntityFrameworkCore.MySql) UseSqlite(Microsoft.EntityFrameworkCore.Sqlite)
             }}); ";
                 FileOp.InsertCodeToMethod(startupFile, "ConfigureServices", addDbContextToContainerCodes);
             }
