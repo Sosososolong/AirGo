@@ -1,2 +1,2 @@
 # AirGo
-Codematic
+Codematic, Assistant
