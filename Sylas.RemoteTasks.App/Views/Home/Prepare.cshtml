@@ -1,0 +1,228 @@
+﻿@{
+    ViewData["Title"] = "Prepare";
+    //Newtonsoft.Json.Linq.JObject OperationInfo = ViewBag.OperationInfo;
+}
+<div class="container">
+    <p>
+        <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#generateCodeBySql" aria-expanded="false" aria-controls="generateCodeBySql">
+            Generate code by sql
+        </button>
+        <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#aspNetCoreGenerator" aria-expanded="false" aria-controls="aspNetCoreGenerator">
+            ASP.NET Core Generator
+        </button>
+    </p>
+    <div class="collapse" id="generateCodeBySql">
+        <div class="card-header">通过sql语句生成webform的前台后台代码</div>
+        <div class="card card-body">
+            <form class="needs-validation" method="post" action="" novalidate>
+                <div class="form-group">
+                    <label class="col-sm-2 col-form-label">Connectiong String</label>
+                    <div class="col-sm-10">
+                        <input class="form-control" type="text" name="connectionString" value="server=xxxxxx,xx;uid=xxxx;pwd=xxxxxxx;" required />
+                        <div class="invalid-feedback">
+                            Please choose a username.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="col-sm-2 col-form-label" data-bs-toggle="modal" data-target="#modal_sql_example"><a href="javascript:void(0)">SQL Statement</a></label>
+                    <div class="col-sm-10">
+                        <textarea class="form-control" name="sql" cols="70" rows="20" required></textarea>
+                        <div class="invalid-feedback">
+                            Please provide a valid sql statement.
+                        </div>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" formtarget="_blank" target-action="/Home/Index" type="submit">Normal</button>
+                <button class="btn btn-primary" formtarget="_blank" target-action="/Home/GameBackend" type="submit">GameBackend</button>
+                <button class="btn btn-primary" formtarget="_blank" target-action="/Home/GameBackend619" type="submit">GameBackend619</button>
+            </form>
+            <!--SQL Statement Example-->
+            <div class="modal fade" id="modal_sql_example">
+                <div class="modal-dialog modal-dialog-scrollable">
+                    <div class="modal-content">
+
+                        <div class="modal-header">Example</div>
+                        <div class="modal-body">
+                            <div style="font-size:12px; word-spacing:3px;">
+                                select<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;top (@@pageSize) *<br />
+                                from<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;(select<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;ROW_NUMBER() over(order by record.RecordID DESC) as RowNumber,<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;record.RecordID,<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;record.SourceUserID,<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;account.GameID,<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;account.NickName,<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;record.SourceGold,<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;record.SourceBank,<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;record.SourceEndGold,<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;record.SourceEndBank,<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;record.TargetUserID,<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;record.TargetGold,<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;record.TargetBank,<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;record.TargetEndGold,<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;record.TargetEndBank,<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;record.SwapScore,<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;record.Revenue,<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;record.CollectDate,<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;record.CollectNote,<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;record.TradeStatus<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;from SQTreasureDB.dbo.RecordInsure as record,SQAccountsDB.dbo.AccountsInfo as account<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;where record.SourceUserID=account.UserID<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;and record.TradeStatus>9) as temp<br /><br />
+
+                                where temp.RowNumber>(@@pageIndex-1)*@@pageSize<br /><br />
+
+                                select<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;count(*)<br />
+                                from<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;SQTreasureDB.dbo.RecordInsure as record,SQAccountsDB.dbo.AccountsInfo as account<br />
+                                where<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;record.SourceUserID=account.UserID<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;and record.TradeStatus>9
+                            </div>
+                        </div>
+                        <div class="modal-footer"><button class="btn btn-secondary" data-dismiss="modal">Close</button></div>
+
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="" id="aspNetCoreGenerator">
+        <div class="card-header">
+            <div class="form-row">
+                <div class="form-group col-md-6">
+                    <label for="operationTypeInfo">项目类型</label>
+                    <select class="form-control projects-select" id="operationTypeInfo" target-type="type">
+                        @foreach (Tuple<string, Newtonsoft.Json.Linq.JObject> type in ViewBag.OperationTypes)
+                        {
+                            @if (type.Item1 == ViewBag.CurrentType as string)
+                            {
+                                <option value="@type.Item1" selected="selected" data-toggle="tooltip" data-placement="right" title="@type.Item2["Describe"]">@type.Item1 (@type.Item2["Describe"])</option>
+                            }
+                            else
+                            {
+                                <option value="@type.Item1" data-toggle="tooltip" data-placement="right" title="@type.Item2["Describe"]">@type.Item1 (@type.Item2["Describe"])</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="form-group col-md-6">
+                    <label id="operatinPathInfo">项目路径</label>
+                    <select class="form-control projects-select" id="operatinPathInfo" target-type="path">
+                        @foreach (var item in ViewBag.ProjectPathInfos as Newtonsoft.Json.Linq.JObject)
+                        {
+                            @if (ViewBag.CurrentPath as string == item.Key)
+                            {
+                                <option value="@item.Key" selected="selected" data-toggle="tooltip" data-placement="right" title="@item.Value["SolutionDirectory"] - @item.Value["ClientPosition"]">@item.Key (@item.Value["SolutionDirectory"] - @item.Value["ClientPosition"])</option>
+                            }
+                            else
+                            {
+                                <option value="@item.Key" data-toggle="tooltip" data-placement="right" title="@item.Value["SolutionDirectory"] - @item.Value["ClientPosition"]">@item.Key (@item.Value["SolutionDirectory"] - @item.Value["ClientPosition"])</option>
+                            }
+                        }
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="card card-body">
+            <p>
+                @*<button class="btn btn-outline-info" type="button">
+                创建新项目(WebApp)
+                </button>
+                <button class="btn btn-outline-info" type="button">
+                创建新项目(WebApp/Core/Infrastructure)
+                </button>*@
+                <button class="btn btn-outline-info operation" type="button" action-name="InitializeCustomDbContextPage">
+                    Entity Framework Core
+                </button>
+            </p>
+        </div>
+    </div>
+
+    <!--模态框-->
+    <div class="modal" tabindex="-1" role="dialog" id="myLoadingModal">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content bg-transparent">
+                @*<div class="modal-header">Title</div>*@
+                <div class="modal-body" style="text-align:center;">
+                    loading...
+                </div>
+                @*<div class="modal-footer">Footer</div>*@
+            </div>
+        </div>
+    </div>
+
+    @section Scripts{
+        <script>
+            // 根据点击的按钮, 改变表单访问的接口
+            $('form button').click(function () {
+                var target_url = $(this).attr('target-action');
+                $('form').attr('action', target_url)
+            })
+            $(function () {
+                // Fetch all the forms we want to apply custom Bootstrap validation styles to
+                var forms = document.getElementsByClassName('needs-validation');
+                // Loop over them and prevent submission
+                var validation = Array.prototype.filter.call(forms, function (form) {
+                    form.addEventListener('submit', function (event) {
+                        if (form.checkValidity() === false) {
+                            event.preventDefault();
+                            event.stopPropagation();
+                        }
+                        form.classList.add('was-validated');
+                    }, false);
+                });
+
+                // 切换项目
+                $('.projects-select').change(async function () {
+                    let currentSelect = $(this);
+
+                    $('#myLoadingModal').modal('show');
+                    var result = await $.ajax({
+                        type: "post",
+                        url: "ChangingProject",
+                        data: { "target": currentSelect.attr("target-type"), "value": currentSelect.val() },
+                        dataType: "json",
+                        xhrFields: {
+                            withCredentials: true  // 请求头会带上origin字段，配合服务端Access-Control-Allow-Origin设置的值与之对应即可实现跨域
+                        },
+                    });
+                    $('#myLoadingModal').modal('hide');
+
+                    if (currentSelect.attr("target-type") == 'type') { // 如果项目类型的改变的话, 重新加载该类型下项目路径
+                        $('.projects-select').last().empty();
+                        $.each(result.data, function (key, value) {
+                            $('.projects-select').last().append("<option value='" + key + "' data-toggle='tooltip' data-placement='right' title= '" + value.SolutionDirectory + " - " + value.ClientPosition + "'>" + key + "</option>")
+                        });
+                    }
+                })
+
+
+            })
+            $('.operation').click(function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                window.open($(this).attr("action-name"));
+            })
+            async function test() {
+                //var result = await $.ajax({
+                //    type: "post",
+                //    url: "Test",
+                //    xhrFields: {
+                //        withCredentials: true  // 请求头会带上origin字段，配合服务端Access-Control-Allow-Origin设置的值与之对应即可实现跨域
+                //    },
+                //});
+                //$('#btnTest').text(result);
+            }
+        </script>
+    }
+    <!--test-->
+
+</div>

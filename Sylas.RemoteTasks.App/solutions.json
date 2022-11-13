@@ -1,0 +1,131 @@
+{
+  "Type001": {
+    "Describe": "很小的项目架构方式,所有的操作都集成在了AspNetCore Web项目中",
+    "Paths": {
+      "Path001": {
+        "Host": "WqlDesktopPC",
+        "SolutionDirectory": "D:/.NET/my",
+        "ClientPosition": "Sylas",
+        "ConnectionStrings": "Data Source=sylas.db"
+      },
+      "Path002": {
+        "Host": "WqlDesktopPC",
+        "SolutionDirectory": "D:/.NET/my",
+        "ClientPosition": "Sylas",
+        "ConnectionStrings": "Data Source=sylas.db"
+      }
+    },
+    "Operations": {
+      "OrderByAdd": {
+        "OrderByServicesDir": {
+          "Path": "{SolutionDirectory}/{ClientPosition}/Services",
+          "Namespace": "{ClientPosition}.Services"
+        }
+      },
+      "OrderByDtoToEntityMaping": {
+        "OrderByMappingContainer": "{SolutionDirectory}/{ClientPosition}/Services/PropertyMappingService.cs",
+        "ModelsPropertyMapping": "{SolutionDirectory}/{ClientPosition}/Services/ModelsPropertyMapping.cs",
+        "PropertyMappingValue": "{SolutionDirectory}/{ClientPosition}/Services/PropertyMappingValue.cs",
+        "DtoParametersDirectory": {
+          "Path": "{SolutionDirectory}/{ClientPosition}/DtoParameters/",
+          "Namespace": "{ClientPosition}.DtoParameters"
+        }
+      },
+      "AddActionConstraints": {
+        "Directory": "{SolutionDirectory}/{ClientPosition}/ActionConstraints/",
+        "Namespace": "{ClientPosition}.ActionConstraints"
+      },
+      "AddApiForEntity": {
+        "MyDbContextDirectory": {
+          "Path": "{SolutionDirectory}/{ClientPosition}/Database/",
+          "Namespace": "{ClientPosition}.Database"
+        }
+      },
+      "InitializeCustomDbContext": {
+        "MyDbContextDirectory": {
+          "Path": "{SolutionDirectory}/{ClientPosition}/Database/",
+          "Namespace": "{ClientPosition}.Database"
+        }
+      }
+    },
+    "WebAppProgramFile": "{SolutionDirectory}/{ClientPosition}/Program.cs",
+    "WebAppStartupFile": "{SolutionDirectory}/{ClientPosition}/Startup.cs",
+    "WebAppProjectDirectory": "{SolutionDirectory}/{ClientPosition}/",
+    "EntitiesDirectory": {
+      "Path": "{SolutionDirectory}/{ClientPosition}/Entities/",
+      "Namespace": "{ClientPosition}.Entities"
+    },
+    "DtoProjectDirectory": "{SolutionDirectory}/{ClientPosition}/",
+    "ExtensionsDirectory": {
+      "Path": "{SolutionDirectory}/{ClientPosition}/Helps/",
+      "Namespace": "{ClientPosition}.Helps"
+    },
+    "RepositoryDirectory": {
+      "Path": "{SolutionDirectory}/{ClientPosition}/Services/",
+      "Namespace": "{ClientPosition}.Services"
+    }
+  },
+  "Type002": {
+    "Describe": "嘻嘻嘻嘻xxxxxx",
+    "Paths": {
+      "Path001": {
+        "Host": "WqlDesktopPC",
+        "SolutionDirectory": "E:/asp.net/Routine",
+        "ClientPosition": "MyRoutine"
+      },
+      "Path002": {
+        "Host": "WqlDesktopPC",
+        "SolutionDirectory": "E:/asp.net/Routine",
+        "ClientPosition": "MyRoutine"
+      }
+    },
+    "Operations": {
+      "OrderByAdd": {
+        "OrderByServicesDir": {
+          "Path": "{SolutionDirectory}/{ClientPosition}/Services",
+          "Namespace": "{ClientPosition}.Services"
+        }
+      },
+      "OrderByDtoToEntityMaping": {
+        "OrderByMappingContainer": "{SolutionDirectory}/{ClientPosition}/Services/PropertyMappingService.cs",
+        "ModelsPropertyMapping": "{SolutionDirectory}/{ClientPosition}/Services/ModelsPropertyMapping.cs",
+        "PropertyMappingValue": "{SolutionDirectory}/{ClientPosition}/Services/PropertyMappingValue.cs",
+        "DtoParametersDirectory": {
+          "Path": "{SolutionDirectory}/{ClientPosition}/DtoParameters",
+          "Namespace": "{ClientPosition}.DtoParameters"
+        }
+      },
+      "AddActionConstraints": {
+        "Directory": "{SolutionDirectory}/{ClientPosition}/ActionConstraints",
+        "Namespace": "{ClientPosition}.ActionConstraints"
+      },
+      "AddApiForEntity": {
+        "MyDbContextDirectory": {
+          "Path": "{SolutionDirectory}/{ClientPosition}/Database",
+          "Namespace": "{ClientPosition}.Database"
+        }
+      },
+      "InitializeCustomDbContext": {
+        "MyDbContextDirectory": {
+          "Path": "{SolutionDirectory}/{ClientPosition}/Database",
+          "Namespace": "{ClientPosition}.Database"
+        }
+      }
+    },
+    "WebAppProgramFile": "{SolutionDirectory}/{ClientPosition}/Program.cs",
+    "WebAppStartupFile": "{SolutionDirectory}/{ClientPosition}/Startup.cs",
+    "EntityProjectDirectory": {
+      "Path": "{SolutionDirectory}/{ClientPosition}",
+      "Namespace": "{ClientPosition}.Entities"
+    },
+    "DtoProjectDirectory": "{SolutionDirectory}/{ClientPosition}",
+    "ExtensionsDirectory": {
+      "Path": "{SolutionDirectory}/{ClientPosition}/Helps",
+      "Namespace": "{ClientPosition}.Helps"
+    },
+    "RepositoryDirectory": {
+      "Path": "{SolutionDirectory}/{ClientPosition}/Services",
+      "Namespace": "{ClientPosition}.Services"
+    }
+  }
+}
