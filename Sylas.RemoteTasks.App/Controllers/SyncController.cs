@@ -26,7 +26,7 @@ namespace Sylas.RemoteTasks.App.Controllers
                 { "pageSize", 30 }
             };
             var start = DateTime.Now;
-            var data = await RemoteHelpers.ApiDataGetAsync(
+            var data = await RemoteHelpers.FetchAllDataFromApiAsync(
                 $"http://192.168.1.100:4501/api/NewOchart/GetChildrenDepartments",
                 "获取部门信息失败",
                 queryStringDictionary,

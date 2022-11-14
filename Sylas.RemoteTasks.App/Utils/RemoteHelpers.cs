@@ -23,15 +23,22 @@ namespace Sylas.RemoteTasks.App.Utils
         /// </summary>
         /// <param name="apiUrl"></param>
         /// <param name="errPrefix"></param>
-        /// <param name="queryString"></param>
-        /// <param name="bodyParams"></param>
+        /// <param name="queryDictionary"></param>
+        /// <param name="pageIndexParamName"></param>
+        /// <param name="pageIndexParamInQuery"></param>
+        /// <param name="bodyDictionary"></param>
         /// <param name="requestOkPredicate"></param>
-        /// <param name="dataFieldName"></param>
-        /// <param name="dataOkPredicate"></param>
+        /// <param name="getDataFunc"></param>
         /// <param name="httpClient"></param>
+        /// <param name="idFieldName"></param>
+        /// <param name="parentIdParamName"></param>
+        /// <param name="parentIdParamInQuery"></param>
+        /// <param name="authorizationHeaderToken"></param>
+        /// <param name="mediaType"></param>
+        /// <param name="logger"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static async Task<List<JToken>> ApiDataGetAsync(string apiUrl, string errPrefix, Dictionary<string, object> queryDictionary, string pageIndexParamName, bool pageIndexParamInQuery, Dictionary<string, object> bodyDictionary, Func<JObject, bool> requestOkPredicate, Func<JObject, JToken> getDataFunc, HttpClient httpClient, string idFieldName, string parentIdParamName, bool parentIdParamInQuery, string authorizationHeaderToken = "", string mediaType = "", ILogger logger = null)
+        public static async Task<List<JToken>> FetchAllDataFromApiAsync(string apiUrl, string errPrefix, Dictionary<string, object> queryDictionary, string pageIndexParamName, bool pageIndexParamInQuery, Dictionary<string, object> bodyDictionary, Func<JObject, bool> requestOkPredicate, Func<JObject, JToken> getDataFunc, HttpClient httpClient, string idFieldName, string parentIdParamName, bool parentIdParamInQuery, string authorizationHeaderToken = "", string mediaType = "", ILogger logger = null)
         {
             #region FormData还是application/json
             if (string.IsNullOrWhiteSpace(mediaType))
@@ -71,7 +78,8 @@ namespace Sylas.RemoteTasks.App.Utils
             var allDatas = new List<JToken>();
             await FetchAllApiDataRecursivelyAsync();
             return allDatas;
-
+            
+            // **2. 子节点递归**
             async Task FetchAllApiDataRecursivelyAsync()
             {
                 var records = await ApiChildrenDataAsync();
@@ -123,7 +131,7 @@ namespace Sylas.RemoteTasks.App.Utils
                 //return records;
             }
 
-            // **根据父级Id获取所有子节点(分页递归)**
+            // **1. 分页递归(根据父级Id获取所有子节点,可能有多页数据)**
             async Task<List<JToken>> ApiChildrenDataAsync()
             {
                 List<JToken> allApiDatas = new();
@@ -198,7 +206,7 @@ namespace Sylas.RemoteTasks.App.Utils
                 throw new Exception($"{errPrefix}: API接口返回为空");
             }
 
-            if (!requestOkPredicate(responseObj)) // deptResult["Code"].ToString() == "200"
+            if (!requestOkPredicate(responseObj))
             {
                 throw new Exception($"{errPrefix}: {JsonConvert.SerializeObject(responseObj)}");
             }
