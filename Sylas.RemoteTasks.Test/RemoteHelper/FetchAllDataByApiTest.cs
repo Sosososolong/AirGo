@@ -1,25 +1,27 @@
 ﻿using Dapper;
 using Microsoft.Extensions.Configuration;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Oracle.ManagedDataAccess.Client;
+using Sylas.RemoteTasks.App.Database.SyncBase;
 using Sylas.RemoteTasks.App.Utils;
+using Sylas.RemoteTasks.Test.AppSettingsOptions;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Data;
 using System.Text;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Sylas.RemoteTasks.Test.RemoteHelper
 {
-    public class FetchAllDataByApiTest
+    public class FetchAllDataByApiTest : TestBase
     {
-        private readonly IConfiguration _configuration;
-        public FetchAllDataByApiTest()
+        private readonly ITestOutputHelper _outputHelper;
+
+        public FetchAllDataByApiTest(ITestOutputHelper outputHelper)
         {
-            using var fs = new FileStream("parameters.log", FileMode.Open);
-            _configuration = new ConfigurationBuilder()
-                .AddJsonStream(fs)
-                .Build();
+            _outputHelper = outputHelper;
         }
         //[Fact]
         //public async Task FetchProcessData()
@@ -162,11 +164,11 @@ namespace Sylas.RemoteTasks.Test.RemoteHelper
         [Fact]
         public async Task FetchDataModelAsync()
         {
-            string gateway = _configuration["gateway"] ?? string.Empty;
-            string mainModelId = _configuration["mainModelId"] ?? string.Empty;
-            string token = _configuration["token"] ?? string.Empty;
-            string appDB = _configuration["appDB"] ?? string.Empty;
-            string targetConnectionString = _configuration["targetConnectionString"] ?? string.Empty;
+            string gateway = _configuration["SyncFromApiToDb:Gateway"] ?? string.Empty;
+            string mainModelId = _configuration["SyncFromApiToDb:MainModelId"] ?? string.Empty;
+            string token = _configuration["SyncFromApiToDb:Token"] ?? string.Empty;
+            string appDB = _configuration["SyncFromApiToDb:AppDB"] ?? string.Empty;
+            string targetConnectionString = _configuration["SyncFromApiToDb:TargetConnectionString"] ?? string.Empty;
 
             await fetchDataModelsRecursivelyAsync(mainModelId);
 
@@ -262,6 +264,118 @@ namespace Sylas.RemoteTasks.Test.RemoteHelper
             #region 同步表单
 
             #endregion
+        }
+
+        [Fact]
+        public async Task SyncFromDBToDB_SigleTable()
+        {
+            var syncFromDbToDbOptions = _configuration.GetSection(SyncFromDbToDbOptions.Key).Get<SyncFromDbToDbOptions>();
+            if (syncFromDbToDbOptions is null || string.IsNullOrWhiteSpace(syncFromDbToDbOptions.SourceDb) || string.IsNullOrWhiteSpace(syncFromDbToDbOptions.SourceTable) || string.IsNullOrWhiteSpace(syncFromDbToDbOptions.SourceConnectionString) || string.IsNullOrWhiteSpace(syncFromDbToDbOptions.TargetConnectionString))
+            {
+                throw new Exception($"请配置同步参数: {JsonConvert.SerializeObject(new SyncFromDbToDbOptions())}");
+            }
+            using var targetConn = DatabaseInfo.GetDbConnection(syncFromDbToDbOptions.TargetConnectionString);
+            targetConn.Open();
+
+            // 1.生成所有表的insert语句
+            List<TableSqlsInfo> allTablesInsertSqls = new();
+
+            using (var sourceConn = DatabaseInfo.GetDbConnection(syncFromDbToDbOptions.SourceConnectionString))
+            {
+                TableSqlsInfo tableInsertSqlInfo = await DatabaseInfo.GetTableSqlsInfoAsync(syncFromDbToDbOptions.SourceTable, sourceConn, null, targetConn,
+                    new DataFilter()
+                    {
+                        FilterItems = new List<FilterItem>() {
+                            new FilterItem () { FieldName = "Id", CompareType = "=", Value = "" }
+                        }
+                    });
+                allTablesInsertSqls.Add(tableInsertSqlInfo);
+            }
+
+            // 2. 执行每个表的insert语句
+            var targetDbTransaction = targetConn.BeginTransaction();
+            foreach (var tableSqlsInfo in allTablesInsertSqls)
+            {
+                if (string.IsNullOrEmpty(tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql))
+                {
+                    _outputHelper.WriteLine($"表{tableSqlsInfo.TableName}没有数据无需处理");
+                    continue;
+                }
+                try
+                {
+                    if (!string.IsNullOrWhiteSpace(tableSqlsInfo.BatchInsertSqlInfo.CreateTableSql))
+                    {
+                        // 创建表(或者修改字段)不会回滚
+                        _ = await targetConn.ExecuteAsync(tableSqlsInfo.BatchInsertSqlInfo.CreateTableSql, transaction: targetDbTransaction);
+                    }
+                    var affectedRowsCount = await targetConn.ExecuteAsync(tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql, tableSqlsInfo.BatchInsertSqlInfo.Parameters, transaction: targetDbTransaction);
+                    _outputHelper.WriteLine($"{tableSqlsInfo.TableName}: {affectedRowsCount}条数据");
+                }
+                catch (Exception ex)
+                {
+                    _outputHelper.WriteLine(ex.Message);
+                    _outputHelper.WriteLine(tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql);
+                    targetDbTransaction.Rollback();
+                    _outputHelper.WriteLine("同步结束");
+                    return;
+                }
+            }
+            targetDbTransaction.Commit();
+            _outputHelper.WriteLine("同步结束");
+        }
+
+        [Fact]
+        async Task SyncFromDBToDB_AllTables()
+        {
+            #region 参数
+            var sourceConnectionString = _configuration["SyncFromDbToDb:SourceConnectionString"] ?? throw new Exception($"请在配置文件中添加源数据库连接字符串");
+            var targetConnectionString = _configuration["SyncFromDbToDb:TargetConnectionString"] ?? throw new Exception($"请在配置文件中添加目标数据库连接字符串");
+            var _sourceDb = "IDUO_ENGINE";
+            // 生成SQL: 获取所有表SqlGetDbTablesInfo -> 生成SQL: 获取表全名GetTableFullName -> 生成SQL: 获取表数据GetQuerySql
+            #endregion
+
+            using var targetConn = DatabaseInfo.GetDbConnection(targetConnectionString);
+            targetConn.Open();
+
+            // 1.生成所有表的insert语句
+            List<TableSqlsInfo> allTablesInsertSqls = new();
+
+            using (var conn = DatabaseInfo.GetDbConnection(sourceConnectionString))
+            {
+                // 数据源-数据库
+                var res = await conn.QueryAsync(DatabaseInfo.SqlGetDbTablesInfo(_sourceDb));
+                foreach (var table in res)
+                {
+                    TableSqlsInfo tableInsertSqlInfo = await DatabaseInfo.GetTableSqlsInfoAsync(table, conn, null, targetConn, null);
+                    allTablesInsertSqls.Add(tableInsertSqlInfo);
+                }
+            }
+
+            // 2. 执行每个表的insert语句
+            var dbTransaction = targetConn.BeginTransaction();
+            foreach (var tableSqlsInfo in allTablesInsertSqls)
+            {
+                if (string.IsNullOrEmpty(tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql))
+                {
+                    _outputHelper.WriteLine($"表{tableSqlsInfo.TableName}没有数据无需处理");
+                    continue;
+                }
+                try
+                {
+                    var affectedRowsCount = await targetConn.ExecuteAsync(tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql, tableSqlsInfo.BatchInsertSqlInfo.Parameters, transaction: dbTransaction);
+                    _outputHelper.WriteLine($"{tableSqlsInfo.TableName}: {affectedRowsCount}条数据");
+                }
+                catch (Exception ex)
+                {
+                    _outputHelper.WriteLine(ex.Message);
+                    _outputHelper.WriteLine(tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql);
+                    dbTransaction.Rollback();
+                    _outputHelper.WriteLine("同步结束");
+                    return;
+                }
+            }
+            dbTransaction.Commit();
+            _outputHelper.WriteLine("同步结束");
         }
     }
 }

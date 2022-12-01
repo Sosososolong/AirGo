@@ -226,13 +226,13 @@ namespace Sylas.RemoteTasks.App.Utils
             #endregion
 
             var mysqlCreateTable = createTableSql.Replace('"', '`').Replace(" ENABLE", string.Empty);
-            mysqlCreateTable = RegexConst.RegexOracleNumber().Replace(mysqlCreateTable, m => $"int({m.Groups[1].Value})");
-            mysqlCreateTable = RegexConst.RegexOracleVarchar().Replace(mysqlCreateTable, m => $"varchar({m.Groups[1].Value})");
-            mysqlCreateTable = RegexConst.RegexOracleDateTime().Replace(mysqlCreateTable, "datetime");
-            mysqlCreateTable = RegexConst.RegexOraclePrimaryKey().Replace(mysqlCreateTable, m => $"PRIMARY KEY (`{m.Groups[1].Value}`)");
-            mysqlCreateTable = RegexConst.RegexOracleUsingIndex().Replace(mysqlCreateTable, string.Empty);
-            mysqlCreateTable = RegexConst.RegexOracleTableSpace().Replace(mysqlCreateTable, string.Empty);
-            mysqlCreateTable = RegexConst.RegexOracleSegment().Replace(mysqlCreateTable, "ENGINE=InnoDB DEFAULT CHARSET=utf8");
+            mysqlCreateTable = RegexConst.OracleNumber().Replace(mysqlCreateTable, m => $"int({m.Groups[1].Value})");
+            mysqlCreateTable = RegexConst.OracleVarchar().Replace(mysqlCreateTable, m => $"varchar({m.Groups[1].Value})");
+            mysqlCreateTable = RegexConst.OracleDateTime().Replace(mysqlCreateTable, "datetime");
+            mysqlCreateTable = RegexConst.OraclePrimaryKey().Replace(mysqlCreateTable, m => $"PRIMARY KEY (`{m.Groups[1].Value}`)");
+            mysqlCreateTable = RegexConst.OracleUsingIndex().Replace(mysqlCreateTable, string.Empty);
+            mysqlCreateTable = RegexConst.OracleTableSpace().Replace(mysqlCreateTable, string.Empty);
+            mysqlCreateTable = RegexConst.OracleSegment().Replace(mysqlCreateTable, "ENGINE=InnoDB DEFAULT CHARSET=utf8");
             return mysqlCreateTable;
         }
         
