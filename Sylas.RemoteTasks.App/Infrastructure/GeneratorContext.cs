@@ -364,6 +364,10 @@ namespace Sylas.RemoteTasks.App.Infrastructure
                     }
                     Console.WriteLine("排序升降是否需要反转? y/n");
                     string isRevert = Console.ReadLine();
+                    if (string.IsNullOrWhiteSpace(isRevert))
+                    {
+                        isRevert = "n";
+                    }
                     string[] propertyMappingsValueStrArr = propertyMappingsValueStr.Trim().Split(',');
                     codeSb.Append($@"{{ ""{dtoProp}"", new PropertyMappingValue(new List<string> {{ ");
 
