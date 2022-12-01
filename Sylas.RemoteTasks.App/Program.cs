@@ -1,8 +1,16 @@
+using Sylas.RemoteTasks.App.BackgroundServices;
+
 var builder = WebApplication.CreateBuilder(args);
+
+// 配置文件
+builder.Configuration.AddJsonFile("TaskConfig.log", optional: true, reloadOnChange: true);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
 builder.Services.AddHttpClient();
+
+// 后台任务
+builder.Services.AddHostedService<PublishService>();
 
 var app = builder.Build();
 

@@ -87,6 +87,10 @@ namespace Sylas.RemoteTasks.App.Utils
                 {
                     allDatas.AddRange(records);
                 }
+                if (string.IsNullOrWhiteSpace(parentIdParamName))
+                {
+                    return;
+                }
                 foreach (var record in records)
                 {
                     if (record is JObject recordObj)
@@ -143,13 +147,16 @@ namespace Sylas.RemoteTasks.App.Utils
                 {
                     queryAsync = async () =>
                     {
-                        if (string.IsNullOrWhiteSpace(pageIndexParamName))
+                        if (!string.IsNullOrWhiteSpace(pageIndexParamName))
                         {
-                            pageIndexParamName = "pageIndex";
-                        }
-                        if (!pageIndexParamInQuery)
-                        {
-                            bodyContent = Regex.Replace(bodyContent, "\"" + pageIndexParamName + "\":\\s*\"{0,1}(\\w+)", m => m.Groups[0].Value.Replace(m.Groups[1].Value, pageIndex.ToString()));
+                            if (pageIndexParamInQuery)
+                            {
+                                queryString = Regex.Replace(queryString, pageIndexParamName + "=(\\d+)", m => m.Groups[0].Value.Replace(m.Groups[1].Value, pageIndex.ToString()));
+                            }
+                            else
+                            {
+                                bodyContent = Regex.Replace(bodyContent, "\"" + pageIndexParamName + "\":\\s*\"{0,1}(\\w+)", m => m.Groups[0].Value.Replace(m.Groups[1].Value, pageIndex.ToString()));
+                            }
                         }
                         logger?.LogCritical($"发送请求, body参数: {bodyContent}");
                         var parameters = new StringContent(bodyContent, Encoding.UTF8, mediaType);
@@ -188,14 +195,18 @@ namespace Sylas.RemoteTasks.App.Utils
                     // 检查并获取响应数据
                     var data = GetData(responseObj, errPrefix, requestOkPredicate, getDataFunc);
 
-                    if (!data.Any())
+                    // 没有数据或者分页时停止
+                    if (!data.Any() || string.IsNullOrWhiteSpace(pageIndexParamName))
                     {
                         return;
                     }
                     allApiDatas.AddRange(data);
 
-                    pageIndex++;
-                    await GetApiDataRecursivelyAsync();
+                    if (!string.IsNullOrWhiteSpace(pageIndexParamName))
+                    {
+                        pageIndex++;
+                        await GetApiDataRecursivelyAsync();
+                    }
                 }
             }
         }
