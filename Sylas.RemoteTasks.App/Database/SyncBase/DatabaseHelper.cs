@@ -10,6 +10,7 @@ using System.Text;
 using Dapper;
 using System.Threading.Tasks;
 using Sylas.RemoteTasks.App.RegexExp;
+using Sylas.RemoteTasks.App.Utils;
 
 namespace Sylas.RemoteTasks.App.Database.SyncBase
 {
@@ -20,7 +21,7 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
     // 3. 尝试重构
     #endregion
 
-    public partial class DatabaseInfo
+    public static partial class DatabaseInfo
     {
         #region 数据库连接对象
         public static IDbConnection GetDbConnection(string connectionString)
@@ -40,9 +41,30 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
         public static IDbConnection GetSqlServerConnection(string host, string port, string db, string username, string password) => new SqlConnection($"User ID={username};Password={password};Initial Catalog={db};Data Source={host}");
         #endregion
 
-        public static string SqlGetDbTablesInfo(string dbName)
+        public static string GetAllTables(string dbName)
         {
             return $"select * from information_schema.`TABLES` WHERE table_schema='{dbName}'";
+        }
+        public static async Task<bool> TableExist(this IDbConnection conn, string table)
+        {
+            var databaseType = GetDbType(conn.ConnectionString);
+            var checkSql = string.Empty;
+            switch (databaseType)
+            {
+                case DatabaseType.Oracle:
+                    checkSql = $"select count(*) from all_tables where owner=upper('{conn.Database}') and table_name=upper('{table}')";
+                    break;
+                case DatabaseType.MySql:
+                    checkSql = $"select count(*) from information_schema.tables where table_name='{table}' and table_schema=(select database())";
+                    break;
+                case DatabaseType.SqlServer:
+                    checkSql = $"select count(*) from sysobjects where id = object_id('{table}') and OBJECTPROPERTY(id, N'IsUserTable') = 1";
+                    break;
+                default:
+                    break;
+            }
+            var tableCount = await conn.ExecuteScalarAsync<int>(checkSql);
+            return tableCount > 0;
         }
         public static string GetTableFullName(dynamic tableDynamic)
         {

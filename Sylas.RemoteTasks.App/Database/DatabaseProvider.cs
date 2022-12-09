@@ -9,7 +9,7 @@ public class DatabaseProvider
     public DatabaseProvider(IConfiguration configuration)
     {
         _configuration = configuration;
-        ConnectionString = configuration.GetConnectionString("Default") ?? "server=192.168.1.100;uid=sa;pwd=123456;database=T10";
+        ConnectionString = configuration.GetConnectionString("Default") ?? "server=192.168.1.100;uid=sa;pwd=123456;database=T10;MultipleActiveResultSets=true;Encrypt=True;TrustServerCertificate=True;";
     }
     /// <summary>
     /// 数据库连接字符串

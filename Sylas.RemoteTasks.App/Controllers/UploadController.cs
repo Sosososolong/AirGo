@@ -67,10 +67,10 @@ namespace Sylas.RemoteTasks.App.Controllers
                 file.CopyTo(memoryStream);
                 var bytes = memoryStream.ToArray();
 
-                var serverSaveDir = _configuration["Upload:ServerDir"];
+                var serverSaveDir = _configuration["Upload:SaveDir"];
                 if (serverSaveDir is null)
                 {
-                    throw new Exception("服务端没有配置保存文件的位置 Upload:ServerDir");
+                    throw new Exception("服务端没有配置保存文件的位置 Upload:SaveDir");
                 }
                 //创建本地文件写入流
                 var filePath = Path.Combine(serverSaveDir, file.FileName);
