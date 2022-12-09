@@ -22,7 +22,7 @@ RUN apt-get install vim -y
 
 ENV TZ "Asia/Shanghai"
 
-ENV ASPNETCORE_URLS="http://+:80" # ENV ASPNETCORE_URLS="http://+:80;https://+:7166"
+ENV ASPNETCORE_URLS="http://+:80;https://+:443" # ENV ASPNETCORE_URLS="http://+:80;https://+:7166"
 
 WORKDIR /app
 EXPOSE 80

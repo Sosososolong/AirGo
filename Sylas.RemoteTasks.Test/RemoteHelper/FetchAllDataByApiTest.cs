@@ -343,7 +343,7 @@ namespace Sylas.RemoteTasks.Test.RemoteHelper
             using (var conn = DatabaseInfo.GetDbConnection(sourceConnectionString))
             {
                 // 数据源-数据库
-                var res = await conn.QueryAsync(DatabaseInfo.SqlGetDbTablesInfo(_sourceDb));
+                var res = await conn.QueryAsync(DatabaseInfo.GetAllTables(_sourceDb));
                 foreach (var table in res)
                 {
                     TableSqlsInfo tableInsertSqlInfo = await DatabaseInfo.GetTableSqlsInfoAsync(table, conn, null, targetConn, null);

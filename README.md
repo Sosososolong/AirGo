@@ -1,7 +1,7 @@
 # RemoteTasks
-such as publish
+such as publish, upload ...
 
-## ·¢²¼
+## deploy
 ```shell
 if [[ $v == "all" ]] || [[ $v =~ "test" ]]; then
     cd /home/administrator/web/iduo.test
@@ -11,7 +11,7 @@ if [[ $v == "all" ]] || [[ $v =~ "test" ]]; then
     #docker rmi iduo.test
     #docker build -t iduo.test .
 
-    docker run -d -p 7166:80 -p8989:8989 --name iduo.test iduo.test
+    docker run -d -p 5105:80 -p 7166:7166 --name iduo.test iduo.test
     docker update --restart=always iduo.test
 fi
 ```

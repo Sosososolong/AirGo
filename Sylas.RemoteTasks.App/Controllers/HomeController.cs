@@ -88,6 +88,7 @@ namespace Sylas.RemoteTasks.App.Controllers
                 db.CreateDbParameter("pageIndex", 1),
                 db.CreateDbParameter("pageSize", 10)
             };
+            
             DataSet set = db.ExecuteQuerySql(sql, parameters);
             DataTable dataTable = set.Tables[0];
             List<string> columnNames = new();

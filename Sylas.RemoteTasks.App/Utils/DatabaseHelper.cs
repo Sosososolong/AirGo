@@ -3,19 +3,18 @@ using MySql.Data.MySqlClient;
 //using MySqlConnector;
 using Newtonsoft.Json.Linq;
 using Oracle.ManagedDataAccess.Client;
+using Sylas.RemoteTasks.App.Database.SyncBase;
 using Sylas.RemoteTasks.App.RegexExp;
 using System.Data;
-using System.Data.Common;
 using System.Data.SqlClient;
 using System.Text;
-using System.Text.RegularExpressions;
 
 namespace Sylas.RemoteTasks.App.Utils
 {
     public static partial class DatabaseHelper
     {
         public static string GetTableCreateSql(string tableName) => $"select dbms_metadata.get_ddl('TABLE','{tableName.ToUpper()}') from dual";
-        
+
         public static IDbConnection GetOracleConnection(string host, string port, string instanceName, string username, string password) => new OracleConnection($"Data Source={host}:{port}/{instanceName};User ID={username};Password={password};PERSIST SECURITY INFO=True;Pooling = True;Max Pool Size = 100;Min Pool Size = 1;");
         public static IDbConnection GetMySqlConnection(string host, string port, string db, string username, string password) => new MySqlConnection($"Server={host};Port={port};Stmt=;Database={db};Uid={username};Pwd={password};Allow User Variables=true;");
         public static IDbConnection GetSqlServerConnection(string host, string port, string db, string username, string password) => string.IsNullOrWhiteSpace(port) ? new SqlConnection($"User ID={username};Password={password};Initial Catalog={db};Data Source={host}") : new SqlConnection($"User ID={username};Password={password};Initial Catalog={db};Data Source={host},{port}");
@@ -235,45 +234,19 @@ namespace Sylas.RemoteTasks.App.Utils
             mysqlCreateTable = RegexConst.OracleSegment().Replace(mysqlCreateTable, "ENGINE=InnoDB DEFAULT CHARSET=utf8");
             return mysqlCreateTable;
         }
-        
-        public static async Task<bool> TableExist(this IDbConnection conn, string table)
-        {
-            var databaseType = GetDatabaseTypeName(conn.ConnectionString);
-            var checkSql = string.Empty;
-            switch (databaseType)
-            {
-                case DataBaseType.Oracle:
-                    checkSql = $"select count(*) from all_tables where owner=upper('{conn.Database}') and table_name=upper('{table}')";
-                    break;
-                case DataBaseType.Mysql:
-                    checkSql = $"select count(*) from information_schema.tables where table_name='{table}' and table_schema=(select database())";
-                    break;
-                case DataBaseType.SqlServer:
-                    checkSql = $"select count(*) from sysobjects where id = object_id('{table}') and OBJECTPROPERTY(id, N'IsUserTable') = 1";
-                    break;
-                default:
-                    break;
-            }
-            var tableCount = await conn.ExecuteScalarAsync<int>(checkSql);
-            return tableCount > 0;
-        }
-        private static DataBaseType GetDatabaseTypeName(string connectionString)
+        private static DatabaseType GetDatabaseTypeName(string connectionString)
         {
             if (!connectionString.ToLower().Contains("initial catalog"))
             {
                 if (!connectionString.ToLower().Contains("server"))
                 {
-                    return DataBaseType.Oracle;
+                    return DatabaseType.Oracle;
                 }
 
-                return DataBaseType.Mysql;
+                return DatabaseType.MySql;
             }
 
-            return DataBaseType.SqlServer;
+            return DatabaseType.SqlServer;
         }
-    }
-    public enum DataBaseType
-    {
-        Oracle, Mysql, SqlServer
     }
 }
