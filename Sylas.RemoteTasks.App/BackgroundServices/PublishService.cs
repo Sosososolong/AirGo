@@ -1,8 +1,7 @@
-﻿using System.Net.Sockets;
+﻿using Sylas.RemoteTasks.App.Utils;
 using System.Net;
+using System.Net.Sockets;
 using System.Text;
-using System;
-using Sylas.RemoteTasks.App.Utils;
 
 namespace Sylas.RemoteTasks.App.BackgroundServices
 {
@@ -29,7 +28,7 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                 {
                     // 无限循环等待客户端的连接
                     var socketForClient = tcpSocket.Accept();
-                    
+
                     #region 连接到客户端就交给子线程处理, 然后马上继续循环过来等待其他客户端连接
                     Task.Factory.StartNew(async () =>
                     {
@@ -39,11 +38,28 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                         byte[] bufferParameters = new byte[1024];
 
                         var socketForClientClosed = false;
+                        var uploadedFileCount = 1;
                         while (!socketForClientClosed)
                         {
                             // 服务端已经准备好处理文件字节; 提醒客户端可以发送文件字节过来了
-                            await socketForClient.SendAsync(Encoding.UTF8.GetBytes("111111").AsMemory(), SocketFlags.None);
-                            int realLength = socketForClient.Receive(bufferParameters);
+                            Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} READY 准备接收新的文件");
+                            await socketForClient.SendAsync(Encoding.UTF8.GetBytes("ready").AsMemory(), SocketFlags.None);
+                            int realLength = await socketForClient.ReceiveAsync(bufferParameters, SocketFlags.None);
+                            if (realLength <= 0)
+                            {
+                                socketForClient.Close();
+                                socketForClient.Dispose();
+                                break;
+                            }
+
+                            if (realLength == 2 && bufferParameters[0] == 45 && bufferParameters[1] == 49)
+                            {
+                                // 客户端先关闭socket可能会抛异常; 所以客户端通知服务端关闭连接(-1)后, 服务端发送最后一条消息然后先关闭socket连接, 客户端等待此消息后再关闭连接
+                                await socketForClient.SendAsync(Encoding.UTF8.GetBytes("-1").AsMemory(), SocketFlags.None);
+                                socketForClient.Close();
+                                socketForClient.Dispose();
+                                break;
+                            }
                             // 获取客户端传过来的字节数组放到bufferParameters中, 字节数组bufferParameters剩余的位置将会用0填充, 0经UTF-8反编码为字符串即"\0"
                             var parametersContent = Encoding.UTF8.GetString(bufferParameters, 0, realLength).Replace("\0", string.Empty);
                             var parametersArray = parametersContent.Split(";;;;");
@@ -57,21 +73,18 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                                     fileName = parametersArray[1];
                                     if (string.IsNullOrWhiteSpace(fileName))
                                     {
-                                        Console.WriteLine($"传输文件名为空, 文件传输提前结束");
+                                        Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} ERROR 传输文件名为空, 文件传输提前结束");
                                         socketForClient.Close();
                                         socketForClient.Dispose();
                                         return;
                                     }
-                                    Console.WriteLine($"即将传输文件: {fileName}");
+
                                     // 优先取客户端配置
                                     fileSaveDir = parametersArray[2];
                                     if (string.IsNullOrWhiteSpace(fileSaveDir))
                                     {
                                         fileSaveDir = serverSaveFileDir;
                                     }
-
-                                    // 任务参数解析完毕, 客户端可以开始发送文件的字节了
-                                    await socketForClient.SendAsync(Encoding.UTF8.GetBytes("000000").AsMemory(), SocketFlags.None); // SocketFlags.Broadcast
 
                                     if (string.IsNullOrWhiteSpace(fileSaveDir))
                                     {
@@ -88,36 +101,34 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                                     {
                                         Directory.CreateDirectory(fileDir);
                                     }
+
+                                    Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 首先从第一个包获取文件名: {fileName}; 保存路径: {file}; READY 提醒客户端可以正式发送文件的字节流了");
+
+                                    // 任务参数解析完毕, 客户端可以开始发送文件的字节了
+                                    await socketForClient.SendAsync(Encoding.UTF8.GetBytes("ready").AsMemory(), SocketFlags.None); // SocketFlags.Broadcast
                                     using (var fileStream = new FileStream(file, FileMode.Create))
                                     {
                                         while (true)
                                         {
                                             // 阻塞等待, 一直等到有字节发送过来或者客户端关闭socket连接
                                             realLength = socketForClient.Receive(buffer);
-                                            Console.WriteLine($"接收到字节: {realLength}");
                                             if (realLength > 0)
                                             {
                                                 if (realLength == 6 && buffer[0] == ZeroByteValue && buffer[1] == ZeroByteValue && buffer[2] == ZeroByteValue && buffer[3] == ZeroByteValue && buffer[4] == ZeroByteValue && buffer[5] == ZeroByteValue)
                                                 {
-                                                    // 一个文件上传完毕, 即将上传新的文件
+                                                    // 接收到000000, 表示当前文件已经上传完毕
+                                                    Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 收到客户端提醒: 第{uploadedFileCount++}文件数据已经全部上传完毕 {Environment.NewLine}");
                                                     break;
                                                 }
                                                 else
                                                 {
                                                     // 正在上传文件的字节
                                                     await fileStream.WriteAsync(buffer.AsMemory(0, realLength));
+
+                                                    Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 接收到{realLength}字节保存到文件; READY 提醒客户端可以继续发送下一个包了");
                                                     // 处理完告诉客户端继续发送
-                                                    await socketForClient.SendAsync(Encoding.UTF8.GetBytes("111111"));
+                                                    await socketForClient.SendAsync(Encoding.UTF8.GetBytes("ready"));
                                                 }
-                                            }
-                                            else
-                                            {
-                                                // 客户端所有文件上传完毕后关闭socket连接, 结束
-                                                Console.WriteLine($"接收到字节: {realLength}; 上传完毕!");
-                                                socketForClient.Close();
-                                                socketForClient.Dispose();
-                                                socketForClientClosed = true;
-                                                break;
                                             }
                                         }
                                     }
@@ -126,6 +137,7 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                                     break;
                             }
                         }
+                        Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} client closed");
                     });
                     #endregion
                 }
