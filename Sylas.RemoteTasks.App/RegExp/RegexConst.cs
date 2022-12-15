@@ -58,6 +58,10 @@ namespace Sylas.RemoteTasks.App.RegexExp
         /// <returns></returns>
         [GeneratedRegex("(byte\\[\\])|(lob)|(varbinary)")]
         public static partial Regex ColumnTypeBlob();
+
+
+        [GeneratedRegex("\\{\\{\\$primary\\.(\\w+)\\}\\}")]
+        public static partial Regex RefedPrimaryField();
     }
 
 }

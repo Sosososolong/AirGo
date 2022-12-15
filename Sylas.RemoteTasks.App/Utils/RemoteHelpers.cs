@@ -8,7 +8,7 @@ namespace Sylas.RemoteTasks.App.Utils
 {
     public static class RemoteHelpers
     {
-        private static string GetQueryString(Dictionary<string, object> queryDictionary)
+        private static string GetQueryString(IDictionary<string, object> queryDictionary)
         {
             var queryStringBuilder = new StringBuilder();
             foreach (var parameterKeyVal in queryDictionary)
@@ -18,6 +18,55 @@ namespace Sylas.RemoteTasks.App.Utils
             var queryString = queryStringBuilder.ToString().TrimEnd('&');
             return queryString;
         }
+
+        public static async Task<RequestConfig> FetchAllDataFromApiAsync(RequestConfig requestConfig)
+        {
+            ValidateHelper.ValidateArgumentIsNull(requestConfig, new List<string> { nameof(requestConfig.FailMsg), nameof(requestConfig.Token) });
+
+            NodesHelper.FillChildrenValue(requestConfig, nameof(requestConfig.Details));
+
+
+            await fetchDataModelsRecursivelyAsync(requestConfig);
+            return requestConfig;
+
+            async Task fetchDataModelsRecursivelyAsync(RequestConfig config)
+            {
+                Func<JObject, bool> responseOkPredicate = response => response[config.ResponseOkField]?.ToString() == config.ResponseOkValue;
+                var responseDataFieldArr = config.ResponseDataField.Split(':');
+                Func<JObject, JToken?> getDataFunc = response =>
+                {
+                    JToken? result = response;
+                    foreach (var field in responseDataFieldArr)
+                    {
+                        if (result is not null && !string.IsNullOrWhiteSpace(field))
+                        {
+                            result = result[field];
+                        }
+                    }
+                    return result ?? new JArray();
+                };
+
+                var records = await RemoteHelpers.FetchAllDataFromApiAsync(config.Url, config.FailMsg,
+                                                                       config.QueryDictionary, config.PageIndexField, config.PageIndexParamInQuery, config.BodyDictionary,
+                                                                       responseOkPredicate,
+                                                                       getDataFunc,
+                                                                       new HttpClient(),
+                                                                       config.IdFieldName, config.ParentIdFieldName, false,
+                                                                       config.Token);
+                config.Data = records;
+                if (config.Details is not null && config.Details.Any())
+                {
+                    foreach (var record in records)
+                    {
+                        foreach (var detail in config.Details)
+                        {
+                            await fetchDataModelsRecursivelyAsync(detail);
+                        }
+                    }
+                }
+            }
+        }
+
         /// <summary>
         /// 通过API(分页)获取所有数据
         /// </summary>
@@ -27,7 +76,7 @@ namespace Sylas.RemoteTasks.App.Utils
         /// <param name="pageIndexParamName"></param>
         /// <param name="pageIndexParamInQuery"></param>
         /// <param name="bodyDictionary"></param>
-        /// <param name="requestOkPredicate"></param>
+        /// <param name="responseOkPredicate"></param>
         /// <param name="getDataFunc"></param>
         /// <param name="httpClient"></param>
         /// <param name="idFieldName"></param>
@@ -38,7 +87,7 @@ namespace Sylas.RemoteTasks.App.Utils
         /// <param name="logger"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static async Task<List<JToken>> FetchAllDataFromApiAsync(string apiUrl, string errPrefix, Dictionary<string, object> queryDictionary, string pageIndexParamName, bool pageIndexParamInQuery, Dictionary<string, object> bodyDictionary, Func<JObject, bool> requestOkPredicate, Func<JObject, JToken> getDataFunc, HttpClient httpClient, string idFieldName, string parentIdParamName, bool parentIdParamInQuery, string authorizationHeaderToken = "", string mediaType = "", ILogger logger = null)
+        public static async Task<List<JToken>> FetchAllDataFromApiAsync(string apiUrl, string errPrefix, IDictionary<string, object>? queryDictionary, string pageIndexParamName, bool pageIndexParamInQuery, IDictionary<string, object>? bodyDictionary, Func<JObject, bool> responseOkPredicate, Func<JObject, JToken?> getDataFunc, HttpClient httpClient, string idFieldName, string parentIdParamName, bool parentIdParamInQuery, string authorizationHeaderToken = "", string mediaType = "", ILogger logger = null)
         {
             #region FormData还是application/json
             if (string.IsNullOrWhiteSpace(mediaType))
@@ -78,7 +127,7 @@ namespace Sylas.RemoteTasks.App.Utils
             var allDatas = new List<JToken>();
             await FetchAllApiDataRecursivelyAsync();
             return allDatas;
-            
+
             // **2. 子节点递归**
             async Task FetchAllApiDataRecursivelyAsync()
             {
@@ -193,7 +242,7 @@ namespace Sylas.RemoteTasks.App.Utils
                         throw new Exception($"返回数据不是一个对象: {responseContent}");
                     }
                     // 检查并获取响应数据
-                    var data = GetData(responseObj, errPrefix, requestOkPredicate, getDataFunc);
+                    var data = GetData(responseObj, errPrefix, responseOkPredicate, getDataFunc);
 
                     // 没有数据或者分页时停止
                     if (!data.Any() || string.IsNullOrWhiteSpace(pageIndexParamName))
@@ -210,7 +259,7 @@ namespace Sylas.RemoteTasks.App.Utils
                 }
             }
         }
-        private static JToken GetData(JObject responseObj, string errPrefix, Func<JObject, bool> requestOkPredicate, Func<JObject, JToken> getDataFunc)
+        private static JToken GetData(JObject responseObj, string errPrefix, Func<JObject, bool> requestOkPredicate, Func<JObject, JToken?> getDataFunc)
         {
             if (responseObj is null)
             {
@@ -237,11 +286,34 @@ namespace Sylas.RemoteTasks.App.Utils
             }
             return data;
         }
+    }
+    public class MediaType
+    {
+        public const string FormuUrlencoded = "application/x-www-form-urlencoded";
+        public const string Json = "application/json";
+    }
 
-        public class MediaType
-        {
-            public const string FormuUrlencoded = "application/x-www-form-urlencoded";
-            public const string Json = "application/json";
-        }
+    public class RequestConfig
+    {
+        public string? Url { get; set; }
+        public string? PageIndexField { get; set; }
+        public bool PageIndexParamInQuery { get; set; }
+        public string? IdFieldName { get; set; }
+        public string? ParentIdFieldName { get; set; }
+        public IDictionary<string, object>? QueryDictionary { get; set; }
+        public IDictionary<string, object>? BodyDictionary { get; set; }
+        public string? ResponseOkField { get; set; }
+        public string? ResponseOkValue { get; set; }
+        public string? ResponseDataField { get; set; }
+        public string? FailMsg { get; set; }
+        public string? Token { get; set; }
+        /// <summary>
+        /// 请求获取的数据
+        /// </summary>
+        public IEnumerable<JToken>? Data { get; set; }
+        /// <summary>
+        /// 根据当前数据的值去查询关联的明细数据(外键表数据)
+        /// </summary>
+        public List<RequestConfig>? Details { get; set; }
     }
 }
