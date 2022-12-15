@@ -1,10 +1,9 @@
 ﻿using Newtonsoft.Json.Linq;
-using System.Linq;
-using System.Xml.Linq;
+using Sylas.RemoteTasks.App.RegexExp;
 
 namespace Sylas.RemoteTasks.App.Utils
 {
-    public static class NodesHelper
+    public static partial class NodesHelper
     {
         public class Node
         {
@@ -110,7 +109,7 @@ namespace Sylas.RemoteTasks.App.Utils
 
 
             List<Node> getChildren(Node node) => allNodes.Where(n => n.ParentID == node.ID).ToList();
-            List<Node> getParents(Node? node) =>  node is null ? allNodes.Where(n => n.ParentID == 0).ToList() : allNodes.Where(n => n.ID == node.ParentID).ToList();
+            List<Node> getParents(Node? node) => node is null ? allNodes.Where(n => n.ParentID == 0).ToList() : allNodes.Where(n => n.ID == node.ParentID).ToList();
         }
 
 
@@ -155,7 +154,7 @@ namespace Sylas.RemoteTasks.App.Utils
                 }
                 else
                 {
-                    return allNodes.Where(n => n.ID == node.ParentID).ToList(); 
+                    return allNodes.Where(n => n.ID == node.ParentID).ToList();
                 }
             }
         }
@@ -215,6 +214,78 @@ namespace Sylas.RemoteTasks.App.Utils
                     parents.Add(p);
                 }
                 return parents;
+            }
+        }
+
+        /// <summary>
+        /// 将当前对象的属性的值赋值给子节点对应的空属性
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="instance"></param>
+        /// <param name="childrenPropName"></param>
+        /// <exception cref="ArgumentNullException"></exception>
+        public static void FillChildrenValue<T>(T instance, string childrenPropName)
+        {
+            if (instance == null)
+            {
+                throw new ArgumentNullException(nameof(instance));
+            }
+            if (string.IsNullOrWhiteSpace(childrenPropName))
+            {
+                throw new ArgumentNullException(nameof(childrenPropName));
+            }
+            var t = instance.GetType();
+            var properties = t.GetProperties();
+            var children = properties.FirstOrDefault(p => string.Equals(p.Name, childrenPropName, StringComparison.OrdinalIgnoreCase))?.GetValue(instance);
+            if (children is null)
+            {
+                return;
+            }
+            if (children is not IEnumerable<T> childrenList || !childrenList.Any())
+            {
+                return;
+            }
+            foreach (var c in childrenList)
+            {
+                foreach (var p in properties)
+                {
+                    if (p.PropertyType == typeof(IDictionary<string, object>))
+                    {
+                        continue;
+                    }
+                    var instanceVal = p.GetValue(instance);
+                    if (instanceVal is IEnumerable<T>)
+                    {
+                        continue;
+                    }
+                    var childVal = p.GetValue(c);
+                    var pt = p.GetType().Name;
+
+                    if (childVal is not null)
+                    {
+                        var childValString = childVal?.ToString();
+                        if (!string.IsNullOrWhiteSpace(childValString))
+                        {
+                            var primaryRefedGroups = RegexConst.RefedPrimaryField().Match(childValString).Groups;
+                            if (primaryRefedGroups.Count > 1)
+                            {
+                                string tmpl = primaryRefedGroups[0].Value;
+                                string primaryRefedField = primaryRefedGroups[1].Value;
+                                var refedProp = properties.FirstOrDefault(p => string.Equals(p.Name, primaryRefedField, StringComparison.OrdinalIgnoreCase));
+                                if (refedProp is not null)
+                                {
+                                    var primaryFieldValue = refedProp.GetValue(instance, null);
+                                    p.SetValue(c, primaryFieldValue);
+                                }
+                            }
+                        }
+                    }
+                    else if (instanceVal is not null && childVal is null)
+                    {
+                        p.SetValue(c, instanceVal);
+                    }
+                }
+                FillChildrenValue(c, childrenPropName);
             }
         }
     }

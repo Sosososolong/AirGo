@@ -106,7 +106,7 @@ namespace Sylas.RemoteTasks.App.Utils
             deletes = dbRecords?.Where(x => !updates.Any(u => u["ID"] == x["ID"])) as JArray ?? new JArray();
 
             var insertValueStatement = GetInsertSqlValueStatement(varFlag, dbRecords?.First());
-            var updateValueStatement = GetUpdateSqlValueStatement(varFlag, dbRecords.First());
+            var updateValueStatement = GetUpdateSqlValueStatement(varFlag, dbRecords?.First());
             List<string> insertingSqls = new();
             List<string> updatingSqls = new();
 

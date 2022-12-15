@@ -6,16 +6,12 @@ using Oracle.ManagedDataAccess.Client;
 using Sylas.RemoteTasks.App.Database.SyncBase;
 using Sylas.RemoteTasks.App.Utils;
 using Sylas.RemoteTasks.Test.AppSettingsOptions;
-using System.Collections.Generic;
-using System.Configuration;
 using System.Data;
-using System.Text;
-using Xunit;
 using Xunit.Abstractions;
 
-namespace Sylas.RemoteTasks.Test.RemoteHelper
+namespace Sylas.RemoteTasks.Test.Remote
 {
-    public class FetchAllDataByApiTest : TestBase
+    public partial class FetchAllDataByApiTest : TestBase
     {
         private readonly ITestOutputHelper _outputHelper;
 
@@ -209,7 +205,7 @@ namespace Sylas.RemoteTasks.Test.RemoteHelper
                 var dm = dataModel.FirstOrDefault();
                 if (dm is null)
                 {
-                    System.Diagnostics.Debug.WriteLine($"================================================= 数据模型未找到 {modelId} =================================================");
+                    System.Diagnostics.Debug.WriteLine($"================================================= DataModel Not Found: {modelId} =================================================");
                     return;
                 }
 
@@ -238,7 +234,7 @@ namespace Sylas.RemoteTasks.Test.RemoteHelper
                                                                        false,
                                                                        token);
                 Assert.True(modelFields.Any());
-                System.Diagnostics.Debug.WriteLine($"================================================= {table}: {modelFields.Count} 条数据 =================================================");
+                System.Diagnostics.Debug.WriteLine($"================================================= {table}: {modelFields.Count} records =================================================");
 
                 IDbConnection conn = new OracleConnection(targetConnectionString);
                 conn.Open();
@@ -252,7 +248,7 @@ namespace Sylas.RemoteTasks.Test.RemoteHelper
                     var childModelId = field["REFMODELID"]?.ToString();
                     if (string.IsNullOrWhiteSpace(childModelId))
                     {
-                        System.Diagnostics.Debug.WriteLine($"================================================= {field["ID"]}[{field["NAME"]}]是明细表字段, 但是对应数据模型ID为空 =================================================");
+                        System.Diagnostics.Debug.WriteLine($"================================================= {field["ID"]}[{field["NAME"]}] is detail-field, but responding DataModel Id is empty =================================================");
                         continue;
                     }
                     System.Diagnostics.Debug.WriteLine($"================================================= 子模型{field["ID"]}[{field["NAME"]}]正在同步 =================================================");
@@ -260,10 +256,127 @@ namespace Sylas.RemoteTasks.Test.RemoteHelper
                 }
             }
             #endregion
+        }
 
-            #region 同步表单
+        [Fact]
+        public async Task FetchDataModelByConfigAsync()
+        {
+            string settings = """
+                            {
+                                "Url": "http://bpm.wzu.edu.cn:8008/form/api/DataSource/GetDataTable",
+                                "PageIndexField": "PageIndex",
+                                "PageIndexParamInQuery": true,
+                                "IdFieldName": "id",
+                                "ParentIdFieldName": "",
+                                "QueryDictionary": {
+                                    "Db": "configDB",
+                                    "Table": "DevDataModel",
+                                    "PageIndex": 1,
+                                    "PageSize": 20,
+                                    "IsAsc": true
+                                },
+                                "BodyDictionary": {
+                                    "FilterItems": [
+                                        { "FieldName": "id", "CompareType": "=", "Value": "DM091515ACB998C1D7F47A2A" }
+                                    ]
+                                },
+                                "ResponseOkField": "code",
+                                "ResponseOkValue": "0",
+                                "ResponseDataField": "data",
+                                "FailMsg": "获取数据模型失败",
+                                "Token": "",
+                                "Action": "console",
+                                "Details": [
+                                    {
+                                        "QueryDictionary": {
+                                            "Db": "configDB",
+                                            "Table": "DevDataModelField",
+                                            "PageIndex": 1,
+                                            "PageSize": 20,
+                                            "IsAsc": true
+                                        },
+                                        "BodyDictionary": {
+                                            "FilterItems": [
+                                                { "FieldName": "id", "CompareType": "=", "Value": "{{$primary.id}}" }
+                                            ]
+                                        },
+                                        "FailMsg": "获取数据模型字段失败",
+                                    }
+                                ]
+                            }
+                            """;
+            var targetDbConnectionString = "Server=192.168.1.100;Port=3306;Stmt=;Database=hznu_iduo_engine;Uid=root;Pwd=123456;Allow User Variables=true;";
 
-            #endregion
+            var config = JsonConvert.DeserializeObject<RequestConfig>(settings) ?? throw new Exception("API请求配置不正确");
+            var configWithData = await RemoteHelpers.FetchAllDataFromApiAsync(config);
+
+
+
+            //await fetchDataModelsRecursivelyAsync();
+
+            //#region 同步数据模型
+            //async Task fetchDataModelsRecursivelyAsync()
+            //{
+            //    var dataModels = await RemoteHelpers.FetchAllDataFromApiAsync(url, failMsg,
+            //                                                           queryDictionary, pageIndexField, pageIndexParamInQuery, bodyDictionary,
+            //                                                           responseOkPredicate,
+            //                                                           getDataFunc,
+            //                                                           new HttpClient(),
+            //                                                           idFieldName, parentIdFieldName, false,
+            //                                                           token);
+            //    Assert.NotNull(dataModels);
+            //    foreach (var dataModel in dataModels)
+            //    {
+
+            //    }
+
+            //    // 获取模型字段表数据
+            //    table = "DevDataModelField";
+            //    queryDictionary["table"] = table;
+            //    filterItem = new Dictionary<string, object> { { "FieldName", "modelid" }, { "CompareType", "include" }, { "Value", modelId } };
+            //    filterItems = new List<Dictionary<string, object>> { filterItem };
+            //    bodyDictionary = new Dictionary<string, object>
+            //    {
+            //        {
+            //            "FilterItems", filterItems
+            //        }
+            //    };
+            //    var modelFields = await RemoteHelpers.FetchAllDataFromApiAsync($"{gateway}/form/api/DataSource/GetDataTable",
+            //                                                           "获取数据源MENUS数据失败",
+            //                                                           queryDictionary,
+            //                                                           "pageIndex",
+            //                                                           true,
+            //                                                           bodyDictionary,
+            //                                                           response => response["code"]?.ToString() == "1",
+            //                                                           response => response["data"] ?? new JArray(),
+            //                                                           new HttpClient(),
+            //                                                           "id",
+            //                                                           "",
+            //                                                           false,
+            //                                                           token);
+            //    Assert.True(modelFields.Any());
+            //    System.Diagnostics.Debug.WriteLine($"================================================= {table}: {modelFields.Count} records =================================================");
+
+            //    IDbConnection conn = new OracleConnection(targetConnectionString);
+            //    conn.Open();
+            //    await DatabaseHelper.SyncDataAsync(conn, "DevDataModel", new List<JToken> { dm }, new string[] { "NO" }, new string[] { "CREATEDTIME", "UPDATEDTIME" });
+            //    await DatabaseHelper.SyncDataAsync(conn, table, modelFields, new string[] { "NO" }, new string[] { "CREATEDTIME", "UPDATEDTIME" });
+
+
+            //    var childModelFields = modelFields.Where(x => x["DATATYPE"]?.ToString() == "21");
+            //    foreach (var field in childModelFields)
+            //    {
+            //        var childModelId = field["REFMODELID"]?.ToString();
+            //        if (string.IsNullOrWhiteSpace(childModelId))
+            //        {
+            //            System.Diagnostics.Debug.WriteLine($"================================================= {field["ID"]}[{field["NAME"]}] is detail-field, but responding DataModel Id is empty =================================================");
+            //            continue;
+            //        }
+            //        System.Diagnostics.Debug.WriteLine($"================================================= 子模型{field["ID"]}[{field["NAME"]}]正在同步 =================================================");
+            //        await fetchDataModelsRecursivelyAsync(childModelId);
+            //    }
+            //}
+            //#endregion
         }
 
         [Fact]

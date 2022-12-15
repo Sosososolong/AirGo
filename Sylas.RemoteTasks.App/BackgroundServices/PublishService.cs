@@ -125,7 +125,7 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                                                     // 正在上传文件的字节
                                                     await fileStream.WriteAsync(buffer.AsMemory(0, realLength));
 
-                                                    Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 接收到{realLength}字节保存到文件; READY 提醒客户端可以继续发送下一个包了");
+                                                    Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 接收到{realLength}字节保存到{file}; READY!");
                                                     // 处理完告诉客户端继续发送
                                                     await socketForClient.SendAsync(Encoding.UTF8.GetBytes("ready"));
                                                 }
