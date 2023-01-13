@@ -1,12 +1,6 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Sylas.RemoteTasks.App.Utils;
-using System;
-using System.Collections.Generic;
 using System.Dynamic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using static Sylas.RemoteTasks.App.Utils.NodesHelper;
 
 namespace Sylas.RemoteTasks.Test.Nodes
@@ -29,7 +23,7 @@ namespace Sylas.RemoteTasks.Test.Nodes
                 new Node { ID = 6, ParentID = 4 },
                 new Node { ID = 7, ParentID = 6 }
             };
-            var res = GetChildrenRecursively(nodes.ToList());
+            var res = GetChildren(nodes.ToList());
             Assert.NotNull(res);
             Assert.True(res.Any());
             System.Diagnostics.Debug.WriteLine(JsonConvert.SerializeObject(res));
@@ -49,12 +43,12 @@ namespace Sylas.RemoteTasks.Test.Nodes
             dynamic n5 = new ExpandoObject(); n1.ID = 1; n1.ParentID = 0; nodes.Add(n5);
             dynamic n6 = new ExpandoObject(); n1.ID = 1; n1.ParentID = 0; nodes.Add(n6);
             dynamic n7 = new ExpandoObject(); n1.ID = 1; n1.ParentID = 0; nodes.Add(n7);
-            var res = GetDynamicChildrenRecursively(nodes);
+            var res = GetDynamicChildren(nodes);
             Assert.NotNull(res);
             Assert.True(res.Any());
             System.Diagnostics.Debug.WriteLine(JsonConvert.SerializeObject(res));
         }
-        
+
         /// <summary>
         /// 测试JArray/JObject类型的节点
         /// </summary>
@@ -71,7 +65,7 @@ namespace Sylas.RemoteTasks.Test.Nodes
                 new JObject { { "ID", 6 }, { "ParentID", 4 } },
                 new JObject { { "ID", 7 }, { "ParentID", 6 } }
             };
-            var res = GetDynamicChildrenRecursively(nodes, "ID", "ParentID", "Children");
+            var res = GetDynamicChildren(nodes, "ID", "ParentID", "Children");
             Assert.NotNull(res);
             Assert.True(res.Any());
             System.Diagnostics.Debug.WriteLine(JsonConvert.SerializeObject(res));

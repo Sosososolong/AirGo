@@ -79,3 +79,7 @@ ModelManifest.xml
 *.bak
 #zzzili
 v15/
+
+#Personal config files
+AppConfigs/
+RequestConfigs/

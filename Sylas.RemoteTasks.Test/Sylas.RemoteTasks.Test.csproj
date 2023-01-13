@@ -29,9 +29,16 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="Configs\RequestConfigs\hznu.datamodel.备案申请.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="parameters.log.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Configs\AppConfigs\" />
   </ItemGroup>
 
 </Project>
