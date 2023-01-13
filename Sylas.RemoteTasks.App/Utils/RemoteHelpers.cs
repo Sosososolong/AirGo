@@ -21,7 +21,10 @@ namespace Sylas.RemoteTasks.App.Utils
 
         public static async Task<RequestConfig> FetchAllDataFromApiAsync(RequestConfig requestConfig)
         {
-            ValidateHelper.ValidateArgumentIsNull(requestConfig, new List<string> { nameof(requestConfig.FailMsg), nameof(requestConfig.Token) });
+            // TODO: 备份原始配置对象, 用于递归发送新的请求时用 ...
+            var originRequestConfig = MapHelper<RequestConfig, RequestConfig>.Map(requestConfig);
+
+            ValidateHelper.ValidateArgumentIsNull(requestConfig, new List<string> { nameof(requestConfig.FailMsg), nameof(requestConfig.Token), nameof(requestConfig.Data) });
 
             NodesHelper.FillChildrenValue(requestConfig, nameof(requestConfig.Details));
 
@@ -31,9 +34,9 @@ namespace Sylas.RemoteTasks.App.Utils
 
             async Task fetchDataModelsRecursivelyAsync(RequestConfig config)
             {
-                Func<JObject, bool> responseOkPredicate = response => response[config.ResponseOkField]?.ToString() == config.ResponseOkValue;
+                bool responseOkPredicate(JObject response) => response[config.ResponseOkField]?.ToString() == config.ResponseOkValue;
                 var responseDataFieldArr = config.ResponseDataField.Split(':');
-                Func<JObject, JToken?> getDataFunc = response =>
+                JToken? getDataFunc(JObject response)
                 {
                     JToken? result = response;
                     foreach (var field in responseDataFieldArr)
@@ -44,10 +47,10 @@ namespace Sylas.RemoteTasks.App.Utils
                         }
                     }
                     return result ?? new JArray();
-                };
+                }
 
                 var records = await RemoteHelpers.FetchAllDataFromApiAsync(config.Url, config.FailMsg,
-                                                                       config.QueryDictionary, config.PageIndexField, config.PageIndexParamInQuery, config.BodyDictionary,
+                                                                       config.QueryDictionary, config.PageIndexField, config.PageIndexParamInQuery.Value, config.BodyDictionary,
                                                                        responseOkPredicate,
                                                                        getDataFunc,
                                                                        new HttpClient(),
@@ -58,13 +61,44 @@ namespace Sylas.RemoteTasks.App.Utils
                 {
                     foreach (var record in records)
                     {
+                        // 子查询
                         foreach (var detail in config.Details)
                         {
+                            ResolveDictionaryTmplValue(detail.QueryDictionary, record);
+                            ResolveDictionaryTmplValue(detail.BodyDictionary, record);
                             await fetchDataModelsRecursivelyAsync(detail);
                         }
                     }
                 }
             }
+        }
+        /// <summary>
+        /// 将dictionary中的模板用data的对应属性填充
+        /// </summary>
+        /// <param name="dictionary"></param>
+        /// <param name="data"></param>
+        private static void ResolveDictionaryTmplValue(IDictionary<string, object>? dictionary, JToken? data)
+        {
+            if (dictionary is null || !dictionary.Any())
+            {
+                return;
+            }
+            if (data is null || data is not JObject)
+            {
+                return;
+            }
+            var dataObj = (data as JObject) ?? new JObject();
+            foreach (var kv in dictionary)
+            {
+
+                if (kv.Value is null || string.IsNullOrWhiteSpace(kv.Value.ToString()))
+                {
+                    continue;
+                }
+                // 如果是string, int等基础类型, kv.Value as JToken 为null, 将不处理
+                TmplHelper.ResolveJTokenTmplValue(kv.Value as JToken, dataObj);
+            }
+
         }
 
         /// <summary>
@@ -268,7 +302,7 @@ namespace Sylas.RemoteTasks.App.Utils
 
             if (!requestOkPredicate(responseObj))
             {
-                throw new Exception($"{errPrefix}: {JsonConvert.SerializeObject(responseObj)}");
+                throw new Exception($"{errPrefix}: 状态码与配置的ResponseOkValue值不一致{Environment.NewLine}{JsonConvert.SerializeObject(responseObj)}");
             }
 
             var data = getDataFunc(responseObj);
@@ -297,7 +331,7 @@ namespace Sylas.RemoteTasks.App.Utils
     {
         public string? Url { get; set; }
         public string? PageIndexField { get; set; }
-        public bool PageIndexParamInQuery { get; set; }
+        public bool? PageIndexParamInQuery { get; set; }
         public string? IdFieldName { get; set; }
         public string? ParentIdFieldName { get; set; }
         public IDictionary<string, object>? QueryDictionary { get; set; }

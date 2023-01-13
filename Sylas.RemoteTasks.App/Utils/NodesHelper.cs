@@ -1,5 +1,4 @@
 ﻿using Newtonsoft.Json.Linq;
-using Sylas.RemoteTasks.App.RegexExp;
 
 namespace Sylas.RemoteTasks.App.Utils
 {
@@ -81,7 +80,7 @@ namespace Sylas.RemoteTasks.App.Utils
         /// </summary>
         /// <param name="parentId"></param>
         /// <returns></returns>
-        public static List<Node> GetChildrenRecursively(List<Node> allNodes)
+        public static List<Node> GetChildren(List<Node> allNodes)
         {
             List<Node> result = new();
 
@@ -118,7 +117,7 @@ namespace Sylas.RemoteTasks.App.Utils
         /// </summary>
         /// <param name="parentId"></param>
         /// <returns></returns>
-        public static List<dynamic> GetDynamicChildrenRecursively(List<dynamic> allNodes)
+        public static List<dynamic> GetDynamicChildren(List<dynamic> allNodes)
         {
             List<dynamic> result = new();
 
@@ -164,7 +163,7 @@ namespace Sylas.RemoteTasks.App.Utils
         /// </summary>
         /// <param name="parentId"></param>
         /// <returns></returns>
-        public static JArray GetDynamicChildrenRecursively(JArray allNodes, string idPropName, string parentIdPropName, string childrenPropName)
+        public static JArray GetDynamicChildren(JArray allNodes, string idPropName, string parentIdPropName, string childrenPropName)
         {
             JArray result = new();
 
@@ -261,26 +260,28 @@ namespace Sylas.RemoteTasks.App.Utils
                     var childVal = p.GetValue(c);
                     var pt = p.GetType().Name;
 
-                    if (childVal is not null)
-                    {
-                        var childValString = childVal?.ToString();
-                        if (!string.IsNullOrWhiteSpace(childValString))
-                        {
-                            var primaryRefedGroups = RegexConst.RefedPrimaryField().Match(childValString).Groups;
-                            if (primaryRefedGroups.Count > 1)
-                            {
-                                string tmpl = primaryRefedGroups[0].Value;
-                                string primaryRefedField = primaryRefedGroups[1].Value;
-                                var refedProp = properties.FirstOrDefault(p => string.Equals(p.Name, primaryRefedField, StringComparison.OrdinalIgnoreCase));
-                                if (refedProp is not null)
-                                {
-                                    var primaryFieldValue = refedProp.GetValue(instance, null);
-                                    p.SetValue(c, primaryFieldValue);
-                                }
-                            }
-                        }
-                    }
-                    else if (instanceVal is not null && childVal is null)
+                    //if (childVal is not null)
+                    //{
+                    //    var childValString = childVal?.ToString();
+                    //    if (!string.IsNullOrWhiteSpace(childValString))
+                    //    {
+                    //        var primaryRefedGroups = RegexConst.RefedPrimaryField().Match(childValString).Groups;
+                    //        if (primaryRefedGroups.Count > 1)
+                    //        {
+                    //            string tmpl = primaryRefedGroups[0].Value;
+                    //            string primaryRefedField = primaryRefedGroups[1].Value;
+                    //            var refedProp = properties.FirstOrDefault(p => string.Equals(p.Name, primaryRefedField, StringComparison.OrdinalIgnoreCase));
+                    //            if (refedProp is not null)
+                    //            {
+                    //                var primaryFieldValue = refedProp.GetValue(instance, null);
+                    //                p.SetValue(c, primaryFieldValue);
+                    //            }
+                    //        }
+                    //    }
+                    //}
+                    //else
+
+                    if (instanceVal is not null && childVal is null)
                     {
                         p.SetValue(c, instanceVal);
                     }

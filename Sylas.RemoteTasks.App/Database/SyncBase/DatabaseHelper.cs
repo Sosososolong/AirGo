@@ -1,16 +1,12 @@
-﻿using MySql.Data.MySqlClient;
-using Oracle.ManagedDataAccess.Client;
-using System.Data.SqlClient;
-using System.Data;
-using System.Security.Cryptography.Xml;
-using System.Text.RegularExpressions;
-using System.Text;
-//using MySqlConnector;
+﻿//using MySqlConnector;
 //using Microsoft.Data.SqlClient;
 using Dapper;
-using System.Threading.Tasks;
+using MySql.Data.MySqlClient;
+using Oracle.ManagedDataAccess.Client;
 using Sylas.RemoteTasks.App.RegexExp;
-using Sylas.RemoteTasks.App.Utils;
+using System.Data;
+using System.Data.SqlClient;
+using System.Text;
 
 namespace Sylas.RemoteTasks.App.Database.SyncBase
 {

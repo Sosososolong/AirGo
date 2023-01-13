@@ -41,9 +41,9 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                         var uploadedFileCount = 1;
                         while (!socketForClientClosed)
                         {
-                            // 服务端已经准备好处理文件字节; 提醒客户端可以发送文件字节过来了
+                            // 服务端已经准备好处理新文件了
                             Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} READY 准备接收新的文件");
-                            await socketForClient.SendAsync(Encoding.UTF8.GetBytes("ready").AsMemory(), SocketFlags.None);
+                            await socketForClient.SendAsync(Encoding.UTF8.GetBytes("ready_for_new").AsMemory(), SocketFlags.None);
                             int realLength = await socketForClient.ReceiveAsync(bufferParameters, SocketFlags.None);
                             if (realLength <= 0)
                             {
@@ -68,9 +68,10 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                             var fileSaveDir = string.Empty;
                             switch (type)
                             {
-                                // type为1: 发送文件; 获取第二个参数即文件名; 第三个参数表示当前服务器保存文件的目录(不传的话服务器自己需要配置Upload:SaveDir)
+                                // type为1: 发送文件; 获取第二个参数为文件大小; 第三个参数即文件名; 第四个参数表示当前服务器保存文件的目录(不传的话服务器自己需要配置Upload:SaveDir)
                                 case "1":
-                                    fileName = parametersArray[1];
+                                    var fileSize = Convert.ToInt64(parametersArray[1]);
+                                    fileName = parametersArray[2];
                                     if (string.IsNullOrWhiteSpace(fileName))
                                     {
                                         Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} ERROR 传输文件名为空, 文件传输提前结束");
@@ -80,7 +81,7 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                                     }
 
                                     // 优先取客户端配置
-                                    fileSaveDir = parametersArray[2];
+                                    fileSaveDir = parametersArray[3];
                                     if (string.IsNullOrWhiteSpace(fileSaveDir))
                                     {
                                         fileSaveDir = serverSaveFileDir;
@@ -102,32 +103,63 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                                         Directory.CreateDirectory(fileDir);
                                     }
 
-                                    Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 首先从第一个包获取文件名: {fileName}; 保存路径: {file}; READY 提醒客户端可以正式发送文件的字节流了");
+                                    Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 首先从第一个包获取文件名: {fileName}; 保存路径: {file}; 文件大小: {fileSize} READY 提醒客户端可以正式发送文件的字节流了");
 
                                     // 任务参数解析完毕, 客户端可以开始发送文件的字节了
-                                    await socketForClient.SendAsync(Encoding.UTF8.GetBytes("ready").AsMemory(), SocketFlags.None); // SocketFlags.Broadcast
+                                    await socketForClient.SendAsync(Encoding.UTF8.GetBytes("ready_for_file_content").AsMemory(), SocketFlags.None);
                                     using (var fileStream = new FileStream(file, FileMode.Create))
                                     {
+                                        var allReceived = 0;
                                         while (true)
                                         {
                                             // 阻塞等待, 一直等到有字节发送过来或者客户端关闭socket连接
                                             realLength = socketForClient.Receive(buffer);
+
                                             if (realLength > 0)
                                             {
-                                                if (realLength == 6 && buffer[0] == ZeroByteValue && buffer[1] == ZeroByteValue && buffer[2] == ZeroByteValue && buffer[3] == ZeroByteValue && buffer[4] == ZeroByteValue && buffer[5] == ZeroByteValue)
+                                                allReceived += realLength;
+                                                Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 共接收: {allReceived}, 当前接收: {realLength}");
+                                                if (allReceived > fileSize)
                                                 {
-                                                    // 接收到000000, 表示当前文件已经上传完毕
-                                                    Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 收到客户端提醒: 第{uploadedFileCount++}文件数据已经全部上传完毕 {Environment.NewLine}");
-                                                    break;
+                                                    var extraLength = allReceived - fileSize;
+                                                    var validLength = Convert.ToInt32(realLength - extraLength);
+                                                    // 正在上传文件的字节
+                                                    await fileStream.WriteAsync(buffer.AsMemory(0, validLength));
+
+                                                    byte[] endFlag = new byte[6];
+                                                    if (extraLength >= 6)
+                                                    {
+                                                        endFlag = buffer.Skip(validLength).Take(6).ToArray();
+                                                    }
+                                                    else
+                                                    {
+                                                        for (int i = 0; i < extraLength; i++)
+                                                        {
+                                                            endFlag[i] = buffer[validLength + i];
+                                                        }
+                                                        realLength = socketForClient.Receive(buffer);
+                                                        for (int i = 0; i < 6 - extraLength; i++)
+                                                        {
+                                                            endFlag[6 - extraLength + i] = buffer[i];
+                                                        }
+                                                    }
+                                                    Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 当前文件上传结束: {string.Join(',', endFlag)}");
+                                                    if (endFlag[0] == ZeroByteValue && endFlag[1] == ZeroByteValue && endFlag[2] == ZeroByteValue && endFlag[3] == ZeroByteValue && endFlag[4] == ZeroByteValue && endFlag[5] == ZeroByteValue)
+                                                    {
+                                                        // 接收到000000, 表示当前文件已经上传完毕
+                                                        Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 收到客户端提醒: 第{uploadedFileCount++}文件数据已经全部上传完毕 {Environment.NewLine}");
+                                                        break;
+                                                    }
+                                                    else
+                                                    {
+                                                        Console.WriteLine("不是预期的文件上传结束标识");
+                                                        throw new Exception("不是预期的文件上传结束标识");
+                                                    }
                                                 }
                                                 else
                                                 {
                                                     // 正在上传文件的字节
                                                     await fileStream.WriteAsync(buffer.AsMemory(0, realLength));
-
-                                                    Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 接收到{realLength}字节保存到{file}; READY!");
-                                                    // 处理完告诉客户端继续发送
-                                                    await socketForClient.SendAsync(Encoding.UTF8.GetBytes("ready"));
                                                 }
                                             }
                                         }
