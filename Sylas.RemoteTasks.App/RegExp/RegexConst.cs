@@ -62,6 +62,20 @@ namespace Sylas.RemoteTasks.App.RegexExp
 
         [GeneratedRegex("\\{\\{\\$primary\\.(\\w+)\\}\\}")]
         public static partial Regex RefedPrimaryField();
+
+        /// <summary>
+        /// 字符串模板, 如: ID为{id}姓名为{name}的学生
+        /// </summary>
+        /// <returns></returns>
+        [GeneratedRegex("\\{\\s*\\w+\\s*\\}")]
+        public static partial Regex StringTmpl();
+
+        /// <summary>
+        /// 匹配正则表达式中的分组
+        /// </summary>
+        /// <returns></returns>
+        [GeneratedRegex("\\(\\?<(\\w+)>.+?\\)")]
+        public static partial Regex PatternGroup();
     }
 
 }

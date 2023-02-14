@@ -2,8 +2,10 @@
 //using Microsoft.Data.SqlClient;
 using Dapper;
 using MySql.Data.MySqlClient;
+using Newtonsoft.Json.Linq;
 using Oracle.ManagedDataAccess.Client;
 using Sylas.RemoteTasks.App.RegexExp;
+using Sylas.RemoteTasks.App.Utils;
 using System.Data;
 using System.Data.SqlClient;
 using System.Text;
@@ -340,9 +342,9 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
             var columnPrimaryKey = colInfos.FirstOrDefault(c => c.IsPK == 1);
             var primaryKeyAssignment = columnPrimaryKey is null ? string.Empty : $", PRIMARY KEY (`{columnPrimaryKey.ColumnName}`) USING BTREE";
             string createSql = $@"CREATE TABLE `{tableName}` (
-		  {columnsAssignment}
-		  {primaryKeyAssignment}
-		) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;";
+		      {columnsAssignment}
+		      {primaryKeyAssignment}
+		    ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;";
             return createSql;
         }
 
@@ -481,6 +483,103 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
                 }
             };
         }
+        public static async Task<DataComparedResult> CompareRecordsAsync(IDbConnection sourceConn, string table, string sourceIdentityField, string targetIdentityField, DataInJson targetJsonInfo)
+        {
+            var sourceRecordsDynamic = await sourceConn.QueryAsync($"select * from {table}");
+            var sourceRecords = sourceRecordsDynamic.Select(x => JToken.FromObject(x) as JObject ?? throw new Exception("数据库数据异常, 数据转换失败")).ToList();
+            var targetRecords = FileHelper.GetRecords(targetJsonInfo.FilePath, targetJsonInfo.DataFields);
+            return CompareRecords(sourceRecords, targetRecords, sourceIdentityField, targetIdentityField);
+            //var res = DatabaseHelper.CompareRecordsForSyncDb(sourceRecords.Cast<JToken>().ToList(), targetRecords, Array.Empty<string>(), Array.Empty<string>(), "USERID", "LOGINNAME");
+            //return null;
+        }
+
+        /// <summary>
+        /// 对比数据
+        /// </summary>
+        /// <param name="sourceRecords">源数据</param>
+        /// <param name="targetRecords">要对比的目标数据</param>
+        /// <param name="sourceIdentityField">源数据中的标识字段</param>
+        /// <param name="targetIdentityField">目标数据中的标识字段</param>
+        /// <returns></returns>
+        public static DataComparedResult CompareRecords(List<JObject> sourceRecords, JArray targetRecords, string sourceIdentityField, string targetIdentityField)
+        {
+            DataComparedResult compareResult = new();
+
+            int i = 0;
+            foreach (var sourceRecord in sourceRecords)
+            {
+                i++;
+                JObject? target = null;
+                foreach (var targetRecord in targetRecords)
+                {
+                    var sourceId = sourceRecord[sourceIdentityField];
+                    var targetId = targetRecord[targetIdentityField];
+
+                    if (sourceId is not null && targetId is not null && sourceId.ToString() == targetId.ToString())
+                    {
+                        target = targetRecord as JObject; break;
+                    }
+                }
+
+                // 目标中没有当前数据
+                if (target is null)
+                {
+                    compareResult.ExistInSourceOnly.Add(sourceRecord);
+                }
+                else
+                {
+                    // TODO: 放到freach最外面, 分两种情况, 1targetRecords为空 2targetRecords不为空; 从指定的字段中对比数据
+                    targetRecords.Remove(target);
+
+                    var keys = target.Properties();
+                    var sourceRecordProps = sourceRecord.Properties();
+                    foreach (var key in keys)
+                    {
+                        var sourceProp = sourceRecordProps.FirstOrDefault(p => string.Equals(p.Name, key.Name, StringComparison.OrdinalIgnoreCase));
+                        if (sourceProp is not null)
+                        {
+                            var sourceValue = sourceProp.Value;
+                            var targetValue = key.Value;
+                            if (sourceValue.StringValueNotEquals(targetValue)) // 当前字段(key)的值不相同(至少有一个不为null且不为空字符串 并且两个字段值不相等)
+                            {
+                                compareResult.Changed.Add(new ChangedRecord { SourceRecord = sourceRecord, TargetRecord = target });
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            foreach (var targetRecord in targetRecords)
+            {
+                compareResult.ExistInTargetOnly.Add(targetRecord);
+            }
+
+            return compareResult;
+        }
+
+        public class DataInJson
+        {
+            public DataInJson(string filePath, string[] dataFileds)
+            {
+                FilePath = filePath;
+                DataFields = dataFileds;
+            }
+            public string FilePath { get; set; }
+            public string[] DataFields { get; set; }
+        }
+        public class DataComparedResult
+        {
+            public JArray ExistInSourceOnly { get; set; } = new JArray();
+            public JArray ExistInTargetOnly { get; set; } = new JArray();
+            public List<ChangedRecord> Changed { get; set; } = new List<ChangedRecord>();
+        }
+        public class ChangedRecord
+        {
+            public JObject SourceRecord { get; set; } = new JObject();
+            public JObject TargetRecord { get; set; } = new JObject();
+        }
+
         public static string GetDatabaseName(string connectionString)
         {
             var sqlServerDb = RegexConst.SqlServerDbName().Match(connectionString).Value;
@@ -711,7 +810,12 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
     {
         public SyncData(List<DataColumn> deletingColumns, List<DataColumn> insertingColumns, List<DataRow> insertingRows, List<DataRow> updatingRows, List<DataRow> deletingRows)
         {
+            DeletingColumns = deletingColumns ?? new List<DataColumn>();
             InsertingColumns = insertingColumns;
+
+            DeletingRows = deletingRows;
+            InsertingRows = insertingRows;
+            UpdatingRows = updatingRows;
         }
         public List<DataColumn> DeletingColumns { get; set; }
         public List<DataColumn> InsertingColumns { get; set; }
