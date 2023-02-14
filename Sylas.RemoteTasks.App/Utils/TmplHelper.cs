@@ -1,16 +1,13 @@
 ﻿using Newtonsoft.Json.Linq;
 using Sylas.RemoteTasks.App.RegexExp;
+using System.Text.RegularExpressions;
 
 namespace Sylas.RemoteTasks.App.Utils
 {
-    public static class TmplHelper
+    public static partial class TmplHelper
     {
         public static void ResolveJTokenTmplValue(JToken? target, JObject dataSource)
         {
-            if (target is null)
-            {
-                return;
-            }
             if (dataSource is null)
             {
                 return;
@@ -70,6 +67,44 @@ namespace Sylas.RemoteTasks.App.Utils
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// 替换字符串中的模板
+        /// </summary>
+        /// <param name="target"></param>
+        /// <param name="dataSource"></param>
+        public static string ResolveStringTmplValue(string target, JObject dataSource)
+        {
+            if (string.IsNullOrWhiteSpace(target))
+            {
+                return target;
+            }
+            if (dataSource is null)
+            {
+                return target;
+            }
+
+            var stringTmplMatches = RegexConst.StringTmpl().Matches(target);
+            foreach (var stringTmplMatch in stringTmplMatches.Cast<Match>())
+            {
+                var stringTmplGroups = stringTmplMatch.Groups;
+                if (stringTmplGroups.Count > 1)
+                {
+                    string tmpl = stringTmplGroups[0].Value;
+                    string tmplField = stringTmplGroups[1].Value;
+
+                    var dataProperties = dataSource.Properties();
+                    var refedProp = dataProperties.FirstOrDefault(p => string.Equals(p.Name, tmplField, StringComparison.OrdinalIgnoreCase));
+                    if (refedProp is not null)
+                    {
+                        var tmplValue = refedProp.Value;
+                        target = target.Replace(tmpl, tmplValue.ToString());
+                    }
+                }
+            }
+
+            return target;
         }
     }
 }

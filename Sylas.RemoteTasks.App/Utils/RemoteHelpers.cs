@@ -21,7 +21,7 @@ namespace Sylas.RemoteTasks.App.Utils
 
         public static async Task<RequestConfig> FetchAllDataFromApiAsync(RequestConfig requestConfig)
         {
-            // TODO: 备份原始配置对象, 用于递归发送新的请求时用 ...
+            // 备份原始配置对象, 用于递归发送新的请求时用 ...
             var originRequestConfig = MapHelper<RequestConfig, RequestConfig>.Map(requestConfig);
 
             ValidateHelper.ValidateArgumentIsNull(requestConfig, new List<string> { nameof(requestConfig.FailMsg), nameof(requestConfig.Token), nameof(requestConfig.Data) });
@@ -49,7 +49,7 @@ namespace Sylas.RemoteTasks.App.Utils
                     return result ?? new JArray();
                 }
 
-                var records = await RemoteHelpers.FetchAllDataFromApiAsync(config.Url, config.FailMsg,
+                var records = await FetchAllDataFromApiAsync(config.Url, config.FailMsg,
                                                                        config.QueryDictionary, config.PageIndexField, config.PageIndexParamInQuery.Value, config.BodyDictionary,
                                                                        responseOkPredicate,
                                                                        getDataFunc,
@@ -257,7 +257,15 @@ namespace Sylas.RemoteTasks.App.Utils
                     {
                         queryString = Regex.Replace(queryString, "(" + pageIndexParamName + "=)\\s*\\w+", m => m.Groups[1].Value + pageIndex.ToString());
                     }
-                    queryAsync = async () => await (await httpClient.GetAsync(apiUrl + queryString)).Content.ReadAsStringAsync();
+                    queryAsync = async () =>
+                    {
+                        var response = await httpClient.GetAsync(apiUrl + "?" + queryString);
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            throw new Exception(response.ReasonPhrase);
+                        }
+                        return await response.Content.ReadAsStringAsync();
+                    };
                 }
                 #endregion
 
@@ -278,12 +286,19 @@ namespace Sylas.RemoteTasks.App.Utils
                     // 检查并获取响应数据
                     var data = GetData(responseObj, errPrefix, responseOkPredicate, getDataFunc);
 
-                    // 没有数据或者分页时停止
+                    if (data is JObject dataObj && dataObj is not null)
+                    {
+                        allApiDatas.Add(dataObj);
+                    }
+                    else if (data.Any())
+                    {
+                        allApiDatas.AddRange(data);
+                    }
+                    // 没有数据或者不分页时停止
                     if (!data.Any() || string.IsNullOrWhiteSpace(pageIndexParamName))
                     {
                         return;
                     }
-                    allApiDatas.AddRange(data);
 
                     if (!string.IsNullOrWhiteSpace(pageIndexParamName))
                     {
@@ -349,5 +364,10 @@ namespace Sylas.RemoteTasks.App.Utils
         /// 根据当前数据的值去查询关联的明细数据(外键表数据)
         /// </summary>
         public List<RequestConfig>? Details { get; set; }
+
+        /// <summary>
+        /// 递归回到数据模型的请求, 给参数赋值
+        /// </summary>
+        //public string? ReturnPrimaryRequest { get; set; }
     }
 }

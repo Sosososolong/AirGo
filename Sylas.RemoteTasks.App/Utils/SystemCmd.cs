@@ -69,8 +69,6 @@ namespace Sylas.RemoteTasks.App.Utils
             // 关闭powershell程序
             await p.StandardInput.WriteLineAsync("exit");
 
-
-
             p.StandardInput.AutoFlush = true;
             p.StandardInput.Close();
 

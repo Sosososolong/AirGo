@@ -1,15 +1,15 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Sylas.RemoteTasks.App.Database;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.Models;
-using System.Data.Common;
+using Sylas.RemoteTasks.App.Utils;
 using System.Data;
+using System.Data.Common;
 using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
-using Newtonsoft.Json;
-using Sylas.RemoteTasks.App.Utils;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {
@@ -79,7 +79,7 @@ namespace Sylas.RemoteTasks.App.Controllers
                 db.ConnectionString = Request.Form["connectionString"];
             }
 
-            if (Request.Method.ToLower() == "post" &&sql.IndexOf("@pageIndex") == 0 || sql.IndexOf("@pageSize") == 0)
+            if (Request.Method.ToLower() == "post" && sql.IndexOf("@pageIndex") == 0 || sql.IndexOf("@pageSize") == 0)
             {
                 return Content($"sql语句: {sql}中, 没有@pageIndex和@pageSize参数");
             }
@@ -88,7 +88,7 @@ namespace Sylas.RemoteTasks.App.Controllers
                 db.CreateDbParameter("pageIndex", 1),
                 db.CreateDbParameter("pageSize", 10)
             };
-            
+
             DataSet set = db.ExecuteQuerySql(sql, parameters);
             DataTable dataTable = set.Tables[0];
             List<string> columnNames = new();
@@ -671,7 +671,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             }
             _operationSettingsFile = settingsFile;
 
-            string settingsStringContent = FileHelper.Read(settingsFile);
+            string settingsStringContent = System.IO.File.ReadAllText(settingsFile);
             // JObject 实现了IEnumerable<KeyValuePair<string, JToken?>>, 可以进行遍历
             JObject settings = FileHelper.SettingsRead(settingsFile);
 

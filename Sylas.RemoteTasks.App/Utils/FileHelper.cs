@@ -1,14 +1,17 @@
-﻿using System.Linq.Expressions;
-using System.Text.RegularExpressions;
-using System.Text;
+﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using Sylas.RemoteTasks.App.RegexExp;
+using System.Diagnostics;
+using System.Linq.Expressions;
+using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Sylas.RemoteTasks.App.Utils;
 
-public class FileHelper
+public partial class FileHelper
 {
     private static string OneTabSpace = "    ";
     private static string TwoTabsSpace = "        ";
@@ -155,7 +158,7 @@ public class FileHelper
         string[] currentDirs = Directory.GetDirectories(dir);
         dirs.AddRange(currentDirs.AsQueryable().Where(filter).ToList());
         // 如果目录下面已经没有目录了停止递归; 如果条件存在, 那么当前已经获取的dirs满足条件则停止递归查询
-        if (!currentDirs.Any() || (stopRecursionConditionOfDirs != null && stopRecursionConditionOfDirs(dirs)))
+        if (!currentDirs.Any() || stopRecursionConditionOfDirs != null && stopRecursionConditionOfDirs(dirs))
         {
             return dirs;
         }
@@ -284,7 +287,7 @@ public class FileHelper
         using (StreamReader sr = new StreamReader(classFile, Encoding.UTF8))
         {
             string fileCon = sr.ReadToEnd();
-            Regex reg = new Regex(@"public\s+.+\s+(\w+)\s*{\s*get;\s*set;\s*}");
+            var reg = new Regex(@"public\s+.+\s+(\w+)\s*{\s*get;\s*set;\s*}");
             MatchCollection matches = reg.Matches(fileCon);
 
             foreach (Match item in matches)
@@ -295,22 +298,6 @@ public class FileHelper
         }
         return properties;
     }
-    /// <summary>
-    /// 读取一个文件的内容
-    /// </summary>
-    /// <param name="file">目标文件</param>
-    /// <returns></returns>
-    public static string Read(string file)
-    {
-        if (!File.Exists(file))
-        {
-            throw new ArgumentNullException(nameof(file));
-        }
-        using (StreamReader sr = new StreamReader(file, Encoding.UTF8))
-        {
-            return sr.ReadToEnd();
-        }
-    }
 
     /// <summary>
     /// 将内容写入文件
@@ -319,12 +306,10 @@ public class FileHelper
     /// <param name="input"></param>
     public static void Write(string file, string input, bool append, Encoding encoding)
     {
-        using (StreamWriter sw = new StreamWriter(file, append, encoding))
-        {
-            sw.Write(input);
-            sw.Flush();
-            sw.Close();
-        }
+        using StreamWriter sw = new(file, append, encoding);
+        sw.Write(input);
+        sw.Flush();
+        sw.Close();
     }
 
     /// <summary>
@@ -335,7 +320,8 @@ public class FileHelper
     /// <returns></returns>
     public static bool IsContentExists(string file, string content)
     {
-        using (StreamReader sr = new StreamReader(file, Encoding.UTF8))
+        StreamReader streamReader = new(file, Encoding.UTF8);
+        using (StreamReader sr = streamReader)
         {
             string fileContent = sr.ReadToEnd();
             sr.Close();
@@ -363,7 +349,7 @@ public class FileHelper
         }
 
         var br = new BinaryReader(fs);
-        Byte[] buffer = br.ReadBytes(2);
+        byte[] buffer = br.ReadBytes(2);
         if (buffer[0] >= 0xEF)
         {
             if (buffer[0] == 0xEF && buffer[1] == 0xBB)
@@ -389,7 +375,7 @@ public class FileHelper
     /// <param name="codes"></param>
     public static void InsertCodePropertyLevel(string classFile, string codes)
     {
-        FileHelper.InsertContent(classFile, originCode =>
+        InsertContent(classFile, originCode =>
         {
             if (originCode.Contains(codes))
             {
@@ -498,5 +484,109 @@ public class FileHelper
             string newCodes = insertPosition.ToString() + insertPositionTrivia + Environment.NewLine + OneTabSpace + TwoTabsSpace + codes;
             return originCode.Replace(insertPosition, newCodes);
         });
+    }
+
+    /// <summary>
+    /// 从json文件中获取所有数据
+    /// </summary>
+    /// <param name="filePath"></param>
+    /// <param name="recordsFields"></param>
+    /// <returns></returns>
+    /// <exception cref="Exception"></exception>
+    public static JArray GetRecords(string filePath, string[] recordsFields)
+    {
+        // { "Records: [ {..}, {..}, ... ] }
+        string jsonContent = File.ReadAllText(filePath);
+        var jsonObj = JsonConvert.DeserializeObject<JToken>(jsonContent);
+        JArray records;
+        if (!recordsFields.Any())
+        {
+            records = jsonObj as JArray ?? new JArray();
+        }
+        else
+        {
+            foreach (var jsonField in recordsFields)
+            {
+                jsonObj = (jsonObj as JObject)?[jsonField];
+                if (jsonObj is null)
+                {
+                    throw new Exception($"字段{jsonField}为空");
+                }
+            }
+
+            // jsonObj已经指向数据"Records"
+            records = jsonObj as JArray ?? throw new Exception($"{string.Join(',', recordsFields)}字段不是数据数组");
+        }
+        return records;
+    }
+    /// <summary>
+    /// 从文件中根据指定的正则表达式搜索出对象集合, 对象的属性为指定正则表达式的分组名
+    /// </summary>
+    /// <param name="filePath"></param>
+    /// <param name="targetPattern"></param>
+    /// <returns></returns>
+    /// <exception cref="Exception"></exception>
+    public static async Task SearchTxt(string filePath, string targetPattern)
+    {
+        var groupNamesPattern = RegexConst.PatternGroup().Matches(targetPattern);
+        var groupNames = new List<string>();
+        foreach (Match groupNameMatch in groupNamesPattern.Cast<Match>())
+        {
+            var groupName = groupNameMatch.Groups[1].Value;
+            groupNames.Add(groupName);
+        }
+
+        // 30368
+        var searchedResult = new List<Dictionary<string, string>>();
+
+        string con = await File.ReadAllTextAsync(filePath);
+        var matches = Regex.Matches(con, targetPattern);
+        int i = 0;
+        var start = DateTime.Now;
+        foreach (Match item in matches.Cast<Match>())
+        {
+            i++;
+            Dictionary<string, string> current = new();
+
+            foreach (var groupName in groupNames)
+            {
+                // TODO: TryGetValue ? 失败continue
+                var groupValue = item.Groups[groupName].Value;
+                current[groupName] = groupValue;
+            }
+
+            var hasExist = false;
+            foreach (var result in searchedResult)
+            {
+                var allFieldsEquals = true;
+                foreach (var groupName in groupNames)
+                {
+                    if (result[groupName].ToString() != current[groupName].ToString())
+                    {
+                        allFieldsEquals = false;
+                        break;
+                    }
+                }
+                if (allFieldsEquals)
+                {
+                    hasExist = true;
+                    break;
+                }
+            }
+            if (!searchedResult.Any() || !hasExist)
+            {
+                searchedResult.Add(current);
+            }
+        }
+        var minutes = (DateTime.Now - start).TotalMinutes;
+
+#if DEBUG
+        Debug.WriteLine($"耗时 {minutes} minutes");
+#endif
+
+        // TODO: 目前时写入到文件中, 考虑根据参数直接返回结果或者写入文件
+        string dir = Path.GetDirectoryName(filePath) ?? throw new Exception($"获取josn文件的目录失败");
+        var resultFile = Path.Combine(dir, "SearchResult.json");
+        await File.WriteAllTextAsync(resultFile, JsonConvert.SerializeObject(searchedResult));
     }
 }

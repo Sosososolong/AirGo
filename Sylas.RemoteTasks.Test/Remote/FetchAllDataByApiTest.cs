@@ -8,6 +8,7 @@ using Sylas.RemoteTasks.App.Database.SyncBase;
 using Sylas.RemoteTasks.App.Utils;
 using Sylas.RemoteTasks.Test.AppSettingsOptions;
 using System.Data;
+using System.Text;
 using Xunit.Abstractions;
 
 namespace Sylas.RemoteTasks.Test.Remote
@@ -259,6 +260,11 @@ namespace Sylas.RemoteTasks.Test.Remote
             #endregion
         }
 
+        /// <summary>
+        /// 从配置文件调用API
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
         [Fact]
         public async Task FetchDataModelByConfigAsync()
         {
@@ -273,6 +279,10 @@ namespace Sylas.RemoteTasks.Test.Remote
             Assert.True(configWithData.Data is not null);
         }
 
+        /// <summary>
+        /// 表达式树拷贝对象测试
+        /// </summary>
+        /// <exception cref="Exception"></exception>
         [Fact]
         public void TransExpTestAsync()
         {
@@ -286,6 +296,80 @@ namespace Sylas.RemoteTasks.Test.Remote
             Assert.True(config2.Url != config.Url);
         }
 
+        /// <summary>
+        /// 对比数据: 数据库 和 json文件
+        /// </summary>
+        /// <returns></returns>
+        [Fact]
+        public async Task DataCompareTestAsync()
+        {
+            var sourceConn = DatabaseInfo.GetDbConnection("Data Source=192.168.1.227:1521/helowin;User ID=iduo_ids4;Password=iduo2022;PERSIST SECURITY INFO=True;Pooling = True;Max Pool Size = 100;Min Pool Size = 1;");
+            var compareResult = await DatabaseInfo.CompareRecordsAsync(sourceConn, "syncoc", "USERID", "LOGINNAME", new DatabaseInfo.DataInJson("D:/.NET/iduo/routine/db/同步SQL/杭师大/SYNC_OC.json", new string[] { "RECORDS" }));
+            _outputHelper.WriteLine("success");
+        }
+
+        /// <summary>
+        /// 从文本文件中提取出需要的数据
+        /// </summary>
+        /// <returns></returns>
+        [Fact]
+        public async Task SearchTxtTestAsync()
+        {
+            await FileHelper.SearchTxt("D:/.NET/iduo/routine/txt/log-json.log", @"GetUsersByJobAndUserId:\s*jobId:\s*(?<jobId>.+),\s*userId:\s*(?<userId>.+?)(?=\\n"")");
+        }
+
+        /// <summary>
+        /// 用大批量的参数测试一个Api, 结果写入到文件中, 从索引为1000的参数开始, 执行2000个参数
+        /// </summary>
+        /// <returns></returns>
+        [Fact]
+        public async Task ApiBatchValidationTestAsync()
+        {
+            await ApiValidationHelpers.ApiBatchValidationAsync(
+                        $"{_configuration["ValidationApi:Gateway"]}{_configuration["ValidationApi:Url"]}",
+                        _configuration["ValidationApi:ParametersPath"] ?? throw new Exception("参数所在的文件路径不能为空"),
+                        _configuration["ValidationApi:Token"] ?? string.Empty,
+                        "userId",
+                        1000,
+                        2000
+                    );
+        }
+        /// <summary>
+        /// 将指定目录下的所有文件写入一个文件中
+        /// </summary>
+        /// <returns></returns>
+        [Fact]
+        public async Task ReadFiles()
+        {
+            string dir = "D:\\.NET\\iduo\\iduo.SiteManagement\\iduo.sitemanagement.core\\";
+            var files = FileHelper.FindFilesRecursive(dir, file => file.EndsWith(".cs"));
+            var i = 0;
+            StringBuilder fileContentBuilder = new();
+            foreach (var file in files)
+            {
+                var filename = file.Replace(dir, string.Empty);
+                fileContentBuilder.AppendLine(filename);
+                fileContentBuilder.AppendLine(File.ReadAllText(file));
+                fileContentBuilder.AppendLine();
+            }
+            File.WriteAllText(@"D:\.NET\iduo\routine\txt\sitecodes.txt", fileContentBuilder.ToString());
+        }
+        /// <summary>
+        /// 将比较大的秒的值格式化为x天x时x分x秒的格式
+        /// </summary>
+        [Fact]
+        public void DateTimeFormatterTest()
+        {
+            Assert.True(DateTimeHelper.FormatSeconds(62.235) == "1分2秒");
+            Assert.True(DateTimeHelper.FormatSeconds(60 * 60 + 62.235) == "1时1分2秒");
+            Assert.True(DateTimeHelper.FormatSeconds(24 * 60 * 60 + 60 * 60 + 62.235) == "1天1时1分2秒");
+        }
+
+        /// <summary>
+        /// 同步数据库, 一张表
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
         [Fact]
         public async Task SyncFromDBToDBSigleTable()
         {
@@ -344,13 +428,17 @@ namespace Sylas.RemoteTasks.Test.Remote
             _outputHelper.WriteLine("同步结束");
         }
 
+        /// <summary>
+        /// 同步数据库, 指定库的所有表
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
         [Fact]
         async Task SyncFromDBToDB_AllTables()
         {
             #region 参数
             var sourceConnectionString = _configuration["SyncFromDbToDb:SourceConnectionString"] ?? throw new Exception($"请在配置文件中添加源数据库连接字符串");
             var targetConnectionString = _configuration["SyncFromDbToDb:TargetConnectionString"] ?? throw new Exception($"请在配置文件中添加目标数据库连接字符串");
-            var _sourceDb = "IDUO_ENGINE";
             // 生成SQL: 获取所有表SqlGetDbTablesInfo -> 生成SQL: 获取表全名GetTableFullName -> 生成SQL: 获取表数据GetQuerySql
             #endregion
 
@@ -363,7 +451,7 @@ namespace Sylas.RemoteTasks.Test.Remote
             using (var conn = DatabaseInfo.GetDbConnection(sourceConnectionString))
             {
                 // 数据源-数据库
-                var res = await conn.QueryAsync(DatabaseInfo.GetAllTables(_sourceDb));
+                var res = await conn.QueryAsync(DatabaseInfo.GetAllTables(_configuration["SyncFromDbToDb:SourceDb"] ?? throw new Exception($"请在配置文件中添加源要同步的库")));
                 foreach (var table in res)
                 {
                     TableSqlsInfo tableInsertSqlInfo = await DatabaseInfo.GetTableSqlsInfoAsync(table, conn, null, targetConn, null);
