@@ -30,7 +30,7 @@ namespace Sylas.RemoteTasks.App.Infrastructure
             {
                 Directory.CreateDirectory(CurrentProject.BaseDir);
             }
-            string result = await CmdHandler.ExeCmdAsync(new List<string> {
+            string result = await CmdHandler.ExecuteAsync(new List<string> {
                 CmdHandler.CreateSlnStatement
                 ,
                 CmdHandler.CreateWebEmptyStatement

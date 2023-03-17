@@ -37,9 +37,8 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                         // 参数协议: 第一次发的数据确定任务及参数
                         byte[] bufferParameters = new byte[1024];
 
-                        var socketForClientClosed = false;
                         var uploadedFileCount = 1;
-                        while (!socketForClientClosed)
+                        while (true)
                         {
                             // 服务端已经准备好处理新文件了
                             Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} READY 准备接收新的文件");

@@ -40,11 +40,13 @@ namespace Sylas.RemoteTasks.App.Utils
         public string AddinSlnInfrastructure => $"dotnet sln {SolutionFile} add ./{InfrastructureProjName}/{InfrastructureProjFile}";
 
 
-        public async Task<string> ExeCmdAsync(List<string> cmdStrs, string workingDir)
+        public async Task<string> ExecuteAsync(List<string> commands, string workingDir)
         {
+            //此时写入到控制台的内容也会重定向到p对象的StandardOutPut中
+            //Console.WriteLine(Environment.CommandLine + " --> " + Environment.NewLine);
             Process p = new();
             // 设置要启动的应用程序
-            p.StartInfo.FileName = "powershell.exe";
+            p.StartInfo.FileName = OperatingSystem.IsWindows() ? "powershell.exe" : "/bin/bash";
             p.StartInfo.WorkingDirectory = workingDir;
             // 是否使用操作系统shell启动
             p.StartInfo.UseShellExecute = false;
@@ -60,13 +62,13 @@ namespace Sylas.RemoteTasks.App.Utils
             p.Start();
 
             // 向cmd窗口发送输入信息
-            foreach (string cmdItem in cmdStrs)
+            foreach (string cmdItem in commands)
             {
                 // 执行一个cmd命令
                 await p.StandardInput.WriteLineAsync(cmdItem);
             }
 
-            // 关闭powershell程序
+            // 关闭shell程序
             await p.StandardInput.WriteLineAsync("exit");
 
             p.StandardInput.AutoFlush = true;
@@ -76,7 +78,7 @@ namespace Sylas.RemoteTasks.App.Utils
             string strOuput = await p.StandardOutput.ReadToEndAsync();
 
             // 等待程序执行完退出进程
-            // 关闭此进程关联的程序(即powershell)，其实上面已经执行了"exit"将powershell程序关闭了
+            // 关闭此进程关联的程序(即shell)，其实上面已经执行了"exit"将shell程序关闭了
             p.Kill();
             p.WaitForExit();
             p.Close();
