@@ -24,7 +24,7 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
         #region 数据库连接对象
         public static IDbConnection GetDbConnection(string connectionString)
         {
-            // TODO: 数据库类型 作为公共属性
+            // TODO: 一个连接字符串创建一个对象, 数据库类型 作为公共属性;
             var dbType = GetDbType(connectionString);
             return dbType switch
             {
@@ -39,8 +39,57 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
         public static IDbConnection GetSqlServerConnection(string host, string port, string db, string username, string password) => new SqlConnection($"User ID={username};Password={password};Initial Catalog={db};Data Source={host}");
         #endregion
 
+        /// <summary>
+        /// 同步数据库
+        /// </summary>
+        /// <exception cref="Exception"></exception>
+        public static async Task SyncDatabaseAsync(string sourceConnectionString, string targetConnectionString, string sourceSyncedDb = "")
+        {
+            // TODO: 1.同步指定的表 2.不指定要同步的数据库sourceSyncedDb, 从数据库连接字符串sourceConnectionString中解析数据库名称
+            using var targetConn = GetDbConnection(targetConnectionString);
+            targetConn.Open();
+
+            // 1.生成所有表的insert语句
+            List<TableSqlsInfo> allTablesInsertSqls = new();
+
+            using (var sourceConn =GetDbConnection(sourceConnectionString))
+            {
+                // 数据源-数据库
+                var res = await sourceConn.QueryAsync(GetAllTables(sourceSyncedDb));
+                foreach (var table in res)
+                {
+                    TableSqlsInfo tableInsertSqlInfo = await GetTableSqlsInfoAsync(table, sourceConn, null, targetConn, null);
+                    allTablesInsertSqls.Add(tableInsertSqlInfo);
+                }
+            }
+
+            // 2. 执行每个表的insert语句
+            var dbTransaction = targetConn.BeginTransaction();
+            foreach (var tableSqlsInfo in allTablesInsertSqls)
+            {
+                if (string.IsNullOrEmpty(tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql))
+                {
+                    // $"表{tableSqlsInfo.TableName}没有数据无需处理"
+                    continue;
+                }
+                try
+                {
+                    var affectedRowsCount = await targetConn.ExecuteAsync(tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql, tableSqlsInfo.BatchInsertSqlInfo.Parameters, transaction: dbTransaction);
+                    // $"{tableSqlsInfo.TableName}: {affectedRowsCount}条数据"
+                }
+                catch (Exception ex)
+                {
+                    // 批量插入SQL语句: tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql
+                    dbTransaction.Rollback();
+                    return;
+                }
+            }
+            dbTransaction.Commit();
+        }
+
         public static string GetAllTables(string dbName)
         {
+            // mysql
             return $"select * from information_schema.`TABLES` WHERE table_schema='{dbName}'";
         }
         public static async Task<bool> TableExist(this IDbConnection conn, string table)
@@ -149,7 +198,7 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
             string baseSqlTxt = $"select * from {table} where 1=1 {condition}";
             string allCountSqlTxt = $"select count(*) from {table} where 1=1 {condition}";
 
-            string sql = string.Empty;
+            string sql;
             #region 不同数据库对应的SQL语句
             switch (dbType)
             {
@@ -380,7 +429,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
             // 1. 获取源表的所有字段信息
             #region 获取源表的所有字段信息
             IEnumerable<ColumnInfo> colInfos = await GetTableColsInfoAsync(sourceConn, tableName);
-            var primaryKey = colInfos.FirstOrDefault(x => x.IsPK == 1)?.ColumnName;
+            var sourcePrimaryKey = colInfos.FirstOrDefault(x => x.IsPK == 1)?.ColumnName;
             #endregion
 
             // 2. 获取源表所有数据
@@ -388,7 +437,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
             DataTable sourceDataTable = new(tableName);
             try
             {
-                var srouceTableDataReader = (await GetPagedData(sourceTable, 1, 3000, primaryKey, true, sourceConn, filter)).DataReader;
+                var srouceTableDataReader = (await GetPagedData(sourceTable, 1, 3000, sourcePrimaryKey, true, sourceConn, filter)).DataReader;
                 if (srouceTableDataReader is null)
                 {
                     throw new Exception($"表{sourceTable}的数据读取器为空");
@@ -402,7 +451,12 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
             }
             #endregion
 
-            // 3. 获取目标表的数据, 没有则创建
+            // 3. 获取目标表的所有字段信息
+            IEnumerable<ColumnInfo> targetColInfos = await GetTableColsInfoAsync(targetConn, tableName);
+            var targetPrimaryKey = colInfos.FirstOrDefault(x => x.IsPK == 1)?.ColumnName;
+
+            // 4. 获取目标表的数据, 没有则创建
+
             #region 获取目标表的数据
             var targetDataTable = new DataTable();
             string createSql = string.Empty;
@@ -415,7 +469,6 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
                 if (ex.Message.ToLower().Contains("doesn't exist"))
                 {
                     // 表不存在创建表
-                    // TODO: 数据库类型 作为公共属性
                     createSql = GenerateCreateTableSql(tableName, colInfos, GetDbType(targetConn.ConnectionString));
                     //await targetConn.ExecuteAsync(createSql);
                     //targetDataTable = await QueryAsync(targetConn, $"select * from {tableName}", new Dictionary<string, object>(), trans);
@@ -423,8 +476,10 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
             }
             #endregion
 
-            // 4. 对比原表和目标表数据, 目标表没有的数据就创建对应的insert语句
+            // 5. 对比原表和目标表数据, 目标表没有的数据就创建对应的insert语句
             #region 对比原表和目标表数据, 目标表没有的数据就创建对应的insert语句
+            // TODO: 数据库类型 作为公共属性
+            var dbVarFlag = GetDbType(targetConn.ConnectionString) == DatabaseType.Oracle ? ":" : "@";
             var insertSqlBuilder = new StringBuilder();
             // insert语句参数
             var parameters = new Dictionary<string, object>();
@@ -442,8 +497,8 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
             // columnsStatement =           "Name, Age"
             string columnsStatement = GenerateColumnsStatement(colInfos);
 
-            // TODO: 数据库类型 作为公共属性
-            var dbVarFlag = GetDbType(targetConn.ConnectionString) == DatabaseType.Oracle ? ":" : "@";
+            var comparedResult = CompareRecords(sourceDataTable.Rows.Cast<DataRow>(), targetDataTable.Rows.Cast<DataRow>(), sourcePrimaryKey, targetPrimaryKey);
+
             // 为数据源中的每一条数据生成对应的insert语句的部分
             foreach (DataRow dataItem in sourceDataTable.Rows)
             {
@@ -483,9 +538,20 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
                 }
             };
         }
-        public static async Task<DataComparedResult> CompareRecordsAsync(IDbConnection sourceConn, string table, string sourceIdentityField, string targetIdentityField, DataInJson targetJsonInfo)
+
+        /// <summary>
+        /// 将数据库中的数据和指定的数据集合进行对比
+        /// </summary>
+        /// <param name="conn"></param>
+        /// <param name="table"></param>
+        /// <param name="sourceIdentityField"></param>
+        /// <param name="targetIdentityField"></param>
+        /// <param name="targetJsonInfo"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        public static async Task<DataComparedResult> CompareRecordsFromDbWithDataAsync(IDbConnection conn, string table, string sourceIdentityField, string targetIdentityField, DataInJson targetJsonInfo)
         {
-            var sourceRecordsDynamic = await sourceConn.QueryAsync($"select * from {table}");
+            var sourceRecordsDynamic = await conn.QueryAsync($"select * from {table}");
             var sourceRecords = sourceRecordsDynamic.Select(x => JToken.FromObject(x) as JObject ?? throw new Exception("数据库数据异常, 数据转换失败")).ToList();
             var targetRecords = FileHelper.GetRecords(targetJsonInfo.FilePath, targetJsonInfo.DataFields);
             return CompareRecords(sourceRecords, targetRecords, sourceIdentityField, targetIdentityField);
@@ -494,17 +560,20 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
         }
 
         /// <summary>
-        /// 对比数据
+        /// **对比数据**
         /// </summary>
         /// <param name="sourceRecords">源数据</param>
         /// <param name="targetRecords">要对比的目标数据</param>
         /// <param name="sourceIdentityField">源数据中的标识字段</param>
         /// <param name="targetIdentityField">目标数据中的标识字段</param>
         /// <returns></returns>
-        public static DataComparedResult CompareRecords(List<JObject> sourceRecords, JArray targetRecords, string sourceIdentityField, string targetIdentityField)
+        public static DataComparedResult CompareRecords(IEnumerable<object> sourceRecordsData, IEnumerable<object> targetRecordsData, string sourceIdentityField, string targetIdentityField)
         {
-            DataComparedResult compareResult = new();
+            var sourceRecords = sourceRecordsData.Select(x => JObject.FromObject(x)).ToList() ?? throw new ArgumentNullException(nameof(sourceRecordsData));
+            var targetRecords = targetRecordsData.Select(x => JObject.FromObject(x)).ToList() ?? throw new ArgumentNullException(nameof(sourceRecordsData));
 
+            DataComparedResult compareResult = new();
+            
             int i = 0;
             foreach (var sourceRecord in sourceRecords)
             {
@@ -529,6 +598,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
                 else
                 {
                     // TODO: 放到freach最外面, 分两种情况, 1targetRecords为空 2targetRecords不为空; 从指定的字段中对比数据
+                    // 如果后面还需要使用到原始的targetRecords数据, 那么需要备份一份引用集合
                     targetRecords.Remove(target);
 
                     var keys = target.Properties();

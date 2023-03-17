@@ -490,7 +490,7 @@ public partial class FileHelper
     /// 从json文件中获取所有数据
     /// </summary>
     /// <param name="filePath"></param>
-    /// <param name="recordsFields"></param>
+    /// <param name="recordsFields">["result","data"]表示 response["result"]["data"]</param>
     /// <returns></returns>
     /// <exception cref="Exception"></exception>
     public static JArray GetRecords(string filePath, string[] recordsFields)

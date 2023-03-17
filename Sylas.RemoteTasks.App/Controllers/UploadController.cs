@@ -47,7 +47,7 @@ namespace Sylas.RemoteTasks.App.Controllers
                 var slashIndex = file.LastIndexOf('/');
                 var backSlashIndex = file.LastIndexOf('\\');
                 var index = slashIndex > backSlashIndex ? slashIndex : backSlashIndex;
-                var fileName = file.Substring(index + 1);
+                var fileName = file[(index + 1)..];
                 requestContent.Add(byteArrayContent, "files", fileName);
             }
             var httpClient = httpClientFactory.CreateClient(_uploadClient);
