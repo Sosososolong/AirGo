@@ -1,6 +1,7 @@
 ﻿using Dapper;
 using Microsoft.DotNet.PlatformAbstractions;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Oracle.ManagedDataAccess.Client;
@@ -13,13 +14,15 @@ using Xunit.Abstractions;
 
 namespace Sylas.RemoteTasks.Test.Remote
 {
-    public partial class FetchAllDataByApiTest : TestBase
+    public partial class FetchAllDataByApiTest : IClassFixture<TestFixture>
     {
         private readonly ITestOutputHelper _outputHelper;
+        private readonly IConfiguration _configuration;
 
-        public FetchAllDataByApiTest(ITestOutputHelper outputHelper)
+        public FetchAllDataByApiTest(ITestOutputHelper outputHelper, TestFixture fixture)
         {
             _outputHelper = outputHelper;
+            _configuration = fixture.ServiceProvider.GetRequiredService<IConfiguration>();
         }
         
 

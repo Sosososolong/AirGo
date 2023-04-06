@@ -1,5 +1,5 @@
 using Sylas.RemoteTasks.App.BackgroundServices;
-using Sylas.RemoteTasks.App.Utils;
+using Sylas.RemoteTasks.App.RemoteHostModule;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,13 +15,21 @@ builder.Configuration.AddJsonFile("TaskConfig.log.json", optional: true, reloadO
 builder.Services.AddControllersWithViews();
 builder.Services.AddHttpClient();
 
+// 添加远程主机服务对象
+builder.Services.AddRemoteHostManager(builder.Configuration);
+
+builder.Services.AddTransient<HostService>();
+
 // 后台任务
 builder.Services.AddHostedService<PublishService>();
 
 var app = builder.Build();
 
 // 服务已经全部注册, 暴露给全局使用
-ServiceLocator.Instance = app.Services;
+// 1. 那么使用到的地方相当于获取对象的方式又耦合了DI容器对象了(依赖注入的方式, 我们只关心我们要获取的服务对象类型, 其他我们看不见也不关心, 也就是和其他的背后实现的对象耦合度很低, 我们可以任意地替换其他的DI实现)
+// 2. 全局的唯一对象是一种不够安全的设计, 经常会带来线程安全问题(虽然这里它是一个只读对象)
+//ServiceLocator.Instance = app.Services;
+Console.WriteLine("001");
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
@@ -40,6 +48,6 @@ app.UseAuthorization();
 
 app.MapControllerRoute(
     name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}");
+    pattern: "{controller=Hosts}/{action=Index}/{id?}");
 
 app.Run();

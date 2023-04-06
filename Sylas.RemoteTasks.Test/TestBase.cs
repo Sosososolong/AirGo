@@ -7,14 +7,12 @@ using System.Threading.Tasks;
 
 namespace Sylas.RemoteTasks.Test
 {
-    public class TestBase
+    public class TestBase : IClassFixture<TestFixture>
     {
         protected readonly IConfiguration _configuration;
-        public TestBase()
+        public TestBase(IConfiguration configuration)
         {
-            _configuration = new ConfigurationBuilder()
-                .AddJsonFile("parameters.log.json")
-                .Build();
+            _configuration = configuration;
         }
     }
 }
