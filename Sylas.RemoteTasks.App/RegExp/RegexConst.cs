@@ -76,6 +76,13 @@ namespace Sylas.RemoteTasks.App.RegexExp
         /// <returns></returns>
         [GeneratedRegex("\\(\\?<(\\w+)>.+?\\)")]
         public static partial Regex PatternGroup();
+
+        /// <summary>
+        /// 字符串模板 - 获取当前对象的属性值
+        /// </summary>
+        /// <returns></returns>
+        [GeneratedRegex("\\$RemoteHostInfo[\\.](?<propName>\\w+)")]
+        public static partial Regex CurrentObjPropTmpl();
     }
 
 }

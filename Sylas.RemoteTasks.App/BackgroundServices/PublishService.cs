@@ -7,8 +7,14 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
 {
     public class PublishService : BackgroundService
     {
+        public PublishService(IConfiguration configuration)
+        {
+            _configuration = configuration;
+        }
         private const int bufferSize = 1024 * 1024;
         private readonly byte ZeroByteValue = Encoding.UTF8.GetBytes("0").First();
+        private readonly IConfiguration _configuration;
+
         protected override Task ExecuteAsync(CancellationToken stoppingToken)
         {
             _ = Task.Factory.StartNew(() =>
@@ -21,8 +27,8 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                 tcpSocket.Bind(iPEndPoint);
                 tcpSocket.Listen(128);
 
-                var configure = ServiceLocator.Instance.GetService<IConfiguration>();
-                var serverSaveFileDir = configure?["Upload:SaveDir"];
+                //var configure = ServiceLocator.Instance.GetService<IConfiguration>();
+                var serverSaveFileDir = _configuration?["Upload:SaveDir"];
 
                 while (true)
                 {
