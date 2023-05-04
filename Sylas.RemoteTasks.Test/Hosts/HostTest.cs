@@ -29,5 +29,12 @@ namespace Sylas.RemoteTasks.Test.Hosts
                 }
             }
         }
+
+        [Fact]
+        public void GetRemoteFilesTest()
+        {
+            var sshhelper = new SshHelper("192.168.1.229", "root", "C:/Users/Wu Qianlin/.ssh/id_ed25519");
+            var result = sshhelper.GetRemoteFiles("/home/administrator/web/iduo.form.api", null, null);
+        }
     }
 }

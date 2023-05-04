@@ -88,14 +88,8 @@ public partial class FileHelper
         {
             return new List<string>();
         }
-        if (filter == null)
-        {
-            filter = s => true;
-        }
-        if (files == null)
-        {
-            files = new List<string>();
-        }
+        filter ??= s => true;
+        files ??= new List<string>();
         // 当前目录下的所有目录
         string[] currentDirs = Directory.GetDirectories(dir);
         string[] currentFiles = Directory.GetFiles(dir);

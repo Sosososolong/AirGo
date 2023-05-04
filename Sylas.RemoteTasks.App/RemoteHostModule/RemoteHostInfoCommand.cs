@@ -2,7 +2,7 @@
 {
     public class RemoteHostInfoCommand
     {
-        public string Name { get; set; }
-        public string Command { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Command { get; set; } = string.Empty;
     }
 }

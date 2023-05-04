@@ -27,13 +27,11 @@ namespace Sylas.RemoteTasks.App.Utils
         /// <returns></returns>
         public static async Task SyncDataAsync(IDbConnection conn, string table, List<JToken> sourcRecords, string[] ignoreFields, string[] dateTimeFields)
         {
+            //conn.ConnectionString: "server=whitebox.com;port=3306;database=iduo_engine_hznu;user id=root;allowuservariables=True"
+            //conn.ConnectionTimeout: 15
+            //conn.Database: "iduo_engine_hznu"
             var varFlag = ":";
-            var dbRecords = await conn.QueryAsync($"select * from {table}");
-            if (dbRecords is null)
-            {
-                throw new Exception($"获取{table}数据失败");
-            }
-
+            var dbRecords = await conn.QueryAsync($"select * from {table}") ?? throw new Exception($"获取{table}数据失败");
             var compareResult = CompareRecordsForSyncDb(sourcRecords, dbRecords, ignoreFields, dateTimeFields, "ID", "ID");
             var inserts = compareResult.Inserts;
             var updates = compareResult.Updates;

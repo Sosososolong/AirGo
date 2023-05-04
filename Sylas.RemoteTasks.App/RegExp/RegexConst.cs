@@ -83,6 +83,20 @@ namespace Sylas.RemoteTasks.App.RegexExp
         /// <returns></returns>
         [GeneratedRegex("\\$RemoteHostInfo[\\.](?<propName>\\w+)")]
         public static partial Regex CurrentObjPropTmpl();
+
+        /// <summary>
+        /// 上传 upload   (?<local>[^\s]+) (?<remote>[^\s]+) -include=(?<include>[^\s+]) -exclude=(?<exclude>[^\s]+)
+        /// </summary>
+        /// <returns></returns>
+        [GeneratedRegex("(?<action>(upload|download)) (?<local>[^\\s]+) (?<remote>[^\\s]+) -include=(?<include>[^\\s+]) -exclude=(?<exclude>[^\\s]+)")]
+        public static partial Regex CommandRegex();
+        /// <summary>
+        /// 匹配字符串模板, 模板规定了如何将dataSource(JObject或JArray)中的符合条件的一条或多条数据的某个属性赋值给target的某个属性, 每条数据赋值一次都产生一个target副本
+        /// 如 $primary.BodyDictionary.FilterItems.Value=$records[\"DATATYPE\"=21].REFMODELID 表示修改 target.BodyDictionary.FilterItems.Value 的值为 DataType为21的dataSource的RefModelId字段值, 可能多个
+        /// </summary>
+        /// <returns></returns>
+        [GeneratedRegex("\\$primary(?<targetProp>\\.\\w+){1,}=\\$records(\\[\"(?<filterProp>\\w+)\"={1,2}(?<filterValue>[^\\]]+)){0,1}\\]\\.(?<dataProp>\\w+)")]
+        public static partial Regex AssignmentRulesTmpl();
     }
 
 }

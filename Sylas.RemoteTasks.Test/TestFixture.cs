@@ -2,6 +2,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Sylas.RemoteTasks.App.RemoteHostModule;
+using System.Configuration;
 
 namespace Sylas.RemoteTasks.Test
 {
@@ -12,6 +13,7 @@ namespace Sylas.RemoteTasks.Test
         public TestFixture()
         {
             var serviceCollection = new ServiceCollection();
+            // DI容器中注册所有的服务
             ConfigureServices(serviceCollection);
             ServiceProvider = serviceCollection.BuildServiceProvider();
         }
@@ -35,6 +37,32 @@ namespace Sylas.RemoteTasks.Test
             });
 
             services.AddSingleton<IConfiguration>(_configuration);
+
+            #region Host
+            var remoteHosts = _configuration.GetSection("Hosts").Get<List<RemoteHost>>() ?? new List<RemoteHost>();
+
+            services.AddSingleton(remoteHosts);
+
+            // TODO: 没有配置的给默认的值
+            services.Configure<List<RemoteHostInfoCommandSettings>>(_configuration.GetSection("RemoteHostInfoCommandSettings"));
+            //var commandTmplSettings = configuration.GetSection("RemoteHostInfoCommandSettings").Get<List<RemoteHostInfoCommandSettings>>() ?? new List<RemoteHostInfoCommandSettings>();
+            //services.AddSingleton(commandTmplSettings);
+
+            services.AddSingleton<RemoteHostInfoFactory>();
+
+            services.AddSingleton(serviceProvider =>
+            {
+                var remoteHostInfoFactory = serviceProvider.GetService<RemoteHostInfoFactory>() ?? throw new Exception("DI容器中获取的RemoteHostInfoFactory为空");
+                var result = new List<RemoteHostInfoManager>();
+                foreach (var remoteHost in remoteHosts)
+                {
+                    var dockerContainerManager = new DockerContainerManger(remoteHost, remoteHostInfoFactory);
+                    result.Add(dockerContainerManager);
+                }
+                return result;
+            });
+            #endregion
+
             services.AddSingleton<HostService>();
         }
     }

@@ -4,7 +4,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Oracle.ManagedDataAccess.Client;
 using Sylas.RemoteTasks.App.Database.SyncBase;
 using Sylas.RemoteTasks.App.Utils;
 using Sylas.RemoteTasks.Test.AppSettingsOptions;
@@ -73,6 +72,7 @@ namespace Sylas.RemoteTasks.Test.Remote
                                                                        "id",
                                                                        "",
                                                                        false,
+                                                                       "post",
                                                                        token);
                 Assert.NotNull(dataModel);
                 var dm = dataModel.FirstOrDefault();
@@ -105,7 +105,8 @@ namespace Sylas.RemoteTasks.Test.Remote
                                                                        "id",
                                                                        "",
                                                                        false,
-                                                                       token);
+                                                                       requestMethod: "post",
+                                                                       authorizationHeaderToken: token);
                 Assert.True(modelFields.Any());
                 System.Diagnostics.Debug.WriteLine($"================================================= {table}: {modelFields.Count} records =================================================");
 
@@ -150,6 +151,8 @@ namespace Sylas.RemoteTasks.Test.Remote
             var targetDbConnectionString = _configuration["SyncFromApiToDbOptions:TargetDbConnectionString"];
             Assert.NotNull(targetDbConnectionString);
             Assert.True(configWithData.Data is not null);
+            var conn = DatabaseInfo.GetDbConnection(targetDbConnectionString);
+            await DatabaseHelper.SyncDataAsync(conn, "devdatamodel", config.Data?.ToList(), Array.Empty<string>(), Array.Empty<string>());
         }
 
         /// <summary>
@@ -214,18 +217,23 @@ namespace Sylas.RemoteTasks.Test.Remote
         [Fact]
         public async Task ReadFiles()
         {
-            string dir = "D:\\.NET\\iduo\\iduo.SiteManagement\\iduo.sitemanagement.core\\";
-            var files = FileHelper.FindFilesRecursive(dir, file => file.EndsWith(".cs"));
-            var i = 0;
+            string dir1 = "D:/.NET/iduo/iduo.SiteManagement/iduo.sitemanagement.core/Entities";
+            string dir2 = "D:/.NET/iduo/iduo.portal.api/iduo.portal.core/Entities";
+            string[] dirs = new string[] { dir1, dir2 };
             StringBuilder fileContentBuilder = new();
-            foreach (var file in files)
+            foreach (var dir in dirs)
             {
-                var filename = file.Replace(dir, string.Empty);
-                fileContentBuilder.AppendLine(filename);
-                fileContentBuilder.AppendLine(File.ReadAllText(file));
-                fileContentBuilder.AppendLine();
+                var files = FileHelper.FindFilesRecursive(dir, file => file.EndsWith(".cs"));
+                foreach (var file in files)
+                {
+                    var filename = file.Replace('\\', '/').Replace(dir, string.Empty);
+                    //fileContentBuilder.AppendLine(filename);
+                    fileContentBuilder.AppendLine(File.ReadAllText(file));
+                    fileContentBuilder.AppendLine();
+                }
             }
-            File.WriteAllText(@"D:\.NET\iduo\routine\txt\sitecodes.txt", fileContentBuilder.ToString());
+            File.WriteAllText(@"D:\.NET\iduo\routine\txt\siteportalentities.txt", fileContentBuilder.ToString());
+            
         }
         /// <summary>
         /// 将比较大的秒的值格式化为x天x时x分x秒的格式

@@ -14,8 +14,6 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
 
             // TODO: 没有配置的给默认的值
             services.Configure<List<RemoteHostInfoCommandSettings>>(configuration.GetSection("RemoteHostInfoCommandSettings"));
-            //var commandTmplSettings = configuration.GetSection("RemoteHostInfoCommandSettings").Get<List<RemoteHostInfoCommandSettings>>() ?? new List<RemoteHostInfoCommandSettings>();
-            //services.AddSingleton(commandTmplSettings);
 
             services.AddSingleton<RemoteHostInfoFactory>();
 

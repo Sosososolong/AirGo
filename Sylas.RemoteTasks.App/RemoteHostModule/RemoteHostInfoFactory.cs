@@ -16,6 +16,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
         }
         public RemoteHostInfo CreateDockerContainer(string containerId, string image,string command, string created, string status, string ports, string names, string host)
         {
+            #region 创建DockerContainerInfo
             var dockerContainerInfo = new DockerContainerInfo
             {
                 ContainerId = containerId,
@@ -26,7 +27,9 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
                 Ports = ports,
                 Names = names
             };
+            #endregion
 
+            #region 根据模板配置计算出DockerContainerInfo的命令集
             var currentHostTmplSetting = _tmplSettings.FirstOrDefault(x => x.Host == host);
             var dockerContainerProperties = typeof(DockerContainerInfo).GetProperties();
             if (currentHostTmplSetting is not null)
@@ -43,7 +46,9 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
             }
 
             dockerContainerInfo.Commands = currentHostTmplSetting?.RemoteHostInfoCommands ?? new List<RemoteHostInfoCommand>();
+            
             return dockerContainerInfo;
+            #endregion
         }
     }
 }

@@ -13,10 +13,13 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
         public string Created { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
         public string Ports { get; set; } = string.Empty;
+        /// <summary>
+        /// 用容器名称表示
+        /// </summary>
         public string Names { get; set; } = string.Empty;
         public override string Description { get => $"Container: {Names} [{ContainerId}] created from Image: {Image} at {Created}"; }
         /// <summary>
-        /// 当前信息名称
+        /// 用容器名称表示
         /// </summary>
         public override string Name => Names;
 
@@ -37,7 +40,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
                 return result;
             }
         }
-        public override List<RemoteHostInfoCommand> Commands { get; set; }
+        public override List<RemoteHostInfoCommand> Commands { get; set; } = new List<RemoteHostInfoCommand>();
     }
 
 }

@@ -437,11 +437,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
             DataTable sourceDataTable = new(tableName);
             try
             {
-                var srouceTableDataReader = (await GetPagedData(sourceTable, 1, 3000, sourcePrimaryKey, true, sourceConn, filter)).DataReader;
-                if (srouceTableDataReader is null)
-                {
-                    throw new Exception($"表{sourceTable}的数据读取器为空");
-                }
+                var srouceTableDataReader = (await GetPagedData(sourceTable, 1, 3000, sourcePrimaryKey, true, sourceConn, filter)).DataReader ?? throw new Exception($"表{sourceTable}的数据读取器为空");
                 sourceDataTable.Load(srouceTableDataReader);
             }
             catch (Exception ex)

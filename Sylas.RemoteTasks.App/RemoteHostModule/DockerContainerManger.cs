@@ -2,10 +2,6 @@
 {
     public class DockerContainerManger : RemoteHostInfoManager
     {
-        ~DockerContainerManger()
-        {
-            Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} DockerContainerManger析构");
-        }
         public DockerContainerManger(RemoteHost remoteHost, RemoteHostInfoFactory remoteHostInfoFactory)
             : base(
                   remoteHost ?? throw new Exception("DockerContainerManger注入RemoteHost为空"),
@@ -21,7 +17,7 @@
         /// </summary>
         public override List<RemoteHostInfo> RemoteHostInfos()
         {
-            Console.WriteLine($"请求一次INFOS, 实时查询一次INFOS");
+            Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} Invoke the RemoteHostInfos() method, query remote host's INFOS in real-time.");
             if (RemoteHost is null)
             {
                 throw new Exception($"DockerContainerManger.RemoteHost没有初始化");

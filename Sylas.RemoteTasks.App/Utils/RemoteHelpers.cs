@@ -24,15 +24,24 @@ namespace Sylas.RemoteTasks.App.Utils
             // 备份原始配置对象, 用于递归发送新的请求时用 ...
             var originRequestConfig = MapHelper<RequestConfig, RequestConfig>.Map(requestConfig);
 
-            ValidateHelper.ValidateArgumentIsNull(requestConfig, new List<string> { nameof(requestConfig.FailMsg), nameof(requestConfig.Token), nameof(requestConfig.Data) });
+            ValidateHelper.ValidateArgumentIsNull(
+                requestConfig,
+                new List<string> { 
+                    nameof(requestConfig.FailMsg),
+                    nameof(requestConfig.Token),
+                    nameof(requestConfig.Data),
+                    nameof(requestConfig.ReturnPrimaryRequest),
+                    nameof(requestConfig.UpdateBodyParentIdRegex),
+                    nameof(requestConfig.UpdateBodyParentIdValue)
+                });
 
             NodesHelper.FillChildrenValue(requestConfig, nameof(requestConfig.Details));
 
 
-            await fetchDataModelsRecursivelyAsync(requestConfig);
+            await fetchDatasRecursivelyAsync(requestConfig);
             return requestConfig;
 
-            async Task fetchDataModelsRecursivelyAsync(RequestConfig config)
+            async Task fetchDatasRecursivelyAsync(RequestConfig config)
             {
                 bool responseOkPredicate(JObject response) => response[config.ResponseOkField]?.ToString() == config.ResponseOkValue;
                 var responseDataFieldArr = config.ResponseDataField.Split(':');
@@ -54,9 +63,23 @@ namespace Sylas.RemoteTasks.App.Utils
                                                                        responseOkPredicate,
                                                                        getDataFunc,
                                                                        new HttpClient(),
-                                                                       config.IdFieldName, config.ParentIdFieldName, false,
-                                                                       config.Token);
-                config.Data = records;
+                                                                       config.IdFieldName, config.ParentIdFieldName,
+                                                                       false,
+                                                                       requestMethod: config.RequestMethod,
+                                                                       updateBodyParentIdRegex: config.UpdateBodyParentIdRegex,
+                                                                       updateBodyParentIdValue: config.UpdateBodyParentIdValue,
+                                                                       authorizationHeaderToken: config.Token);
+                if (config.Data is not null)
+                {
+                    var configData = config.Data.ToList();
+                    configData.AddRange(records);
+                    config.Data = configData;
+                }
+                else
+                {
+                    config.Data = records;
+                }
+                
                 if (config.Details is not null && config.Details.Any())
                 {
                     foreach (var record in records)
@@ -66,7 +89,18 @@ namespace Sylas.RemoteTasks.App.Utils
                         {
                             ResolveDictionaryTmplValue(detail.QueryDictionary, record);
                             ResolveDictionaryTmplValue(detail.BodyDictionary, record);
-                            await fetchDataModelsRecursivelyAsync(detail);
+                            await fetchDatasRecursivelyAsync(detail);
+                            if (!string.IsNullOrWhiteSpace(detail.ReturnPrimaryRequest))
+                            {
+                                var newConfigs = TmplHelper.ResolveJTokenByDataSourceTmpl(JToken.FromObject(config), JToken.FromObject(detail.Data), detail.ReturnPrimaryRequest);
+                                foreach (var newConfig in newConfigs)
+                                {
+                                    var newConfigObj = newConfig.ToObject<RequestConfig>();
+                                    newConfigObj.Data = config.Data;
+                                    newConfigObj.Details = config.Details;
+                                    await FetchAllDataFromApiAsync(newConfigObj);
+                                }
+                            }
                         }
                     }
                 }
@@ -121,7 +155,27 @@ namespace Sylas.RemoteTasks.App.Utils
         /// <param name="logger"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static async Task<List<JToken>> FetchAllDataFromApiAsync(string apiUrl, string errPrefix, IDictionary<string, object>? queryDictionary, string pageIndexParamName, bool pageIndexParamInQuery, IDictionary<string, object>? bodyDictionary, Func<JObject, bool> responseOkPredicate, Func<JObject, JToken?> getDataFunc, HttpClient httpClient, string idFieldName, string parentIdParamName, bool parentIdParamInQuery, string authorizationHeaderToken = "", string mediaType = "", ILogger logger = null)
+        public static async Task<List<JToken>> FetchAllDataFromApiAsync(
+                string apiUrl,
+                string errPrefix,
+                IDictionary<string, object>?
+                queryDictionary,
+                string pageIndexParamName,
+                bool pageIndexParamInQuery,
+                IDictionary<string, object>? bodyDictionary,
+                Func<JObject, bool> responseOkPredicate,
+                Func<JObject, JToken?> getDataFunc,
+                HttpClient httpClient,
+                string idFieldName,
+                string parentIdParamName,
+                bool parentIdParamInQuery,
+                string requestMethod = "post",
+                string updateBodyParentIdRegex = "",
+                string updateBodyParentIdValue = "",
+                string authorizationHeaderToken = "",
+                string mediaType = "",
+                ILogger logger = null
+            )
         {
             #region FormData还是application/json
             if (string.IsNullOrWhiteSpace(mediaType))
@@ -159,12 +213,14 @@ namespace Sylas.RemoteTasks.App.Utils
 
 
             var allDatas = new List<JToken>();
+            // BOOKMARK: 子节点递归获取所有数据
             await FetchAllApiDataRecursivelyAsync();
             return allDatas;
 
             // **2. 子节点递归**
             async Task FetchAllApiDataRecursivelyAsync()
             {
+                // BOOKMARK: 分页递归获取所有数据
                 var records = await ApiChildrenDataAsync();
                 if (records.Any())
                 {
@@ -178,11 +234,8 @@ namespace Sylas.RemoteTasks.App.Utils
                 {
                     if (record is JObject recordObj)
                     {
-                        var id = recordObj[idFieldName];
-                        if (id is null)
-                        {
-                            throw new Exception($"不存在主键{idFieldName}");
-                        }
+                        var id = recordObj.Properties().FirstOrDefault(x => string.Equals(x.Name, idFieldName, StringComparison.OrdinalIgnoreCase)) ?? throw new Exception($"不存在主键{idFieldName}");
+                        // TODO: 根据parentIdParamName判断父级数据 更改为 关联数据会更为通用; "处理关联数据"部分的逻辑和参数名也需要替换
                         if (!string.IsNullOrWhiteSpace(parentIdParamName))
                         {
                             if (parentIdParamInQuery)
@@ -208,11 +261,21 @@ namespace Sylas.RemoteTasks.App.Utils
                                 }
                                 else
                                 {
-                                    bodyContent = bodyContent.TrimEnd('}') + $@",""{parentIdParamName}"":""{id}""}}";
+                                    // TODO: 处理关联数据
+                                    if (string.IsNullOrWhiteSpace(updateBodyParentIdRegex))
+                                    {
+                                        bodyContent = bodyContent.TrimEnd('}') + $@",""{parentIdParamName}"":""{id.Value}""}}";
+                                    }
+                                    else
+                                    {
+                                        bodyContent = string.IsNullOrWhiteSpace(updateBodyParentIdValue)
+                                            ? Regex.Replace(bodyContent, updateBodyParentIdRegex, m => id.Value.ToString())
+                                            : Regex.Replace(bodyContent, updateBodyParentIdRegex, m => updateBodyParentIdValue.Replace("$parentId", id.Value.ToString(), StringComparison.OrdinalIgnoreCase));
+                                    }
                                 }
                             }
+                            await FetchAllApiDataRecursivelyAsync();
                         }
-                        await FetchAllApiDataRecursivelyAsync();
                     }
                 }
                 //return records;
@@ -226,7 +289,7 @@ namespace Sylas.RemoteTasks.App.Utils
 
                 #region 请求方式和参数
                 Func<Task<string>> queryAsync;
-                if (bodyDictionary is not null && bodyDictionary.Any())
+                if (string.Equals(requestMethod, "post", StringComparison.OrdinalIgnoreCase))
                 {
                     queryAsync = async () =>
                     {
@@ -355,6 +418,12 @@ namespace Sylas.RemoteTasks.App.Utils
         public string? ResponseOkValue { get; set; }
         public string? ResponseDataField { get; set; }
         public string? FailMsg { get; set; }
+        public string? UpdateBodyParentIdRegex { get; set; }
+        public string? UpdateBodyParentIdValue { get; set; }
+        /// <summary>
+        /// get or post
+        /// </summary>
+        public string RequestMethod { get; set; }
         public string? Token { get; set; }
         /// <summary>
         /// 请求获取的数据
@@ -366,8 +435,8 @@ namespace Sylas.RemoteTasks.App.Utils
         public List<RequestConfig>? Details { get; set; }
 
         /// <summary>
-        /// 递归回到数据模型的请求, 给参数赋值
+        /// 递归回到主查询的请求, 基于当前数据字段值重新给请求参数赋值
         /// </summary>
-        //public string? ReturnPrimaryRequest { get; set; }
+        public string? ReturnPrimaryRequest { get; set; }
     }
 }
