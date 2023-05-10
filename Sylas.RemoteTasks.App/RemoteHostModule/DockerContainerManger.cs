@@ -8,7 +8,7 @@
                   remoteHostInfoFactory ?? throw new Exception("DockerContainerManger注入RemoteHostInfoFactory为空")
                   )
         {
-            Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} DI容器注入DockerContainerManger单例对象(注入依赖RemoteHost单例, RemoteHostInfoFactory单例)");
+            Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} DI容器注入DockerContainerManger单例对象(注入依赖RemoteHost单例, RemoteHostInfoFactory单例) {remoteHost.Ip}");
         }
 
         //private List<RemoteHostInfo> _remoteHostInfos = null;

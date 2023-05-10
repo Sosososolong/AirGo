@@ -147,10 +147,10 @@ namespace Sylas.RemoteTasks.Test.Remote
             var configContent = File.ReadAllText(configFile);
             var config = JsonConvert.DeserializeObject<RequestConfig>(configContent) ?? throw new Exception("API请求参数格式不正确");
 
-            var configWithData = await RemoteHelpers.FetchAllDataFromApiAsync(config);
+            var configData = await RemoteHelpers.FetchAllDataFromApiAsync(config);
             var targetDbConnectionString = _configuration["SyncFromApiToDbOptions:TargetDbConnectionString"];
             Assert.NotNull(targetDbConnectionString);
-            Assert.True(configWithData.Data is not null);
+            Assert.True(configData is not null);
             var conn = DatabaseInfo.GetDbConnection(targetDbConnectionString);
             await DatabaseHelper.SyncDataAsync(conn, "devdatamodel", config.Data?.ToList(), Array.Empty<string>(), Array.Empty<string>());
         }
@@ -332,7 +332,7 @@ namespace Sylas.RemoteTasks.Test.Remote
             using (var conn = DatabaseInfo.GetDbConnection(sourceConnectionString))
             {
                 // 数据源-数据库
-                var res = await conn.QueryAsync(DatabaseInfo.GetAllTables(_configuration["SyncFromDbToDb:SourceDb"] ?? throw new Exception($"请在配置文件中添加源要同步的库")));
+                var res = await DatabaseInfo.GetAllTablesAsync(conn, _configuration["SyncFromDbToDb:SourceDb"] ?? throw new Exception($"请在配置文件中添加源要同步的库"));
                 foreach (var table in res)
                 {
                     TableSqlsInfo tableInsertSqlInfo = await DatabaseInfo.GetTableSqlsInfoAsync(table, conn, null, targetConn, null);
@@ -365,6 +365,20 @@ namespace Sylas.RemoteTasks.Test.Remote
             }
             dbTransaction.Commit();
             _outputHelper.WriteLine("同步结束");
+        }
+
+        [Fact]
+        async Task GetPagedData_InQuery()
+        {
+            string connectionString = "Server=whitebox.com;Port=3306;Stmt=;Database=ids4_alphal;Uid=root;Pwd=123456;Allow User Variables=true";
+            using var conn = DatabaseInfo.GetDbConnection(connectionString);
+            var data = await DatabaseInfo.GetPagedData("users", 1, 10, "id", false, conn, new DataFilter
+            {
+                FilterItems = new List<FilterItem>
+                {
+                    new FilterItem{ FieldName = "id", CompareType = "in", Value = "00006,00008" }
+                }
+            });
         }
     }
 }

@@ -289,5 +289,35 @@ namespace Sylas.RemoteTasks.App.Utils
                 FillChildrenValue(c, childrenPropName);
             }
         }
+
+        /// <summary>
+        /// 扁平化获取所有子项
+        /// </summary>
+        /// <param name="list"></param>
+        /// <returns></returns>
+        public static List<JObject> GetAll(List<JObject> list, string childrenField)
+        {
+            if (list is null || !list.Any())
+            {
+                return new List<JObject>();
+            }
+            var result = new List<JObject>();
+            getAllChildren(list);
+            return result;
+
+            void getAllChildren(List<JObject> source)
+            {
+                foreach (var item in source)
+                {
+                    result.Add(item);
+                    var itemProperties = item.Properties() ?? throw new Exception("扁平化获取所有子项时, 获取集合中对象的属性失败");
+                    var children = itemProperties.FirstOrDefault(x => string.Equals(x.Name, childrenField, StringComparison.OrdinalIgnoreCase))?.Value;
+                    if (children is not null && children is JArray)
+                    {
+                        getAllChildren(children.ToObject<List<JObject>>() ?? throw new Exception("递归获取子项失败"));
+                    }
+                }
+            }
+        }
     }
 }

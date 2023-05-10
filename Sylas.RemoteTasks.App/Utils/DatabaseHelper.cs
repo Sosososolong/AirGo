@@ -37,8 +37,8 @@ namespace Sylas.RemoteTasks.App.Utils
             var updates = compareResult.Updates;
             var deletes = compareResult.Deletes;
 
-            var insertValueStatement = GetInsertSqlValueStatement(varFlag, dbRecords?.First());
-            var updateValueStatement = GetUpdateSqlValueStatement(varFlag, dbRecords?.First());
+            var insertValueStatement = GetInsertSqlValueStatement(varFlag, dbRecords?.FirstOrDefault());
+            var updateValueStatement = GetUpdateSqlValueStatement(varFlag, dbRecords?.FirstOrDefault());
             List<string> insertingSqls = new();
             List<string> updatingSqls = new();
 

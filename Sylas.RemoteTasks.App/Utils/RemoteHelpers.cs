@@ -19,7 +19,7 @@ namespace Sylas.RemoteTasks.App.Utils
             return queryString;
         }
 
-        public static async Task<RequestConfig> FetchAllDataFromApiAsync(RequestConfig requestConfig)
+        public static async Task<IEnumerable<JToken>?> FetchAllDataFromApiAsync(RequestConfig requestConfig)
         {
             // 备份原始配置对象, 用于递归发送新的请求时用 ...
             var originRequestConfig = MapHelper<RequestConfig, RequestConfig>.Map(requestConfig);
@@ -32,14 +32,15 @@ namespace Sylas.RemoteTasks.App.Utils
                     nameof(requestConfig.Data),
                     nameof(requestConfig.ReturnPrimaryRequest),
                     nameof(requestConfig.UpdateBodyParentIdRegex),
-                    nameof(requestConfig.UpdateBodyParentIdValue)
+                    nameof(requestConfig.UpdateBodyParentIdValue),
+                    nameof(requestConfig.Details)
                 });
 
             NodesHelper.FillChildrenValue(requestConfig, nameof(requestConfig.Details));
 
 
             await fetchDatasRecursivelyAsync(requestConfig);
-            return requestConfig;
+            return requestConfig.Data;
 
             async Task fetchDatasRecursivelyAsync(RequestConfig config)
             {
