@@ -23,7 +23,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             _logger = logger;
             _configuration = configuration;
         }
-        public async Task<IActionResult> Index([FromServices] DatabaseInfo databaseInfo, [FromServices] IServiceProvider serviceProvider)
+        public async Task<IActionResult> Index([FromServices] IServiceProvider serviceProvider)
         {
             var requestProcessorDispatchItems = _configuration.GetSection("RequestPipeline:RequestProcessorDispatch").GetChildren();
             foreach (var requestProcessorDispatchItem in requestProcessorDispatchItems)

@@ -38,7 +38,7 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
             _varFlag = GetDbParameterFlag(_dbType);
         }
         #region 数据库连接对象
-        private static IDbConnection GetDbConnection(string connectionString)
+        public static IDbConnection GetDbConnection(string connectionString)
         {
             // TODO: 一个连接字符串创建一个对象, 数据库类型 作为公共属性;
             var dbType = GetDbType(connectionString);

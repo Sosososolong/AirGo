@@ -1,10 +1,8 @@
 ﻿using Newtonsoft.Json.Linq;
 using Sylas.RemoteTasks.App.Operations;
 using Sylas.RemoteTasks.App.Utils;
-using System.Collections;
-using System.Linq.Expressions;
+using Sylas.RemoteTasks.App.Utils.Template;
 using System.Reflection;
-using System.Text.RegularExpressions;
 using static Sylas.RemoteTasks.App.RemoteHostModule.StartupHelper;
 
 namespace Sylas.RemoteTasks.App.Services
@@ -54,7 +52,7 @@ namespace Sylas.RemoteTasks.App.Services
                 List<string> values = new();
                 var dataContextTmpls = new List<string>();
                 var dataContextHandlers = new List<DataHandler>();
-                _logger.LogDebug($"{new string('*', 20)} Start A Task {new string('*', 20)}");
+                _logger.LogDebug($"{new string('*', 20)} Start A Request {new string('*', 20)}");
                 foreach (var parameter in parameters)
                 {
                     if (parameter.Key == "DataContext")
@@ -141,7 +139,7 @@ namespace Sylas.RemoteTasks.App.Services
             _requestConfig.Data = null;
 
             logger?.LogDebug($"call {nameof(RequestAndBuildDataContextAsync)}, 请求结束, 获取data: {data.Count()}, 构建数据上下文");
-            dataContextDictionary.BuildDataContext(dataContextTmpls, data, logger);
+            dataContextDictionary.BuildDataContextBySource(data, dataContextTmpls, logger);
         }
         async Task ExecuteOperationAsync(Dictionary<string, object> dataContextDictionary, List<DataHandler> dataHandlers)
         {
