@@ -225,26 +225,37 @@ namespace Sylas.RemoteTasks.App.Utils.Template
         /// <param name="assignmentStatementTmpl">赋值语句模板, 即变量名=值</param>
         /// <param name="dataContext">包含原始的数据$data的数据上下文对象</param>
         /// <returns></returns>
-        public static void BuildDataContextBySource(this Dictionary<string, object> dataContext, IEnumerable<JToken> source, List<string> assignmentStatementTmpls, ILogger? logger = null)
+        public static Dictionary<string, object?> BuildDataContextBySource(this Dictionary<string, object> dataContext, IEnumerable<JToken> source, List<string> dataContextBuilderTmpls, bool valueAppend, ILogger? logger = null)
         {
+            // key为要构建的dataContext的key, value为给key赋的值, 有可能会赋多次值
+            Dictionary<string, object?> dataContextBuildDetail = new();
+            
             dataContext["$data"] = source;
             // 解析DataContext
-            foreach (var assignmentStatementTmpl in assignmentStatementTmpls)
+            foreach (var dataContextBuilderTmpl in dataContextBuilderTmpls)
             {
                 // $datavar=data, $idpath=data[0].idpath, ...
-                var tokens = assignmentStatementTmpl.Split("=", StringSplitOptions.RemoveEmptyEntries);
-                var variableName = tokens[0];
-                var variableValue = tokens[1];
+                //"DataPropertyParser[$mainDataModels =$data[0].formConfiguration.dataModels]"
+                //"CollectionSelectParser[$mainDataModelIds=$mainDataModels select Id]"
+
+                var dataContextBuilderMatch = Regex.Match(dataContextBuilderTmpl, @"(?<parser>^\w+Parser)\[(?<assignment>.+)\]$");
+                var parserName = dataContextBuilderMatch.Groups["parser"].Value;
+                var assignment = dataContextBuilderMatch.Groups["assignment"].Value;
+                var tokens = assignment.Split("=", StringSplitOptions.RemoveEmptyEntries);
+                var assignmentLeft = tokens[0];
+                var assignmentRight = tokens[1];
                 object? variableValueResolved = null;
+                string[]? sourceKeys = null;
 
                 // 1. 缓存结果$data
-                if (variableValue == "$data")
+                if (assignmentRight == "$data")
                 {
                     variableValueResolved = dataContext["$data"];
-                    logger?.LogDebug($"call {nameof(BuildDataContextBySource)}, key={variableName}, 缓存source data");
+                    logger?.LogDebug($"call {nameof(BuildDataContextBySource)}, key={assignmentLeft}, 缓存source data");
                 }
                 else
                 {
+                    #region 解析数据
                     // 2. 缓存指定数据的某个属性值
                     // 3. 缓存经过动态构建表达式树过滤的结果集
                     // 4. 缓存正则获取字段值的一部分
@@ -252,29 +263,61 @@ namespace Sylas.RemoteTasks.App.Utils.Template
                     // 6. 缓存Select集合中的某个属性集合的结果
                     var parseResult = new ParseResult(false);
                     var tmplParsers = ReflectionHelper.GetTypes(typeof(ITmplParser));
-                    foreach (var tmplParser in tmplParsers)
+                    var tmplParser = tmplParsers.FirstOrDefault(x => x.Name == parserName) ?? throw new Exception($"未找到Parser: {parserName}");
+
+                    ITmplParser parser = ReflectionHelper.CreateInstance(tmplParser) as ITmplParser ?? throw new Exception($"Creating an instance of the type [{tmplParser.Name}] has failed");
+                    parseResult = parser.Parse(assignmentRight, dataContext);
+                    if (parseResult.Success)
                     {
-                        ITmplParser parser = ReflectionHelper.CreateInstance(tmplParser) as ITmplParser ?? throw new Exception($"Creating an instance of the type [{tmplParser.Name}] has failed");
-                        parseResult = parser.Parse(variableValue, dataContext);
-                        if (parseResult.Success)
+                        variableValueResolved = parseResult.Value;
+                        sourceKeys = parseResult.DataSourceKeys;
+                        if (sourceKeys is null)
                         {
-                            variableValueResolved = parseResult.Value;
-                            logger?.LogDebug($"call {nameof(BuildDataContextBySource)}, key={variableName}: {variableValueResolved}");
-                            break;
+                            throw new Exception($"TmplParser解析成功, 但是未返回解析模板中的数据源的Key {nameof(parseResult.DataSourceKeys)}");
                         }
+                        dataContextBuildDetail[assignmentLeft] = variableValueResolved;
+                        logger?.LogDebug($"call {nameof(BuildDataContextBySource)}, key={assignmentLeft}: {(variableValueResolved?.ToString()?.Length > 50 ? variableValueResolved?.ToString()?[..50] : variableValueResolved?.ToString())}");
                     }
                     if (parseResult.Value is null)
                     {
-                        logger?.LogWarning($"All parsers failed to resolve the template [{variableValue}]");
+                        logger?.LogWarning($"All parsers failed to resolve the template [{assignmentRight}]");
                     }
+                    #endregion
                 }
+
+                #region 处理解析好的数据
                 if (variableValueResolved is not null)
                 {
-                    dataContext[variableName] = variableValueResolved;
+                    // 数据源来源于当前请求得到最新数据也就是当前$data, 将解析出来的值追加;
+                    if (valueAppend && dataContext.ContainsKey(assignmentLeft) && dataContext[assignmentLeft] is not null && sourceKeys is not null && sourceKeys.Any(x => string.Equals(x, "$data", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        // key {assignmentLeft}已经存在, 则追加值
+                        if (dataContext[assignmentLeft] is not JArray oldValueJArray)
+                        {
+                            oldValueJArray = new JArray(dataContext[assignmentLeft]);
+                        }
+                        if (variableValueResolved is JArray newValueJArray)
+                        {
+                            foreach (var newValueItem in newValueJArray)
+                            {
+                                oldValueJArray.Add(newValueItem);
+                            }
+                        }
+                        else
+                        {
+                            oldValueJArray.Add(variableValueResolved);
+                        }
+                    }
+                    else
+                    {
+                        dataContext[assignmentLeft] = variableValueResolved;
+                    }
                 }
+                #endregion
             }
+            return dataContextBuildDetail;
         }
-        public static object ResolveByDataContext(Dictionary<string, object> dataContext, string tmpl)
+        public static object GetTmplValueFromDataContext(Dictionary<string, object> dataContext, string tmpl)
         {
             tmpl = tmpl.Trim();
             if (!dataContext.Any())

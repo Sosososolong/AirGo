@@ -1,4 +1,4 @@
-﻿namespace Sylas.RemoteTasks.App.Services
+﻿namespace Sylas.RemoteTasks.App.RequestProcessor
 {
     public interface IRequestProcessor
     {

@@ -17,7 +17,7 @@ namespace Sylas.RemoteTasks.App.Utils.Template.Parser
                 if (string.Equals(type, "List<JObject>", StringComparison.OrdinalIgnoreCase) && JToken.FromObject(keyVal).Type == JTokenType.String)
                 {
                     var val = JsonConvert.DeserializeObject<List<JObject>>(keyVal?.ToString() ?? throw new Exception($"上下文{key}的值无法转换为有效字符串"));
-                    return new ParseResult(true, val);
+                    return new ParseResult(true, new string[] { key }, val);
                     
                 }
                 else

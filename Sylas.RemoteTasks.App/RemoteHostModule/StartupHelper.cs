@@ -2,7 +2,7 @@
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using Sylas.RemoteTasks.App.Database.SyncBase;
-using Sylas.RemoteTasks.App.Services;
+using Sylas.RemoteTasks.App.RequestProcessor;
 
 namespace Sylas.RemoteTasks.App.RemoteHostModule
 {

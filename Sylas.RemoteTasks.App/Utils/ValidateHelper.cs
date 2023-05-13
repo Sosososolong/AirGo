@@ -15,11 +15,7 @@
                 {
                     continue;
                 }
-                var val = prop.GetValue(instance, null);
-                if (val is null)
-                {
-                    throw new ArgumentNullException(prop.Name);
-                }
+                var val = prop.GetValue(instance, null) ?? throw new ArgumentNullException(prop.Name);
             }
         }
     }

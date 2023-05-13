@@ -31,6 +31,8 @@ namespace Sylas.RemoteTasks.App.Utils
                     nameof(requestConfig.FailMsg),
                     nameof(requestConfig.Token),
                     nameof(requestConfig.Data),
+                    nameof(requestConfig.QueryDictionary),
+                    nameof(requestConfig.BodyDictionary),
                     nameof(requestConfig.ReturnPrimaryRequest),
                     nameof(requestConfig.UpdateBodyParentIdRegex),
                     nameof(requestConfig.UpdateBodyParentIdValue),
@@ -60,11 +62,12 @@ namespace Sylas.RemoteTasks.App.Utils
                     return result ?? new JArray();
                 }
 
+                using var httpClient = new HttpClient();
                 var records = await FetchAllDataFromApiAsync(config.Url, config.FailMsg,
                                                                        config.QueryDictionary, config.PageIndexField, config.PageIndexParamInQuery.Value, config.BodyDictionary,
                                                                        responseOkPredicate,
                                                                        getDataFunc,
-                                                                       new HttpClient(),
+                                                                       httpClient,
                                                                        config.IdFieldName, config.ParentIdFieldName,
                                                                        false,
                                                                        requestMethod: config.RequestMethod,
@@ -382,17 +385,14 @@ namespace Sylas.RemoteTasks.App.Utils
 
             if (!requestOkPredicate(responseObj))
             {
+                //TODO: 不直接获取数据返回数据, 返回源格式, 调用者自行处理, requestOkPredicate以及相关参数都不需要了
                 throw new Exception($"{errPrefix}: 状态码与配置的ResponseOkValue值不一致{Environment.NewLine}{JsonConvert.SerializeObject(responseObj)}");
             }
 
-            var data = getDataFunc(responseObj);
-            if (data is null)
-            {
-                throw new Exception($"{errPrefix}: API返回的数据为空");
-            }
+            var data = getDataFunc(responseObj) ?? throw new Exception($"{errPrefix}: API返回的数据为空");
             if (data is not JArray dataArr)
             {
-                throw new Exception($"{errPrefix}: API返回的数据不是一个对象数组");
+                data = dataArr = new JArray(data);
             }
             if (dataArr is null)
             {

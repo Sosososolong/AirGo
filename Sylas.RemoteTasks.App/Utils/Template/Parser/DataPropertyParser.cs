@@ -7,7 +7,7 @@ namespace Sylas.RemoteTasks.App.Utils.Template.Parser
     {
         public ParseResult Parse(string tmpl, Dictionary<string, object> dataContext)
         {
-            var specifiedRecordFieldValueExpression = Regex.Match(tmpl, @"(?<key>\$\w+)(\[(?<index>\d+)\]){0,1}(?<props>\.\w+)*$");
+            var specifiedRecordFieldValueExpression = Regex.Match(tmpl, @"(?<key>\$\w+)(\[(?<index>\d+)\]){0,1}(?<props>(\.\w+)*)$");
             if (specifiedRecordFieldValueExpression.Success)
             {
                 var key = specifiedRecordFieldValueExpression.Groups["key"].Value;
@@ -27,7 +27,7 @@ namespace Sylas.RemoteTasks.App.Utils.Template.Parser
                     }
                     record = pObj?.Properties()?.FirstOrDefault(x => string.Equals(x.Name, p, StringComparison.OrdinalIgnoreCase))?.Value ?? throw new Exception($"无法找到属性{p}");
                 }
-                return new ParseResult(true, record);
+                return new ParseResult(true, new string[] { key }, record);
             }
             return new ParseResult(false);
         }

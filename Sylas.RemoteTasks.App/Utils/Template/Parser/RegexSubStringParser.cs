@@ -15,7 +15,7 @@ namespace Sylas.RemoteTasks.App.Utils.Template.Parser
                 var group = expression.Groups["groupname"].Value;
 
                 var val = Regex.Match(keyValue, regexPattern).Groups[group].Value;
-                return new ParseResult(true, val);
+                return new ParseResult(true, new string[] { key }, val);
             }
             return new ParseResult(false);
         }

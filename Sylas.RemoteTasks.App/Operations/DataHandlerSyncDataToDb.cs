@@ -4,11 +4,11 @@ using static Sylas.RemoteTasks.App.RemoteHostModule.StartupHelper;
 
 namespace Sylas.RemoteTasks.App.Operations
 {
-    public class SyncDataToDb
+    public class DataHandlerSyncDataToDb
     {
         private readonly DatabaseInfo _databaseInfo;
 
-        public SyncDataToDb(IServiceScopeFactory serviceScopeFactory)
+        public DataHandlerSyncDataToDb(IServiceScopeFactory serviceScopeFactory)
         {
             var scope = serviceScopeFactory.CreateScope();
             _databaseInfo = scope.ServiceProvider.GetRequiredService<DatabaseInfo>();

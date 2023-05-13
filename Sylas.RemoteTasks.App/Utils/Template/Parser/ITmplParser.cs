@@ -16,8 +16,8 @@ namespace Sylas.RemoteTasks.App.Utils.Template.Parser
             var keyValJArray = JArray.FromObject(keyVal) ?? throw new Exception($"上下文数据{key}对应的值不是JArray类型, 无法执行Select操作");
             if (string.Equals(prop, "SELF", StringComparison.OrdinalIgnoreCase))
             {
-                var keyValStringList = keyValJArray.ToObject<List<string>>() ?? throw new Exception($"Template select操作失败: 数据上下文{key}的值{keyValJArray}转换为List<string>失败, 不能执行Select操作");
-                return new ParseResult(true, keyValStringList);
+                //var keyValStringList = keyValJArray.ToObject<List<string>>() ?? throw new Exception($"Template select操作失败: 数据上下文{key}的值{keyValJArray}转换为List<string>失败, 不能执行Select操作");
+                return new ParseResult(true, new string[] { key }, keyValJArray);
             }
             else
             {
@@ -28,7 +28,8 @@ namespace Sylas.RemoteTasks.App.Utils.Template.Parser
                     keyValJObjList = NodesHelper.GetAll(keyValJObjList, "items");
                 }
                 var val = keyValJObjList.Select(x => x.Properties().FirstOrDefault(p => string.Equals(p.Name, prop, StringComparison.OrdinalIgnoreCase))?.Value ?? throw new Exception($"上下文{key}: {keyValJArray} 无法找到属性{prop}"));
-                return new ParseResult(true, val);
+                val = val.Where(x => !string.IsNullOrWhiteSpace(x?.ToString()));
+                return new ParseResult(true, new string[] { key }, JArray.FromObject(val));
             }
         }
     }
