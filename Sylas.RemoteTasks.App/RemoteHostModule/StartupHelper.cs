@@ -45,7 +45,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
 
         public static class LiftTimeTestContainer
         {
-            public static List<RequestProcessorDataTableApi> requestProcessorDataTableApis { get; set; } = new List<RequestProcessorDataTableApi>();
+            public static List<RequestProcessorDataTable> requestProcessorDataTableApis { get; set; } = new List<RequestProcessorDataTable>();
             public static List<ILogger> requestProcessorDataTableApisLog { get; set; } = new List<ILogger>();
             public static List<IConfiguration> configurations { get; set; } = new List<IConfiguration>();
             public static List<IServiceProvider> serviceProviders { get; set; } = new List<IServiceProvider>();

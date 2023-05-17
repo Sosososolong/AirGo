@@ -63,11 +63,17 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                 }
                 foreach (var right in rightValues)
                 {
-                    var copied = MapHelper<RequestConfig, RequestConfig>.Map(_requestConfig);
-                    copied.QueryDictionary = new Dictionary<string, object>
-                    {
-                        { left, right }
-                    };
+                    //_requestConfig.QueryDictionary ??= new Dictionary<string, object>();
+                    //var copied = MapHelper<RequestConfig, RequestConfig>.Map(_requestConfig);
+
+                    //// 处理QueryDictionary属性是同一个引用的问题
+                    //copied.QueryDictionary = new Dictionary<string, object>();
+                    //foreach (var key in _requestConfig.QueryDictionary.Keys)
+                    //{
+                    //    copied.QueryDictionary[key] = _requestConfig.QueryDictionary[key];
+                    //}
+                    var copied = CloneReqeustConfig();
+                    copied.QueryDictionary[left] = right;
                     copies.Add(copied);
                 }
             }

@@ -13,11 +13,10 @@ namespace Sylas.RemoteTasks.App.Operations
             var scope = serviceScopeFactory.CreateScope();
             _databaseInfo = scope.ServiceProvider.GetRequiredService<DatabaseInfo>();
         }
-        public async Task Start(string table, object dataSource)
+        public async Task Start(string table, object dataSource, string db = "")
         {
-            LiftTimeTestContainer.databaseInfos.Add(_databaseInfo);
             IEnumerable<JToken> data = dataSource is IEnumerable<JToken> ? (IEnumerable<JToken>)dataSource : new List<JToken>() { JToken.FromObject(dataSource) };
-            await _databaseInfo.SyncDatabaseAsync(table, data, Array.Empty<string>(), sourceIdField: "Id", targetIdField: "Id");
+            await _databaseInfo.SyncDatabaseAsync(table, data, Array.Empty<string>(), sourceIdField: "Id", targetIdField: "Id", db);
         }
     }
 }

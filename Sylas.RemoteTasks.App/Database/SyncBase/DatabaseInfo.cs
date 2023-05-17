@@ -2,6 +2,7 @@
 //using Microsoft.Data.SqlClient;
 using Dapper;
 using MySql.Data.MySqlClient;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Oracle.ManagedDataAccess.Client;
 using Sylas.RemoteTasks.App.RegexExp;
@@ -24,7 +25,6 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
     public class DatabaseInfo
     {
         private string _connectionString;
-        private IDbConnection _conn;
         private DatabaseType _dbType;
         private string _varFlag;
         private readonly ILogger _logger;
@@ -33,14 +33,23 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
         {
             _connectionString = configuration.GetConnectionString("Default") ?? throw new Exception("DatabaseInfo: 数据库连接字符串为空");
             _logger = logger;
-            _conn = GetDbConnection(_connectionString);
             _dbType = GetDbType(_connectionString);
             _varFlag = GetDbParameterFlag(_dbType);
+        }
+        public void ChangeDatabase(IDbConnection conn, string db)
+        {
+            if (conn.State == ConnectionState.Closed)
+            {
+                conn.Open();
+            }
+            if (conn.Database != db)
+            {
+                conn.ChangeDatabase(db);
+            }
         }
         #region 数据库连接对象
         public static IDbConnection GetDbConnection(string connectionString)
         {
-            // TODO: 一个连接字符串创建一个对象, 数据库类型 作为公共属性;
             var dbType = GetDbType(connectionString);
             return dbType switch
             {
@@ -58,6 +67,26 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
         public async Task SyncDatabaseAsync(string sourceConnectionString, string targetConnectionString, string sourceSyncedDb = "")
         {
             await SyncDatabaseByConnectionStringsAsync(sourceConnectionString, targetConnectionString, sourceSyncedDb);
+        }
+        public async Task CreateTableIfNotExistAsync(string db, string tableName, IEnumerable<ColumnInfo> colInfos)
+        {
+            using var conn = GetDbConnection(_connectionString);
+            conn.Open();
+            ChangeDatabase(conn, db);
+            try
+            {
+                var targetDataTable = await QueryAsync(conn, $"select * from {tableName}", new Dictionary<string, object>(), null);
+            }
+            catch (Exception ex)
+            {
+                if (ex.Message.ToLower().Contains("doesn't exist"))
+                {
+                    // 表不存在创建表
+                    var createSql = GenerateCreateTableSql(tableName, _dbType, colInfos);
+                    _ = await conn.ExecuteAsync(createSql);
+                    _logger.LogInformation($"数据表{tableName}不存在, 已创建");
+                }
+            }
         }
         /// <summary>
         /// 同步数据库
@@ -113,22 +142,36 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
         /// <param name="table"></param>
         /// <param name="sourceRecords"></param>
         /// <returns></returns>
-        public async Task SyncDatabaseAsync(string table, IEnumerable<JToken> sourceRecords, string[] ignoreFields, string sourceIdField = "Id", string targetIdField = "Id")
+        public async Task SyncDatabaseAsync(string table, IEnumerable<JToken> sourceRecords, string[] ignoreFields, string sourceIdField = "", string targetIdField = "", string db = "")
         {
             //conn.ConnectionString: "server=127.0.0.1;port=3306;database=engine;user id=root;allowuservariables=True"
             //conn.ConnectionTimeout: 15
             //conn.Database: "iduo_engine_hznu"
             using var conn = GetDbConnection(_connectionString);
+            if (!string.IsNullOrWhiteSpace(db))
+            {
+                ChangeDatabase(conn, db);
+            }
             var varFlag = GetDbParameterFlag(_connectionString);
             var dbType = GetDbType(_connectionString);
             var dbRecords = await conn.QueryAsync($"select * from {table}") ?? throw new Exception($"获取{table}数据失败");
             var compareResult = CompareRecords(sourceRecords, dbRecords, ignoreFields, sourceIdField, targetIdField);
 
             var inserts = compareResult.ExistInSourceOnly;
-            var insertSqlInfos = GetInsertSqlInfos(inserts, dbType, table);
+            var insertSqlInfos = await GetInsertSqlInfosAsync(inserts, dbType, table, conn);
             foreach (var sqlInfo in insertSqlInfos)
             {
-                var inserted = await conn.ExecuteAsync(sqlInfo.Sql, sqlInfo.Parameters);
+                int inserted = 0;
+                try
+                {
+                    inserted = await conn.ExecuteAsync(sqlInfo.Sql, sqlInfo.Parameters);
+                }
+                catch (Exception)
+                {
+                    _logger.LogError(sqlInfo.Sql);
+                    _logger.LogError(JsonConvert.SerializeObject(sqlInfo.Parameters));
+                    throw;
+                }
 
                 #region 记录数据日志
                 LogData(_logger, table, inserted, sqlInfo);
@@ -161,8 +204,10 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
             }
             logger?.LogInformation(parameterBuilder.ToString());
         }
-        public static List<SqlInfo> GetInsertSqlInfos(JArray inserts, DatabaseType dbType, string table)
+        public static async Task<List<SqlInfo>> GetInsertSqlInfosAsync(JArray inserts, DatabaseType dbType, string table, IDbConnection conn)
         {
+            //GetTableInsertSqlsInfoAsync
+            var tableCols = await GetTableColsInfoAsync(conn, table);
             var varFlag = GetDbParameterFlag(dbType);
 
             var firstRecord = inserts.FirstOrDefault();
@@ -180,10 +225,9 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
             var insertFieldsStatement = GetFieldsStatement(firstRecordJObj);
             
             var insertValuesStatement = "";
-            var batchInsertSql = "";
-
             int recordIndex = 0;
             var parameters = new DynamicParameters();
+            string? batchInsertSql;
             foreach (JObject insert in inserts.Cast<JObject>())
             {
                 var properties = insert.Properties();
@@ -196,8 +240,11 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
                     }
                     var paramName = $"{p.Name}{recordIndex}";
                     insertValuesStatement += $"{varFlag}{paramName},";
-                    // BOOKMARK: ※※※※ 转为dynamic就不需要转换为具体的类型了 ※※※※
-                    parameters.Add(paramName, p.Value.ToObject<dynamic>());
+                    var col = tableCols.FirstOrDefault(x => string.Equals(x.ColumnCode, p.Name, StringComparison.OrdinalIgnoreCase));
+
+                    dynamic? pVal = GetColumnValue(p, col);
+
+                    parameters.Add(paramName, pVal);
                 }
                 insertValuesStatement = insertValuesStatement.TrimEnd(',') + $"),{Environment.NewLine}";
 
@@ -210,6 +257,7 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
                 }
                 recordIndex++;
             }
+
             batchInsertSql = GetBatchInsertSql(table, insertFieldsStatement, insertValuesStatement);
             insertSqls.Add(new SqlInfo(batchInsertSql, parameters));
 
@@ -447,16 +495,45 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
             }
             return value;
         }
+        public static dynamic? GetColumnValue(JProperty p, ColumnInfo? col)
+        {
+            dynamic? pVal = null;
+            // 实际是字节数组这里获得的是字节数组转换为base64字符串的结果
+            if (p.Value.Type == JTokenType.String && col is not null && !string.IsNullOrWhiteSpace(col.ColumnType) && col.ColumnType.Contains("blob", StringComparison.OrdinalIgnoreCase))
+            {
+                byte[] bytes = new byte[p.Value.ToString().Length];
+                if (Convert.TryFromBase64String(p.Value.ToString(), bytes, out int bytesWritten))
+                {
+                    pVal = bytes;
+                }
+            }
+            if (p.Value.Type == JTokenType.String && col is not null && !string.IsNullOrWhiteSpace(col.ColumnType) && col.ColumnType.Contains("time", StringComparison.OrdinalIgnoreCase))
+            {
+                if (DateTime.TryParse(p.Value.ToString(), out DateTime timeValue))
+                {
+                    pVal = timeValue;
+                }
+                else
+                {
+                    pVal = DateTime.Now;
+                }
+            }
+            
+            // BOOKMARK: ※※※※ 转为dynamic就不需要转换为具体的类型了 ※※※※
+            pVal ??= p.Value.ToObject<dynamic>();
+
+            return pVal;
+        }
         public static string GetBatchInsertSql(string table, string columnsStatement, string valuesStatement)
         {
             return $"SET foreign_key_checks=0;{Environment.NewLine}insert into {table}({columnsStatement}) values{Environment.NewLine}{valuesStatement.TrimEnd(',', '\r', '\n', ';')};";
         }
 
         // 获取创建表的字段声明部分
-        public static string GenerateColumnsAssignment(IEnumerable<ColumnInfo> colInfos, DatabaseType dbType)
+        public static string GetColumnsAssignment(IEnumerable<ColumnInfo> colInfos, DatabaseType dbType, JArray? inserting = null)
         {
             // 处理一条数据
-            StringBuilder columnBuilder = new StringBuilder();
+            StringBuilder columnBuilder = new();
             foreach (var colInfo in colInfos)
             {
                 // Age
@@ -515,7 +592,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
                         DatabaseType.Oracle => "blob",
                         _ => $"mediumblob{Environment.NewLine}"
                     },
-                    var type when type.ToLower().Contains("varchar") && Convert.ToInt32(colInfo.ColumnLength) > 0 => $"varchar({colInfo.ColumnLength}){Environment.NewLine}",
+                    var type when type.ToLower().Contains("varchar") && Convert.ToInt32(colInfo.ColumnLength) > 0 => $"varchar({GetStringColumnLengthBySourceData(colInfo.ColumnLength, colInfo.ColumnCode, inserting)}){Environment.NewLine}",
                     var type when type.ToLower().Contains("string") && Convert.ToInt32(colInfo.ColumnLength) > 2000000000 => $"blob{Environment.NewLine}",
                     var type when type.ToLower().Contains("string") && Convert.ToInt32(colInfo.ColumnLength) < 2000 => $"nvarchar({(colInfo.ColumnLength == "-1" ? string.Empty : colInfo.ColumnLength)}){Environment.NewLine}",
                     // 普通字符串字段
@@ -530,6 +607,28 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
             }
 
             return columnBuilder.ToString().TrimEnd(',');
+        }
+        static int GetStringColumnLengthBySourceData(string? columnLength, string? columnCode, JArray inserting)
+        {
+            if (string.IsNullOrWhiteSpace(columnCode))
+            {
+                throw new ArgumentNullException(nameof(columnCode));
+            }
+            if (string.IsNullOrWhiteSpace(columnLength))
+            {
+                columnLength = "50";
+            }
+            int length = Convert.ToInt32(columnLength);
+            if (inserting is null || !inserting.Any())
+            {
+                return length;
+            }
+            var max = inserting.Select(x => (x as JObject)?.Properties()?.FirstOrDefault(p => string.Equals(p.Name, columnCode, StringComparison.OrdinalIgnoreCase))?.Value?.ToString()?.Length ?? 0).Max();
+            if (max > length)
+            {
+                return max;
+            }
+            return length;
         }
 
         // 根据一条DataRow对象 生成对应的insert语句的 字段部分和值(参数)部分: Name,Age  @Name1,@Age1
@@ -597,12 +696,12 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
             return currentDataRowInsertStatement;
         }
         /// <summary>生成创建表的SQL语句</summary>
-        public static string GenerateCreateTableSql(string tableName, IEnumerable<ColumnInfo> colInfos, DatabaseType dbType)
+        public static string GenerateCreateTableSql(string tableName, DatabaseType dbType, IEnumerable<ColumnInfo> colInfos, JArray? inserting = null)
         {
-            var columnsAssignment = GenerateColumnsAssignment(colInfos, dbType);
+            var columnsAssignment = GetColumnsAssignment(colInfos, dbType, inserting);
             // TODO: 主键primaryKey 作为公共属性
-            var columnPrimaryKey = colInfos.FirstOrDefault(c => c.IsPK == 1);
-            var primaryKeyAssignment = columnPrimaryKey is null ? string.Empty : $", PRIMARY KEY (`{columnPrimaryKey.ColumnName}`) USING BTREE";
+            var columnPrimaryKey = colInfos.FirstOrDefault(c => c.IsPK == 1) ?? colInfos.FirstOrDefault();
+            var primaryKeyAssignment = columnPrimaryKey is null ? string.Empty : $", PRIMARY KEY (`{columnPrimaryKey.ColumnCode}`) USING BTREE";
             string createSql = $@"CREATE TABLE `{tableName}` (
 		      {columnsAssignment}
 		      {primaryKeyAssignment}
@@ -644,7 +743,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
             // 1. 获取源表的所有字段信息
             #region 获取源表的所有字段信息
             IEnumerable<ColumnInfo> colInfos = await GetTableColsInfoAsync(sourceConn, tableName);
-            var sourcePrimaryKey = colInfos.FirstOrDefault(x => x.IsPK == 1)?.ColumnName;
+            var sourcePrimaryKey = colInfos.FirstOrDefault(x => x.IsPK == 1)?.ColumnName ?? "";
             #endregion
 
             // 2. 获取源表所有数据
@@ -664,7 +763,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
 
             // 3. 获取目标表的所有字段信息
             IEnumerable<ColumnInfo> targetColInfos = await GetTableColsInfoAsync(targetConn, tableName);
-            var targetPrimaryKey = colInfos.FirstOrDefault(x => x.IsPK == 1)?.ColumnName;
+            var targetPrimaryKey = colInfos.FirstOrDefault(x => x.IsPK == 1)?.ColumnName ?? "";
 
             // 4. 获取目标表的数据, 没有则创建
 
@@ -680,7 +779,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
                 if (ex.Message.ToLower().Contains("doesn't exist"))
                 {
                     // 表不存在创建表
-                    createSql = GenerateCreateTableSql(tableName, colInfos, GetDbType(targetConn.ConnectionString));
+                    createSql = GenerateCreateTableSql(tableName, GetDbType(targetConn.ConnectionString), colInfos);
                     //await targetConn.ExecuteAsync(createSql);
                     //targetDataTable = await QueryAsync(targetConn, $"select * from {tableName}", new Dictionary<string, object>(), trans);
                 }
@@ -777,7 +876,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
             var comparedResult = CompareRecords(dataSource, targetDataTable.Rows.Cast<DataRow>(), Array.Empty<string>(), targetPrimaryKey, targetPrimaryKey);
 
             // 为数据源中的每一条数据生成对应的insert语句的部分
-            foreach (JObject dataItem in dataSource)
+            foreach (JObject dataItem in dataSource.Cast<JObject>())
             {
                 // 重复的数据不做处理
                 if (targetDataTable.Rows.Count > 0 && AlreadyExistInTarget(targetDataTable.Rows, dataItem))
@@ -843,8 +942,10 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
         /// <returns></returns>
         public static DataComparedResult CompareRecords(IEnumerable<object> sourceRecordsData, IEnumerable<object> targetRecordsData, string[] ignoreFields, string sourceIdentityField, string targetIdentityField)
         {
-            var sourceRecords = sourceRecordsData.Select(JObject.FromObject).ToList() ?? throw new ArgumentNullException(nameof(sourceRecordsData));
-            var targetRecords = targetRecordsData.Select(JObject.FromObject).ToList() ?? throw new ArgumentNullException(nameof(sourceRecordsData));
+            var sourceRecords = sourceRecordsData.Select(JObject.FromObject).ToList();
+            var targetRecords = targetRecordsData.Select(JObject.FromObject).ToList();
+            var sourceIdentityFields = new string[] { sourceIdentityField, "Id", "GUID", sourceRecords?.FirstOrDefault()?.Properties()?.FirstOrDefault()?.Name ?? "" };
+            var targetIdentityFields = new string[] { targetIdentityField, "Id", "GUID", targetRecords?.FirstOrDefault()?.Properties()?.FirstOrDefault()?.Name ?? "" };
 
             DataComparedResult compareResult = new();
             
@@ -855,8 +956,8 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
                 JObject? target = null;
                 foreach (var targetRecord in targetRecords)
                 {
-                    var sourceId = sourceRecord.Properties().FirstOrDefault(x => string.Equals(x.Name, sourceIdentityField, StringComparison.OrdinalIgnoreCase))?.Value?.ToString() ?? throw new Exception($"查找ID失败");
-                    var targetId = targetRecord.Properties().FirstOrDefault(x => string.Equals(x.Name, targetIdentityField, StringComparison.OrdinalIgnoreCase))?.Value?.ToString() ?? throw new Exception($"查找ID失败");
+                    var sourceId = sourceRecord.Properties().FirstOrDefault(x => sourceIdentityFields.Any(idField => string.Equals(idField,  x.Name, StringComparison.OrdinalIgnoreCase)))?.Value?.ToString() ?? throw new Exception($"查找ID失败");
+                    var targetId = targetRecord.Properties().FirstOrDefault(x => targetIdentityFields.Any(idField => string.Equals(idField, x.Name, StringComparison.OrdinalIgnoreCase)))?.Value?.ToString() ?? throw new Exception($"查找ID失败");
 
                     if (sourceId is not null && targetId is not null && sourceId.ToString() == targetId.ToString())
                     {
@@ -931,24 +1032,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
             public JObject SourceRecord { get; set; } = new JObject();
             public JObject TargetRecord { get; set; } = new JObject();
         }
-
-        public static string GetDatabaseName(string connectionString)
-        {
-            var sqlServerDb = RegexConst.SqlServerDbName().Match(connectionString).Value;
-            if (!string.IsNullOrEmpty(sqlServerDb))
-            {
-                return sqlServerDb;
-            }
-
-            var oracleDb = RegexConst.OracleDbName().Match(connectionString).Value;
-            if (!string.IsNullOrEmpty(oracleDb))
-            {
-                return oracleDb;
-            }
-
-            var mysqlDb = RegexConst.MySqlDbName().Match(connectionString).Value;
-            return mysqlDb;
-        }
+        
         /// <summary>
         /// 获取数据库表结构
         /// </summary>
@@ -958,7 +1042,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
         public static async Task<IEnumerable<ColumnInfo>> GetTableColsInfoAsync(IDbConnection conn, string tableName)
         {
             string sql;
-            var database = GetDatabaseName(conn.ConnectionString);
+            var database = conn.Database;
             if (string.IsNullOrWhiteSpace(database))
             {
                 throw new Exception($"从连接字符串:{conn.ConnectionString}解析数据库名失败!");

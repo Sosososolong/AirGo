@@ -7,9 +7,9 @@ using static Sylas.RemoteTasks.App.RemoteHostModule.StartupHelper;
 
 namespace Sylas.RemoteTasks.App.RequestProcessor
 {
-    public class RequestProcessorDataTableApi : RequestProcessorBase
+    public class RequestProcessorDataTable : RequestProcessorBase
     {
-        public RequestProcessorDataTableApi(IConfiguration configuration, ILogger<RequestProcessorDataTableApi> logger, IServiceProvider serviceProvider) : base(configuration, logger, serviceProvider)
+        public RequestProcessorDataTable(IConfiguration configuration, ILogger<RequestProcessorDataTable> logger, IServiceProvider serviceProvider) : base(configuration, logger, serviceProvider)
         {
             _requestConfig.PageIndexField = "PageIndex";
             _requestConfig.PageIndexParamInQuery = true;
@@ -26,26 +26,33 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
         /// <exception cref="Exception"></exception>
         protected override IEnumerable<RequestConfig> UpdateRequestConfig(Dictionary<string, object> dataContextDictionary, List<string> values)
         {
+            var tables = TmplHelper.GetTmplValueFromDataContext(dataContextDictionary, values[1]) ?? throw new ArgumentNullException("table");
             var db = TmplHelper.GetTmplValueFromDataContext(dataContextDictionary, values[0]).ToString() ?? throw new ArgumentNullException("db");
-            var table = TmplHelper.GetTmplValueFromDataContext(dataContextDictionary, values[1]).ToString() ?? throw new ArgumentNullException("table");
-            var left = TmplHelper.GetTmplValueFromDataContext(dataContextDictionary, values[2]).ToString() ?? throw new ArgumentNullException("left");
-            var op = TmplHelper.GetTmplValueFromDataContext(dataContextDictionary, values[3]).ToString() ?? throw new ArgumentNullException("op");
-            var rightToken = JToken.FromObject(TmplHelper.GetTmplValueFromDataContext(dataContextDictionary, values[4]));
-            string right;
-            if (rightToken.Type == JTokenType.String)
+            List<string> tableList = (tables is JArray tablesJArray)
+                ? tablesJArray.ToObject<List<string>>() ?? throw new Exception($"table参数不是字符串也不是字符串集合: {tables}")
+                : (tables.ToString() ?? throw new Exception($"table参数不是字符串也不是字符串集合: {tables}")).Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+            
+            var left = string.Empty;
+            var op = string.Empty;
+            JToken? rightToken = null;
+            if (values.Count > 2)
+            {
+                left = TmplHelper.GetTmplValueFromDataContext(dataContextDictionary, values[2]).ToString() ?? throw new ArgumentNullException("left");
+                op = TmplHelper.GetTmplValueFromDataContext(dataContextDictionary, values[3]).ToString() ?? throw new ArgumentNullException("op");
+                rightToken = JToken.FromObject(TmplHelper.GetTmplValueFromDataContext(dataContextDictionary, values[4]));
+            }
+            
+            string right = "";
+            if (rightToken is not null && rightToken.Type == JTokenType.String)
             {
                 right = rightToken.ToString();
             }
-            else if (rightToken.Type == JTokenType.Array)
+            else if (rightToken is not null && rightToken.Type == JTokenType.Array)
             {
                 right = string.Join(',', rightToken.ToObject<List<string>>() ?? throw new Exception($"无法转换为字符串集合: {rightToken}"));
             }
-            else
-            {
-                throw new NotImplementedException("未处理的数据库查询条件值类型");
-            }
 
-            SetDbName(db).SetTable(table);
+            
             if (op == "include")
             {
                 WhereFieldInclude(left, right);
@@ -58,38 +65,50 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
             {
                 WhereFieldEquals(left, right);
             }
-            else
+            else if (string.IsNullOrWhiteSpace(left) && string.IsNullOrWhiteSpace(right))
             {
-                throw new Exception($"未知的参数Parameter3: {op}");
+                WhereFieldClear();
             }
-            return new RequestConfig[] { _requestConfig };
+            var requestConfigs = new List<RequestConfig>();
+            var tableListDistincted = tableList.Distinct().ToList();
+            foreach (var table in tableListDistincted)
+            {
+                SetDbName(db).SetTable(table);
+                requestConfigs.Add(CloneReqeustConfig());
+            }
+            return requestConfigs;
         }
 
-        private RequestProcessorDataTableApi SetDbName(string db)
+        private RequestProcessorDataTable SetDbName(string db)
         {
             _requestConfig.QueryDictionary["Db"] = db;
             _requestConfig.FailMsg = $"数据库 {db} ";
             return this;
         }
-        public RequestProcessorDataTableApi SetTable(string table)
+        public RequestProcessorDataTable SetTable(string table)
         {
             _requestConfig.QueryDictionary["Table"] = table;
             _requestConfig.FailMsg += $"数据表 {table} ";
             return this;
         }
-        private RequestProcessorDataTableApi WhereFieldInclude(string fieldname, string fieldvalue)
+        private RequestProcessorDataTable WhereFieldInclude(string fieldname, string fieldvalue)
         {
             _requestConfig.BodyDictionary["FilterItems"] = new List<Dictionary<string, object>> { new Dictionary<string, object> { { "FieldName", fieldname }, { "CompareType", "include" }, { "Value", fieldvalue } } };
             return this;
         }
-        private RequestProcessorDataTableApi WhereFieldIn(string fieldname, string fieldvalue)
+        private RequestProcessorDataTable WhereFieldIn(string fieldname, string fieldvalue)
         {
             _requestConfig.BodyDictionary["FilterItems"] = new List<Dictionary<string, object>> { new Dictionary<string, object> { { "FieldName", fieldname }, { "CompareType", "in" }, { "Value", fieldvalue } } };
             return this;
         }
-        public RequestProcessorDataTableApi WhereFieldEquals(string fieldname, string fieldvalue)
+        public RequestProcessorDataTable WhereFieldEquals(string fieldname, string fieldvalue)
         {
             _requestConfig.BodyDictionary["FilterItems"] = new List<Dictionary<string, object>> { new Dictionary<string, object> { { "FieldName", fieldname }, { "CompareType", "=" }, { "Value", fieldvalue } } };
+            return this;
+        }
+        public RequestProcessorDataTable WhereFieldClear()
+        {
+            _requestConfig.BodyDictionary["FilterItems"] = new List<Dictionary<string, object>>();
             return this;
         }
     }

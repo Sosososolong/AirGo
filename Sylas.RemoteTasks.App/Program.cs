@@ -22,10 +22,12 @@ builder.Services.AddHttpContextAccessor();
 // 添加远程主机服务对象
 builder.Services.AddRemoteHostManager(builder.Configuration);
 // 添加"网络请求任务"工厂
-builder.Services.AddSingleton<RequestProcessorDataTableApi>();
+builder.Services.AddSingleton<RequestProcessorDataTable>();
 builder.Services.AddSingleton<RequestProcessorWithQueryString>();
 
+// TODO: 动态注册所有DataHandler服务
 builder.Services.AddTransient<DataHandlerSyncDataToDb>();
+builder.Services.AddTransient<DataHandlerCreateTable>();
 // 添加帮助类
 builder.Services.AddDatabaseInfo();
 // 添加服务

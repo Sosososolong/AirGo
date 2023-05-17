@@ -53,6 +53,10 @@ namespace Sylas.RemoteTasks.App.Controllers
                 {
                     dataContext = (returned as RequestProcessorBase ?? throw new Exception($"{requestProcessorName}对象转换为RequestProcessorBase失败")).DataContext;
                 }
+                if (requestProcessorDispatchItem.GetValue<bool>("Break"))
+                {
+                    break;
+                }
             }
 
             #region 从配置动态地去发起请求, 同步数据

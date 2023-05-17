@@ -225,7 +225,7 @@ namespace Sylas.RemoteTasks.App.Utils.Template
         /// <param name="assignmentStatementTmpl">赋值语句模板, 即变量名=值</param>
         /// <param name="dataContext">包含原始的数据$data的数据上下文对象</param>
         /// <returns></returns>
-        public static Dictionary<string, object?> BuildDataContextBySource(this Dictionary<string, object> dataContext, IEnumerable<JToken> source, List<string> dataContextBuilderTmpls, bool valueAppend, ILogger? logger = null)
+        public static Dictionary<string, object?> BuildDataContextBySource(this Dictionary<string, object> dataContext, IEnumerable<JToken> source, List<string> dataContextBuilderTmpls, ILogger? logger = null)
         {
             // key为要构建的dataContext的key, value为给key赋的值, 有可能会赋多次值
             Dictionary<string, object?> dataContextBuildDetail = new();
@@ -289,7 +289,7 @@ namespace Sylas.RemoteTasks.App.Utils.Template
                 if (variableValueResolved is not null)
                 {
                     // 数据源来源于当前请求得到最新数据也就是当前$data, 将解析出来的值追加;
-                    if (valueAppend && dataContext.ContainsKey(assignmentLeft) && dataContext[assignmentLeft] is not null && sourceKeys is not null && sourceKeys.Any(x => string.Equals(x, "$data", StringComparison.OrdinalIgnoreCase)))
+                    if (!assignmentLeft.Contains("w_") && dataContext.ContainsKey(assignmentLeft) && dataContext[assignmentLeft] is not null && sourceKeys is not null && sourceKeys.Any(x => string.Equals(x, "$data", StringComparison.OrdinalIgnoreCase)))
                     {
                         // key {assignmentLeft}已经存在, 则追加值
                         if (dataContext[assignmentLeft] is not JArray oldValueJArray)
@@ -326,7 +326,24 @@ namespace Sylas.RemoteTasks.App.Utils.Template
             }
             if (tmpl.StartsWith("$"))
             {
-                return dataContext.FirstOrDefault(x => string.Equals(x.Key, tmpl, StringComparison.OrdinalIgnoreCase)).Value ?? throw new Exception($"数据上下文中未找到索引: {tmpl}");
+                var splitedTmpls = tmpl.Split('.', StringSplitOptions.RemoveEmptyEntries);
+                var data = dataContext.FirstOrDefault(x => string.Equals(x.Key, splitedTmpls[0], StringComparison.OrdinalIgnoreCase)).Value ?? throw new Exception($"数据上下文中未找到索引: {splitedTmpls[0]}");
+                for (var i = 1;  i < splitedTmpls.Length; i++)
+                {
+                    if (data is Dictionary<string, object> dataDictionary)
+                    {
+                        data = dataDictionary.FirstOrDefault(x => string.Equals(x.Key, splitedTmpls[i], StringComparison.OrdinalIgnoreCase)).Value ?? throw new Exception($"数据上下文中未找到索引: {splitedTmpls[0]}");
+                    }
+                    else if (data is JObject dataJObj)
+                    {
+                        data = dataJObj.Properties().FirstOrDefault(x => string.Equals(x.Name, splitedTmpls[i], StringComparison.OrdinalIgnoreCase))?.Value ?? throw new Exception($"数据上下文中未找到索引: {splitedTmpls[0]}");
+                    }
+                    else
+                    {
+                        throw new Exception($"{splitedTmpls[i-1]}中无法获取属性{splitedTmpls[i]}");
+                    }
+                }
+                return data;
             }
             return tmpl;
         }

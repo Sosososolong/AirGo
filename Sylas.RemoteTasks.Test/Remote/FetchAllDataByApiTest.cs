@@ -110,7 +110,7 @@ namespace Sylas.RemoteTasks.Test.Remote
                 Assert.True(modelFields.Any());
                 System.Diagnostics.Debug.WriteLine($"================================================= {table}: {modelFields.Count} records =================================================");
 
-                IDbConnection conn = DatabaseInfo.GetDbConnection(targetConnectionString);
+                using IDbConnection conn = DatabaseInfo.GetDbConnection(targetConnectionString);
                 conn.Open();
                 await DatabaseHelper.SyncDataAsync(conn, "DevDataModel", new List<JToken> { dm }, new string[] { "NO" }, new string[] { "CREATEDTIME", "UPDATEDTIME" });
                 await DatabaseHelper.SyncDataAsync(conn, table, modelFields, new string[] { "NO" }, new string[] { "CREATEDTIME", "UPDATEDTIME" });
@@ -179,7 +179,7 @@ namespace Sylas.RemoteTasks.Test.Remote
         [Fact]
         public async Task DataCompareTestAsync()
         {
-            var sourceConn = DatabaseInfo.GetDbConnection("Data Source=192.168.1.227:1521/helowin;User ID=iduo_ids4;Password=iduo2022;PERSIST SECURITY INFO=True;Pooling = True;Max Pool Size = 100;Min Pool Size = 1;");
+            using var sourceConn = DatabaseInfo.GetDbConnection("Data Source=192.168.1.227:1521/helowin;User ID=iduo_ids4;Password=iduo2022;PERSIST SECURITY INFO=True;Pooling = True;Max Pool Size = 100;Min Pool Size = 1;");
             var compareResult = await DatabaseInfo.CompareRecordsFromDbWithDataAsync(sourceConn, "syncoc", "USERID", "LOGINNAME", new DatabaseInfo.DataInJson("D:/.NET/iduo/routine/db/同步SQL/杭师大/SYNC_OC.json", new string[] { "RECORDS" }));
             _outputHelper.WriteLine("success");
         }

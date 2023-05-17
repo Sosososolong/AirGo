@@ -36,6 +36,10 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
             _logger = logger;
             _serviceProvider = serviceProvider;
             DataContext = new Dictionary<string, object>();
+            // TODO: 添加初始化配置
+            //DataContext["$dataModelCodes"] = new JArray("yct_xkzygs");
+
+            _logger.LogCritical("Processor Initialized");
         }
         protected abstract IEnumerable<RequestConfig> UpdateRequestConfig(Dictionary<string, object> dataContext, List<string> values);
         /// <summary>
@@ -51,10 +55,12 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
 
             var requestProcessorStepsArray = requestProcessorSteps.ToArray();
             var stepCount = requestProcessorStepsArray.Length;
-            var loopedNextStep = false;
+            var backtrackingNextStep = false;
+            var currentStepIndex = 0;
             for (int stepIndex = 0; stepIndex < stepCount; stepIndex++)
             {
-                // { "Parameters": "", "DataContext": [] }
+                currentStepIndex = stepIndex;
+                // { "Parameters": "", "DataContextBuilder": [] }
                 var requestProcessorStep = requestProcessorStepsArray[stepIndex];
                 var stepDetail = requestProcessorStep.GetChildren();
                 List<string> values = new();
@@ -68,7 +74,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                         values = (stepDetailItem.Value ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
                         _logger?.LogDebug($"call ResolveAsync, 获取请求参数 {stepDetailItem.Value}");
                     }
-                    else if (stepDetailItem.Key == "DataContext")
+                    else if (stepDetailItem.Key == "DataContextBuilder")
                     {
                         dataContextTmpls = stepDetailItem.GetChildren().Select(x => x.Value ?? "").ToList();
                         _logger?.LogDebug($"call ResolveAsync, 获取DataContext模板配置 {string.Join(',', dataContextTmpls)}");
@@ -84,29 +90,36 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                             _logger?.LogDebug($"call ResolveAsync, 获取DataHandlers, DataHandler: {handlerName}, 参数:{Environment.NewLine}{string.Join(Environment.NewLine, handlerParameters)}");
                         }
                     }
-                    else if (stepDetailItem.Key == "LoopNextStepIndex")
+                    else if (stepDetailItem.Key == "BacktrackingStepIndex")
                     {
                         // 预期的值n需要-1, 因为for循环里面会执行++操作正好等于预期值n
                         stepIndex = Convert.ToInt16(stepDetailItem.Value) - 1;
-                        loopedNextStep = true;
+                        backtrackingNextStep = true;
+                    }
+                    else if (stepDetailItem.Key == "DataContext")
+                    {
+                        // 初始化DataContext
+                        var dataContextItems = stepDetailItem.GetChildren();
+                        foreach (var dataContextItem in dataContextItems)
+                        {
+                            DataContext[dataContextItem.Key] = dataContextItem.Value ?? "";
+                        }
                     }
                     else
                     {
-                        throw new Exception($"无效的Task: {stepDetailItem.Key}");
+                        _logger?.LogError($"无效的Task: {stepDetailItem.Key}");
                     }
                 }
                 var requestConfigs = UpdateRequestConfig(DataContext, values);
-                var requestConfigCount = requestConfigs.Count();
-                var shouldNotLoop = false;
 
                 #region 处理当前Step所有的Request, Datahandler
                 foreach (var requestConfig in requestConfigs)
                 {
                     _requestConfig = requestConfig;
                     // 1. 发起请求, 构建DataContext
-                    var buildDetails = await RequestAndBuildDataContextAsync(dataContextTmpls, requestConfigCount > 1, _logger);
+                    var buildDetails = await RequestAndBuildDataContextAsync(dataContextTmpls, _logger);
 
-                    if (loopedNextStep)
+                    if (backtrackingNextStep)
                     {
                         // 只要重置一项成功就算成功, 否则就是重置失败(认为是因为返回的数据无效, 不需要迭代了)
                         var resetDataContextSuccess = false;
@@ -122,38 +135,46 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                         }
                         if (!resetDataContextSuccess)
                         {
-                            shouldNotLoop = true;
-                            break;
+                            stepIndex = currentStepIndex;
+                            _logger.LogInformation($"无需回溯, 还原stepIndex: {currentStepIndex}");
                         }
                     }
                     // 2. DataHandler处理数据
                     await ExecuteOperationAsync(dataContextHandlers);
                 }
                 #endregion
-
-                if (loopedNextStep && shouldNotLoop)
-                {
-                    _logger.LogInformation($"迭代Request Processor Steps的时候, 获取数据为空, Step Break");
-                    break;
-                }
             }
 
             return this;
+        }
+        public RequestConfig CloneReqeustConfig()
+        {
+            _requestConfig.QueryDictionary ??= new Dictionary<string, object>();
+            var copied = MapHelper<RequestConfig, RequestConfig>.Map(_requestConfig);
+
+            // 处理QueryDictionary属性是同一个引用的问题
+            copied.QueryDictionary = new Dictionary<string, object>();
+            foreach (var key in _requestConfig.QueryDictionary.Keys)
+            {
+                copied.QueryDictionary[key] = _requestConfig.QueryDictionary[key];
+            }
+            return copied;
         }
         /// <summary>
         /// 发送请求,构建数据上下文
         /// </summary>
         /// <param name="dataContextTmpls"></param>
-        /// <param name="multiRequests">表示这一个步骤里面将会有多个请求, 此时请求结果需要合并</param>
         /// <param name="logger"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        async Task<Dictionary<string, object?>> RequestAndBuildDataContextAsync(List<string> dataContextTmpls, bool multiRequests, ILogger<RequestProcessorBase> logger)
+        async Task<Dictionary<string, object?>> RequestAndBuildDataContextAsync(List<string> dataContextTmpls, ILogger<RequestProcessorBase> logger)
         {
             logger?.LogDebug($"call {nameof(RequestAndBuildDataContextAsync)}, 应用参数, 准备发送请求: {_requestConfig.Url}{Environment.NewLine}Query:{JsonConvert.SerializeObject(_requestConfig.QueryDictionary)}{Environment.NewLine}Body:{JsonConvert.SerializeObject(_requestConfig.BodyDictionary)}");
             IEnumerable<JToken>? data = null;
             try
             {
+                DataContext["$QueryDictionary"] = _requestConfig.QueryDictionary ?? new Dictionary<string, object>();
+                DataContext["$BodyDictionary"] = _requestConfig.BodyDictionary ?? new Dictionary<string, object>();
                 data = await RemoteHelpers.FetchAllDataFromApiAsync(_requestConfig) ?? throw new Exception($"查询记录失败, Query String: {JsonConvert.SerializeObject(_requestConfig.QueryDictionary)}{Environment.NewLine}PayLoad {JsonConvert.SerializeObject(_requestConfig.QueryDictionary)}");
             }
             catch (Exception ex)
@@ -165,7 +186,8 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
             _requestConfig.Data = null;
 
             logger?.LogDebug($"call {nameof(RequestAndBuildDataContextAsync)}, 请求结束, 获取data: {data.Count()}, 构建数据上下文");
-            var buildDetail = DataContext.BuildDataContextBySource(data, dataContextTmpls, multiRequests, logger);
+
+            var buildDetail = DataContext.BuildDataContextBySource(data, dataContextTmpls, logger);
             return buildDetail;
         }
         async Task ExecuteOperationAsync(List<DataHandlerInfo> dataHandlers)
