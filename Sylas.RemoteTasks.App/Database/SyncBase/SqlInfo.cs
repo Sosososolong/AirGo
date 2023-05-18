@@ -5,8 +5,8 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
     public class SqlInfo
     {
         public string Sql { get; set; }
-        public DynamicParameters Parameters { get; set; }
-        public SqlInfo(string sql, DynamicParameters parameters)
+        public Dictionary<string, object> Parameters { get; set; }
+        public SqlInfo(string sql, Dictionary<string, object> parameters)
         {
             Sql = sql;
             Parameters = parameters;

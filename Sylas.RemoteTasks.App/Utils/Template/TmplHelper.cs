@@ -238,23 +238,26 @@ namespace Sylas.RemoteTasks.App.Utils.Template
                 //"DataPropertyParser[$mainDataModels =$data[0].formConfiguration.dataModels]"
                 //"CollectionSelectParser[$mainDataModelIds=$mainDataModels select Id]"
 
-                var dataContextBuilderMatch = Regex.Match(dataContextBuilderTmpl, @"(?<parser>^\w+Parser)\[(?<assignment>.+)\]$");
-                var parserName = dataContextBuilderMatch.Groups["parser"].Value;
-                var assignment = dataContextBuilderMatch.Groups["assignment"].Value;
-                var tokens = assignment.Split("=", StringSplitOptions.RemoveEmptyEntries);
-                var assignmentLeft = tokens[0];
-                var assignmentRight = tokens[1];
+                string assignmentLeft;
                 object? variableValueResolved = null;
                 string[]? sourceKeys = null;
-
+                var originResponseMatch = Regex.Match(dataContextBuilderTmpl, @"(?<assignmentLeft>^\$\w+)=\$data$");
                 // 1. 缓存结果$data
-                if (assignmentRight == "$data")
+                if (originResponseMatch.Success)
                 {
+                    assignmentLeft = originResponseMatch.Groups["assignmentLeft"].Value;
                     variableValueResolved = dataContext["$data"];
                     logger?.LogDebug($"call {nameof(BuildDataContextBySource)}, key={assignmentLeft}, 缓存source data");
                 }
                 else
                 {
+                    var dataContextBuilderMatch = Regex.Match(dataContextBuilderTmpl, @"(?<parser>^\w+Parser)\[(?<assignment>.+)\]$");
+                    var parserName = dataContextBuilderMatch.Groups["parser"].Value;
+                    var assignment = dataContextBuilderMatch.Groups["assignment"].Value;
+                    var tokens = assignment.Split("=", StringSplitOptions.RemoveEmptyEntries);
+                    assignmentLeft = tokens[0];
+                    var assignmentRight = tokens[1];
+
                     #region 解析数据
                     // 2. 缓存指定数据的某个属性值
                     // 3. 缓存经过动态构建表达式树过滤的结果集

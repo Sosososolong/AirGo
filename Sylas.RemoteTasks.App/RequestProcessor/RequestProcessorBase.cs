@@ -179,6 +179,10 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
             }
             catch (Exception ex)
             {
+                if (ex.Message.Contains("unauthorized", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw;
+                }
                 logger?.LogError(ex.Message);
                 return new Dictionary<string, object?>();
             }

@@ -27,7 +27,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         public async Task<IActionResult> Index([FromServices] IServiceProvider serviceProvider)
         {
             var requestProcessorDispatchItems = _configuration.GetSection("RequestPipeline:RequestProcessorDispatch").GetChildren();
-            Dictionary<string, object> dataContext = null;
+            Dictionary<string, object>? dataContext = null;
             foreach (var requestProcessorDispatchItem in requestProcessorDispatchItems)
             {
                 var requestProcessorName = requestProcessorDispatchItem.GetValue<string>("RequestProcessorName") ?? throw new Exception("[RequestProcessorName] is missing from the configuration"); //$"The provided \"{pipelineItem.Key}\" configuration is invalid"

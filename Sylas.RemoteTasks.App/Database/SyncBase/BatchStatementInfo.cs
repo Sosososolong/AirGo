@@ -17,12 +17,12 @@
         public Dictionary<string, object> Parameters { get; set; } = new Dictionary<string, object>();
     }
 
-    public class TableInsertSqlsInfo
-    {
-        public string TableName { get; set; } = string.Empty;
+    //public class TableInsertSqlsInfo
+    //{
+    //    public string TableName { get; set; } = string.Empty;
 
-        public BatchInsertSqlOnly BatchInsertSqlOnly { get; set; } = new BatchInsertSqlOnly();
-    }
+    //    public BatchInsertSqlOnly BatchInsertSqlOnly { get; set; } = new BatchInsertSqlOnly();
+    //}
 
     public class BatchInsertSqlOnly
     {

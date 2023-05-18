@@ -33,6 +33,7 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
         {
             _connectionString = configuration.GetConnectionString("Default") ?? throw new Exception("DatabaseInfo: 数据库连接字符串为空");
             _logger = logger;
+            _logger.LogCritical($"DatabaseInfo initialized");
             _dbType = GetDbType(_connectionString);
             _varFlag = GetDbParameterFlag(_dbType);
         }
@@ -68,7 +69,7 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
         {
             await SyncDatabaseByConnectionStringsAsync(sourceConnectionString, targetConnectionString, sourceSyncedDb);
         }
-        public async Task CreateTableIfNotExistAsync(string db, string tableName, IEnumerable<ColumnInfo> colInfos)
+        public async Task CreateTableIfNotExistAsync(string db, string tableName, IEnumerable<ColumnInfo> colInfos, object? tableRecords = null)
         {
             using var conn = GetDbConnection(_connectionString);
             conn.Open();
@@ -82,9 +83,9 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
                 if (ex.Message.ToLower().Contains("doesn't exist"))
                 {
                     // 表不存在创建表
-                    var createSql = GenerateCreateTableSql(tableName, _dbType, colInfos);
+                    var createSql = GenerateCreateTableSql(tableName, _dbType, colInfos, tableRecords);
+                    _logger.LogInformation($"数据表{tableName}不存在, 将创建数据表:{Environment.NewLine}{createSql}");
                     _ = await conn.ExecuteAsync(createSql);
-                    _logger.LogInformation($"数据表{tableName}不存在, 已创建");
                 }
             }
         }
@@ -153,12 +154,18 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
                 ChangeDatabase(conn, db);
             }
             var varFlag = GetDbParameterFlag(_connectionString);
-            var dbType = GetDbType(_connectionString);
+            
+            // 先获取数据
             var dbRecords = await conn.QueryAsync($"select * from {table}") ?? throw new Exception($"获取{table}数据失败");
+            // 然后删除已存在
+            await DeleteExistRecordsAsync(conn, table, sourceRecords, dbRecords, varFlag, ignoreFields, sourceIdField, targetIdField, _logger);
+            // 再重新获取数据
+            dbRecords = await conn.QueryAsync($"select * from {table}") ?? throw new Exception($"获取{table}数据失败");
+
             var compareResult = CompareRecords(sourceRecords, dbRecords, ignoreFields, sourceIdField, targetIdField);
 
             var inserts = compareResult.ExistInSourceOnly;
-            var insertSqlInfos = await GetInsertSqlInfosAsync(inserts, dbType, table, conn);
+            var insertSqlInfos = await GetInsertSqlInfosAsync(inserts, table, conn);
             foreach (var sqlInfo in insertSqlInfos)
             {
                 int inserted = 0;
@@ -178,6 +185,37 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
                 #endregion
             }
         }
+        static async Task DeleteExistRecordsAsync(IDbConnection conn, string targetTable, object source, object target, string varFlag, string[] ignoreFields, string sourceIdField, string targetIdField, ILogger? logger = null)
+        {
+            var sourceRecords = JArray.FromObject(source);
+            var targetRecords = JArray.FromObject(target);
+            if (targetRecords.Any())
+            {
+                var compareResult = CompareRecords(sourceRecords, targetRecords, ignoreFields, sourceIdField, targetIdField);
+                var deleteSqlsBuilder = new StringBuilder();
+                var index = 0;
+                Dictionary<string, dynamic> parameters = new();
+                foreach (var item in compareResult.Changed)
+                {
+                    var itemProps = item.TargetRecord.Properties();
+                    targetIdField = string.IsNullOrEmpty(targetIdField) ? itemProps.First().Name : targetIdField;
+                    var targetIdVal = itemProps.FirstOrDefault(x => string.Equals(x.Name, targetIdField, StringComparison.OrdinalIgnoreCase))?.Value;
+                    if (targetIdVal is null)
+                    {
+                        var firstProp = itemProps.First();
+                        targetIdField = firstProp.Name;
+                        targetIdVal = firstProp.Value;
+                    }
+                    deleteSqlsBuilder.Append($"delete from {targetTable} where {targetIdField}={varFlag}id{index};{Environment.NewLine}");
+                    parameters.Add($"id{index}", targetIdVal.ToObject<dynamic>());
+                    index++;
+                }
+                var deleteSqls = $"SET foreign_key_checks=0;{Environment.NewLine}" + deleteSqlsBuilder.ToString() + $"SET foreign_key_checks=1;";
+                logger?.LogInformation(deleteSqls);
+                var deleted = await conn.ExecuteAsync(deleteSqls, parameters);
+                logger?.LogInformation($"已经删除{deleted}条记录");
+            }
+        }
         static void LogData(ILogger? logger, string table, int inserted, SqlInfo sqlInfo)
         {
             logger?.LogInformation($"数据表{table}新增{inserted}条数据数据");
@@ -185,13 +223,13 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
             var fieldsMatch = Regex.Match(sqlInfo.Sql, @"insert\s+into\s+\w+\s*\(`{0,1}\w+`{0,1}(?<otherFields>(,\s*`{0,1}\w+`{0,1}\s*)*)\)", RegexOptions.IgnoreCase);
             var fieldsCount = fieldsMatch.Groups["otherFields"].Value.Count(x => x == ',') + 1;
 
-            var names = sqlInfo.Parameters.ParameterNames;
+            var names = sqlInfo.Parameters.Keys;
             var parameterBuilder = new StringBuilder();
             var index = 0;
             foreach (var name in names)
             {
                 index++;
-                var val = sqlInfo.Parameters.Get<object>(name)?.ToString();
+                var val = sqlInfo.Parameters[name]?.ToString();
                 val = val?.Length > 50 ? val?[..50] : val;
                 if (!string.IsNullOrWhiteSpace(val))
                 {
@@ -204,10 +242,11 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
             }
             logger?.LogInformation(parameterBuilder.ToString());
         }
-        public static async Task<List<SqlInfo>> GetInsertSqlInfosAsync(JArray inserts, DatabaseType dbType, string table, IDbConnection conn)
+        public static async Task<List<SqlInfo>> GetInsertSqlInfosAsync(object data, string table, IDbConnection conn)
         {
-            //GetTableInsertSqlsInfoAsync
-            var tableCols = await GetTableColsInfoAsync(conn, table);
+            var inserts = data is JArray jarray ? jarray : JArray.FromObject(data);
+            var dbType = GetDbType(conn.ConnectionString);
+            var tableCols = await GetTableColumnsInfoAsync(conn, table);
             var varFlag = GetDbParameterFlag(dbType);
 
             var firstRecord = inserts.FirstOrDefault();
@@ -222,42 +261,34 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
                 return insertSqls;
             }
 
+            // 1. 获取字段部分
             var insertFieldsStatement = GetFieldsStatement(firstRecordJObj);
             
             var insertValuesStatement = "";
             int recordIndex = 0;
-            var parameters = new DynamicParameters();
+            //var parameters = new DynamicParameters();
+            var parameters = new Dictionary<string, object>();
             string? batchInsertSql;
             foreach (JObject insert in inserts.Cast<JObject>())
             {
-                var properties = insert.Properties();
+                #region 2. 为每条数据生成Values部分(@v1,@v2,...),\n
                 insertValuesStatement += "(";
-                foreach (var p in properties)
-                {
-                    if (p.Name == "NO")
-                    {
-                        continue;
-                    }
-                    var paramName = $"{p.Name}{recordIndex}";
-                    insertValuesStatement += $"{varFlag}{paramName},";
-                    var col = tableCols.FirstOrDefault(x => string.Equals(x.ColumnCode, p.Name, StringComparison.OrdinalIgnoreCase));
-
-                    dynamic? pVal = GetColumnValue(p, col);
-
-                    parameters.Add(paramName, pVal);
-                }
+                insertValuesStatement += GenerateRecordValuesStatement(insert, tableCols, parameters, varFlag, recordIndex);
                 insertValuesStatement = insertValuesStatement.TrimEnd(',') + $"),{Environment.NewLine}";
+                #endregion
 
+                // 3. 生成一条批量语句: 每100条数据生成一个批量语句, 然后重置语句拼接
                 if (recordIndex > 0 && (recordIndex + 1) % 100 == 0)
                 {
                     batchInsertSql = GetBatchInsertSql(table, insertFieldsStatement, insertValuesStatement); // insertSql.TrimEnd(',') + ";"
                     insertSqls.Add(new SqlInfo(batchInsertSql, parameters));
                     insertValuesStatement = "";
-                    parameters = new DynamicParameters();
+                    parameters = new Dictionary<string, object>();
                 }
                 recordIndex++;
             }
 
+            // 4. 生成一条批量语句: 生成最后一条批量语句
             batchInsertSql = GetBatchInsertSql(table, insertFieldsStatement, insertValuesStatement);
             insertSqls.Add(new SqlInfo(batchInsertSql, parameters));
 
@@ -530,7 +561,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
         }
 
         // 获取创建表的字段声明部分
-        public static string GetColumnsAssignment(IEnumerable<ColumnInfo> colInfos, DatabaseType dbType, JArray? inserting = null)
+        public static string GetColumnsAssignment(IEnumerable<ColumnInfo> colInfos, DatabaseType dbType, object? tableRecords = null)
         {
             // 处理一条数据
             StringBuilder columnBuilder = new();
@@ -578,8 +609,8 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
                         DatabaseType.Oracle => $"number",
                         _ => $"int{Environment.NewLine}"
                     },
-                    var type when type.ToLower().Contains("datetime") => timeTypeDefine,
-                    var type when type.ToLower().Contains("timestamp") => timeTypeDefine,
+                    var type when type.ToLower().Contains("date") => timeTypeDefine,
+                    var type when type.ToLower().Contains("time") => timeTypeDefine,
                     // 大文本字段
                     var type when type.ToLower().Contains("clob") => dbType switch
                     {
@@ -592,7 +623,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
                         DatabaseType.Oracle => "blob",
                         _ => $"mediumblob{Environment.NewLine}"
                     },
-                    var type when type.ToLower().Contains("varchar") && Convert.ToInt32(colInfo.ColumnLength) > 0 => $"varchar({GetStringColumnLengthBySourceData(colInfo.ColumnLength, colInfo.ColumnCode, inserting)}){Environment.NewLine}",
+                    var type when type.ToLower().Contains("varchar") && Convert.ToInt32(colInfo.ColumnLength) > 0 => $"varchar({GetStringColumnLengthBySourceData(colInfo.ColumnLength, colInfo.ColumnCode, tableRecords)}){Environment.NewLine}",
                     var type when type.ToLower().Contains("string") && Convert.ToInt32(colInfo.ColumnLength) > 2000000000 => $"blob{Environment.NewLine}",
                     var type when type.ToLower().Contains("string") && Convert.ToInt32(colInfo.ColumnLength) < 2000 => $"nvarchar({(colInfo.ColumnLength == "-1" ? string.Empty : colInfo.ColumnLength)}){Environment.NewLine}",
                     // 普通字符串字段
@@ -608,75 +639,125 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
 
             return columnBuilder.ToString().TrimEnd(',');
         }
-        static int GetStringColumnLengthBySourceData(string? columnLength, string? columnCode, JArray inserting)
+        static int GetStringColumnLengthBySourceData(string? columnLength, string? columnCode, object? tableRecords)
         {
+            if (string.IsNullOrWhiteSpace(columnLength))
+            {
+                columnLength = "0";
+            }
+            if (tableRecords is null)
+            {
+                return Convert.ToInt32(columnLength);
+            }
             if (string.IsNullOrWhiteSpace(columnCode))
             {
                 throw new ArgumentNullException(nameof(columnCode));
             }
-            if (string.IsNullOrWhiteSpace(columnLength))
-            {
-                columnLength = "50";
-            }
             int length = Convert.ToInt32(columnLength);
-            if (inserting is null || !inserting.Any())
+
+            JArray? records = tableRecords is JArray array ? array : JArray.FromObject(tableRecords);
+            if (records is null || !records.Any())
             {
                 return length;
             }
-            var max = inserting.Select(x => (x as JObject)?.Properties()?.FirstOrDefault(p => string.Equals(p.Name, columnCode, StringComparison.OrdinalIgnoreCase))?.Value?.ToString()?.Length ?? 0).Max();
-            if (max > length)
-            {
-                return max;
-            }
-            return length;
+            var max = records.Select(x => (x as JObject)?.Properties()?.FirstOrDefault(p => string.Equals(p.Name, columnCode, StringComparison.OrdinalIgnoreCase))?.Value?.ToString()?.Length ?? 0).Max();
+            return CeilingColumnLength(max);
         }
-
-        // 根据一条DataRow对象 生成对应的insert语句的 字段部分和值(参数)部分: Name,Age  @Name1,@Age1
-        public static string GenerateRecordValuesStatement(DataRow dataItem, IEnumerable<ColumnInfo> colInfos, Dictionary<string, object> parameters, string dbVarFlag, int random = 0)
+        static int CeilingColumnLength(int number)
         {
-            // 处理一条数据
-            var valueBuilder = new StringBuilder();
-            foreach (var colInfo in colInfos)
+            if (number <= 10)
             {
-                var columnName = colInfo.ColumnName;
-                if (string.IsNullOrWhiteSpace(columnName))
-                {
-                    throw new Exception($"包含空字段");
-                }
-                var columnValue = dataItem[columnName];
-                var columnType = colInfo.ColumnType ?? string.Empty;
-                var parameterName = $"{columnName}{random}";
-
-                valueBuilder.Append($"{dbVarFlag}{parameterName},");
-
-                parameters.Add(parameterName, GetColumnValue(columnValue, columnType));
+                return 20;
             }
-
-            return valueBuilder.ToString().TrimEnd(',');
+            else if (number <= 50)
+            {
+                return 50;
+            }
+            else if (number <= 100)
+            {
+                return 100;
+            }
+            else if (number <= 255)
+            {
+                return 255;
+            }
+            else
+            {
+                var numberString = number.ToString();
+                var hightBitVal = Convert.ToInt16(numberString[0].ToString());
+                var result = $"{hightBitVal + 1}{new string('0', numberString.Length - 1)}";
+                return Convert.ToInt32(result);
+            }
         }
-        public static string GenerateRecordValuesStatement(JObject dataItem, IEnumerable<ColumnInfo> colInfos, Dictionary<string, object> parameters, string dbVarFlag, int random = 0)
+
+        // 根据一条DataRow对象 生成对应的insert语句的值(参数)部分 @Name1,@Age1
+        public static string GenerateRecordValuesStatement(object record, IEnumerable<ColumnInfo> colInfos, Dictionary<string, object> parameters, string dbVarFlag, int random = 0)
         {
-            // 处理一条数据
-            var valueBuilder = new StringBuilder();
-            var properties = dataItem.Properties();
-            foreach (var colInfo in colInfos)
+            if (record is DataRow dataItem)
             {
-                var columnName = colInfo.ColumnName;
-                if (string.IsNullOrWhiteSpace(columnName))
+                // 处理一条数据
+                var valueBuilder = new StringBuilder();
+                foreach (var colInfo in colInfos)
                 {
-                    throw new Exception($"包含空字段");
+                    var columnName = colInfo.ColumnName;
+                    if (string.IsNullOrWhiteSpace(columnName))
+                    {
+                        throw new Exception($"包含空字段");
+                    }
+                    var columnValue = dataItem[columnName];
+                    var columnType = colInfo.ColumnType ?? string.Empty;
+                    var parameterName = $"{columnName}{random}";
+
+                    valueBuilder.Append($"{dbVarFlag}{parameterName},");
+
+                    parameters.Add(parameterName, GetColumnValue(columnValue, columnType));
                 }
-                var columnValue = properties.FirstOrDefault(x => string.Equals(x.Name, columnName, StringComparison.OrdinalIgnoreCase))?.Value;
-                var columnType = colInfo.ColumnType ?? string.Empty;
-                var parameterName = $"{columnName}{random}";
 
-                valueBuilder.Append($"{dbVarFlag}{parameterName},");
-
-                parameters.Add(parameterName, GetColumnValue(columnValue, columnType));
+                return valueBuilder.ToString().TrimEnd(',');
             }
-
-            return valueBuilder.ToString().TrimEnd(',');
+            else
+            {
+                IEnumerable<JProperty> properties = record is JObject recordJObj ? recordJObj.Properties() : JObject.FromObject(record).Properties() ?? throw new Exception($"record不是DataRow或者记录对应的对象类型");
+                var insertValuesStatement = "";
+                foreach (var p in properties)
+                {
+                    if (p.Name == "NO")
+                    {
+                        continue;
+                    }
+                    var paramName = $"{p.Name}{random}";
+                    insertValuesStatement += $"{dbVarFlag}{paramName},";
+                    
+                    var col = colInfos.FirstOrDefault(x => string.Equals(x.ColumnCode, p.Name, StringComparison.OrdinalIgnoreCase));
+                    dynamic? pVal = GetColumnValue(p, col);
+                    parameters.Add(paramName, pVal);
+                }
+                return insertValuesStatement;
+            }
         }
+        //public static string GenerateRecordValuesStatement(JObject dataItem, IEnumerable<ColumnInfo> colInfos, Dictionary<string, object> parameters, string dbVarFlag, int random = 0)
+        //{
+        //    // 处理一条数据
+        //    var valueBuilder = new StringBuilder();
+        //    var properties = dataItem.Properties();
+        //    foreach (var colInfo in colInfos)
+        //    {
+        //        var columnName = colInfo.ColumnName;
+        //        if (string.IsNullOrWhiteSpace(columnName))
+        //        {
+        //            throw new Exception($"包含空字段");
+        //        }
+        //        var columnValue = properties.FirstOrDefault(x => string.Equals(x.Name, columnName, StringComparison.OrdinalIgnoreCase))?.Value;
+        //        var columnType = colInfo.ColumnType ?? string.Empty;
+        //        var parameterName = $"{columnName}{random}";
+
+        //        valueBuilder.Append($"{dbVarFlag}{parameterName},");
+
+        //        parameters.Add(parameterName, GetColumnValue(columnValue, columnType));
+        //    }
+
+        //    return valueBuilder.ToString().TrimEnd(',');
+        //}
 
         // 生成一条insert语句 - mysql, 不同于Oracle,这里不需要参数: string targetTable, string columnsStatement,
         public static string GenerateInsertSql(DataRow dataItem, IEnumerable<ColumnInfo> colInfos, Dictionary<string, object> parameters, string dbVarFlag, int random = 0)
@@ -687,18 +768,18 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
             string currentDataRowInsertStatement = $"({valuesStatement}),{Environment.NewLine}";
             return currentDataRowInsertStatement;
         }
-        public static string GenerateInsertSql(JObject dataItem, IEnumerable<ColumnInfo> colInfos, Dictionary<string, object> parameters, string dbVarFlag, int random = 0)
-        {
-            // "@Name1, :Age1"
-            string valuesStatement = GenerateRecordValuesStatement(dataItem, colInfos, parameters, dbVarFlag, random);
-            // ("@Name1, :Age1"),
-            string currentDataRowInsertStatement = $"({valuesStatement}),{Environment.NewLine}";
-            return currentDataRowInsertStatement;
-        }
+        //public static string GenerateInsertSql(JObject dataItem, IEnumerable<ColumnInfo> colInfos, Dictionary<string, object> parameters, string dbVarFlag, int random = 0)
+        //{
+        //    // "@Name1, :Age1"
+        //    string valuesStatement = GenerateRecordValuesStatement(dataItem, colInfos, parameters, dbVarFlag, random);
+        //    // ("@Name1, :Age1"),
+        //    string currentDataRowInsertStatement = $"({valuesStatement}),{Environment.NewLine}";
+        //    return currentDataRowInsertStatement;
+        //}
         /// <summary>生成创建表的SQL语句</summary>
-        public static string GenerateCreateTableSql(string tableName, DatabaseType dbType, IEnumerable<ColumnInfo> colInfos, JArray? inserting = null)
+        public static string GenerateCreateTableSql(string tableName, DatabaseType dbType, IEnumerable<ColumnInfo> colInfos, object? tableRecords = null)
         {
-            var columnsAssignment = GetColumnsAssignment(colInfos, dbType, inserting);
+            var columnsAssignment = GetColumnsAssignment(colInfos, dbType, tableRecords);
             // TODO: 主键primaryKey 作为公共属性
             var columnPrimaryKey = colInfos.FirstOrDefault(c => c.IsPK == 1) ?? colInfos.FirstOrDefault();
             var primaryKeyAssignment = columnPrimaryKey is null ? string.Empty : $", PRIMARY KEY (`{columnPrimaryKey.ColumnCode}`) USING BTREE";
@@ -742,8 +823,8 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
             var tableName = sourceTable.Split('.').Last();
             // 1. 获取源表的所有字段信息
             #region 获取源表的所有字段信息
-            IEnumerable<ColumnInfo> colInfos = await GetTableColsInfoAsync(sourceConn, tableName);
-            var sourcePrimaryKey = colInfos.FirstOrDefault(x => x.IsPK == 1)?.ColumnName ?? "";
+            IEnumerable<ColumnInfo> colInfos = await GetTableColumnsInfoAsync(sourceConn, tableName);
+            var sourcePrimaryKey = colInfos.FirstOrDefault(x => x.IsPK == 1)?.ColumnCode ?? colInfos.FirstOrDefault()?.ColumnCode;
             #endregion
 
             // 2. 获取源表所有数据
@@ -762,7 +843,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
             #endregion
 
             // 3. 获取目标表的所有字段信息
-            IEnumerable<ColumnInfo> targetColInfos = await GetTableColsInfoAsync(targetConn, tableName);
+            IEnumerable<ColumnInfo> targetColInfos = await GetTableColumnsInfoAsync(targetConn, tableName);
             var targetPrimaryKey = colInfos.FirstOrDefault(x => x.IsPK == 1)?.ColumnName ?? "";
 
             // 4. 获取目标表的数据, 没有则创建
@@ -850,69 +931,69 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
             };
         }
         
-        public static async Task<TableInsertSqlsInfo> GetTableInsertSqlsInfoAsync(IDbConnection targetConn, string table, List<JToken> dataSource)
-        {
-            var dbVarFlag = GetDbParameterFlag(targetConn.ConnectionString);
-            var insertSqlBuilder = new StringBuilder();
-            // insert语句参数
-            var parameters = new Dictionary<string, object>();
-            // 参数名后缀(第一条数据的Name字段, 参数名为Name1, 第二条为Name2, ...)
-            var random = 1;
+        //public static async Task<TableInsertSqlsInfo> GetTableInsertSqlsInfoAsync(IDbConnection targetConn, string table, List<JToken> dataSource)
+        //{
+        //    var dbVarFlag = GetDbParameterFlag(targetConn.ConnectionString);
+        //    var insertSqlBuilder = new StringBuilder();
+        //    // insert语句参数
+        //    var parameters = new Dictionary<string, object>();
+        //    // 参数名后缀(第一条数据的Name字段, 参数名为Name1, 第二条为Name2, ...)
+        //    var random = 1;
 
-            if (!dataSource.Any())
-            {
-                return new TableInsertSqlsInfo
-                {
-                    TableName = table
-                };
-            }
+        //    if (!dataSource.Any())
+        //    {
+        //        return new TableInsertSqlsInfo
+        //        {
+        //            TableName = table
+        //        };
+        //    }
 
-            IEnumerable<ColumnInfo> targetTableColInfos = await GetTableColsInfoAsync(targetConn, table);
-            // columnsStatement =           "Name, Age"
-            string columnsStatement = GetFieldsStatement(targetTableColInfos);
+        //    IEnumerable<ColumnInfo> targetTableColInfos = await GetTableColumnsInfoAsync(targetConn, table);
+        //    // columnsStatement =           "Name, Age"
+        //    string columnsStatement = GetFieldsStatement(targetTableColInfos);
 
-            var targetDataTable = await QueryAsync(targetConn, $"select * from {table}", new Dictionary<string, object>(), null);
-            var targetPrimaryKey = targetTableColInfos.FirstOrDefault(x => x.IsPK == 1)?.ColumnName ?? "Id";
-            var comparedResult = CompareRecords(dataSource, targetDataTable.Rows.Cast<DataRow>(), Array.Empty<string>(), targetPrimaryKey, targetPrimaryKey);
+        //    var targetDataTable = await QueryAsync(targetConn, $"select * from {table}", new Dictionary<string, object>(), null);
+        //    var targetPrimaryKey = targetTableColInfos.FirstOrDefault(x => x.IsPK == 1)?.ColumnName ?? "Id";
+        //    var comparedResult = CompareRecords(dataSource, targetDataTable.Rows.Cast<DataRow>(), Array.Empty<string>(), targetPrimaryKey, targetPrimaryKey);
 
-            // 为数据源中的每一条数据生成对应的insert语句的部分
-            foreach (JObject dataItem in dataSource.Cast<JObject>())
-            {
-                // 重复的数据不做处理
-                if (targetDataTable.Rows.Count > 0 && AlreadyExistInTarget(targetDataTable.Rows, dataItem))
-                {
-                    continue;
-                }
+        //    // 为数据源中的每一条数据生成对应的insert语句的部分
+        //    foreach (JObject dataItem in dataSource.Cast<JObject>())
+        //    {
+        //        // 重复的数据不做处理
+        //        if (targetDataTable.Rows.Count > 0 && AlreadyExistInTarget(targetDataTable.Rows, dataItem))
+        //        {
+        //            continue;
+        //        }
 
-                // (@Name1, @Age1),
-                string currentRecordSql = GenerateInsertSql(dataItem, targetTableColInfos, parameters, dbVarFlag, random);
-                insertSqlBuilder.Append($"{currentRecordSql}");
-                random++;
-            }
-            // 如果表中已经存在所有数据, 那么insertSqlBuilder为空的
-            if (insertSqlBuilder.Length == 0)
-            {
-                Console.WriteLine($"{table}已经拥有所有记录");
-                return new TableInsertSqlsInfo
-                {
-                    TableName = table,
-                };
-            }
-            // 最终的insert语句
-            // var targetTableAllDataInsertSql = $"insert into {table}({columnsStatement}) values{Environment.NewLine}{insertSqlBuilder.ToString().TrimEnd(',', '\r', '\n')};";
-            var targetTableAllDataInsertSql = GetBatchInsertSql(table, columnsStatement, insertSqlBuilder.ToString());
-            return new TableInsertSqlsInfo
-            {
-                TableName = table,
+        //        // (@Name1, @Age1),
+        //        string currentRecordSql = GenerateInsertSql(dataItem, targetTableColInfos, parameters, dbVarFlag, random);
+        //        insertSqlBuilder.Append($"{currentRecordSql}");
+        //        random++;
+        //    }
+        //    // 如果表中已经存在所有数据, 那么insertSqlBuilder为空的
+        //    if (insertSqlBuilder.Length == 0)
+        //    {
+        //        Console.WriteLine($"{table}已经拥有所有记录");
+        //        return new TableInsertSqlsInfo
+        //        {
+        //            TableName = table,
+        //        };
+        //    }
+        //    // 最终的insert语句
+        //    // var targetTableAllDataInsertSql = $"insert into {table}({columnsStatement}) values{Environment.NewLine}{insertSqlBuilder.ToString().TrimEnd(',', '\r', '\n')};";
+        //    var targetTableAllDataInsertSql = GetBatchInsertSql(table, columnsStatement, insertSqlBuilder.ToString());
+        //    return new TableInsertSqlsInfo
+        //    {
+        //        TableName = table,
 
-                BatchInsertSqlOnly = new BatchInsertSqlOnly()
-                {
-                    // mysql 本次会话取消外键约束检查
-                    BatchInsertSql = targetTableAllDataInsertSql, // $"SET foreign_key_checks=0;{Environment.NewLine}{targetTableAllDataInsertSql}",
-                    Parameters = parameters
-                }
-            };
-        }
+        //        BatchInsertSqlOnly = new BatchInsertSqlOnly()
+        //        {
+        //            // mysql 本次会话取消外键约束检查
+        //            BatchInsertSql = targetTableAllDataInsertSql, // $"SET foreign_key_checks=0;{Environment.NewLine}{targetTableAllDataInsertSql}",
+        //            Parameters = parameters
+        //        }
+        //    };
+        //}
 
         /// <summary>
         /// 将数据库中的数据和指定的数据集合进行对比
@@ -936,7 +1017,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
         /// **对比数据**
         /// </summary>
         /// <param name="sourceRecords">源数据</param>
-        /// <param name="targetRecords">要对比的目标数据</param>
+        /// <param name="targetRecords">要对比的目标数据表中查询出的数据</param>
         /// <param name="sourceIdentityField">源数据中的标识字段</param>
         /// <param name="targetIdentityField">目标数据中的标识字段</param>
         /// <returns></returns>
@@ -1039,7 +1120,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
         /// <param name="tableName"></param>
         /// <param name="database"></param>
         /// <returns></returns>
-        public static async Task<IEnumerable<ColumnInfo>> GetTableColsInfoAsync(IDbConnection conn, string tableName)
+        public static async Task<IEnumerable<ColumnInfo>> GetTableColumnsInfoAsync(IDbConnection conn, string tableName)
         {
             string sql;
             var database = conn.Database;

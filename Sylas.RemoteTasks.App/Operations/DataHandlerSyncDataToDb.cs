@@ -16,7 +16,7 @@ namespace Sylas.RemoteTasks.App.Operations
         public async Task Start(string table, object dataSource, string db = "")
         {
             IEnumerable<JToken> data = dataSource is IEnumerable<JToken> ? (IEnumerable<JToken>)dataSource : new List<JToken>() { JToken.FromObject(dataSource) };
-            await _databaseInfo.SyncDatabaseAsync(table, data, Array.Empty<string>(), sourceIdField: "Id", targetIdField: "Id", db);
+            await _databaseInfo.SyncDatabaseAsync(table, data, Array.Empty<string>(), sourceIdField: "Id", targetIdField: "Id", db: db);
         }
     }
 }
