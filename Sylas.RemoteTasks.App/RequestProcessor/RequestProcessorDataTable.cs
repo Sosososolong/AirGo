@@ -1,9 +1,6 @@
 ﻿using Newtonsoft.Json.Linq;
-using Sylas.RemoteTasks.App.Operations;
 using Sylas.RemoteTasks.App.Utils;
 using Sylas.RemoteTasks.App.Utils.Template;
-using System.Reflection;
-using static Sylas.RemoteTasks.App.RemoteHostModule.StartupHelper;
 
 namespace Sylas.RemoteTasks.App.RequestProcessor
 {
@@ -31,7 +28,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
             List<string> tableList = (tables is JArray tablesJArray)
                 ? tablesJArray.ToObject<List<string>>() ?? throw new Exception($"table参数不是字符串也不是字符串集合: {tables}")
                 : (tables.ToString() ?? throw new Exception($"table参数不是字符串也不是字符串集合: {tables}")).Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
-            
+
             var left = string.Empty;
             var op = string.Empty;
             JToken? rightToken = null;
@@ -41,7 +38,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                 op = TmplHelper.GetTmplValueFromDataContext(dataContextDictionary, values[3]).ToString() ?? throw new ArgumentNullException("op");
                 rightToken = JToken.FromObject(TmplHelper.GetTmplValueFromDataContext(dataContextDictionary, values[4]));
             }
-            
+
             string right = "";
             if (rightToken is not null && rightToken.Type == JTokenType.String)
             {
@@ -52,7 +49,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                 right = string.Join(',', rightToken.ToObject<List<string>>() ?? throw new Exception($"无法转换为字符串集合: {rightToken}"));
             }
 
-            
+
             if (op == "include")
             {
                 WhereFieldInclude(left, right);

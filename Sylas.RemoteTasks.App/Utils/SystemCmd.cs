@@ -44,20 +44,24 @@ namespace Sylas.RemoteTasks.App.Utils
         {
             //此时写入到控制台的内容也会重定向到p对象的StandardOutPut中
             //Console.WriteLine(Environment.CommandLine + " --> " + Environment.NewLine);
-            Process p = new();
-            // 设置要启动的应用程序
-            p.StartInfo.FileName = OperatingSystem.IsWindows() ? "powershell.exe" : "/bin/bash";
-            p.StartInfo.WorkingDirectory = workingDir;
-            // 是否使用操作系统shell启动
-            p.StartInfo.UseShellExecute = false;
-            // 接受来自调用程序的输入信息
-            p.StartInfo.RedirectStandardInput = true;
-            // 输出信息
-            p.StartInfo.RedirectStandardOutput = true;
-            // 输出错误
-            p.StartInfo.RedirectStandardError = true;
-            // 不显示程序窗口
-            p.StartInfo.CreateNoWindow = true;
+            var startInfo = new ProcessStartInfo
+            {
+                // 设置要启动的应用程序
+                FileName = OperatingSystem.IsWindows() ? "powershell.exe" : "/bin/bash",
+                // 设置工作目录
+                WorkingDirectory = workingDir,
+                // 是否使用操作系统shell启动
+                UseShellExecute = false,
+                // 接受来自调用程序的输入信息
+                RedirectStandardInput = true,
+                // 输出信息
+                RedirectStandardOutput = true,
+                // 输出错误
+                RedirectStandardError = true,
+                // 不显示程序窗口
+                CreateNoWindow = true
+            };
+            Process p = new() { StartInfo = startInfo };
             // 启动程序
             p.Start();
 
@@ -77,7 +81,7 @@ namespace Sylas.RemoteTasks.App.Utils
             // 获取输出信息
             string strOuput = await p.StandardOutput.ReadToEndAsync();
 
-            // 等待程序执行完退出进程
+            // 等待程序执行完退出进程, 释放相关对象
             // 关闭此进程关联的程序(即shell)，其实上面已经执行了"exit"将shell程序关闭了
             p.Kill();
             p.WaitForExit();

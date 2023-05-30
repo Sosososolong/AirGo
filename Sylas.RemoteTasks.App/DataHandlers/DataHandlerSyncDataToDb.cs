@@ -2,7 +2,7 @@
 using Sylas.RemoteTasks.App.Database.SyncBase;
 using static Sylas.RemoteTasks.App.RemoteHostModule.StartupHelper;
 
-namespace Sylas.RemoteTasks.App.Operations
+namespace Sylas.RemoteTasks.App.DataHandlers
 {
     public class DataHandlerSyncDataToDb
     {
@@ -15,7 +15,7 @@ namespace Sylas.RemoteTasks.App.Operations
         }
         public async Task Start(string table, object dataSource, string db = "")
         {
-            IEnumerable<JToken> data = dataSource is IEnumerable<JToken> ? (IEnumerable<JToken>)dataSource : new List<JToken>() { JToken.FromObject(dataSource) };
+            IEnumerable<JToken> data = dataSource is IEnumerable<JToken> enumerableData ? enumerableData : new List<JToken>() { JToken.FromObject(dataSource) };
             await _databaseInfo.SyncDatabaseAsync(table, data, Array.Empty<string>(), sourceIdField: "Id", targetIdField: "Id", db: db);
         }
     }

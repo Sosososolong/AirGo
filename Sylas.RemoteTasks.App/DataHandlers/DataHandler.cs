@@ -1,4 +1,4 @@
-﻿namespace Sylas.RemoteTasks.App.Operations
+﻿namespace Sylas.RemoteTasks.App.DataHandlers
 {
     public class DataHandlerInfo
     {

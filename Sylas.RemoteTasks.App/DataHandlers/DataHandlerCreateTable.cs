@@ -1,8 +1,7 @@
 ﻿using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using Sylas.RemoteTasks.App.Database.SyncBase;
 
-namespace Sylas.RemoteTasks.App.Operations
+namespace Sylas.RemoteTasks.App.DataHandlers
 {
     public class DataHandlerCreateTable
     {
