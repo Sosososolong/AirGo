@@ -93,7 +93,7 @@ public partial class FileHelper
         // 当前目录下的所有目录
         string[] currentDirs = Directory.GetDirectories(dir);
         string[] currentFiles = Directory.GetFiles(dir);
-        files.AddRange(currentFiles.AsQueryable().Where(filter));
+        files.AddRange(currentFiles.AsQueryable().Where(filter).Select(x => x.Replace('\\', '/')));
         if (!currentDirs.Any())
         {
             return files;

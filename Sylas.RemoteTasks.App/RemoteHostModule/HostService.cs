@@ -49,18 +49,24 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
                 return new { code = -1, msg = "未找到远程主机对应的信息管理器" };
             }
             var remoteHostInfo = hostInfoManager.RemoteHostInfos().FirstOrDefault(x => x.Name == executeDto.HostInfoName);
-            if (remoteHostInfo is null)
+            if (remoteHostInfo is not null)
             {
-                return new { code = -1, msg = "未找到对应的远程主机信息" };
+                var infoCmd = remoteHostInfo.Commands.FirstOrDefault(x => x.Name == executeDto.CommandName && x.Command == executeDto.Command);
+                if (infoCmd is null)
+                {
+                    return new { code = -1, msg = "位置的命令" };
+                }
+                Console.WriteLine($"从主机信息(容器)执行命令: {infoCmd.Command}");
+                var exeCmd = hostInfoManager.RemoteHost.SshConnection.RunCommand(infoCmd.Command);
+                return new { code = 1, msg = exeCmd.Result, error = exeCmd.Error };
             }
-            var infoCmd = remoteHostInfo.Commands.FirstOrDefault(x => x.Name == executeDto.CommandName && x.Command == executeDto.Command);
-            if (infoCmd is null)
+            var remoteHostCmd = hostInfoManager.RemoteHost.Commands.FirstOrDefault(x => x.Name == executeDto.CommandName);
+            if (remoteHostCmd is not null)
             {
-                return new { code = -1, msg = "位置的命令" };
+                var exeCmd = hostInfoManager.RemoteHost.SshConnection.RunCommand(remoteHostCmd.Command);
+                return new { code = 1, msg = exeCmd?.Result, error = exeCmd?.Error };
             }
-            Console.WriteLine($"从主机信息(容器)执行命令: {infoCmd.Command}");
-            var exeCmd = hostInfoManager.RemoteHost.SshConnection.RunCommand(infoCmd.Command);
-            return new { code = 1, msg = exeCmd.Result, error = exeCmd.Error };
+            return new { code = -1, msg = "未找到对应的远程主机信息" };
         }
     }
 }

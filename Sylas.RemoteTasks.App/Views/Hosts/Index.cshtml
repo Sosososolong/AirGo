@@ -6,7 +6,19 @@
         @foreach (var manager in Model)
         {
             var remoteHostInfos = manager.RemoteHostInfos();
-            <h3 class="my-3 text-center">@(manager.RemoteHost.Ip) (@remoteHostInfos.Count)</h3>
+            <h3 class="my-3 text-center dropdown-toggle" id="dropdownHostCommandInfos" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                @(manager.RemoteHost.Ip) (@remoteHostInfos.Count)
+            </h3>
+            <div class="dropdown-menu" aria-labelledby="dropdownHostCommandInfos">
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control" id="searchDropdown@(manager.RemoteHost.Ip.Replace(".", string.Empty))" value="" placeholder="Search..." aria-label="Search" onkeyup="onHostInfosSearched(this)" />
+                </div>
+                <div class="dropdown-divider"></div>
+                @foreach (var remoteHostCmd in manager.RemoteHost.Commands)
+                {
+                    <a class="dropdown-item" data-value="@remoteHostCmd.Name" href="#" onclick="executeCommand('@(manager.RemoteHost.Ip)', '@(manager.RemoteHost.Name)', '@(remoteHostCmd.Name)', '@(remoteHostCmd.Command)')">@remoteHostCmd.Name</a>
+                }
+            </div>
             <div class="row">
                 @foreach (var info in remoteHostInfos)
                 {
@@ -68,6 +80,20 @@
                 .catch(error => {
                     console.error("Error:", error);
                 });
+        }
+
+        function onHostInfosSearched(searchDropdown) {
+            // Get reference to dropdown items
+            var dropdownItems = searchDropdown.parentNode.parentNode.querySelectorAll(".dropdown-item");
+
+            var value = searchDropdown.value.toLowerCase();
+            dropdownItems.forEach(function (item) {
+                if (item.textContent.toLowerCase().indexOf(value) > -1) {
+                    item.style.display = "block";
+                } else {
+                    item.style.display = "none";
+                }
+            });
         }
     </script>
 }

@@ -5,6 +5,6 @@
         public abstract string Description { get; }
         public abstract string Name { get; }
         public abstract List<Tuple<string, string>> Labels { get; }
-        public abstract List<RemoteHostInfoCommand> Commands { get; set; }
+        public virtual List<CommandInfo> Commands { get; set; } = new List<CommandInfo>();
     }
 }

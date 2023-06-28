@@ -1,11 +1,6 @@
-﻿using Microsoft.Extensions.Hosting;
-using MySqlX.XDevAPI.Common;
-using System.Reflection;
-using System.Text.RegularExpressions;
-
-namespace Sylas.RemoteTasks.App.RemoteHostModule
+﻿namespace Sylas.RemoteTasks.App.RemoteHostModule
 {
-    public class DockerContainerInfo : RemoteHostInfo
+    public class RemoteHostInfoDockerContainer : RemoteHostInfo
     {
         public string ContainerId { get; set; } = string.Empty;
         public string Image { get; set; } = string.Empty;
@@ -40,7 +35,6 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
                 return result;
             }
         }
-        public override List<RemoteHostInfoCommand> Commands { get; set; } = new List<RemoteHostInfoCommand>();
     }
 
 }

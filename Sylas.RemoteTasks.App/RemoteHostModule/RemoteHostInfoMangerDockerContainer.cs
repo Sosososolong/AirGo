@@ -1,8 +1,8 @@
 ﻿namespace Sylas.RemoteTasks.App.RemoteHostModule
 {
-    public class DockerContainerManger : RemoteHostInfoManager
+    public class RemoteHostInfoMangerDockerContainer : RemoteHostInfoManager
     {
-        public DockerContainerManger(RemoteHost remoteHost, RemoteHostInfoFactory remoteHostInfoFactory)
+        public RemoteHostInfoMangerDockerContainer(RemoteHost remoteHost, RemoteHostInfoFactory remoteHostInfoFactory)
             : base(
                   remoteHost ?? throw new Exception("DockerContainerManger注入RemoteHost为空"),
                   remoteHostInfoFactory ?? throw new Exception("DockerContainerManger注入RemoteHostInfoFactory为空")

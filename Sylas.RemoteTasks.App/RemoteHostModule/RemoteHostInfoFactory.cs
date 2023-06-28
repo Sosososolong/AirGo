@@ -17,7 +17,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
         public RemoteHostInfo CreateDockerContainer(string containerId, string image,string command, string created, string status, string ports, string names, string host)
         {
             #region 创建DockerContainerInfo
-            var dockerContainerInfo = new DockerContainerInfo
+            var dockerContainerInfo = new RemoteHostInfoDockerContainer
             {
                 ContainerId = containerId,
                 Image = image,
@@ -31,7 +31,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
 
             #region 根据模板配置计算出DockerContainerInfo的命令集
             var currentHostTmplSetting = _tmplSettings.FirstOrDefault(x => x.Host == host);
-            var dockerContainerProperties = typeof(DockerContainerInfo).GetProperties();
+            var dockerContainerProperties = typeof(RemoteHostInfoDockerContainer).GetProperties();
             if (currentHostTmplSetting is not null)
             {
                 foreach (var commandTmpl in currentHostTmplSetting.RemoteHostInfoCommands)
@@ -45,7 +45,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
                 }
             }
 
-            dockerContainerInfo.Commands = currentHostTmplSetting?.RemoteHostInfoCommands ?? new List<RemoteHostInfoCommand>();
+            dockerContainerInfo.Commands = currentHostTmplSetting?.RemoteHostInfoCommands ?? new List<CommandInfo>();
             
             return dockerContainerInfo;
             #endregion

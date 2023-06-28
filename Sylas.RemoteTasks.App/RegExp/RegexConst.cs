@@ -88,7 +88,7 @@ namespace Sylas.RemoteTasks.App.RegexExp
         /// 上传 upload   (?<local>[^\s]+) (?<remote>[^\s]+) -include=(?<include>[^\s+]) -exclude=(?<exclude>[^\s]+)
         /// </summary>
         /// <returns></returns>
-        [GeneratedRegex("(?<action>(upload|download)) (?<local>[^\\s]+) (?<remote>[^\\s]+) -include=(?<include>[^\\s+]) -exclude=(?<exclude>[^\\s]+)")]
+        [GeneratedRegex("(?<action>(upload|download))\\s+(\"|')(?<local>[^\"]+)(\"|')\\s*(\"|')(?<remote>[^\"]+)(\"|')\\s*(-include=(?<include>[^\\s+])){0,1}\\s*(-exclude=(?<exclude>[^\\s]+)){0,1}")]
         public static partial Regex CommandRegex();
         /// <summary>
         /// 匹配字符串模板, 模板规定了如何将dataSource(JObject或JArray)中的符合条件的一条或多条数据的某个属性赋值给target的某个属性, 每条数据赋值一次都产生一个target副本

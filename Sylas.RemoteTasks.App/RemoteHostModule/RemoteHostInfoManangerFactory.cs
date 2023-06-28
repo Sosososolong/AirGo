@@ -8,7 +8,7 @@
 
         public RemoteHostInfoManager CreateDockerContainerInfo(RemoteHost remoteHost, RemoteHostInfoFactory remoteHostInfoFactory)
         {
-            return new DockerContainerManger(remoteHost, remoteHostInfoFactory);
+            return new RemoteHostInfoMangerDockerContainer(remoteHost, remoteHostInfoFactory);
         }
     }
 }

@@ -14,12 +14,14 @@
         public string PrivateKey { get; set; } = "";
         public string Pwd { get; set; } = "123456";
 
+        public List<CommandInfo> Commands { get; set; } = new List<CommandInfo>();
+
         private SshHelper? _sshConnection;
         public SshHelper SshConnection
         {
             get
             {
-                _sshConnection ??= new(Ip, User, PrivateKey);
+                _sshConnection ??= new(Ip, Port, User, PrivateKey);
                 return _sshConnection;
             }
         }

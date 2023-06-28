@@ -25,7 +25,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
                 var result = new List<RemoteHostInfoManager>();
                 foreach (var remoteHost in remoteHosts)
                 {
-                    var dockerContainerManager = new DockerContainerManger(remoteHost, remoteHostInfoFactory);
+                    var dockerContainerManager = new RemoteHostInfoMangerDockerContainer(remoteHost, remoteHostInfoFactory);
                     result.Add(dockerContainerManager);
                 }
                 return result;

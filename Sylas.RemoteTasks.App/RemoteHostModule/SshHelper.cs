@@ -16,9 +16,10 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
         private readonly int _maxConnections;
         private int _currentConnections;
         private readonly object _syncLock = new();
-        private readonly static ConcurrentBag<SshClient> _sshConnectionPool = new();
-        private readonly static ConcurrentBag<SftpClient> _sftpConnectionPool = new();
+        private readonly List<SshClient> _sshConnectionPool = new();
+        private readonly List<SftpClient> _sftpConnectionPool = new();
         private string Host { get; set; }
+        public int Port { get; }
         private string UserName { get; set; }
         private string PrivateKey { get; set; }
         public SshClient GetConnection()
@@ -30,7 +31,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
                     if (_currentConnections < _maxConnections)
                     {
                         Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 创建了SshClient");
-                        connection = new SshClient(Host, UserName, new PrivateKeyFile(PrivateKey));
+                        connection = new SshClient(Host, Port, UserName, new PrivateKeyFile(PrivateKey));
                         connection.Connect();
                         _sshConnectionPool.Add(connection);
                         _currentConnections++;
@@ -41,19 +42,16 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
                     }
                 }
             }
-            else
-            {
-                if (!connection.IsConnected)
-                {
-                    Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 检测到连接池中的连接异常断开, 重新连接xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
-                    connection.Connect();
-                }
-            }
-            if (connection == null)
-            {
-                _sshConnectionPool.TryTake(out connection);
-            }
 
+            if (connection is null)
+            {
+                throw new Exception($"从连接池获取的SshClient对象为空, Host: {Host}");
+            }
+            if (!connection.IsConnected)
+            {
+                Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 检测到连接池中的SSH连接异常断开, 重新连接xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+                connection.Connect();
+            }
             return connection ?? throw new Exception("Ssh connection is null");
         }
         public SftpClient GetSftpConnection()
@@ -65,7 +63,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
                     if (_currentConnections < _maxConnections)
                     {
                         Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 创建了SFtpClient");
-                        connection = new SftpClient(Host, UserName, new PrivateKeyFile(PrivateKey));
+                        connection = new SftpClient(Host, Port, UserName, new PrivateKeyFile(PrivateKey));
                         connection.Connect();
                         _sftpConnectionPool.Add(connection);
                         _currentConnections++;
@@ -76,9 +74,15 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
                     }
                 }
             }
-            if (connection == null)
+            if (connection is null)
             {
-                _sftpConnectionPool.TryTake(out connection);
+                throw new Exception($"从连接池获取的SftpClient对象为空, Host: {Host}");
+            }
+
+            if (!connection.IsConnected)
+            {
+                Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 检测到连接池中的SFTP连接异常断开, 重新连接xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+                connection.Connect();
             }
 
             return connection ?? throw new Exception("Sftp connection is null");
@@ -87,7 +91,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
         /// 连接返回连接池
         /// </summary>
         /// <param name="connection"></param>
-        private static void ReturnConnection(SshClient connection)
+        private void ReturnConnection(SshClient connection)
         {
             if (connection != null)
             {
@@ -99,7 +103,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
         /// 连接返回连接池
         /// </summary>
         /// <param name="connection"></param>
-        private static void ReturnConnection(SftpClient connection)
+        private void ReturnConnection(SftpClient connection)
         {
             if (connection != null)
             {
@@ -111,17 +115,18 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
 
         public void Dispose()
         {
-            while (_sshConnectionPool.TryTake(out SshClient connection))
+            while (_sshConnectionPool.TryTake(out SshClient? connection))
             {
-                connection.Disconnect();
-                connection.Dispose();
+                connection?.Disconnect();
+                connection?.Dispose();
                 _currentConnections--;
             }
         }
-        public SshHelper(string host, string username, string privateKey)
+        public SshHelper(string host, int port, string username, string privateKey)
         {
-            Console.WriteLine($"P{DateTime.Now:yyyy-MM-dd HH:mm:ss} 创建了一个SshHelper对象");
+            Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 创建了一个SshHelper对象");
             Host = host;
+            Port = port == 0 ? 22 : port;
             UserName = username;
             PrivateKey = privateKey;
 
@@ -152,8 +157,8 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
             var action = cmdMatch.Groups["action"].Value.Replace('\\', '/');
             var local = cmdMatch.Groups["local"].Value.Replace('\\', '/');
             var remote = cmdMatch.Groups["remote"].Value.Replace('\\', '/');
-            var includes = cmdMatch.Groups["include"].Value.Replace('\\', '/')?.Split(',');
-            var excludes = cmdMatch.Groups["exclude"].Value.Replace('\\', '/')?.Split(',');
+            var includes = cmdMatch.Groups["include"].Value.Replace('\\', '/')?.Split(',', StringSplitOptions.RemoveEmptyEntries);
+            var excludes = cmdMatch.Groups["exclude"].Value.Replace('\\', '/')?.Split(',', StringSplitOptions.RemoveEmptyEntries);
             if (action.ToLower() == "upload")
             {
                 var conn = GetSftpConnection();
@@ -173,19 +178,29 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
                     local = local.EndsWith('/') ? local : $"{local}/";
                     remote = remote.EndsWith('/') ? remote : $"{remote}/";
 
-                    if (!conn.Exists(remote))
-                    {
-                        var ssh = GetConnection();
-                        ssh.RunCommand($"mkdir -p {remote}");
-                        ReturnConnection(ssh);
-                    }
-                    localFiles = FileHelper.FindFilesRecursive(local, f => includes == null || (includes.Any(part => Path.GetFileName(f).Contains(part)) && !excludes.Any(part => Path.GetFileName(f).Contains(part))), null, null);
+                    EnsureDirectoryExist(remote, conn);
+                    localFiles = FileHelper.FindFilesRecursive(local, f => includes == null || !includes.Any() || (includes.Any(part => Path.GetFileName(f).Contains(part)) && (excludes == null || !excludes.Any(part => Path.GetFileName(f).Contains(part)))), null, null);
                     foreach (var localFile in localFiles)
                     {
                         var localFileRelativePath = localFile.Replace(local, "");
                         var targetFilePath = Path.Combine(remote, localFileRelativePath);
                         using var fs = File.OpenRead(localFile);
-                        conn.UploadFile(fs, targetFilePath);
+                        try
+                        {
+                            var targetDirectory = Path.GetDirectoryName(targetFilePath)?.Replace('\\', '/');
+                            if (string.IsNullOrWhiteSpace(targetDirectory))
+                            {
+                                Console.WriteLine($"上传文件, 获取服务器文件的目录失败[{targetFilePath}]");
+                                continue;
+                            }
+                            EnsureDirectoryExist(targetDirectory, conn);
+                            conn.UploadFile(fs, targetFilePath);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"上传文件[{localFile}] -> [{targetFilePath}]异常: {ex.Message}");
+                            throw;
+                        }
                     }
                     #endregion
                 }
@@ -294,6 +309,25 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
                 return sshCommand;
             }
         }
+        private void EnsureDirectoryExist(string remoteDirectory, SftpClient? conn)
+        {
+            bool localConn = false;
+            if (conn is null)
+            {
+                localConn = true;
+                conn = GetSftpConnection();
+            }
+            if (!conn.Exists(remoteDirectory))
+            {
+                var ssh = GetConnection();
+                ssh.RunCommand($"mkdir -p {remoteDirectory}");
+                ReturnConnection(ssh);
+            }
+            if (localConn)
+            {
+                ReturnConnection(conn);
+            }
+        }
         public string[] GetRemoteFiles(string remotePath, string[]? includes, string[]? excludes)
         {
             #region 生成正则
@@ -304,7 +338,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
                 {
                     includePattern += $"{include}\\|";
                 }
-                includePattern.TrimEnd('|').TrimEnd('\\');
+                includePattern = includePattern.TrimEnd('|').TrimEnd('\\');
             }
             if (!string.IsNullOrWhiteSpace(includePattern))
             {
@@ -381,7 +415,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
             bool fileUploaded = false;
             if (!fileRemoteExist)
             {
-                var remoteDir = Path.GetDirectoryName(remotePathSourceFile).Replace('\\', '/');
+                var remoteDir = Path.GetDirectoryName(remotePathSourceFile)?.Replace('\\', '/');
                 if (!sftp.Exists(remoteDir))
                 {
 
