@@ -1,6 +1,7 @@
 ﻿using System.Configuration;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
+using Sylas.RemoteTasks.App.Database;
 using Sylas.RemoteTasks.App.Database.SyncBase;
 using Sylas.RemoteTasks.App.RequestProcessor;
 
@@ -32,15 +33,15 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
             });
         }
 
-        public static void AddDatabaseInfo(this IServiceCollection services)
+        public static void AddDatabaseUtils(this IServiceCollection services)
         {
-            //services.AddScoped((serviceProvider) =>
-            //{
-            //    IConfiguration configuration = serviceProvider.GetService<IConfiguration>() ?? throw new Exception("DI容器中获取IConfiguration实例失败");
-            //    string connectionString = configuration.GetConnectionString("Default") ?? throw new Exception("数据库连接字符串为空");
-            //    return new DatabaseInfo(serviceProvider, connectionString);
-            //});
-            services.AddScoped<DatabaseInfo>();
+            // DatabaseInfo每调用一次方法都会创建新的数据库连接, 所以单例也可以实现多线程操作数据库, 但是不同连接交给不同的对象, 有助于做状态存储管理
+            services.AddTransient<DatabaseInfo>();
+
+            services.AddTransient<IDatabaseProvider, DatabaseProvider>();
+            services.AddTransient<IDatabaseProvider, DatabaseInfo>();
+
+            services.AddTransient<DatabaseInfoFactory>();
         }
 
         public static class LiftTimeTestContainer

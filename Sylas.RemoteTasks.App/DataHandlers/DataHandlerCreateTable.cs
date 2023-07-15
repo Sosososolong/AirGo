@@ -3,7 +3,7 @@ using Sylas.RemoteTasks.App.Database.SyncBase;
 
 namespace Sylas.RemoteTasks.App.DataHandlers
 {
-    public class DataHandlerCreateTable
+    public class DataHandlerCreateTable : IDataHandler
     {
         private readonly DatabaseInfo _databaseInfo;
 
@@ -12,8 +12,24 @@ namespace Sylas.RemoteTasks.App.DataHandlers
             var scope = serviceScopeFactory.CreateScope();
             _databaseInfo = scope.ServiceProvider.GetRequiredService<DatabaseInfo>();
         }
-        public async Task Start(string db, string table, object colInfos, object? tableRecords = null)
+        //public async Task Start(string db, string table, object colInfos, object? tableRecords = null)
+        //{
+        //    var json = JsonConvert.SerializeObject(colInfos);
+        //    var columnInfos = JsonConvert.DeserializeObject<List<ColumnInfo>>(json) ?? throw new Exception($"数据库{db}数据表{table}字段集合获取失败");
+        //    await _databaseInfo.CreateTableIfNotExistAsync(db, table, columnInfos, tableRecords);
+        //}
+
+        public async Task StartAsync(params object[] parameters)
         {
+            if (parameters.Length < 3)
+            {
+                throw new Exception($"DataHandler\"{nameof(DataHandlerCreateTable)}\"参数不足");
+            }
+            string db = parameters[0]?.ToString() ?? throw new Exception(nameof(parameters) + "[0] - db为空");
+            string table = parameters[1]?.ToString() ?? throw new Exception(nameof(parameters) + "[1] - table为空");
+            object colInfos = parameters[2];
+            object? tableRecords = parameters.Length == 4 ? parameters[3] : null;
+
             var json = JsonConvert.SerializeObject(colInfos);
             var columnInfos = JsonConvert.DeserializeObject<List<ColumnInfo>>(json) ?? throw new Exception($"数据库{db}数据表{table}字段集合获取失败");
             await _databaseInfo.CreateTableIfNotExistAsync(db, table, columnInfos, tableRecords);

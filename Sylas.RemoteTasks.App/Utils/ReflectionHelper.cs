@@ -6,7 +6,9 @@ namespace Sylas.RemoteTasks.App.Utils
     {
         public static IEnumerable<Type> GetCustomAssemblyTypes()
         {
+            // xxx/Sylas.RemoteTasks/Sylas.RemoteTasks.App/bin/Debug/net7.0/Sylas.RemoteTasks.App.exe
             string file = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName ?? throw new Exception("获取当前进程的文件路径失败");
+            // Sylas.RemoteTasks.App
             string currentProcessName = Path.GetFileNameWithoutExtension(file);
             // 获取项目序集
             var customAssemblies = AppDomain.CurrentDomain.GetAssemblies()

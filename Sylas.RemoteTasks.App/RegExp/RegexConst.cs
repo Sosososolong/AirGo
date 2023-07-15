@@ -19,6 +19,12 @@ namespace Sylas.RemoteTasks.App.RegexExp
         [GeneratedRegex("(?<=\\)\\s*)SEGMENT\\s.*\\n.*")]
         public static partial Regex OracleSegment();
 
+        /// <summary>
+        /// 匹配数据库连接字符串 - Sqlite
+        /// </summary>
+        /// <returns></returns>
+        [GeneratedRegex("^data source=[\\d\\w./\\\\:]+$", RegexOptions.IgnoreCase, "zh-CN")]
+        public static partial Regex ConnectionStringSqlite();
 
         /// <summary>
         /// 从数据库连接字符串获取Oracle数据库名

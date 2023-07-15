@@ -16,7 +16,7 @@ namespace Sylas.RemoteTasks.App.Controllers
     public class HomeController : Controller
     {
         private readonly DotNETOperation _coreOperations = new();
-        private readonly DatabaseProvider db;
+        private readonly DatabaseProvider _db;
         private string OneTabSpace = "    ";
         private string TwoTabsSpace = "        ";
         private string FourTabsSpace = "                ";
@@ -44,15 +44,15 @@ namespace Sylas.RemoteTasks.App.Controllers
         private readonly IConfiguration _configuration;
         private readonly ILogger<HomeController> _logger;
 
-        public HomeController(ILogger<HomeController> logger, IWebHostEnvironment webHostEnvironment, IConfiguration configuration)
+        public HomeController(ILogger<HomeController> logger, IWebHostEnvironment webHostEnvironment, IConfiguration configuration, DatabaseProvider databaseProvider)
         {
             _logger = logger;
             _webHostEnv = webHostEnvironment;
             _configuration = configuration;
-            db = new DatabaseProvider(_configuration);
+            _db = databaseProvider;
         }
 
-        public IActionResult Index()
+        public async Task<IActionResult> Index()
         {
             //准备所需要的数据
             string sql = $@"select
@@ -76,20 +76,24 @@ namespace Sylas.RemoteTasks.App.Controllers
             }
             if (Request.Method.ToLower() == "post" && !string.IsNullOrEmpty(Request.Form["connectionString"]))
             {
-                db.ConnectionString = Request.Form["connectionString"];
+                _db.ConnectionString = Request.Form["connectionString"];
             }
 
             if (Request.Method.ToLower() == "post" && sql.IndexOf("@pageIndex") == 0 || sql.IndexOf("@pageSize") == 0)
             {
                 return Content($"sql语句: {sql}中, 没有@pageIndex和@pageSize参数");
             }
-            DbParameter[] parameters = new DbParameter[2]
-            {
-                db.CreateDbParameter("pageIndex", 1),
-                db.CreateDbParameter("pageSize", 10)
+            var parameters =
+            //    new DbParameter[2]
+            //{
+            //    db.CreateDbParameter("pageIndex", 1),
+            //    db.CreateDbParameter("pageSize", 10)
+            //};
+            new Dictionary<string, object> {
+                { "pageIndex", 1 }, { "pageSize", 10 }
             };
 
-            DataSet set = db.ExecuteQuerySql(sql, parameters);
+            DataSet set = await _db.QueryAsync(sql, parameters);
             DataTable dataTable = set.Tables[0];
             List<string> columnNames = new();
             foreach (DataColumn column in dataTable.Columns)
@@ -98,7 +102,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             }
 
             string newLine = Environment.NewLine;
-            StringBuilder builder = new StringBuilder();
+            StringBuilder builder = new();
             builder.Append(@"    <title>用户管理</title>
     <link href = ""../Content/bootstrap.min.css"" rel = ""stylesheet"" />
     <script src = ""../Scripts/jquery-3.3.1.min.js"" ></ script>").Append(newLine).Append(newLine)
@@ -259,25 +263,28 @@ namespace Sylas.RemoteTasks.App.Controllers
             return Content(builder.ToString(), "text/plain", Encoding.UTF8);
         }
 
-        public IActionResult GameBackend()
+        public async Task<IActionResult> GameBackend()
         {
-            string sql = Request.Form["sql"];
-            string connectionString = db.ConnectionString = Request.Form["connectionString"];
-            //string sql = Request.Query["sql"];
-            //string connectionString = DemonProvider.ConnectionString = Request.Query["connectionString"];
+            string sql = Request.Form["sql"].ToString() ?? throw new ArgumentNullException("sql");
+            string connectionString = _db.ConnectionString = Request.Form["connectionString"].ToString() ?? throw new ArgumentNullException("connectionString");
 
-            if (sql.ToLower().IndexOf("@pageIndex".ToLower()) == -1 || sql.ToLower().IndexOf("@pageSize".ToLower()) == -1)
+            if (!sql.ToLower().Contains("@pageIndex".ToLower(), StringComparison.CurrentCulture) || !sql.ToLower().Contains("@pageSize".ToLower(), StringComparison.CurrentCulture))
             {
                 return Content($"sql语句: {sql}中, 没有@pageIndex和@pageSize参数");
             }
-            DbParameter[] parameters = new DbParameter[2]
-            {
-                db.CreateDbParameter("pageIndex", 1),
-                db.CreateDbParameter("pageSize", 10)
+            var parameters =
+            //    new DbParameter[2]
+            //{
+            //    db.CreateDbParameter("pageIndex", 1),
+            //    db.CreateDbParameter("pageSize", 10)
+            //};
+            new Dictionary<string, object> {
+                { "pageIndex", 1 }, { "pageSize", 10 }
             };
-            DataSet set = db.ExecuteQuerySql(sql, parameters);
+
+            DataSet set = await _db.QueryAsync(sql, parameters);
             DataTable dataTable = set.Tables[0];
-            List<string> columnNames = new List<string>();
+            List<string> columnNames = new();
             foreach (DataColumn column in dataTable.Columns)
             {
                 columnNames.Add(column.ColumnName);
@@ -545,10 +552,10 @@ namespace Sylas.RemoteTasks.App.Controllers
             return Content(builder.ToString(), "text/plain", Encoding.UTF8);
         }
 
-        public IActionResult GameBackend619()
+        public async Task<IActionResult> GameBackend619()
         {
-            string sql = Request.Form["sql"];
-            db.ConnectionString = Request.Form["connectionString"];
+            string sql = Request.Form["sql"].ToString() ?? throw new Exception("Form参数sql不能为空");
+            _db.ConnectionString = Request.Form["connectionString"].ToString() ?? throw new Exception("Form参数connectionString不能为空");
             //string sql = Request.Query["sql"];
             //string connectionString = DemonProvider.ConnectionString = Request.Query["connectionString"];
 
@@ -556,30 +563,39 @@ namespace Sylas.RemoteTasks.App.Controllers
             {
                 return Content($"sql语句: {sql}中, 没有@pageIndex和@pageSize参数");
             }
-            DbParameter[] parameters = new DbParameter[2]
-            {
-                db.CreateDbParameter("pageIndex", 1),
-                db.CreateDbParameter("pageSize", 10)
+            var parameters =
+            //    new DbParameter[2]
+            //{
+            //    db.CreateDbParameter("pageIndex", 1),
+            //    db.CreateDbParameter("pageSize", 10)
+            //};
+            new Dictionary<string, object> {
+                { "pageIndex", 1 }, { "pageSize", 10 }
             };
-            DataSet set = db.ExecuteQuerySql(sql, parameters);
+
+            DataSet set = await _db.QueryAsync(sql, parameters);
             DataTable dataTable = set.Tables[0];
-            List<string> columnNames = new List<string>();
+            List<string> columnNames = new();
             foreach (DataColumn column in dataTable.Columns)
             {
                 columnNames.Add(column.ColumnName);
             }
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
             // 假设SQL查询结果中, 主键在第二列(第一列是为排序添加的RowNumber序号)
             string primaryKey = columnNames[1];
-            List<string> orderByDirectionFields = new List<string>();
+            List<string> orderByDirectionFields = new();
             foreach (string colName in columnNames)
             {
-                if (colName.ToLower().IndexOf("time") >= 0)
+                if (colName is null)
+                {
+                    continue;
+                }
+                if (colName.ToLower().Contains("time", StringComparison.CurrentCulture))
                 {
                     orderByDirectionFields.Add($@"protected string orderBy{colName}Direction = ""desc"";");
                 }
                 sb.Append(FourTabsSpace)
-                    .AppendFormat(@"<th width=""50"" align=""center"" {0}>", colName.ToLower().IndexOf("time") >= 0 ? $@"orderfield=""{primaryKey}"" class=""<%= orderBy{colName}Direction %>"">" : "") // 按时间排序其实就是按主键排序
+                    .AppendFormat(@"<th width=""50"" align=""center"" {0}>", colName.ToLower().Contains("time", StringComparison.CurrentCulture) ? $@"orderfield=""{primaryKey}"" class=""<%= orderBy{colName}Direction %>"">" : "") // 按时间排序其实就是按主键排序
                     .Append(Environment.NewLine)
                     .Append(OneTabSpace + FourTabsSpace)
                     .Append(colName).Append(Environment.NewLine)
@@ -589,14 +605,14 @@ namespace Sylas.RemoteTasks.App.Controllers
 
             // 读取模板内容
             string templateFile = "templates/game_639backend_template.html";
-            FileStream fileStream = new FileStream(templateFile, FileMode.Open);
+            FileStream fileStream = new(templateFile, FileMode.Open);
             string templateCon = "";
-            using (StreamReader reader = new StreamReader(fileStream))
+            using (StreamReader reader = new(fileStream))
             {
                 templateCon = reader.ReadToEnd();
             }
             // 替换列标题的部分{ColumnTitles}
-            Regex reg = new Regex("{ColumnTitles}");
+            Regex reg = new("{ColumnTitles}");
             string modifiedTemplate = reg.Replace(templateCon, sb.ToString());
             // 替换数据{TableRows}
             sb.Clear(); // 清空sb内容,继续使用这个对象拼接字符串            
@@ -729,7 +745,7 @@ namespace Sylas.RemoteTasks.App.Controllers
                 // sqlite数据库                
                 string clientProjectDir = _settingsObj["WebAppProjectDirectory"];
                 string dbFile = _connectionString.Split('=')[1];
-                db.ConnectionString = Path.Join(clientProjectDir, dbFile);
+                _db.ConnectionString = Path.Join(clientProjectDir, dbFile);
             }
         }
 

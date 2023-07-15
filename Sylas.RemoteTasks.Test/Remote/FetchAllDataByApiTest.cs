@@ -372,7 +372,7 @@ namespace Sylas.RemoteTasks.Test.Remote
         {
             string connectionString = "Server=whitebox.com;Port=3306;Stmt=;Database=ids4_alphal;Uid=root;Pwd=123456;Allow User Variables=true";
             using var conn = DatabaseInfo.GetDbConnection(connectionString);
-            var data = await DatabaseInfo.GetPagedData("users", 1, 10, "id", false, conn, new DataFilter
+            var data = await DatabaseInfo.GetPagedDataAsync("users", 1, 10, "id", false, conn, new DataFilter
             {
                 FilterItems = new List<FilterItem>
                 {

@@ -1,6 +1,8 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Sylas.RemoteTasks.App.DataHandlers;
+using Sylas.RemoteTasks.App.Models.HttpRequestProcessor;
+using Sylas.RemoteTasks.App.Repositories;
 using Sylas.RemoteTasks.App.Utils;
 using Sylas.RemoteTasks.App.Utils.Template;
 using System.Reflection;
@@ -48,7 +50,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
         /// <param name="parameters"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public async Task<RequestProcessorBase> StartAsync(IEnumerable<IConfigurationSection> requestProcessorSteps, string requestProcessorUrl)
+        public async Task<RequestProcessorBase> ExecuteStepsFromAppsettingsAsync(IEnumerable<IConfigurationSection> requestProcessorSteps, string requestProcessorUrl)
         {
             // 初始化请求地址
             _requestConfig.Url = requestProcessorUrl;
@@ -147,6 +149,105 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
 
             return this;
         }
+        /// <summary>
+        /// 解析参数发送请求并且构建数据上下文, 最后对数据进行对应的操作
+        /// </summary>
+        /// <param name="parameters"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        public async Task<RequestProcessorBase> ExecuteStepsFromDbAsync(HttpRequestProcessor processor)
+        {
+            IEnumerable<HttpRequestProcessorStep> requestProcessorSteps = processor.Steps;
+            string requestProcessorUrl = processor.Url;
+            // 初始化请求地址
+            _requestConfig.Url = requestProcessorUrl;
+
+            var requestProcessorStepsArray = requestProcessorSteps.ToArray();
+            var stepCount = requestProcessorStepsArray.Length;
+            var backtrackingNextStep = false;
+            var currentStepIndex = 0;
+            for (int stepIndex = 0; stepIndex < stepCount; stepIndex++)
+            {
+                currentStepIndex = stepIndex;
+                var step = requestProcessorStepsArray[stepIndex];
+
+                #region 处理执行当前步骤所需要的参数
+                // 跟HttpRequestProcessorStepDataHandler相比差不多, 可以考虑删除DataHandlerInfo类型
+                var dataHandlerInfos = new List<DataHandlerInfo>();
+                _logger?.LogInformation($"{new string('*', 20)} New RequestProcessor Step {stepIndex} {new string('*', 20)}");
+
+                // Step - Parameters
+                List<string> stepParameters = (step.Parameters ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+                _logger?.LogDebug($"call ResolveAsync, 获取请求参数: {step.Parameters ?? ""}");
+                // Step - DataContextBuilders
+                List<string> dataContextTmpls = JsonConvert.DeserializeObject<List<string>>(step.DataContextBuilder) ?? new();
+                _logger?.LogDebug($"call ResolveAsync, 获取DataContext模板配置 {string.Join(',', dataContextTmpls)}");
+                // Step - DataHandlers
+                var dataHandlers = step.DataHandlers;
+                foreach (var dataHandler in dataHandlers)
+                {
+                    var handlerName = dataHandler.DataHandler;
+                    var handlerParameters = JsonConvert.DeserializeObject<List<string>>(dataHandler.ParametersInput) ?? new List<string>();
+                    // BOOKMARK: HttpRequestProcessor - 13. 处理Step - 获取所有需要执行的步骤对应的所有DataHandlerInfos
+                    dataHandlerInfos.Add(new DataHandlerInfo(handlerName, handlerParameters));
+                    _logger?.LogDebug($"call ResolveAsync, 获取DataHandlers, DataHandler: {handlerName}, 参数:{Environment.NewLine}{string.Join(Environment.NewLine, handlerParameters)}");
+                }
+                // Step - 最后一个执行完之后如果有数据, 是否要重新从第一个开始循环执行
+                if (stepIndex == stepCount - 1 && processor.StepCirleRunningWhenLastStepHasData)
+                {
+                    // 预期的值n需要-1, 因为for循环里面会执行++操作正好等于预期值n
+                    stepIndex = -1;
+                    backtrackingNextStep = true;
+                }
+                // Step - 初始化DataContext
+                var dataContextItems = JsonConvert.DeserializeObject<List<string>>(step.PresetDataContext) ?? new List<string>();
+                foreach (var dataContextItem in dataContextItems)
+                {
+                    var dckv = dataContextItem.Split('=', StringSplitOptions.RemoveEmptyEntries);
+                    if (dckv.Length != 2)
+                    {
+                        continue;
+                    }
+                    DataContext[dckv[0]] = dckv[1];
+                }
+                #endregion
+
+                #region 处理当前Step所有的Request, Datahandler
+                var requestConfigs = UpdateRequestConfig(DataContext, stepParameters);
+                foreach (var requestConfig in requestConfigs)
+                {
+                    _requestConfig = requestConfig;
+                    // 1. 发起请求, 构建DataContext
+                    var buildDetails = await RequestAndBuildDataContextAsync(dataContextTmpls, _logger);
+
+                    if (backtrackingNextStep)
+                    {
+                        // 只要重置一项成功就算成功, 否则就是重置失败(认为是因为返回的数据无效, 不需要迭代了)
+                        var resetDataContextSuccess = false;
+                        foreach (var resetDataContextItem in buildDetails)
+                        {
+                            var resetValue = resetDataContextItem.Value;
+                            if (!(resetValue is null || (resetValue is JArray itemJArray && itemJArray.Count == 0) || (resetValue is IEnumerable<JToken> itemList && !itemList.Any())))
+                            {
+                                // DataContext只要有一项重置成功就设为true
+                                resetDataContextSuccess = true;
+                                break;
+                            }
+                        }
+                        if (!resetDataContextSuccess)
+                        {
+                            stepIndex = currentStepIndex;
+                            _logger.LogInformation($"无需回溯, 还原stepIndex: {currentStepIndex}");
+                        }
+                    }
+                    // 2. DataHandler处理数据
+                    await ExecuteOperationAsync(dataHandlerInfos);
+                }
+                #endregion
+            }
+
+            return this;
+        }
         public RequestConfig CloneReqeustConfig()
         {
             _requestConfig.QueryDictionary ??= new Dictionary<string, object>();
@@ -177,14 +278,9 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                 DataContext["$BodyDictionary"] = _requestConfig.BodyDictionary ?? new Dictionary<string, object>();
                 data = await RemoteHelpers.FetchAllDataFromApiAsync(_requestConfig) ?? throw new Exception($"查询记录失败, Query String: {JsonConvert.SerializeObject(_requestConfig.QueryDictionary)}{Environment.NewLine}PayLoad {JsonConvert.SerializeObject(_requestConfig.QueryDictionary)}");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                if (ex.Message.Contains("unauthorized", StringComparison.OrdinalIgnoreCase))
-                {
-                    throw;
-                }
-                logger?.LogError(ex.Message);
-                return new Dictionary<string, object?>();
+                throw;
             }
             // TODO: 去掉RequerstConfig的Data属性
             _requestConfig.Data = null;
@@ -201,11 +297,13 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                 var handler = dataHandler.Handler;
                 var opParameters = dataHandler.Parameters.Select(x => TmplHelper.GetTmplValueFromDataContext(DataContext, x)).ToArray();
 
-                Type opType = ReflectionHelper.GetTypeByClassName(handler);
-                MethodInfo operationMethod = opType.GetMethod("Start") ?? throw new Exception($"DataHandler {handler} 没有实现Operation方法");
-                var opInstance = _serviceProvider.GetService(opType);
-                var invokeResult = operationMethod.Invoke(opInstance, opParameters);
-                if (operationMethod.ReturnType == typeof(Task) || operationMethod.ReturnType.IsGenericType && operationMethod.ReturnType.GetGenericTypeDefinition() == typeof(Task<>))
+                Type dataHandlerType = ReflectionHelper.GetTypeByClassName(handler);
+                MethodInfo handlerStartMethod = dataHandlerType.GetMethod("StartAsync") ?? throw new Exception($"DataHandler {handler} 没有实现Operation方法");
+                var opInstance = _serviceProvider.GetService(dataHandlerType);
+
+                // BOOKMARK: DataHandler 调用StartAsync()方法
+                var invokeResult = handlerStartMethod.Invoke(opInstance, opParameters);
+                if (handlerStartMethod.ReturnType == typeof(Task) || handlerStartMethod.ReturnType.IsGenericType && handlerStartMethod.ReturnType.GetGenericTypeDefinition() == typeof(Task<>))
                 {
                     await (invokeResult as Task ?? throw new Exception($"{handler}.Start()结果为NULL, 而非Task"));
                 }

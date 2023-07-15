@@ -14,7 +14,20 @@ namespace Sylas.RemoteTasks.App.Utils.Template.Parser
                 var currentData = dataContext[key];
 
                 var index = specifiedRecordFieldValueExpression.Groups["index"].Value;
-                var record = string.IsNullOrWhiteSpace(index) ? currentData : JArray.FromObject(currentData).ToList()[Convert.ToInt16(index)];
+                object record;
+                if (string.IsNullOrWhiteSpace(index))
+                {
+                    record = currentData;
+                }
+                else
+                {
+                    var currentDataArray = JArray.FromObject(currentData).ToList();
+                    if (!currentDataArray.Any())
+                    {
+                        return new ParseResult(false);
+                    }
+                    record = currentDataArray[Convert.ToInt16(index)];
+                }
 
                 var propsValue = specifiedRecordFieldValueExpression.Groups["props"].Value;
                 var props = propsValue.Split('.', StringSplitOptions.RemoveEmptyEntries);

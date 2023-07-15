@@ -2,6 +2,6 @@
 {
     public interface IDataHandler
     {
-        public void Start(params object[] objects);
+        Task StartAsync(params object[] parameters);
     }
 }

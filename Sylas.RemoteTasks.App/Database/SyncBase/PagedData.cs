@@ -8,4 +8,10 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
         public IEnumerable<object> Data { get; set; } = Enumerable.Empty<object>();
         public IDataReader? DataReader { get; set; }
     }
+
+    public class PagedData<T>
+    {
+        public int Count { get; set; }
+        public IEnumerable<T> Data { get; set; } = Enumerable.Empty<T>();
+    }
 }

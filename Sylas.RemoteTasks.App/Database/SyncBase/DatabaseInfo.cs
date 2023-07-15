@@ -1,7 +1,9 @@
 ﻿//using MySqlConnector;
 //using Microsoft.Data.SqlClient;
 using Dapper;
+using Microsoft.Data.Sqlite;
 using MySql.Data.MySqlClient;
+using MySqlX.XDevAPI.Relational;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Oracle.ManagedDataAccess.Client;
@@ -22,7 +24,28 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
     // 3. 尝试重构
     #endregion
 
-    public class DatabaseInfo
+    public class DatabaseInfoFactory
+    {
+        private readonly IServiceProvider _serviceProvider;
+
+        public DatabaseInfoFactory(IServiceProvider serviceProvider)
+        {
+            _serviceProvider = serviceProvider;
+        }
+
+        public DatabaseInfo Create(string connectionString)
+        {
+            var databaseInfo = _serviceProvider.GetRequiredService<DatabaseInfo>();
+            databaseInfo.ChangeDatabase(connectionString);
+            return databaseInfo;
+        }
+    }
+
+    /// <summary>
+    /// 提供数据同步, 数据查询等功能
+    ///     同一个实例 每调用一次同步方法SyncDatabaseAsync都会创建新的数据库连接, 可实现多线程分批处理数据; 但是不同连接交给不同的对象, 有助于做状态存储管理
+    /// </summary>
+    public partial class DatabaseInfo : IDatabaseProvider
     {
         private string _connectionString;
         private DatabaseType _dbType;
@@ -48,6 +71,12 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
                 conn.ChangeDatabase(db);
             }
         }
+        public void ChangeDatabase(string connectionString)
+        {
+            _connectionString = connectionString;
+            _dbType = GetDbType(_connectionString);
+            _varFlag = GetDbParameterFlag(_dbType);
+        }
         #region 数据库连接对象
         public static IDbConnection GetDbConnection(string connectionString)
         {
@@ -57,13 +86,92 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
                 DatabaseType.MySql => new MySqlConnection(connectionString),
                 DatabaseType.Oracle => new OracleConnection(connectionString),
                 DatabaseType.SqlServer => new SqlConnection(connectionString),
+                DatabaseType.Sqlite => new SqliteConnection(connectionString),
                 _ => throw new Exception($"不支持的数据库连接字符串: {connectionString}"),
             };
         }
         private static IDbConnection GetOracleConnection(string host, string port, string instanceName, string username, string password) => new OracleConnection($"Data Source={host}:{port}/{instanceName};User ID={username};Password={password};PERSIST SECURITY INFO=True;Pooling = True;Max Pool Size = 100;Min Pool Size = 1;");
         private static IDbConnection GetMySqlConnection(string host, string port, string db, string username, string password) => new MySqlConnection($"Server={host};Port={port};Stmt=;Database={db};Uid={username};Pwd={password};Allow User Variables=true;");
-        private static IDbConnection GetSqlServerConnection(string host, string port, string db, string username, string password) => new SqlConnection($"User ID={username};Password={password};Initial Catalog={db};Data Source={host}");
+        private static IDbConnection GetSqlServerConnection(string host, string port, string db, string username, string password) => new SqlConnection($"User ID={username};Password={password};Initial Catalog={db};Data Source={host},{(string.IsNullOrWhiteSpace(port) ? "1433" : port)}");
         #endregion
+
+        /// <summary>
+        /// 分页查询指定数据表, 可使用db参数切换到指定数据库
+        /// </summary>
+        /// <param name="table">查询的表明</param>
+        /// <param name="pageIndex">第几页</param>
+        /// <param name="pageSize">每页多少条数</param>
+        /// <param name="orderField">排序字段</param>
+        /// <param name="isAsc">是否升序</param>
+        /// <param name="filters">查询条件</param>
+        /// <param name="db">指定要切换查询的数据库, 不指定使用Default配置的数据库</param>
+        /// <returns></returns>
+        public async Task<PagedData<T>> QueryPagedDataAsync<T>(string table, int pageIndex, int pageSize, string? orderField, bool isAsc, DataFilter filters, string db = "") where T : new()
+        {
+            using var conn = GetDbConnection(_connectionString);
+            if (!string.IsNullOrWhiteSpace(db))
+            {
+                conn.ChangeDatabase(db);
+            }
+
+            var dbType = GetDbType(conn.ConnectionString);
+
+            string sql = GetPagedSql(conn.Database, table, dbType, pageIndex, pageSize, orderField, isAsc, filters, out string condition, out Dictionary<string, object> parameters);
+
+            string allCountSqlTxt = $"select count(*) from {conn.Database}.{table} where 1=1 {condition}";
+            
+            var allCount = await conn.ExecuteScalarAsync<int>(allCountSqlTxt, parameters);
+            var data = await conn.QueryAsync<T>(sql, parameters);
+
+            return new PagedData<T>  { Data = data, Count = allCount };
+
+        }
+        /// <summary>
+        /// 分页查询指定数据表, 可使用数据库连接字符串connectionString参数指定连接的数据库
+        /// </summary>
+        /// <param name="table">查询的表明</param>
+        /// <param name="pageIndex">第几页</param>
+        /// <param name="pageSize">每页多少条数</param>
+        /// <param name="orderField">排序字段</param>
+        /// <param name="isAsc">是否升序</param>
+        /// <param name="filters">查询条件</param>
+        /// <param name="connectionString">指定要切换查询的数据库, 不指定使用Default配置的数据库连接</param>
+        /// <returns></returns>
+        public async Task<PagedData<T>> QueryPagedDataWithConnectionStringAsync<T>(string table, int pageIndex, int pageSize, string? orderField, bool isAsc, DataFilter filters, string connectionString) where T : new()
+        {
+            _connectionString = connectionString;
+            return await QueryPagedDataAsync<T>(table, pageIndex, pageSize, orderField, isAsc, filters);
+        }
+        /// <summary>
+        /// 执行增删改的SQL语句 - 可使用db参数指定切换到当前连接的用户有权限的其他数据库
+        /// </summary>
+        /// <param name="sql"></param>
+        /// <param name="parameters"></param>
+        /// <param name="db"></param>
+        /// <returns></returns>
+        public async Task<int> ExecuteScalarAsync(string sql, Dictionary<string, object> parameters, string db = "")
+        {
+            using var conn = GetDbConnection(_connectionString);
+            if (!string.IsNullOrWhiteSpace(db))
+            {
+                conn.ChangeDatabase(db);
+            }
+            return await conn.ExecuteAsync(sql, parameters);
+        }
+        /// <summary>
+        /// 执行增删改的SQL语句 - 可使用数据库连接字符串指定数据库
+        /// </summary>
+        /// <param name="sql"></param>
+        /// <param name="parameters"></param>
+        /// <param name="connectionString"></param>
+        /// <returns></returns>
+        public async Task<int> ExecuteScalarWithConnectionStringAsync(string sql, Dictionary<string, object> parameters, string connectionString)
+        {
+            _connectionString = connectionString;
+            return await ExecuteScalarAsync(sql, parameters);
+        }
+
+
 
         public async Task SyncDatabaseAsync(string sourceConnectionString, string targetConnectionString, string sourceSyncedDb = "")
         {
@@ -137,13 +245,41 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
             dbTransaction.Commit();
         }
         /// <summary>
+        /// 将数据集同步到指定的数据库(根据提供的数据库连接字符串)中指定的数据表
+        /// </summary>
+        /// <param name="table"></param>
+        /// <param name="sourceRecords"></param>
+        /// <param name="ignoreFields"></param>
+        /// <param name="connectionString"></param>
+        /// <param name="sourceIdField"></param>
+        /// <param name="targetIdField"></param>
+        /// <returns></returns>
+        public async Task SyncDatabaseWithTargetConnectionStringAsync(string table, IEnumerable<JToken> sourceRecords, string[] ignoreFields, string connectionString, string sourceIdField = "", string targetIdField = "")
+        {
+            _connectionString = connectionString;
+            await SyncDatabaseAsync(table, sourceRecords, ignoreFields, sourceIdField: sourceIdField, targetIdField: targetIdField);
+        }
+        /// <summary>
+        /// 将数据集同步到指定的数据库(根据指定数据库名)中的指定的数据表
+        /// </summary>
+        /// <param name="table"></param>
+        /// <param name="sourceRecords"></param>
+        /// <param name="ignoreFields"></param>
+        /// <param name="db"></param>
+        /// <param name="sourceIdField"></param>
+        /// <param name="targetIdField"></param>
+        /// <returns></returns>
+        public async Task SyncDatabaseWithTargetDbAsync(string table, IEnumerable<JToken> sourceRecords, string[] ignoreFields, string db, string sourceIdField = "", string targetIdField = "")
+        {
+            await SyncDatabaseAsync(table, sourceRecords, ignoreFields: ignoreFields, sourceIdField: sourceIdField, targetIdField: targetIdField, db);
+        }
+        /// <summary>
         /// 通用同步逻辑
         /// </summary>
-        /// <param name="conn"></param>
         /// <param name="table"></param>
         /// <param name="sourceRecords"></param>
         /// <returns></returns>
-        public async Task SyncDatabaseAsync(string table, IEnumerable<JToken> sourceRecords, string[] ignoreFields, string sourceIdField = "", string targetIdField = "", string db = "")
+        private async Task SyncDatabaseAsync(string table, IEnumerable<JToken> sourceRecords, string[] ignoreFields, string sourceIdField = "", string targetIdField = "", string db = "")
         {
             //conn.ConnectionString: "server=127.0.0.1;port=3306;database=engine;user id=root;allowuservariables=True"
             //conn.ConnectionTimeout: 15
@@ -156,11 +292,11 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
             var varFlag = GetDbParameterFlag(_connectionString);
             
             // 先获取数据
-            var dbRecords = await conn.QueryAsync($"select * from {table}") ?? throw new Exception($"获取{table}数据失败");
+            var dbRecords = await conn.QueryAsync($"select * from {conn.Database}.{table}") ?? throw new Exception($"获取{table}数据失败");
             // 然后删除已存在
             await DeleteExistRecordsAsync(conn, table, sourceRecords, dbRecords, varFlag, ignoreFields, sourceIdField, targetIdField, _logger);
             // 再重新获取数据
-            dbRecords = await conn.QueryAsync($"select * from {table}") ?? throw new Exception($"获取{table}数据失败");
+            dbRecords = await conn.QueryAsync($"select * from {conn.Database}.{table}") ?? throw new Exception($"获取{table}数据失败");
 
             var compareResult = CompareRecords(sourceRecords, dbRecords, ignoreFields, sourceIdField, targetIdField);
 
@@ -185,6 +321,7 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
                 #endregion
             }
         }
+        
         static async Task DeleteExistRecordsAsync(IDbConnection conn, string targetTable, object source, object target, string varFlag, string[] ignoreFields, string sourceIdField, string targetIdField, ILogger? logger = null)
         {
             var sourceRecords = JArray.FromObject(source);
@@ -280,7 +417,7 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
                 // 3. 生成一条批量语句: 每100条数据生成一个批量语句, 然后重置语句拼接
                 if (recordIndex > 0 && (recordIndex + 1) % 100 == 0)
                 {
-                    batchInsertSql = GetBatchInsertSql(table, insertFieldsStatement, insertValuesStatement); // insertSql.TrimEnd(',') + ";"
+                    batchInsertSql = GetBatchInsertSql(table, insertFieldsStatement, insertValuesStatement, conn.Database); // insertSql.TrimEnd(',') + ";"
                     insertSqls.Add(new SqlInfo(batchInsertSql, parameters));
                     insertValuesStatement = "";
                     parameters = new Dictionary<string, object>();
@@ -289,7 +426,7 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
             }
 
             // 4. 生成一条批量语句: 生成最后一条批量语句
-            batchInsertSql = GetBatchInsertSql(table, insertFieldsStatement, insertValuesStatement);
+            batchInsertSql = GetBatchInsertSql(table, insertFieldsStatement, insertValuesStatement, conn.Database);
             insertSqls.Add(new SqlInfo(batchInsertSql, parameters));
 
             return insertSqls;
@@ -311,6 +448,7 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
                 DatabaseType.MySql => await conn.QueryAsync($"select * from information_schema.`TABLES` WHERE table_schema='{dbName}'"),
                 DatabaseType.SqlServer => throw new NotImplementedException(),
                 DatabaseType.Oracle => throw new NotImplementedException(),
+                DatabaseType.Sqlite => throw new NotImplementedException(),
                 _ => throw new NotImplementedException(),
             };
         }
@@ -340,6 +478,8 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
                 case DatabaseType.SqlServer:
                     checkSql = $"select count(*) from sysobjects where id = object_id('{table}') and OBJECTPROPERTY(id, N'IsUserTable') = 1";
                     break;
+                case DatabaseType.Sqlite:
+                    throw new NotImplementedException();
                 default:
                     break;
             }
@@ -358,10 +498,8 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
             }
         }
 
-        public static async Task<PagedData> GetPagedData(string table, int pageIndex, int pageSize, string? orderField, bool isAsc, IDbConnection dbConn, DataFilter filters)
+        public static string GetPagedSql(string db, string table, DatabaseType dbType, int pageIndex, int pageSize, string orderField, bool isAsc, DataFilter filters, out string queryCondition, out Dictionary<string, object> queryConditionParameters)
         {
-            // TODO: 数据库类型 作为公共属性
-            var dbType = GetDbType(dbConn.ConnectionString);
             string orderClause = string.Empty;
             if (!string.IsNullOrWhiteSpace(orderField))
             {
@@ -372,8 +510,8 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
             string parameterFlag = dbType == DatabaseType.Oracle ? ":" : "@";
 
             #region 处理过滤条件
-            string condition = string.Empty;
-            Dictionary<string, object> parameters = new();
+            queryCondition = string.Empty;
+            queryConditionParameters = new();
             if (filters != null)
             {
                 if (filters.FilterItems != null && filters.FilterItems.Count > 0)
@@ -386,7 +524,7 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
                             continue;
                         }
                         var key = filterField.FieldName;
-                        if (!parameters.ContainsKey(key))
+                        if (!queryConditionParameters.ContainsKey(key))
                         {
                             var compareType = filterField.CompareType;
                             var compareTypes = new List<string> { ">", "<", "=", ">=", "<=", "!=", "include", "in" };
@@ -399,29 +537,29 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
                             if (compareType == "in")
                             {
                                 var valList = val.Split(',');
-                                condition += $" and {key} in(";
+                                queryCondition += $" and {key} in(";
                                 int valListIndex = 0;
                                 foreach (var valItem in valList)
                                 {
                                     var paramName = valListIndex == 0 ? key : $"{key}{valListIndex}";
-                                    condition += $"{parameterFlag}{paramName},";
-                                    parameters.Add(paramName, valItem);
+                                    queryCondition += $"{parameterFlag}{paramName},";
+                                    queryConditionParameters.Add(paramName, valItem);
                                     valListIndex++;
                                 }
-                                condition = condition.TrimEnd(',');
-                                condition += ")";
+                                queryCondition = queryCondition.TrimEnd(',');
+                                queryCondition += ")";
                             }
                             else
                             {
                                 if (compareType == "include")
                                 {
-                                    condition += $" and {key} like CONCAT(CONCAT('%', {parameterFlag}{key}), '%')";
+                                    queryCondition += $" and {key} like CONCAT(CONCAT('%', {parameterFlag}{key}), '%')";
                                 }
                                 else
                                 {
-                                    condition += $" and {key}{compareType}{parameterFlag}{key}";
+                                    queryCondition += $" and {key}{compareType}{parameterFlag}{key}";
                                 }
-                                parameters.Add(key, val);
+                                queryConditionParameters.Add(key, val);
                             }
                         }
                     }
@@ -432,49 +570,76 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
                     foreach (var keyWordsField in filters.Keywords.Fields)
                     {
                         string varName = $"keyWords{keyWordsField}";
-                        if (!parameters.ContainsKey(varName))
+                        if (!queryConditionParameters.ContainsKey(varName))
                         {
                             keyWordsCondition += $" or {keyWordsField} like CONCAT(CONCAT('%', {parameterFlag}{varName}), '%')";
-                            parameters.Add(varName, filters.Keywords.Value);
+                            queryConditionParameters.Add(varName, filters.Keywords.Value);
                         }
                     }
                     if (!string.IsNullOrEmpty(keyWordsCondition))
                     {
-                        condition += $" and ({keyWordsCondition[4..]})";
+                        queryCondition += $" and ({keyWordsCondition[4..]})";
                     }
                 }
             }
             #endregion
 
-            string baseSqlTxt = $"select * from {table} where 1=1 {condition}";
-            string allCountSqlTxt = $"select count(*) from {table} where 1=1 {condition}";
-
-            string sql;
+            string baseSqlTxt = $"select * from {db}.{table} where 1=1 {queryCondition}";
+            
             #region 不同数据库对应的SQL语句
-            switch (dbType)
+            string sql = dbType switch
             {
-                case DatabaseType.Oracle:
-                    sql = $@"select * from 
+                DatabaseType.Oracle => $@"select * from 
 	(
 	select t.*,rownum no from 
 		(
 		{baseSqlTxt} {orderClause}
 		) t 
 	)
-where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
-                    break;
-                case DatabaseType.MySql:
-                    sql = $@"{baseSqlTxt} {orderClause} limit {(pageIndex - 1) * pageSize},{pageSize}";
-                    break;
-                case DatabaseType.SqlServer:
-                    sql = $"{baseSqlTxt} {(string.IsNullOrEmpty(orderClause) ? "order by id desc" : orderClause)} OFFSET ({pageIndex}-1)*{pageSize} ROWS FETCH NEXT {pageSize} ROW ONLY";
-                    break;
-                default:
-                    sql = $@"{baseSqlTxt} {(string.IsNullOrEmpty(orderClause) ? "order by id desc" : orderClause)} OFFSET ({pageIndex}-1)*{pageSize} ROWS FETCH NEXT {pageSize} ROW ONLY";
-                    break;
-            }
+where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
+                DatabaseType.MySql => $@"{baseSqlTxt} {orderClause} limit {(pageIndex - 1) * pageSize},{pageSize}",
+                DatabaseType.SqlServer => $"{baseSqlTxt} {(string.IsNullOrEmpty(orderClause) ? "order by id desc" : orderClause)} OFFSET ({pageIndex}-1)*{pageSize} ROWS FETCH NEXT {pageSize} ROW ONLY",
+                DatabaseType.Sqlite => $@"{baseSqlTxt} {orderClause} limit {pageSize} offset {(pageIndex - 1) * pageSize}",
+                _ => throw new Exception("未知的数据库类型")
+
+            };
             #endregion
 
+            return sql;
+        }
+        public static async Task<PagedData> GetPagedDataAsync(string table, int pageIndex, int pageSize, string? orderField, bool isAsc, IDbConnection dbConn, DataFilter filters)
+        {
+            // TODO: 数据库类型 作为公共属性
+            var dbType = GetDbType(dbConn.ConnectionString);
+
+            string sql = GetPagedSql(dbConn.Database, table, dbType, pageIndex, pageSize, orderField, isAsc, filters, out string condition, out Dictionary<string, object> parameters);
+
+            #region 不同数据库对应的SQL语句
+            //            switch (dbType)
+            //            {
+            //                case DatabaseType.Oracle:
+            //                    sql = $@"select * from 
+            //	(
+            //	select t.*,rownum no from 
+            //		(
+            //		{baseSqlTxt} {orderClause}
+            //		) t 
+            //	)
+            //where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
+            //                    break;
+            //                case DatabaseType.MySql:
+            //                    sql = $@"{baseSqlTxt} {orderClause} limit {(pageIndex - 1) * pageSize},{pageSize}";
+            //                    break;
+            //                case DatabaseType.SqlServer:
+            //                    sql = $"{baseSqlTxt} {(string.IsNullOrEmpty(orderClause) ? "order by id desc" : orderClause)} OFFSET ({pageIndex}-1)*{pageSize} ROWS FETCH NEXT {pageSize} ROW ONLY";
+            //                    break;
+            //                default:
+            //                    sql = $@"{baseSqlTxt} {(string.IsNullOrEmpty(orderClause) ? "order by id desc" : orderClause)} OFFSET ({pageIndex}-1)*{pageSize} ROWS FETCH NEXT {pageSize} ROW ONLY";
+            //                    break;
+            //            }
+            #endregion
+
+            string allCountSqlTxt = $"select count(*) from {dbConn.Database}.{table} where 1=1 {condition}";
             var data = await dbConn.QueryAsync(sql, parameters);
             var allCount = await dbConn.ExecuteScalarAsync<int>(allCountSqlTxt, parameters);
             var dataReader = await dbConn.ExecuteReaderAsync(sql, parameters);
@@ -555,9 +720,10 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
 
             return pVal;
         }
-        public static string GetBatchInsertSql(string table, string columnsStatement, string valuesStatement)
+        public static string GetBatchInsertSql(string table, string columnsStatement, string valuesStatement, string database)
         {
-            return $"SET foreign_key_checks=0;{Environment.NewLine}insert into {table}({columnsStatement}) values{Environment.NewLine}{valuesStatement.TrimEnd(',', '\r', '\n', ';')};";
+            string dbStatement = string.IsNullOrWhiteSpace(database) ? string.Empty : $"{database}.";
+            return $"SET foreign_key_checks=0;{Environment.NewLine}insert into {dbStatement}{table}({columnsStatement}) values{Environment.NewLine}{valuesStatement.TrimEnd(',', '\r', '\n', ';')};";
         }
 
         // 获取创建表的字段声明部分
@@ -583,6 +749,10 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
                     case DatabaseType.SqlServer:
                         columnName = $"{columnName}";
                         timeTypeDefine = $"datetime2(7){Environment.NewLine}";
+                        break;
+                    case DatabaseType.Sqlite:
+                        columnName = $"{columnName}";
+                        timeTypeDefine = $"TEXT default current_timestamp {Environment.NewLine}";
                         break;
                     default:
                         columnName = $"{columnName}";
@@ -631,6 +801,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
                     {
                         DatabaseType.Oracle => $"nvarchar2({colInfo.ColumnLength})",
                         DatabaseType.MySql => $"nvarchar({colInfo.ColumnLength}){Environment.NewLine}",
+                        DatabaseType.Sqlite => $"TEXT{Environment.NewLine}",
                         _ => $"varchar({colInfo.ColumnLength}){Environment.NewLine}"
                     }
                 };
@@ -809,8 +980,9 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
             var lowerConnStr = connectionString.ToLower();
             return lowerConnStr switch
             {
-                var connStr when connStr.Contains("initial catalog") => DatabaseType.SqlServer,
-                var connStr when connStr.Contains("server") => DatabaseType.MySql,
+                var connStr when connStr.Contains("initial catalog", StringComparison.OrdinalIgnoreCase) => DatabaseType.SqlServer,
+                var connStr when connStr.Contains("server", StringComparison.OrdinalIgnoreCase) => DatabaseType.MySql,
+                var connStr when RegexConst.ConnectionStringSqlite().IsMatch(connStr) => DatabaseType.Sqlite,
                 _ => DatabaseType.Oracle
             };
         }
@@ -832,7 +1004,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
             DataTable sourceDataTable = new(tableName);
             try
             {
-                var srouceTableDataReader = (await GetPagedData(sourceTable, 1, 3000, sourcePrimaryKey, true, sourceConn, filter)).DataReader ?? throw new Exception($"表{sourceTable}的数据读取器为空");
+                var srouceTableDataReader = (await GetPagedDataAsync(sourceTable, 1, 3000, sourcePrimaryKey, true, sourceConn, filter)).DataReader ?? throw new Exception($"表{sourceTable}的数据读取器为空");
                 sourceDataTable.Load(srouceTableDataReader);
             }
             catch (Exception ex)
@@ -871,6 +1043,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
             #region 对比原表和目标表数据, 目标表没有的数据就创建对应的insert语句
             // TODO: 数据库类型 作为公共属性
             var dbVarFlag = GetDbParameterFlag(targetConn.ConnectionString);
+            var database = targetConn.Database;
             var insertSqlBuilder = new StringBuilder();
             // insert语句参数
             var parameters = new Dictionary<string, object>();
@@ -915,7 +1088,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}";
             }
             // 最终的insert语句
             // var targetTableAllDataInsertSql = $"insert into {sourceTable}({columnsStatement}) values{Environment.NewLine}{insertSqlBuilder.ToString().TrimEnd(',', '\r', '\n')};";
-            var targetTableAllDataInsertSql = GetBatchInsertSql(sourceTable, columnsStatement, insertSqlBuilder.ToString());
+            var targetTableAllDataInsertSql = GetBatchInsertSql(sourceTable, columnsStatement, insertSqlBuilder.ToString(), database);
             #endregion
             return new TableSqlsInfo
             {

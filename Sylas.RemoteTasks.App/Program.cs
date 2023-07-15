@@ -1,6 +1,9 @@
 using Sylas.RemoteTasks.App.BackgroundServices;
+using Sylas.RemoteTasks.App.Database;
+using Sylas.RemoteTasks.App.Database.SyncBase;
 using Sylas.RemoteTasks.App.DataHandlers;
 using Sylas.RemoteTasks.App.RemoteHostModule;
+using Sylas.RemoteTasks.App.Repositories;
 using Sylas.RemoteTasks.App.RequestProcessor;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -23,14 +26,21 @@ builder.Services.AddRemoteHostManager(builder.Configuration);
 // 添加"网络请求任务"工厂
 builder.Services.AddSingleton<RequestProcessorDataTable>();
 builder.Services.AddSingleton<RequestProcessorWithQueryString>();
+// 添加仓储
+builder.Services.AddScoped<HttpRequestProcessorRepository>();
 
 // TODO: 动态注册所有DataHandler服务
 builder.Services.AddTransient<DataHandlerSyncDataToDb>();
 builder.Services.AddTransient<DataHandlerCreateTable>();
+
 // 添加帮助类
-builder.Services.AddDatabaseInfo();
+builder.Services.AddSingleton<DatabaseProvider>();
+
+builder.Services.AddDatabaseUtils();
+
 // 添加服务
 builder.Services.AddTransient<HostService>();
+builder.Services.AddTransient<RequestProcessorService>();
 
 
 // 后台任务

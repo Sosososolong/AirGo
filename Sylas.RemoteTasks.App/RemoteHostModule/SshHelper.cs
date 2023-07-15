@@ -157,6 +157,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
             var action = cmdMatch.Groups["action"].Value.Replace('\\', '/');
             var local = cmdMatch.Groups["local"].Value.Replace('\\', '/');
             var remote = cmdMatch.Groups["remote"].Value.Replace('\\', '/');
+            // ["form.api.dll", ".pfx", "Dockfile"]
             var includes = cmdMatch.Groups["include"].Value.Replace('\\', '/')?.Split(',', StringSplitOptions.RemoveEmptyEntries);
             var excludes = cmdMatch.Groups["exclude"].Value.Replace('\\', '/')?.Split(',', StringSplitOptions.RemoveEmptyEntries);
             if (action.ToLower() == "upload")
@@ -185,16 +186,19 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
                         var localFileRelativePath = localFile.Replace(local, "");
                         var targetFilePath = Path.Combine(remote, localFileRelativePath);
                         using var fs = File.OpenRead(localFile);
+
+                        var targetDirectory = Path.GetDirectoryName(targetFilePath)?.Replace('\\', '/');
+                        if (string.IsNullOrWhiteSpace(targetDirectory))
+                        {
+                            Console.WriteLine($"上传文件, 获取服务器文件的目录失败[{targetFilePath}]");
+                            continue;
+                        }
+                        EnsureDirectoryExist(targetDirectory, conn);
+
                         try
                         {
-                            var targetDirectory = Path.GetDirectoryName(targetFilePath)?.Replace('\\', '/');
-                            if (string.IsNullOrWhiteSpace(targetDirectory))
-                            {
-                                Console.WriteLine($"上传文件, 获取服务器文件的目录失败[{targetFilePath}]");
-                                continue;
-                            }
-                            EnsureDirectoryExist(targetDirectory, conn);
                             conn.UploadFile(fs, targetFilePath);
+                            Console.WriteLine($"文件已上传: {targetFilePath}");
                         }
                         catch (Exception ex)
                         {

@@ -1,22 +1,28 @@
 ﻿using System.Data.Common;
 using System.Data;
 using System.Data.SqlClient;
+using Sylas.RemoteTasks.App.Database.SyncBase;
+using Sylas.RemoteTasks.App.Utils;
 
 namespace Sylas.RemoteTasks.App.Database;
 
-public class DatabaseProvider
+public class DatabaseProvider : IDatabaseProvider
 {
     public DatabaseProvider(IConfiguration configuration)
     {
         _configuration = configuration;
-        ConnectionString = configuration.GetConnectionString("Default") ?? "server=192.168.1.100;uid=sa;pwd=123456;database=T10;MultipleActiveResultSets=true;Encrypt=True;TrustServerCertificate=True;";
+        var defaultConnectionString = configuration.GetConnectionString("Default");
+        if (!string.IsNullOrWhiteSpace(defaultConnectionString))
+        {
+            ConnectionString = defaultConnectionString;
+        }
     }
     /// <summary>
     /// 数据库连接字符串
     /// </summary>
     private readonly IConfiguration _configuration;
 
-    public string ConnectionString { get; set; }
+    public string? ConnectionString { get; set; }
 
     /// <summary>
     /// 获取与某个C#数据类型对应的在SQL server数据库中的类型
@@ -53,7 +59,7 @@ public class DatabaseProvider
     /// <param name="commandText"></param>
     /// <param name="dbParameters"></param>
     /// <returns></returns>
-    public DataSet ExecuteDataset(DbConnection connection, CommandType commandType, string commandText, params DbParameter[] dbParameters)
+    public DataSet QueryDataset(DbConnection connection, CommandType commandType, string commandText, params DbParameter[] dbParameters)
     {
         //验证连接字符串
         if (connection == null)
@@ -62,22 +68,19 @@ public class DatabaseProvider
         }
         
         DbCommand command = SqlClientFactory.Instance.CreateCommand();
-        bool mustCloseConn = false;
-        PrepareCommand(connection, command, null, commandType, commandText, dbParameters, out mustCloseConn);
-        using (DbDataAdapter adapter = SqlClientFactory.Instance.CreateDataAdapter())
+        PrepareCommand(connection, command, null, commandType, commandText, dbParameters, out bool mustCloseConn);
+        using DbDataAdapter adapter = SqlClientFactory.Instance.CreateDataAdapter();
+        adapter.SelectCommand = command;
+        DataSet dataSet = new();
+        DateTime now = DateTime.Now;
+        adapter.Fill(dataSet);
+        DateTime dtEnd = DateTime.Now;
+        command.Parameters.Clear();
+        if (mustCloseConn)
         {
-            adapter.SelectCommand = command;
-            DataSet dataSet = new DataSet();
-            DateTime now = DateTime.Now;
-            adapter.Fill(dataSet);
-            DateTime dtEnd = DateTime.Now;
-            command.Parameters.Clear();
-            if (mustCloseConn)
-            {
-                connection.Close();
-            }
-            return dataSet;
+            connection.Close();
         }
+        return dataSet;
 
     }
 
@@ -115,11 +118,11 @@ public class DatabaseProvider
         command.CommandType = commandType;
         if (commandParameters != null)
         {
-            this.AttachParameters(command, commandParameters);
+            AttachParameters(command, commandParameters);
         }
     }
 
-    private void AttachParameters(DbCommand command, DbParameter[] commandParameters)
+    private static void AttachParameters(DbCommand command, DbParameter[] commandParameters)
     {
         if (command == null)
         {
@@ -141,12 +144,59 @@ public class DatabaseProvider
         }
     }
 
+    
+    
     //...........................................................................................................
+    public async Task<DataSet> QueryAsync(string sqlStr, Dictionary<string, object> parameters, string db = "")
+    {
+        if (string.IsNullOrWhiteSpace(ConnectionString))
+        {
+            throw new Exception($"未指定需要连接的数据库: 数据库连接配置\"Default\"为空");
+        }
 
-    public DataSet ExecuteQuerySql(string sqlStr, DbParameter[] parameters)
+        DbParameter[] dbPparameters = parameters.Select(x => CreateDbParameter(x.Key, x.Value)).ToArray();
+        
+        if (!string.IsNullOrWhiteSpace(db))
+        {
+            return await ExecuteQuerySqlAsync(sqlStr, dbPparameters, db);
+        }
+        
+        return await ExecuteQuerySqlAsync(sqlStr, dbPparameters);
+    }
+    public async Task<DataSet> QueryAsyncWithConnectionString(string sqlStr, Dictionary<string, object> parameters, string connectionString)
+    {
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new Exception($"未指定需要连接的数据库: 参数\"connectiongString\"为空");
+        }
+
+        DbParameter[] dbPparameters = parameters.Select(x => CreateDbParameter(x.Key, x.Value)).ToArray();
+
+        if (!string.IsNullOrWhiteSpace(connectionString))
+        {
+            ConnectionString = connectionString;
+        }
+        
+        return await ExecuteQuerySqlAsync(sqlStr, dbPparameters);
+    }
+
+
+
+
+    private async Task<DataSet> ExecuteQuerySqlAsync(string sqlStr, DbParameter[] parameters, string db = "")
     {
         //初始化 与数据库交互的一些对象
         DbConnection conn = SqlClientFactory.Instance.CreateConnection();
+        if (!string.IsNullOrWhiteSpace(db))
+        {
+            await conn.ChangeDatabaseAsync(db);
+        }
+
+        return ExecuteQuerySqlAsync(conn, sqlStr, parameters);
+    }
+
+    private DataSet ExecuteQuerySqlAsync(DbConnection conn, string sqlStr, DbParameter[] parameters)
+    {
         DbCommand command = SqlClientFactory.Instance.CreateCommand();
 
         conn.ConnectionString = ConnectionString;
@@ -161,7 +211,7 @@ public class DatabaseProvider
             AttachParametersForSql(command, parameters);
         }
 
-        DataSet dataSet = new DataSet();
+        DataSet dataSet = new();
         using (DbDataAdapter adapter = SqlClientFactory.Instance.CreateDataAdapter())
         {
             adapter.SelectCommand = command;
@@ -180,16 +230,18 @@ public class DatabaseProvider
     /// <returns></returns>
     public DbParameter CreateDbParameter(string paramName, object paramValue)
     {
-        SqlParameter parameter = new SqlParameter();
-        //设置参数名称
-        parameter.ParameterName = paramName;
+        SqlParameter parameter = new()
+        {
+            //设置参数名称
+            ParameterName = paramName
+        };
         //设置参数类型
-        if (parameter != null)
+        if (paramValue != null)
         {
             parameter.SqlDbType = (SqlDbType)ConvertToLocalDbType(paramValue.GetType());
         }
         //设置参数值
-        parameter.Value = paramValue == null ? DBNull.Value : paramValue;
+        parameter.Value = paramValue ?? DBNull.Value;
         //设置参数传入还是传出方向, 默认传入
         parameter.Direction = ParameterDirection.Input;
         return parameter;
@@ -204,16 +256,18 @@ public class DatabaseProvider
     /// <returns></returns>
     public DbParameter CreateDbParameter(string paramName, object paramValue, int size)
     {
-        SqlParameter parameter = new SqlParameter();
-        //设置参数名称
-        parameter.ParameterName = "@" + paramName;
+        SqlParameter parameter = new()
+        {
+            //设置参数名称
+            ParameterName = "@" + paramName
+        };
         //设置参数类型(不为空的情况)
         if (paramValue != null)
         {
-            parameter.SqlDbType = (SqlDbType)(ConvertToLocalDbType(paramValue.GetType()));
+            parameter.SqlDbType = (SqlDbType)ConvertToLocalDbType(paramValue.GetType());
         }
         //设置参数值
-        parameter.Value = paramValue == null ? DBNull.Value : paramValue;
+        parameter.Value = paramValue ?? DBNull.Value;
         //设置参数传入还是传出方向, 默认传入
         parameter.Direction = ParameterDirection.Input;
         //设置参数长度
@@ -235,5 +289,84 @@ public class DatabaseProvider
                 command.Parameters.Add(parameter);
             }
         }
+    }
+
+
+    /// <summary>
+    /// 分页查询指定数据表, 可使用db参数切换到指定数据库
+    /// </summary>
+    /// <param name="table">查询的表明</param>
+    /// <param name="pageIndex">第几页</param>
+    /// <param name="pageSize">每页多少条数</param>
+    /// <param name="orderField">排序字段</param>
+    /// <param name="isAsc">是否升序</param>
+    /// <param name="filters">查询条件</param>
+    /// <param name="db">指定要切换查询的数据库, 不指定使用Default配置的数据库</param>
+    /// <returns></returns>
+    public async Task<PagedData<T>> QueryPagedDataAsync<T>(string table, int pageIndex, int pageSize, string? orderField, bool isAsc, DataFilter filters, string db = "") where T : new()
+    {
+        //初始化 与数据库交互的一些对象
+        DbConnection conn = SqlClientFactory.Instance.CreateConnection();
+        if (!string.IsNullOrWhiteSpace(db))
+        {
+            await conn.ChangeDatabaseAsync(db);
+        }
+
+        string pagedSql = DatabaseInfo.GetPagedSql(conn.Database, table, DatabaseInfo.GetDbType(ConnectionString), pageIndex, pageSize, orderField, isAsc, filters, out string condition, out Dictionary<string, object> conditionParameters);
+        string allCountSqlTxt = $"select count(*) from {conn.Database}.{table} where 1=1 {condition}";
+
+        var dataSet = await QueryAsync(pagedSql, conditionParameters);
+        var allCountDataSet = await QueryAsync(allCountSqlTxt, conditionParameters);
+
+        var dt = dataSet.Tables[0];
+        IEnumerable<T> data = dt.ToObjectList<T>();
+        var allCount = Convert.ToInt32(allCountDataSet.Tables[0].Rows[0][0]);
+
+        
+        return new PagedData<T> { Data = data, Count = allCount };
+    }
+    /// <summary>
+    /// 分页查询指定数据表, 可使用数据库连接字符串connectionString参数指定连接的数据库
+    /// </summary>
+    /// <param name="table">查询的表明</param>
+    /// <param name="pageIndex">第几页</param>
+    /// <param name="pageSize">每页多少条数</param>
+    /// <param name="orderField">排序字段</param>
+    /// <param name="isAsc">是否升序</param>
+    /// <param name="filters">查询条件</param>
+    /// <param name="connectionString">指定要切换查询的数据库, 不指定使用Default配置的数据库连接</param>
+    /// <returns></returns>
+    public async Task<PagedData<T>> QueryPagedDataWithConnectionStringAsync<T>(string table, int pageIndex, int pageSize, string? orderField, bool isAsc, DataFilter filters, string connectionString) where T : new()
+    {
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new Exception("参数数据库连接字符串不能为空");
+        }
+        ConnectionString = connectionString;
+        return await QueryPagedDataAsync<T>(table, pageIndex, pageSize, orderField, isAsc, filters);
+    }
+    /// <summary>
+    /// 执行增删改的SQL语句 - 可使用db参数指定切换到当前连接的用户有权限的其他数据库
+    /// </summary>
+    /// <param name="sql"></param>
+    /// <param name="parameters"></param>
+    /// <param name="db"></param>
+    /// <returns></returns>
+    public async Task<int> ExecuteScalarAsync(string sql, Dictionary<string, object> parameters, string db = "")
+    {
+        var dataSet = await QueryAsync(sql, parameters, db);
+        return Convert.ToInt32(dataSet.Tables[0].Rows[0][0]);
+    }
+    /// <summary>
+    /// 执行增删改的SQL语句 - 可使用数据库连接字符串指定数据库
+    /// </summary>
+    /// <param name="sql"></param>
+    /// <param name="parameters"></param>
+    /// <param name="connectionString"></param>
+    /// <returns></returns>
+    public async Task<int> ExecuteScalarWithConnectionStringAsync(string sql, Dictionary<string, object> parameters, string connectionString)
+    {
+        var dataSet = await QueryAsyncWithConnectionString(sql, parameters, connectionString);
+        return Convert.ToInt32(dataSet.Tables[0].Rows[0][0]);
     }
 }
