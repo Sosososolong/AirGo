@@ -83,3 +83,4 @@ v15/
 #Personal config files
 AppConfigs/
 RequestConfigs/
+/Sylas.RemoteTasks.App/remotetasks.db
