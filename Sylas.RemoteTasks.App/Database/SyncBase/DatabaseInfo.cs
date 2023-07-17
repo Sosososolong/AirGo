@@ -27,16 +27,33 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
     public class DatabaseInfoFactory
     {
         private readonly IServiceProvider _serviceProvider;
+        private readonly IServiceScopeFactory _serviceScopeFactory;
 
-        public DatabaseInfoFactory(IServiceProvider serviceProvider)
+        public DatabaseInfoFactory(IServiceScopeFactory serviceScopeFactory, IServiceProvider serviceProvider)
         {
+            _serviceScopeFactory = serviceScopeFactory;
             _serviceProvider = serviceProvider;
         }
 
         public DatabaseInfo Create(string connectionString)
         {
-            var databaseInfo = _serviceProvider.GetRequiredService<DatabaseInfo>();
-            databaseInfo.ChangeDatabase(connectionString);
+            using var scope = _serviceScopeFactory.CreateScope();
+            var databaseInfo = scope.ServiceProvider.GetRequiredService<DatabaseInfo>();
+            if (!string.IsNullOrWhiteSpace(connectionString))
+            {
+                databaseInfo.ChangeDatabase(connectionString);
+            }
+            return databaseInfo;
+        }
+
+        public DatabaseInfo Clone()
+        {
+            var scopedDatabaseInfo = _serviceProvider.GetRequiredService<DatabaseInfo>();
+
+            using var scope = _serviceScopeFactory.CreateScope();
+            var databaseInfo = scope.ServiceProvider.GetRequiredService<DatabaseInfo>();
+            // 新对象同步线程内对象的ConnectionString配置
+            databaseInfo.ChangeDatabase(scopedDatabaseInfo);
             return databaseInfo;
         }
     }
@@ -76,6 +93,10 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
             _connectionString = connectionString;
             _dbType = GetDbType(_connectionString);
             _varFlag = GetDbParameterFlag(_dbType);
+        }
+        public void ChangeDatabase(DatabaseInfo databaseInfo)
+        {
+            ChangeDatabase(databaseInfo._connectionString);
         }
         #region 数据库连接对象
         public static IDbConnection GetDbConnection(string connectionString)
@@ -118,7 +139,7 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
 
             string sql = GetPagedSql(conn.Database, table, dbType, pageIndex, pageSize, orderField, isAsc, filters, out string condition, out Dictionary<string, object> parameters);
 
-            string allCountSqlTxt = $"select count(*) from {conn.Database}.{table} where 1=1 {condition}";
+            string allCountSqlTxt = $"select count(*) from {table} where 1=1 {condition}";
             
             var allCount = await conn.ExecuteScalarAsync<int>(allCountSqlTxt, parameters);
             var data = await conn.QueryAsync<T>(sql, parameters);
@@ -254,9 +275,12 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
         /// <param name="sourceIdField"></param>
         /// <param name="targetIdField"></param>
         /// <returns></returns>
-        public async Task SyncDatabaseWithTargetConnectionStringAsync(string table, IEnumerable<JToken> sourceRecords, string[] ignoreFields, string connectionString, string sourceIdField = "", string targetIdField = "")
+        public async Task SyncDatabaseWithTargetConnectionStringAsync(string table, IEnumerable<JToken> sourceRecords, string[] ignoreFields, string sourceIdField = "", string targetIdField = "", string connectionString = "")
         {
-            _connectionString = connectionString;
+            if (!string.IsNullOrWhiteSpace(connectionString))
+            {
+                _connectionString = connectionString;
+            }
             await SyncDatabaseAsync(table, sourceRecords, ignoreFields, sourceIdField: sourceIdField, targetIdField: targetIdField);
         }
         /// <summary>
@@ -269,7 +293,7 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
         /// <param name="sourceIdField"></param>
         /// <param name="targetIdField"></param>
         /// <returns></returns>
-        public async Task SyncDatabaseWithTargetDbAsync(string table, IEnumerable<JToken> sourceRecords, string[] ignoreFields, string db, string sourceIdField = "", string targetIdField = "")
+        public async Task SyncDatabaseWithTargetDbAsync(string table, IEnumerable<JToken> sourceRecords, string[] ignoreFields, string sourceIdField = "", string targetIdField = "", string db = "")
         {
             await SyncDatabaseAsync(table, sourceRecords, ignoreFields: ignoreFields, sourceIdField: sourceIdField, targetIdField: targetIdField, db);
         }

@@ -26,7 +26,24 @@ namespace Sylas.RemoteTasks.App.Repositories
         /// <returns></returns>
         public async Task<PagedData<HttpRequestProcessor>> GetPageAsync(int pageIndex, int pageSize, string orderField, bool isAsc, DataFilter filter)
         {
-            return await _db.QueryPagedDataAsync<HttpRequestProcessor>(HttpRequestProcessor.TableName, pageIndex, pageSize, orderField, isAsc, filter);
+            var pages = await _db.QueryPagedDataAsync<HttpRequestProcessor>(HttpRequestProcessor.TableName, pageIndex, pageSize, orderField, isAsc, filter);
+            foreach (var processor in pages.Data)
+            {
+                var stepsFilters = new List<FilterItem>
+                {
+                    new FilterItem { FieldName = "id", CompareType = "=", Value = processor.Id.ToString() }
+                };
+                var steps = (await GetStepsPageAsync(1, 1000, "id", true, new DataFilter { FilterItems = stepsFilters })).Data;
+                processor.Steps = steps;
+
+                foreach (var step in steps)
+                {
+                    var filterCondition = new FilterItem { FieldName = "StepId", CompareType = "=", Value = step.Id.ToString() };
+                    var dataHandlers = (await GetDataHandlersPageAsync(1, 1000, "id", true, new DataFilter { FilterItems = new List<FilterItem> { filterCondition } })).Data;
+                    step.DataHandlers = dataHandlers;
+                }
+            }
+            return pages;
         }
         /// <summary>
         /// 添加一个新的Http请求处理器

@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Sylas.RemoteTasks.App.Database.SyncBase;
 using Sylas.RemoteTasks.App.DataHandlers;
 using Sylas.RemoteTasks.App.Models.HttpRequestProcessor;
 using Sylas.RemoteTasks.App.Repositories;
@@ -13,6 +14,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
     public abstract class RequestProcessorBase : IRequestProcessor
     {
         protected RequestConfig _requestConfig;
+        private readonly IConfiguration _configuration;
         protected readonly ILogger<RequestProcessorBase> _logger;
         protected readonly IServiceProvider _serviceProvider;
         public Dictionary<string, object> DataContext { get; set; }
@@ -35,6 +37,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                 ResponseOkValue = "1",
                 Token = token
             };
+            _configuration = configuration;
             _logger = logger;
             _serviceProvider = serviceProvider;
             DataContext = new Dictionary<string, object>();
@@ -174,23 +177,23 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                 #region 处理执行当前步骤所需要的参数
                 // 跟HttpRequestProcessorStepDataHandler相比差不多, 可以考虑删除DataHandlerInfo类型
                 var dataHandlerInfos = new List<DataHandlerInfo>();
-                _logger?.LogInformation($"{new string('*', 20)} New RequestProcessor Step {stepIndex} {new string('*', 20)}");
+                _logger.LogInformation($"{new string('*', 20)} New RequestProcessor Step {stepIndex} {new string('*', 20)}");
 
                 // Step - Parameters
                 List<string> stepParameters = (step.Parameters ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
-                _logger?.LogDebug($"call ResolveAsync, 获取请求参数: {step.Parameters ?? ""}");
+                _logger.LogDebug($"call ResolveAsync, 获取请求参数: {step.Parameters ?? ""}");
                 // Step - DataContextBuilders
                 List<string> dataContextTmpls = JsonConvert.DeserializeObject<List<string>>(step.DataContextBuilder) ?? new();
-                _logger?.LogDebug($"call ResolveAsync, 获取DataContext模板配置 {string.Join(',', dataContextTmpls)}");
+                _logger.LogDebug($"call ResolveAsync, 获取DataContext模板配置 {string.Join(',', dataContextTmpls)}");
                 // Step - DataHandlers
                 var dataHandlers = step.DataHandlers;
                 foreach (var dataHandler in dataHandlers)
                 {
                     var handlerName = dataHandler.DataHandler;
                     var handlerParameters = JsonConvert.DeserializeObject<List<string>>(dataHandler.ParametersInput) ?? new List<string>();
-                    // BOOKMARK: HttpRequestProcessor - 13. 处理Step - 获取所有需要执行的步骤对应的所有DataHandlerInfos
+                    // BOOKMARK: HttpRequestProcessor - 11. 处理Step - 获取所有需要执行的步骤对应的所有DataHandlerInfos
                     dataHandlerInfos.Add(new DataHandlerInfo(handlerName, handlerParameters));
-                    _logger?.LogDebug($"call ResolveAsync, 获取DataHandlers, DataHandler: {handlerName}, 参数:{Environment.NewLine}{string.Join(Environment.NewLine, handlerParameters)}");
+                    _logger.LogDebug($"call ResolveAsync, 获取DataHandlers, DataHandler: {handlerName}, 参数:{Environment.NewLine}{string.Join(Environment.NewLine, handlerParameters)}");
                 }
                 // Step - 最后一个执行完之后如果有数据, 是否要重新从第一个开始循环执行
                 if (stepIndex == stepCount - 1 && processor.StepCirleRunningWhenLastStepHasData)
@@ -302,7 +305,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                 var opInstance = _serviceProvider.GetService(dataHandlerType);
 
                 // BOOKMARK: DataHandler 调用StartAsync()方法
-                var invokeResult = handlerStartMethod.Invoke(opInstance, opParameters);
+                var invokeResult = handlerStartMethod.Invoke(opInstance, new object[] { opParameters });
                 if (handlerStartMethod.ReturnType == typeof(Task) || handlerStartMethod.ReturnType.IsGenericType && handlerStartMethod.ReturnType.GetGenericTypeDefinition() == typeof(Task<>))
                 {
                     await (invokeResult as Task ?? throw new Exception($"{handler}.Start()结果为NULL, 而非Task"));

@@ -1,5 +1,4 @@
-﻿using Sylas.RemoteTasks.App.Database;
-using Sylas.RemoteTasks.App.Database.SyncBase;
+﻿using Sylas.RemoteTasks.App.Database.SyncBase;
 using Sylas.RemoteTasks.App.Repositories;
 using Sylas.RemoteTasks.App.Utils;
 
@@ -103,10 +102,6 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                 else
                 {
                     dataContext = (returned as RequestProcessorBase ?? throw new Exception($"{requestProcessorName}对象转换为RequestProcessorBase失败")).DataContext;
-                }
-                if (httpRequestProcessor.GetValue<bool>("Break"))
-                {
-                    break;
                 }
             }
         }

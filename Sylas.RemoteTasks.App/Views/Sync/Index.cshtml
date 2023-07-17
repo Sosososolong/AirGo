@@ -1,5 +1,101 @@
 ﻿@{
-    ViewData["Title"] = "Remote Hosts Manager ...";
+    ViewData["Title"] = "Http Request Processor ...";
 }
 
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>名称</th>
+            <th>Url地址</th>
+            <th>是否循环执行步骤</th>
+            <th>备注信息</th>
+        </tr>
+    </thead>
+    <tbody>
+    </tbody>
+</table>
 
+@section Scripts{
+    <script>
+        $(function () {
+            var pageIndex = 1;
+            var totalPages = 0;
+            var pageSize = 10;
+            var orderField = '';
+            var isAsc = true;
+            var dataFilter = {
+                filterItems: [
+                    {
+                        fieldName: '',
+                        compareType: '',
+                        value: ''
+                    }
+                ],
+                keywords: {
+                    fields: [],
+                    value: ''
+                }
+            }
+
+            // 发送 AJAX 请求获取数据
+            function loadData() {
+                $.ajax({
+                    url: `Sync/GetHttpRequestProcessors?pageIndex=${pageIndex}&pageSize=${pageSize}&orderField=${orderField}&isAsc=${isAsc}`,
+                    method: 'POST',
+                    data: {
+                        dataFilter: dataFilter
+                    },
+                    //contentType: 'application/x-www-form-urlencoded',
+                    contentType: 'application/json',
+                    dataType: 'json',
+                    success: function (data) {
+                        // 将数据添加到表格中
+                        var tbody = $('table tbody');
+                        tbody.empty();
+                        data.items.forEach(function (row) {
+                            var tr = $('<tr>');
+                            tr.append('<td>' + row.id + '</td>');
+                            tr.append('<td>' + row.name + '</td>');
+                            tr.append('<td>' + row.email + '</td>');
+                            tbody.append(tr);
+                        });
+
+                        // 更新分页导航
+                        totalPages = data.totalPages;
+                        var pagination = $('.pagination');
+                        pagination.empty();
+                        pagination.append('<li class="page-item ' + (currentPage == 1 ? 'disabled' : '') + '"><a class="page-link" href="#" data-page="' + (currentPage - 1) + '">Previous</a></li>');
+                        for (var i = 1; i <= totalPages; i++) {
+                            pagination.append('<li class="page-item ' + (i == currentPage ? 'active' : '') + '"><a class="page-link" href="#" data-page="' + i + '">' + i + '</a></li>');
+                        }
+                        pagination.append('<li class="page-item ' + (currentPage == totalPages ? 'disabled' : '') + '"><a class="page-link" href="#" data-page="' + (currentPage + 1) + '">Next</a></li>');
+                    },
+                    error: function (jqXHR, textStatus, errorThrown) {
+                        console.log('Error: ' + errorThrown);
+                    }
+                });
+            }
+
+            // 搜索表单提交事件
+            $('#search-form').submit(function (event) {
+                event.preventDefault();
+                searchQuery = $('#search-input').val().trim();
+                currentPage = 1;
+                loadData();
+            });
+
+            // 分页导航点击事件
+            $('.pagination').on('click', 'a[data-page]', function (event) {
+                event.preventDefault();
+                var page = parseInt($(this).data('page'));
+                if (page >= 1 && page <= totalPages) {
+                    currentPage = page;
+                    loadData();
+                }
+            });
+
+            // 加载第一页数据
+            loadData();
+        });
+    </script>
+}

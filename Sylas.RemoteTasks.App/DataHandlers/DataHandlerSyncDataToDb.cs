@@ -21,9 +21,18 @@ namespace Sylas.RemoteTasks.App.DataHandlers
             }
             string table = parameters[0]?.ToString() ?? throw new Exception(nameof(parameters) + "[0] - table为空");
             object dataSource = parameters[1];
-            string connectionString = $"{parameters[2]}";
+            string targetDb = $"{parameters[2]}";
             IEnumerable<JToken> data = dataSource is IEnumerable<JToken> enumerableData ? enumerableData : new List<JToken>() { JToken.FromObject(dataSource) };
-            await _databaseInfo.SyncDatabaseWithTargetConnectionStringAsync(table, data, Array.Empty<string>(), connectionString, sourceIdField: "Id", targetIdField: "Id");
+            
+            // 数据库连接字符串中, sqlserver, oracle, sqite包含"Data Source=xxx"; mysql, mslocaldb包含"Server=xxx"
+            if (new string[] { "data source=", "initial catalog=", "server=" }.Any(x => targetDb.Contains(x, StringComparison.OrdinalIgnoreCase)))
+            {
+                await _databaseInfo.SyncDatabaseWithTargetConnectionStringAsync(table, data, Array.Empty<string>(), sourceIdField: "Id", targetIdField: "Id", targetDb);
+            }
+            else
+            {
+                await _databaseInfo.SyncDatabaseWithTargetDbAsync(table, data, Array.Empty<string>(), sourceIdField: "Id", targetIdField: "Id", targetDb);
+            }
         }
     }
 }
