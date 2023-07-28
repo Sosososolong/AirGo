@@ -144,7 +144,7 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
             var allCount = await conn.ExecuteScalarAsync<int>(allCountSqlTxt, parameters);
             var data = await conn.QueryAsync<T>(sql, parameters);
 
-            return new PagedData<T>  { Data = data, Count = allCount };
+            return new PagedData<T>  { Data = data, Count = allCount, TotalPages = (allCount + pageSize - 1) / pageSize };
 
         }
         /// <summary>
@@ -177,6 +177,7 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
             {
                 conn.ChangeDatabase(db);
             }
+            _logger.LogDebug(sql);
             return await conn.ExecuteAsync(sql, parameters);
         }
         /// <summary>
@@ -1310,7 +1311,11 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             public JObject SourceRecord { get; set; } = new JObject();
             public JObject TargetRecord { get; set; } = new JObject();
         }
-        
+        public async Task<IEnumerable<ColumnInfo>> GetTableColumnsInfoAsync(string tableName)
+        {
+            using var conn = GetDbConnection(_connectionString);
+            return await GetTableColumnsInfoAsync(conn, tableName);
+        }
         /// <summary>
         /// 获取数据库表结构
         /// </summary>
@@ -1402,7 +1407,28 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                 throw new Exception($"{database}中没有找到{tableName}表");
             }
             // ColumnLength: Oracle如果是Number类型, ColumnLength值可能是"10,0"
+            AnalysisColumnCSharpType(result);
             return result;
+        }
+
+        /// <summary>
+        /// 根据字段(ColumnInfo)的数据库类型判断CSharp类型
+        /// </summary>
+        /// <param name="columnInfos"></param>
+        private static void AnalysisColumnCSharpType(IEnumerable<ColumnInfo> columnInfos)
+        {
+            foreach (var col in columnInfos)
+            {
+                col.ColumnCSharpType = col.ColumnType switch
+                {
+                    _ when string.IsNullOrWhiteSpace(col.ColumnType) => "",
+                    _ when col.ColumnType.Contains("time", StringComparison.OrdinalIgnoreCase) => "DateTime",
+                    _ when col.ColumnType.Contains("bit", StringComparison.OrdinalIgnoreCase) => "bool",
+                    _ when col.ColumnType.Contains("int", StringComparison.OrdinalIgnoreCase) => "int",
+                    _ when col.ColumnType.Contains("lob", StringComparison.OrdinalIgnoreCase) => "byte[]",
+                    _ => "string",
+                };
+            }
         }
 
         public static async Task<DataTable> QueryAsync(IDbConnection conn, string sql, object parameters, IDbTransaction transaction)

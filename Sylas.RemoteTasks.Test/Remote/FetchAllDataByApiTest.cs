@@ -1,5 +1,4 @@
 ﻿using Dapper;
-using Microsoft.DotNet.PlatformAbstractions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
@@ -143,7 +142,7 @@ namespace Sylas.RemoteTasks.Test.Remote
         public async Task FetchDataModelByConfigAsync()
         {
             var configFileRelativePath = _configuration["SyncFromApiToDbOptions:FetchDataModelParameters"] ?? throw new Exception("API请求参数没有配置");
-            var configFile = Path.Combine(ApplicationEnvironment.ApplicationBasePath, configFileRelativePath);
+            var configFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, configFileRelativePath);
             var configContent = File.ReadAllText(configFile);
             var config = JsonConvert.DeserializeObject<RequestConfig>(configContent) ?? throw new Exception("API请求参数格式不正确");
 
@@ -163,7 +162,7 @@ namespace Sylas.RemoteTasks.Test.Remote
         public void TransExpTestAsync()
         {
             var configFileRelativePath = _configuration["SyncFromApiToDbOptions:FetchDataModelParameters"] ?? throw new Exception("API请求参数没有配置");
-            var configFile = Path.Combine(ApplicationEnvironment.ApplicationBasePath, configFileRelativePath);
+            var configFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, configFileRelativePath);
             var configContent = File.ReadAllText(configFile);
             var config = JsonConvert.DeserializeObject<RequestConfig>(configContent) ?? throw new Exception("API请求参数格式不正确");
             var config2 = MapHelper<RequestConfig, RequestConfig>.Map(config);

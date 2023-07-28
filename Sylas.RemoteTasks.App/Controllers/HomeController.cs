@@ -2,14 +2,15 @@
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Sylas.RemoteTasks.App.Database;
+using Sylas.RemoteTasks.App.Database.SyncBase;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.Models;
 using Sylas.RemoteTasks.App.Utils;
 using System.Data;
-using System.Data.Common;
 using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {
@@ -937,6 +938,60 @@ namespace Sylas.RemoteTasks.App.Controllers
         public IActionResult Error()
         {
             return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
+        }
+
+        /// <summary>
+        /// 代码生成页面,Url地址如:http://localhost:5105/Home/CodeGen?tableFullName=Configs&tableComment=通用配置&connectionString=Server=192.168.1.230;Port=3306;Stmt=;Database=iduo_engine;Uid=root;Pwd=iduo2022;Allow%20User%20Variables=true;&serviceFieldInController=
+        /// </summary>
+        /// <param name="database">从DI容器中获取的操作数据库的服务</param>
+        /// <param name="tableFullName">表名</param>
+        /// <param name="tableComment">表注释</param>
+        /// <param name="connectionString">目标表所在的数据库的连接字符串</param>
+        /// <param name="serviceFieldInController">控制器中负责业务的服务字段, 空表示创建新的服务类</param>
+        /// <returns></returns>
+        public async Task<IActionResult> CodeGen([FromServices] DatabaseInfo database, string tableFullName, string tableComment, string connectionString, string serviceFieldInController = "")
+        {
+            #region 参数为空跳转到配置参数的页面
+            if (string.IsNullOrWhiteSpace($"{tableFullName}") || string.IsNullOrWhiteSpace($"{tableComment}") || string.IsNullOrWhiteSpace($"{connectionString}"))
+            {
+                return View();
+            }
+            if (!string.IsNullOrWhiteSpace(connectionString))
+            {
+                database.ChangeDatabase(connectionString);
+            }
+            #endregion
+
+            #region TableFullName: 表名称; TableSimpleName: 接口名称,模型名称; TableFieldName:字段名称
+            var tableSimpleName = tableFullName.EndsWith('s') ? tableFullName[..^1] : tableFullName;
+            if (tableSimpleName.Contains('_'))
+            {
+                tableSimpleName = Regex.Replace(tableSimpleName, @"(_[a-zA-Z])", match =>
+                {
+                    var origin = match.Groups[0].Value;
+                    var target = match.Groups[1].Value;
+                    return origin.Replace(target, target.TrimStart('_').ToUpper());
+                });
+            }
+            tableSimpleName = $"{tableSimpleName[0].ToString().ToUpper()}{tableSimpleName[1..]}";
+            var tableFieldName = $"_{tableSimpleName[0].ToString().ToLower()}{tableSimpleName[1..]}";
+            ViewBag.TableFullName = tableFullName;
+            ViewBag.TableComment = tableComment;
+            ViewBag.TableSimpleName = tableSimpleName;
+            ViewBag.TableFieldName = tableFieldName;
+            #endregion
+
+            #region Service字段; 没有传现有的Service, 那么就认为它有自己的Service
+            if (string.IsNullOrWhiteSpace(serviceFieldInController))
+            {
+                serviceFieldInController = $"_{tableFieldName}Service";
+            }
+            ViewBag.ServiceFieldInController = serviceFieldInController;
+            #endregion
+
+            var columns = await database.GetTableColumnsInfoAsync(tableFullName);
+            ViewBag.Columns = columns;
+            return View("CodeGenPreview");
         }
     }
 }

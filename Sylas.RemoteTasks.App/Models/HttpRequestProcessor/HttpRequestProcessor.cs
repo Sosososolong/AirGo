@@ -9,6 +9,7 @@ namespace Sylas.RemoteTasks.App.Models.HttpRequestProcessor
     {
         public const string TableName = "HttpRequestProcessors";
         public int Id { get; set; }
+        public string Title { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public string Url { get; set; } = string.Empty;
         public string Remark { get; set; } = string.Empty;

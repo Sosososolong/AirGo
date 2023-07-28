@@ -1,6 +1,7 @@
 ﻿using Sylas.RemoteTasks.App.Database;
 using Sylas.RemoteTasks.App.Database.SyncBase;
 using Sylas.RemoteTasks.App.Models.HttpRequestProcessor;
+using Sylas.RemoteTasks.App.Models.HttpRequestProcessor.Dtos;
 using System.Text;
 
 namespace Sylas.RemoteTasks.App.Repositories
@@ -31,7 +32,7 @@ namespace Sylas.RemoteTasks.App.Repositories
             {
                 var stepsFilters = new List<FilterItem>
                 {
-                    new FilterItem { FieldName = "id", CompareType = "=", Value = processor.Id.ToString() }
+                    new FilterItem { FieldName = "httpProcessorId", CompareType = "=", Value = processor.Id.ToString() }
                 };
                 var steps = (await GetStepsPageAsync(1, 1000, "id", true, new DataFilter { FilterItems = stepsFilters })).Data;
                 processor.Steps = steps;
@@ -50,14 +51,16 @@ namespace Sylas.RemoteTasks.App.Repositories
         /// </summary>
         /// <param name="processor"></param>
         /// <returns></returns>
-        public async Task<int> AddAsync(HttpRequestProcessor processor)
+        public async Task<int> AddAsync(HttpRequestProcessorInDto processor)
         {
-            string sql = $"insert into {HttpRequestProcessor.TableName} values(@name, @url, @remark)";
+            string sql = $"insert into {HttpRequestProcessor.TableName} (Name, Title, Url, Remark, StepCirleRunningWhenLastStepHasData) values(@name, @title, @url, @remark, @stepCirleRunningWhenLastStepHasData)";
             var parameters = new Dictionary<string, object>
             {
                 { "name", processor.Name },
+                { "title", processor.Title },
                 { "url", processor.Url },
-                { "remark", processor.Remark }
+                { "remark", processor.Remark },
+                { "stepCirleRunningWhenLastStepHasData", processor.StepCirleRunningWhenLastStepHasData }
             };
             return await _db.ExecuteScalarAsync(sql, parameters);
         }

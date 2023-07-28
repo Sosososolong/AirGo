@@ -1,0 +1,283 @@
+﻿@using Sylas.RemoteTasks.App.Database.SyncBase;
+@{
+    ViewData["Title"] = "Code Gen Preview";
+
+    var tableComment = ViewBag.TableComment;
+    var tableFullName = ViewBag.TableFullName;
+    var tableSimpleName = ViewBag.TableSimpleName;
+    var tableFieldName = ViewBag.TableFieldName;
+
+    var serviceFieldInController = ViewBag.ServiceFieldInController as string;
+
+    var columns = ViewBag.Columns as IEnumerable<ColumnInfo> ?? Enumerable.Empty<ColumnInfo>();
+    var searchColumns = columns.Where(x => !string.IsNullOrWhiteSpace(x.ColumnCode) && (x.ColumnCode.Contains("name", StringComparison.OrdinalIgnoreCase) || x.ColumnCode.ToLower() == "id"));
+    //Id            50  varchar     1
+    //CreateTime    0   datetime    0
+
+    
+}
+<style>
+h5 { color: orange; }
+</style>
+<ul>
+    @foreach (var column in columns)
+    {
+        <li>@column.ColumnCode @column.ColumnLength @column.ColumnType @column.DefaultValue @column.IsPK</li>
+    }
+</ul>
+
+<h5>Controller - @(tableSimpleName)</h5>
+<textarea name="codeController" style="width: 1000px;height:200px;" readonly>
+/// <summary>
+/// 添加@(tableComment)
+/// </summary>
+/// <param name="dto"></param>
+/// <returns></returns>
+[HttpPost("Add@(tableSimpleName)")]
+[AutoTran]
+public async Task<ReturnResult<bool>> Add@(tableSimpleName)Async(@(tableSimpleName)InDto dto)
+{
+    return await _@(serviceFieldInController)Service.Add@(tableSimpleName)Async(dto);
+}
+/// <summary>
+/// 更新@(tableComment)
+/// </summary>
+/// <param name="dto"></param>
+/// <returns></returns>
+[HttpPost("Update@(tableSimpleName)")]
+[AutoTran]
+public async Task<ReturnResult<bool>> Update@(tableSimpleName)Async(@(tableSimpleName)InDto dto)
+{
+    return await _@(serviceFieldInController)Service.Update@(tableSimpleName)Async(dto);
+}
+/// <summary>
+/// @(tableComment)分页查询
+/// </summary>
+/// <param name="search"></param>
+/// <returns></returns>
+[HttpGet("@(tableSimpleName)s"), AllowAnonymous]
+public async Task<ReturnResult<IEnumerable<@(tableSimpleName)OutDto>>> @(tableSimpleName)sAsync([FromQuery] @(tableSimpleName)DataSearch search)
+{
+    return await _@(serviceFieldInController)Service.@(tableSimpleName)sAsync(search);
+}
+/// <summary>
+/// 删除@(tableComment)
+/// </summary>
+/// <param name="ids"></param>
+/// <returns></returns>
+[HttpPost("Delete@(tableSimpleName)s")]
+[AutoTran]
+public async Task<ReturnResult<bool>> Delete@(tableSimpleName)sAsync(string ids)
+{
+    return await _@(serviceFieldInController)Service.Delete@(tableSimpleName)sAsync(ids);
+}
+</textarea>
+
+<h5>TableConsts - @(tableSimpleName)</h5>
+public const string @tableSimpleName = "@(tableFullName)";
+
+<h5>InDtoDataSearch - @(tableSimpleName)</h5>
+<textarea name="codeInDtoDataSearch" style="width: 1000px;height:200px;" readonly>
+public class @(tableSimpleName)DataSearch : DataSearch
+{
+    @foreach (var col in searchColumns)
+    {
+        @($"    public {col.ColumnCSharpType} {col.ColumnCode} {{ get; set; }}{Environment.NewLine}")
+    }
+}
+</textarea>
+
+<h5>InDto - @(tableSimpleName)</h5>
+<textarea name="codeInDto" style="width: 1000px;height:200px;" readonly>
+public class @(tableSimpleName)InDto
+{
+    @foreach (var col in columns)
+    {
+        @($"    public {col.ColumnCSharpType} {col.ColumnCode} {{ get; set; }}{Environment.NewLine}")
+    }
+}
+</textarea>
+
+
+<h5>OutDto - @(tableSimpleName)</h5>
+<textarea name="codeOutDto" style="width: 1000px;height:200px;" readonly>
+public class @(tableSimpleName)OutDto
+{
+    @foreach (var col in columns)
+    {
+        @($"    public {col.ColumnCSharpType} {col.ColumnCode} {{ get; set; }}{Environment.NewLine}")
+    }
+}
+</textarea>
+
+
+<h5>Entity - @(tableSimpleName)</h5>
+<textarea name="codeEntity" style="width: 1000px;height:200px;" readonly>
+public class @(tableSimpleName) : EntityBase<string>
+{
+    @foreach (var col in columns)
+    {
+        if (col.ColumnCode?.ToLower() == "id")
+        {
+            continue;
+        }
+        var length = col.ColumnLength;
+        if (col.ColumnCSharpType == "string" && !string.IsNullOrWhiteSpace(length) && length != "0")
+        {
+            @($"    [StringLength({col.ColumnLength})]{Environment.NewLine}")
+        }
+        var defaultValue = "";
+        if (col.ColumnCSharpType == "string")
+        {
+            defaultValue = " = string.Empty;";
+        }
+        @($"    public {col.ColumnCSharpType} {col.ColumnCode} {{ get; set; }}{defaultValue}{Environment.NewLine}{Environment.NewLine}")
+    }
+}
+</textarea>
+
+<h5>EntityConfiguration - @(tableSimpleName)</h5>
+<textarea name="codeEntityConfiguration" style="width: 1000px;height:200px;" readonly>
+public class @(tableSimpleName)Configuration : EntityTypeConfigurationBase<@(tableSimpleName), string>
+{
+    public override void Configure(EntityTypeBuilder<@(tableSimpleName)> builder)
+    {
+        builder.ToTable(TableConsts.@(tableSimpleName));
+    }
+}
+</textarea>
+
+<h5>ServiceInterface - @(tableSimpleName)</h5>
+<textarea name="codeServiceInterface" style="width: 1000px;height:200px;" readonly>
+    /// <summary>
+    /// 添加@(tableComment)
+    /// </summary>
+    /// <param name="dto"></param>
+    /// <returns></returns>
+    Task<ReturnResult<bool>> Add@(tableSimpleName)Async(@(tableSimpleName)InDto dto);
+    /// <summary>
+    /// 更新@(tableComment)
+    /// </summary>
+    /// <param name="dto"></param>
+    /// <returns></returns>
+    Task<ReturnResult<bool>> Update@(tableSimpleName)Async(@(tableSimpleName)InDto dto);
+    /// <summary>
+    /// @(tableComment)分页查询
+    /// </summary>
+    /// <param name="search"></param>
+    /// <returns></returns>
+    Task<ReturnResult<IEnumerable<@(tableSimpleName)OutDto>>> @(tableSimpleName)sAsync(@(tableSimpleName)DataSearch search);
+    /// <summary>
+    /// 删除@(tableComment)
+    /// </summary>
+    /// <param name="ids"></param>
+    /// <returns></returns>
+    Task<ReturnResult<bool>> Delete@(tableSimpleName)sAsync(string ids);
+</textarea>
+
+<h5>Service - @(tableSimpleName)</h5>
+<textarea name="codeService" style="width: 1000px;height:200px;" readonly>
+    private readonly IRepository<@(tableSimpleName), string> @(tableFieldName)Repository;
+
+    public @(tableSimpleName)DutyService(IRepository<@(tableSimpleName), string> @(tableFieldName.TrimStart('_'))Repository)
+    {
+        @(tableFieldName)Repository = @(tableFieldName.TrimStart('_'))Repository;
+    }
+
+        /// <summary>
+        /// 添加@(tableComment)
+        /// </summary>
+        /// <param name="dto"></param>
+        /// <returns></returns>
+        public async Task<ReturnResult<bool>> Add@(tableSimpleName)Async(@(tableSimpleName)InDto dto)
+        {
+            dto.Id = XGuidHelper.GetDateGuid();
+            var entity = dto.MapTo<@(tableSimpleName)>();
+            entity.CreateTime = entity.UpdateTime = DateTime.Now;
+            var res = await @(tableFieldName)Repository.InsertAsync(entity);
+            if (res > 0)
+            {
+                return new ReturnResult<bool>(true);
+            }
+            return new ReturnResult<bool>(ReturnResultCode.Failed, false);
+        }
+        /// <summary>
+        /// 更新@(tableComment)
+        /// </summary>
+        /// <param name="dto"></param>
+        /// <returns></returns>
+        public async Task<ReturnResult<bool>> Update@(tableSimpleName)Async(@(tableSimpleName)InDto dto)
+        {
+            var entity = @(tableFieldName)Repository.GetFirst(x => x.Id == dto.Id);
+            if (entity is null)
+            {
+                return await Task.FromResult(new ReturnResult<bool>(ReturnResultCode.Invalid, false, "@(tableComment)责任不存在"));
+            }
+
+            var updating = dto.MapTo<@(tableSimpleName)>();
+            updating.CreateTime = entity.CreateTime;
+            updating.UpdateTime = DateTime.Now;
+            var res = await @(tableFieldName)Repository.UpdateAsync(updating);
+            if (res > 0)
+            {
+                return new ReturnResult<bool>(true);
+            }
+            return new ReturnResult<bool>(ReturnResultCode.Failed, false);
+        }
+        /// <summary>
+        /// @(tableComment)分页查询
+        /// </summary>
+        /// <param name="search"></param>
+        /// <returns></returns>
+        public async Task<ReturnResult<IEnumerable<@(tableSimpleName)OutDto>>> @(tableSimpleName)sAsync(@(tableSimpleName)DataSearch search)
+        {
+            var entities = @(tableFieldName)Repository.Entities;
+            if (!string.IsNullOrWhiteSpace(search.Id))
+            {
+                return new ReturnResult<IEnumerable<@(tableSimpleName)OutDto>>
+                {
+                    Code = ReturnResultCode.Success,
+                    Data = new List<@(tableSimpleName)OutDto> { entities.FirstOrDefaultAsync(x => x.Id == search.Id).MapTo<@(tableSimpleName)OutDto>() },
+                    Count = entities.Count()
+                };
+            }
+            if (!string.IsNullOrWhiteSpace(search.Id))
+            {
+                entities = entities.Where(x => x.Id == search.Id);
+            }
+            if (!string.IsNullOrWhiteSpace(search.KeyWord))
+            {
+                entities = entities.Where(x => x.Name.Contains(search.KeyWord) || x.SimpleName.Contains(search.KeyWord));
+            }
+            if (!string.IsNullOrWhiteSpace(search.Name))
+            {
+                entities = entities.Where(x => x.Name == search.Name);
+            }
+            if (!string.IsNullOrWhiteSpace(search.SimpleName))
+            {
+                entities = entities.Where(x => x.SimpleName == search.SimpleName);
+            }
+            var count = entities.Count();
+            return await Task.FromResult(new ReturnResult<IEnumerable<@(tableSimpleName)OutDto>>
+            {
+                Code = ReturnResultCode.Success,
+                Data = entities.OrderAndPager(search).Select(x => x.MapTo<@(tableSimpleName)OutDto>()),
+                Count = count
+            });
+        }
+        /// <summary>
+        /// 删除@(tableComment)
+        /// </summary>
+        /// <param name="ids"></param>
+        /// <returns></returns>
+        public async Task<ReturnResult<bool>> Delete@(tableSimpleName)sAsync(string ids)
+        {
+            var idsArr = ids.Split(',');
+            var res = await @(tableFieldName)Repository.DeleteBatchAsync(x => ids.Contains(x.Id));
+            if (res > 0)
+            {
+                return new ReturnResult<bool>(true);
+            }
+            return new ReturnResult<bool>(false);
+        }
+</textarea>

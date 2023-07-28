@@ -323,7 +323,7 @@ public class DatabaseProvider : IDatabaseProvider
         var allCount = Convert.ToInt32(allCountDataSet.Tables[0].Rows[0][0]);
 
         
-        return new PagedData<T> { Data = data, Count = allCount };
+        return new PagedData<T> { Data = data, Count = allCount, TotalPages = (allCount + pageSize - 1) / pageSize };
     }
     /// <summary>
     /// 分页查询指定数据表, 可使用数据库连接字符串connectionString参数指定连接的数据库

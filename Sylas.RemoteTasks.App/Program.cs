@@ -1,6 +1,5 @@
 using Sylas.RemoteTasks.App.BackgroundServices;
 using Sylas.RemoteTasks.App.Database;
-using Sylas.RemoteTasks.App.Database.SyncBase;
 using Sylas.RemoteTasks.App.DataHandlers;
 using Sylas.RemoteTasks.App.RemoteHostModule;
 using Sylas.RemoteTasks.App.Repositories;
@@ -71,10 +70,12 @@ app.UseAuthorization();
 
 if (app.Environment.IsDevelopment())
 {
+    var defaultController = app.Configuration["DefaultController"] ?? "Sync";
+    var defaultAction = app.Configuration["DefaultAction"] ?? "Index";
     app.MapControllerRoute(
         name: "default",
         //pattern: "{controller=Hosts}/{action=Index}/{id?}");
-        pattern: "{controller=Sync}/{action=Index}/{id?}");
+        pattern: $"{{controller={defaultController}}}/{{action={defaultAction}}}/{{id?}}");
 }
 else
 {

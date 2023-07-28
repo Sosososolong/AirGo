@@ -2,100 +2,132 @@
     ViewData["Title"] = "Http Request Processor ...";
 }
 
-<table class="table table-striped">
-    <thead>
-        <tr>
-            <th>名称</th>
-            <th>Url地址</th>
-            <th>是否循环执行步骤</th>
-            <th>备注信息</th>
-        </tr>
-    </thead>
-    <tbody>
-    </tbody>
-</table>
+<div class="container">
+    <h1>HTTP请求处理器</h1>
+    <div class="row">
+        <div class="col-md-6">
+            <form id="search-form">
+                <div class="mb-3">
+                    <label for="search-input" class="form-label">关键字</label>
+                    <input type="text" class="form-control" id="search-input">
+                </div>
+                <button type="submit" class="btn btn-primary">搜索</button>
+            </form>
+        </div>
+    </div>
+    <div id="tableContainer">
+        <table>
+            <tr class="align">
+
+            </tr>
+        </table>
+    </div>
+</div>
 
 @section Scripts{
     <script>
         $(function () {
-            var pageIndex = 1;
-            var totalPages = 0;
-            var pageSize = 10;
-            var orderField = '';
-            var isAsc = true;
-            var dataFilter = {
-                filterItems: [
-                    {
-                        fieldName: '',
-                        compareType: '',
-                        value: ''
-                    }
-                ],
-                keywords: {
-                    fields: [],
-                    value: ''
+            const apiUrl = "Sync/GetHttpRequestProcessors";
+            
+            const tableId = 'tableProcessors';
+
+            const tableParentSelector = "#tableContainer";
+            const ths = [
+                { name: 'title', title: '标题' },
+                { name: 'name', title: '名称/编码' },
+                { name: 'url', title: 'Url地址' },
+                { name: 'stepCirleRunningWhenLastStepHasData', title: '步骤循环', enumValus: [ false, true ] },
+                { name: 'remark', title: '备注', width: 200, showPart: 12 },
+                { name: '', title: '操作', type: 'button', tmpl: `<button type="button" class="btn btn-primary btn-sm" data-bs-toggle="collapse" href="#collapse${tableId}{{id}}" role="button" aria-expanded="true" aria-controls="collapse${tableId}{{id}}">步骤</button>` }
+            ]
+            const idFieldName = "id";
+
+            function onProcessorsDataLoaded(row) {
+                const processorId = row[idFieldName];
+                const tableStepsId = `tableStepsForProcessor${processorId}`;
+                var steps = row.steps;
+                if (!steps || !(steps.length) || $(`#${tableStepsId}`).length) {
+                    return;
                 }
-            }
-
-            // 发送 AJAX 请求获取数据
-            function loadData() {
-                $.ajax({
-                    url: `Sync/GetHttpRequestProcessors?pageIndex=${pageIndex}&pageSize=${pageSize}&orderField=${orderField}&isAsc=${isAsc}`,
-                    method: 'POST',
-                    data: {
-                        dataFilter: dataFilter
-                    },
-                    //contentType: 'application/x-www-form-urlencoded',
-                    contentType: 'application/json',
-                    dataType: 'json',
-                    success: function (data) {
-                        // 将数据添加到表格中
-                        var tbody = $('table tbody');
-                        tbody.empty();
-                        data.items.forEach(function (row) {
-                            var tr = $('<tr>');
-                            tr.append('<td>' + row.id + '</td>');
-                            tr.append('<td>' + row.name + '</td>');
-                            tr.append('<td>' + row.email + '</td>');
-                            tbody.append(tr);
-                        });
-
-                        // 更新分页导航
-                        totalPages = data.totalPages;
-                        var pagination = $('.pagination');
-                        pagination.empty();
-                        pagination.append('<li class="page-item ' + (currentPage == 1 ? 'disabled' : '') + '"><a class="page-link" href="#" data-page="' + (currentPage - 1) + '">Previous</a></li>');
-                        for (var i = 1; i <= totalPages; i++) {
-                            pagination.append('<li class="page-item ' + (i == currentPage ? 'active' : '') + '"><a class="page-link" href="#" data-page="' + i + '">' + i + '</a></li>');
+                createTable(
+                    "Sync/GetHttpRequestProcessorSteps",
+                    tableStepsId,
+                    tableParentSelector,
+                    [
+                        { name: 'parameters', title: '执行参数' },
+                        { name: 'dataContextBuilder', title: '数据上下文构建器', showPart: 12 },
+                        { name: 'remark', title: '备注', width: 200, showPart: 8 },
+                        { name: 'presetDataContext', title: '预设数据上下文' },
+                        { name: 'httpProcessorId', title: 'HTTP处理器', type: 'dataSource|dataSourceApi=Sync/GetHttpRequestProcessors|displayField=title' },
+                        { name: '', title: '操作', type: 'button', tmpl: `<button type="button" class="btn btn-primary btn-sm" data-bs-toggle="collapse" href="#collapse${tableStepsId}{{id}}" role="button" aria-expanded="true" aria-controls="collapse${tableStepsId}{{id}}">数据处理器</button>` }
+                    ],
+                    idFieldName,
+                    [
+                        {
+                            fieldName: 'httpProcessorId',
+                            compareType: '=',
+                            value: '1'
                         }
-                        pagination.append('<li class="page-item ' + (currentPage == totalPages ? 'disabled' : '') + '"><a class="page-link" href="#" data-page="' + (currentPage + 1) + '">Next</a></li>');
-                    },
-                    error: function (jqXHR, textStatus, errorThrown) {
-                        console.log('Error: ' + errorThrown);
-                    }
-                });
+                    ],
+                    steps,
+                    null,
+                    // wrapper 每一张表关联的是Processor表的某一行数据
+                    `<div id="collapse${tableId}${row[idFieldName]}" class="collapse" aria-labelledby="${tableParentSelector}" data-bs-parent="#accordion"><div class="card-body">{{tableHtml}}</div></div>`
+                    // addModalSettings
+                    , { modalType: 'add', api: 'Sync/AddHttpRequestProcessorStepDataHandler', 'method': 'POST' }
+                    // addModalSettings
+                    , { modalType: 'update', api: 'Sync/UpdateHttpRequestProcessorStepDataHandler', 'method': 'POST' }
+                );
+
+
+                createTableDataHandlers(steps, tableStepsId);
             }
 
-            // 搜索表单提交事件
-            $('#search-form').submit(function (event) {
-                event.preventDefault();
-                searchQuery = $('#search-input').val().trim();
-                currentPage = 1;
-                loadData();
-            });
-
-            // 分页导航点击事件
-            $('.pagination').on('click', 'a[data-page]', function (event) {
-                event.preventDefault();
-                var page = parseInt($(this).data('page'));
-                if (page >= 1 && page <= totalPages) {
-                    currentPage = page;
-                    loadData();
+            /**
+             * steps 某一条Processor所有的记录对应的所有步骤
+             * tableStepsId 当前steps所在表的Id
+             */
+            function createTableDataHandlers(steps, tableStepsId) {
+                for (let i = 0; i < steps.length; i++) {
+                    const step = steps[i];
+                    let loadingData = step.dataHandlers;
+                    const stepId = step[idFieldName];
+                    const tableDataHandlersId = `tableDataHandlersForStep${stepId}`;
+                    if (loadingData && (loadingData.length) && !$(`#${tableDataHandlersId}`).length) {
+                        createTable(
+                            "Sync/GetHttpRequestProcessorStepDataHandlers",
+                            tableDataHandlersId,
+                            tableParentSelector,
+                            [
+                                { name: 'dataHandler', title: '数据处理器' },
+                                { name: 'parametersInput', title: '参数' },
+                                { name: 'remark', title: '备注', width: 200, showPart: 8 }
+                            ],
+                            idFieldName,
+                            [
+                                {
+                                    fieldName: 'httpProcessorId',
+                                    compareType: '=',
+                                    value: '1'
+                                }
+                            ],
+                            loadingData,
+                            null,
+                            // wrapper 每一张表关联的是Steps表的某一行数据
+                            `<div id="collapse${tableStepsId}${stepId}" class="collapse" aria-labelledby="${tableParentSelector}" data-bs-parent="#accordion"><div class="card-body">{{tableHtml}}</div></div>`
+                            // addModalSettings
+                            , { modalType: 'add', api: 'Sync/AddHttpRequestProcessorStepDataHandler', 'method': 'POST' }
+                            // addModalSettings
+                            , { modalType: 'update', api: 'Sync/UpdateHttpRequestProcessorStepDataHandler', 'method': 'POST' }
+                        );
+                    }
                 }
-            });
+            }
 
-            // 加载第一页数据
-            loadData();
+            createTable(apiUrl, tableId, tableParentSelector, ths, idFieldName, null, null, onProcessorsDataLoaded, ''
+                , { modalType: 'add', url: 'Sync/AddHttpRequestProcessor', 'method': 'POST' }
+                , { modalType: 'update', url: 'Sync/UpdateHttpRequestProcessor', 'method': 'POST' }
+            )
         });
     </script>
 }
