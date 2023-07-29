@@ -355,6 +355,10 @@ async function handleData(table, type) {
         console.log(e);
     } finally {
         closeSpinner();
+        // 获取表单元素
+        var form = document.querySelector('#search-form');
+        // 触发搜索表单提交事件重新查询数据
+        form.submit();
     }
 }
 
