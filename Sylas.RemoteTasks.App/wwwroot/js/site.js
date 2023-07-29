@@ -3,7 +3,7 @@
 
 // Write your JavaScript code.
 
-var tables = {};
+const tables = {};
 const defaultDataFilter = {
     filterItems: [
         {
@@ -17,6 +17,11 @@ const defaultDataFilter = {
         value: ''
     }
 };
+
+const handleDataType = {
+    add: 0,
+    update: 1
+}
 
 function createTable(apiUrl, tableId, tableParentSelector, ths, idFieldName, filterItems = null, data = null, onDataLoaded = undefined, wrapper = '', addModalSettings, updateModalSettings) {
     if (!tables[tableId]) {
@@ -130,7 +135,8 @@ function createTable(apiUrl, tableId, tableParentSelector, ths, idFieldName, fil
         const tableDataModalId = `modelForAdd${tableId}`;
 
         if (this.addModalSettings) {
-            this.addOptions.button = `<button type="button" class="btn btn-primary btn-sm mt-3" data-bs-toggle="modal" data-bs-target="#${tableDataModalId}">添加</button>`;
+            //data-bs-toggle="modal" data-bs-target="#${tableDataModalId}"
+            this.addOptions.button = `<button type="button" class="btn btn-primary btn-sm mt-3" onclick="showModal(tables['${tableId}'])">添加</button>`;
             // 构建modal表单 - tableForm
             for (var i = 0; i < ths.length; i++) {
                 var th = ths[i]
@@ -191,7 +197,7 @@ function createTable(apiUrl, tableId, tableParentSelector, ths, idFieldName, fil
             if (this.formItemIds.indexOf(idInputId) === -1) {
                 this.formItemIds.push(idInputId);
             }
-            let formItemIdsStr = this.formItemIds.join(',');
+            
             this.addOptions.modalHtml = `<div class="modal fade" tabindex="-1" id="${tableDataModalId}">
       <div class="modal-dialog">
         <div class="modal-content">
@@ -204,7 +210,7 @@ function createTable(apiUrl, tableId, tableParentSelector, ths, idFieldName, fil
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
-            <button type="button" class="btn btn-primary" onclick="addData('${this.addModalSettings.url}', '${this.addModalSettings.method}', getFormData('${formItemIdsStr}'))">提交</button>
+            <button type="button" class="btn btn-primary" onclick="handleData(tables['${tableId}'], handleDataType.add)">提交</button>
           </div>
         </div>
       </div>
@@ -240,6 +246,8 @@ function createTable(apiUrl, tableId, tableParentSelector, ths, idFieldName, fil
         }
         // 初始化数据表格结构
         $(tableParentSelector).append(tableHtml)
+
+        this.modal = new bootstrap.Modal(`#${tableDataModalId}`);
 
         // modal提交事件
         $(`#${tableDataModalId}`).on('click', 'a[data-page]', function (event) {
@@ -283,7 +291,8 @@ function createTable(apiUrl, tableId, tableParentSelector, ths, idFieldName, fil
 
 async function fetchData(url, method, dataFilter) {
     try {
-        return await $.ajax({
+        showSpinner();
+        let response = await $.ajax({
             url: url,
             method: method,
             data: dataFilter,
@@ -297,6 +306,7 @@ async function fetchData(url, method, dataFilter) {
             //    alert(errorThrown)
             //}
         });
+        return response;
     } catch (e) {
         if (e.status === 500) {
             alert('数据异常, 请联系系统管理员')
@@ -304,11 +314,21 @@ async function fetchData(url, method, dataFilter) {
             alert(e.textStatus)
         }
         console.log(e);
+    } finally {
+        closeSpinner();
     }
 }
 
-async function addData(url, method, data) {
+function showModal(table) {
+    table.modal.show();
+}
+
+async function handleData(table, type) {
+    showSpinner();
     try {
+        let url = type === handleDataType.add ? table.addModalSettings.url : table.updateModalSettings.url;
+        let method = type === handleDataType.add ? table.addModalSettings.method : table.updateModalSettings.method;
+        let data = getFormData(table.formItemIds.join(','));
         let dataJsonString = JSON.stringify(data);
         let response = await $.ajax({
             url: url,
@@ -318,11 +338,12 @@ async function addData(url, method, data) {
             contentType: 'application/json;charset=utf-8',
             dataType: 'json'
         });
-        console.log('resp', response);
+
         if (response.isSuccess) {
-            alert("操作成功");
+            table.modal.hide();
+            showInfoBox('操作成功');
         } else {
-            alert(response.errMsg)
+            showErrorBox(response.errMsg, '错误提示', [{ class: 'error', content: '关闭' }]);
         }
     } catch (e) {
         if (e.status === 500) {
@@ -332,6 +353,8 @@ async function addData(url, method, data) {
             alert(e.textStatus)
         }
         console.log(e);
+    } finally {
+        closeSpinner();
     }
 }
 

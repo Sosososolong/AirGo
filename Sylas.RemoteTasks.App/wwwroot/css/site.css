@@ -18,8 +18,9 @@ html {
 }
 
 body {
-  margin-bottom: 60px;
-  font-family: Consolas;
+    margin-bottom: 60px;
+    font-family: Consolas;
+    /*font-family: Avenir,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,'Noto Sans',sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji',sans-serif;*/
 }
 
 tbody {
