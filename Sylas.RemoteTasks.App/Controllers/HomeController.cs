@@ -949,7 +949,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// <param name="connectionString">目标表所在的数据库的连接字符串</param>
         /// <param name="serviceFieldInController">控制器中负责业务的服务字段, 空表示创建新的服务类</param>
         /// <returns></returns>
-        public async Task<IActionResult> CodeGen([FromServices] DatabaseInfo database, string tableFullName, string tableComment, string connectionString, string serviceFieldInController = "")
+        public async Task<IActionResult> CodeGen([FromServices] DatabaseInfo database, string tableFullName, string tableComment, string connectionString, string serviceFieldInController)
         {
             #region 参数为空跳转到配置参数的页面
             if (string.IsNullOrWhiteSpace($"{tableFullName}") || string.IsNullOrWhiteSpace($"{tableComment}") || string.IsNullOrWhiteSpace($"{connectionString}"))
@@ -966,12 +966,9 @@ namespace Sylas.RemoteTasks.App.Controllers
             var tableSimpleName = tableFullName.EndsWith('s') ? tableFullName[..^1] : tableFullName;
             if (tableSimpleName.Contains('_'))
             {
-                tableSimpleName = Regex.Replace(tableSimpleName, @"(_[a-zA-Z])", match =>
-                {
-                    var origin = match.Groups[0].Value;
-                    var target = match.Groups[1].Value;
-                    return origin.Replace(target, target.TrimStart('_').ToUpper());
-                });
+                int startIndex = tableSimpleName.IndexOf('_') + 1;
+                tableSimpleName = tableSimpleName[startIndex..];
+                tableSimpleName = tableSimpleName[0].ToString().ToUpper() + tableSimpleName[1..];
             }
             tableSimpleName = $"{tableSimpleName[0].ToString().ToUpper()}{tableSimpleName[1..]}";
             var tableFieldName = $"_{tableSimpleName[0].ToString().ToLower()}{tableSimpleName[1..]}";

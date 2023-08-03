@@ -121,6 +121,45 @@
         function closeSpinner() {
             spinner.hide();
         }
+
+        function addOverlay(targetId) {
+            // 创建覆盖层的 div 元素
+            var overlay = document.createElement('div');
+            overlay.classList.add('overlay');
+            overlay.innerHTML = `
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            `;
+
+            // 获取要覆盖的目标元素
+            var target = document.querySelector(`#${targetId}`);
+
+            // 获取目标元素的位置和尺寸信息
+            var rect = target.getBoundingClientRect();
+
+            // 设置覆盖层基本样式
+            overlay.style.position = 'absolute';
+            overlay.style.backgroundColor = 'rgba(200,200,200,0.8)';
+            overlay.style.zIndex = '999';
+            // 设置覆盖层的位置和尺寸
+            overlay.style.top = rect.top + 'px';
+            overlay.style.left = rect.left + 'px';
+            overlay.style.width = rect.width + 'px';
+            overlay.style.height = rect.height + 'px';
+            // 设置覆盖层水平垂直居中
+            overlay.style.display = 'flex';
+            overlay.style.justifyContent = 'center';
+            overlay.style.alignItems = 'center';
+
+            // 将覆盖层插入到目标元素的父节点中
+            target.parentNode.insertBefore(overlay, target);
+            return overlay;
+        }
+
+        function removeOverlay(overlay) {
+            overlay.remove();
+        }
     </script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>

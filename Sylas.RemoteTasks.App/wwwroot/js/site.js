@@ -4,39 +4,36 @@
 // Write your JavaScript code.
 
 const tables = {};
-const defaultDataFilter = {
-    filterItems: [
-        {
-            fieldName: '',
-            compareType: '',
-            value: ''
-        }
-    ],
-    keywords: {
-        fields: [],
-        value: ''
-    }
-};
 
-const handleDataType = {
-    add: 0,
-    update: 1
-}
-
-function createTable(apiUrl, tableId, tableParentSelector, ths, idFieldName, filterItems = null, data = null, onDataLoaded = undefined, wrapper = '', addModalSettings, updateModalSettings) {
+function createTable(apiUrl, tableId, tableParentSelector, ths, idFieldName, filterItems = null, data = null, onDataLoaded = undefined, wrapper = '', addModalSettings) {
     if (!tables[tableId]) {
         tables[tableId] = {
             pageIndex: 1,
             totalPages: 0,
-            pageSize: 1,
+            pageSize: 2,
             orderField: '',
             isAsc: true,
-            dataFilter: defaultDataFilter,
+            dataFilter: {
+                filterItems: [
+                    {
+                        fieldName: '',
+                        compareType: '',
+                        value: ''
+                    }
+                ],
+                keywords: {
+                    fields: [],
+                    value: ''
+                }
+            },
             onDataLoaded: onDataLoaded,
             wrapper: wrapper,
             formItemIds: [],
+            formItemIdsMapper: {},
             addModalSettings: addModalSettings,
-            updateModalSettings: updateModalSettings,
+            ths: ths,
+            modalId: '',
+            modal: '',
             addOptions: {
                 tableForm: '',
                 button: ''
@@ -46,11 +43,11 @@ function createTable(apiUrl, tableId, tableParentSelector, ths, idFieldName, fil
 
     var targetTable = tables[tableId];
 
-    if (!filterItems) {
+    if (filterItems) {
         targetTable.dataFilter.filterItems = filterItems;
     }
 
-    targetTable.renderBody = function renderBody(data) {
+    targetTable.renderBody = function (data) {
         var tbody = $(`#${tableId} tbody`);
         tbody.empty();
         for (var j = 0; j < data.length; j++) {
@@ -89,7 +86,7 @@ function createTable(apiUrl, tableId, tableParentSelector, ths, idFieldName, fil
         }
     }
 
-    targetTable.loadData = async function loadData() {
+    targetTable.loadData = async function() {
         // 分页条
         var pagination = $(`#page-${tableId}`);
 
@@ -121,102 +118,115 @@ function createTable(apiUrl, tableId, tableParentSelector, ths, idFieldName, fil
         //function onError(jqXHR, textStatus, errorThrown) {
         //    console.log('Error: ' + errorThrown);
         //}
-        //fetchData(url, method, targetTable.dataFilter, onSuccess, onError)
-        var response = await fetchData(url, method, targetTable.dataFilter)
+        var response = await fetchData(url, method, targetTable.dataFilter, tableId)
         if (response) {
             onSuccess(response);
         }
     };
 
+    targetTable.createModal = async function () {
+        if (this.modalId && this.modal) {
+            // 已经创建过了
+            return;
+        }
+
+        const tableDataModalId = `modelForAdd${tableId}`;
+        this.modalId = tableDataModalId;
+
+        //data-bs-toggle="modal" data-bs-target="#${tableDataModalId}"
+        this.addOptions.button = `<button type="button" class="btn btn-primary btn-sm mt-3" onclick="showAddPannel(tables['${tableId}'])">添加</button>`;
+        // 构建modal表单 - tableForm
+        for (var i = 0; i < ths.length; i++) {
+            var th = ths[i]
+            if (th.name) {
+                let formItemId = `${tableId}FormInput_${th.name}`;
+                if (!th.type) {
+                    if (th.enumValus) {
+                        // 字段值有限, 下拉框选取
+                        let dataSourceOptions = '';
+                        th.enumValus.forEach(val => {
+                            dataSourceOptions += `<option value="${val}">${val}</option>`
+                        })
+                        this.addOptions.tableForm += `<div class="mb-3">
+<label for="${formItemId}" class="col-form-label">${th.title}:</label>
+<select class="form-control form-select-sm" aria-label="Default select" name="${th.name}" id="${formItemId}">${dataSourceOptions}</select>
+</div>`;
+                    } else {
+                        this.addOptions.tableForm += `<div class="mb-3">
+<label for="${formItemId}" class="col-form-label">${th.title}:</label>
+<input class="form-control form-control-sm" type="text" placeholder="${th.title}" name="${th.name}" id="${formItemId}" aria-label=".form-control-sm example">
+</div>`;
+                    }
+
+                    // 记录表单项Id
+                    if (this.formItemIds.indexOf(formItemId) === -1) {
+                        this.formItemIds.push(formItemId);
+                        this.formItemIdsMapper[formItemId] = th.name;
+                    }
+                } else if (th.type.indexOf('dataSource') === 0) {
+                    let dataSourceApi = /dataSourceApi=([^=|]+)/.exec(th.type)[1];
+
+                    let displayField = 'id'
+                    let displayFieldPattern = /displayField=([^=|]+)/.exec(th.type);
+                    if (displayFieldPattern && displayFieldPattern.length > 1) {
+                        displayField = displayFieldPattern[1]
+                    }
+
+                    let url = `${dataSourceApi}?pageIndex=1&pageSize=1000`;
+                    let dataSourceOptions = '';
+                    // TODO: 处理报错:
+                    let response = await fetchData(url, 'POST', null, null)
+                    if (response) {
+                        response.data.forEach(row => {
+                            dataSourceOptions += `<option value="${row['id']}">${row[displayField]}</option>`
+                        })
+                    }
+                    this.addOptions.tableForm += `<div class="mb-3">
+<label for="${formItemId}" class="col-form-label">${th.title}:</label>
+<select class="form-control form-select-sm" aria-label="Default select" name="${th.name}" id="${formItemId}">${dataSourceOptions}</select>
+</div>`;
+                    // 记录表单项Id
+                    if (this.formItemIds.indexOf(formItemId) === -1) {
+                        this.formItemIds.push(formItemId);
+                        this.formItemIdsMapper[formItemId] = th.name;
+                    }
+                }
+            }
+        }
+        let idInputId = `${tableId}FormInput_id`;
+        this.addOptions.tableForm += `<input name="id" type="hidden" id="${idInputId}" />`;
+        if (this.formItemIds.indexOf(idInputId) === -1) {
+            this.formItemIds.push(idInputId);
+            this.formItemIdsMapper[idInputId] = 'id';
+        }
+
+        this.addOptions.modalHtml = `<div class="modal fade" tabindex="-1" id="${tableDataModalId}">
+    <div class="modal-dialog">
+    <div class="modal-content">
+        <div class="modal-header">
+        <h5 class="modal-title">${tableId}添加数据</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+        ${this.addOptions.tableForm}
+        </div>
+        <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+        <button type="button" class="btn btn-primary" data-btn-type="submit" data-form-type="add" onclick="handleData(tables['${tableId}'], this)">提交</button>
+        </div>
+    </div>
+    </div>
+</div>`;
+    }
+
     targetTable.initTableStruct = async function initTableStruct() {
         if ($(`#${tableId}`).length) {
             return;
         }
-        const tableDataModalId = `modelForAdd${tableId}`;
 
         if (this.addModalSettings) {
-            //data-bs-toggle="modal" data-bs-target="#${tableDataModalId}"
-            this.addOptions.button = `<button type="button" class="btn btn-primary btn-sm mt-3" onclick="showModal(tables['${tableId}'])">添加</button>`;
-            // 构建modal表单 - tableForm
-            for (var i = 0; i < ths.length; i++) {
-                var th = ths[i]
-                if (th.name) {
-                    let formItemId = `${tableId}FormInput_${th.name}`;
-                    if (!th.type) {
-                        if (th.enumValus) {
-                            // 字段值有限, 下拉框选取
-                            let dataSourceOptions = '';
-                            th.enumValus.forEach(val => {
-                                dataSourceOptions += `<option value="${val}">${val}</option>`
-                            })
-                            this.addOptions.tableForm += `<div class="mb-3">
-    <label for="${formItemId}" class="col-form-label">${th.title}:</label>
-    <select class="form-control form-select-sm" aria-label="Default select" name="${th.name}" id="${formItemId}">${dataSourceOptions}</select>
-  </div>`;
-                        } else {
-                            this.addOptions.tableForm += `<div class="mb-3">
-    <label for="${formItemId}" class="col-form-label">${th.title}:</label>
-    <input class="form-control form-control-sm" type="text" placeholder="${th.title}" name="${th.name}" id="${formItemId}" aria-label=".form-control-sm example">
-  </div>`;
-                        }
-
-                        // 记录表单项Id
-                        if (this.formItemIds.indexOf(formItemId) === -1) {
-                            this.formItemIds.push(formItemId);
-                        }
-                    } else if (th.type.indexOf('dataSource') === 0) {
-                        let dataSourceApi = /dataSourceApi=([^=|]+)/.exec(th.type)[1];
-
-                        let displayField = 'id'
-                        let displayFieldPattern = /displayField=([^=|]+)/.exec(th.type);
-                        if (displayFieldPattern && displayFieldPattern.length > 1) {
-                            displayField = displayFieldPattern[1]
-                        }
-
-                        let url = `${dataSourceApi}?pageIndex=1&pageSize=1000`;
-                        let dataSourceOptions = '';
-                        let response = await fetchData(url, 'POST', null)
-                        if (response) {
-                            response.data.forEach(row => {
-                                dataSourceOptions += `<option value="${row['id']}">${row[displayField]}</option>`
-                            })
-                        }
-                        this.addOptions.tableForm += `<div class="mb-3">
-    <label for="${formItemId}" class="col-form-label">${th.title}:</label>
-    <select class="form-control form-select-sm" aria-label="Default select" name="${th.name}" id="${formItemId}">${dataSourceOptions}</select>
-  </div>`;
-                        // 记录表单项Id
-                        if (this.formItemIds.indexOf(formItemId) === -1) {
-                            this.formItemIds.push(formItemId);
-                        }
-                    }
-                }
-            }
-            let idInputId = `${tableId}FormInput_id`;
-            this.addOptions.tableForm += `<input name="id" type="hidden" id="${idInputId}" />`;
-            if (this.formItemIds.indexOf(idInputId) === -1) {
-                this.formItemIds.push(idInputId);
-            }
-            
-            this.addOptions.modalHtml = `<div class="modal fade" tabindex="-1" id="${tableDataModalId}">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">${tableId}添加数据</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body">
-            ${this.addOptions.tableForm}
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
-            <button type="button" class="btn btn-primary" onclick="handleData(tables['${tableId}'], handleDataType.add)">提交</button>
-          </div>
-        </div>
-      </div>
-    </div>`;
+            await this.createModal();
         }
-        
 
         var tableHtml = `${this.addOptions.button}
     <table class="table table-sm table-hover table-bordered mt-3" id="${tableId}">
@@ -244,16 +254,13 @@ function createTable(apiUrl, tableId, tableParentSelector, ths, idFieldName, fil
         if (this.wrapper) {
             tableHtml = $(tableParentSelector).append(this.wrapper.replace('{{tableHtml}}', tableHtml))
         }
+
         // 初始化数据表格结构
         $(tableParentSelector).append(tableHtml)
-
-        this.modal = new bootstrap.Modal(`#${tableDataModalId}`);
-
-        // modal提交事件
-        $(`#${tableDataModalId}`).on('click', 'a[data-page]', function (event) {
-            event.preventDefault();
-            
-        });
+        // 获取对应的modal
+        if (this.modalId) {
+            this.modal = new bootstrap.Modal(`#${this.modalId}`);
+        }
 
         ths.forEach(th => {
             $(`#${tableId} thead tr`).append(`<th>${th.title}</th>`);
@@ -285,17 +292,28 @@ function createTable(apiUrl, tableId, tableParentSelector, ths, idFieldName, fil
         targetTable.loadData();
     });
 
+    targetTable.searchKeywords = function() {
+        // 获取表单元素
+        var form = document.querySelector('#search-form');
+        // 触发搜索表单提交事件重新查询数据
+        form.submit();
+    }
+
     targetTable.render();
 }
 
 
-async function fetchData(url, method, dataFilter) {
+async function fetchData(url, method, dataFilter, renderElementId, finallyAction) {
+    //showSpinner();
+    let overlay = null;
+    if (renderElementId) {
+        overlay = addOverlay(renderElementId);
+    }
     try {
-        showSpinner();
         let response = await $.ajax({
             url: url,
             method: method,
-            data: dataFilter,
+            data: JSON.stringify(dataFilter),
             //contentType: 'application/x-www-form-urlencoded',
             contentType: 'application/json',
             dataType: 'json',
@@ -313,24 +331,38 @@ async function fetchData(url, method, dataFilter) {
         } else {
             alert(e.textStatus)
         }
-        console.log(e);
     } finally {
-        closeSpinner();
+        //closeSpinner();
+        if (overlay) {
+            overlay.remove();
+        }
+
+        if (finallyAction) {
+            finallyAction();
+        }
     }
+}
+
+function showAddPannel(table) {
+    let submitButton = document.querySelector(`#${table.modalId} button[data-btn-type="submit"]`);
+    submitButton.setAttribute("data-form-type", "add");
+    showModal(table);
 }
 
 function showModal(table) {
     table.modal.show();
 }
 
-async function handleData(table, type) {
+async function handleData(table, eventTrigger) {
+    let handleType = eventTrigger.getAttribute("data-form-type");
+    let url = handleType === "add" ? table.addModalSettings.url : eventTrigger.getAttribute("data-update-url");
+    let method = handleType === "add" ? table.addModalSettings.method : eventTrigger.getAttribute("data-update-method");
+    let data = getFormData(table.formItemIds.join(','));
+    let dataJsonString = JSON.stringify(data);
     showSpinner();
+    let response = null;
     try {
-        let url = type === handleDataType.add ? table.addModalSettings.url : table.updateModalSettings.url;
-        let method = type === handleDataType.add ? table.addModalSettings.method : table.updateModalSettings.method;
-        let data = getFormData(table.formItemIds.join(','));
-        let dataJsonString = JSON.stringify(data);
-        let response = await $.ajax({
+        response = await $.ajax({
             url: url,
             method: method,
             data: dataJsonString,
@@ -339,26 +371,27 @@ async function handleData(table, type) {
             dataType: 'json'
         });
 
-        if (response.isSuccess) {
-            table.modal.hide();
-            showInfoBox('操作成功');
-        } else {
-            showErrorBox(response.errMsg, '错误提示', [{ class: 'error', content: '关闭' }]);
-        }
+        closeSpinner();
     } catch (e) {
         if (e.status === 500) {
-            alert('接口异常, 请联系系统管理员')
+            showErrorBox('接口异常, 请联系系统管理员')
             console.log(url, e);
+        } else if (e.status === 404) {
+            showErrorBox(`接口不存在: ${url}`)
         } else {
             alert(e.textStatus)
         }
         console.log(e);
     } finally {
         closeSpinner();
-        // 获取表单元素
-        var form = document.querySelector('#search-form');
-        // 触发搜索表单提交事件重新查询数据
-        form.submit();
+    }
+
+    if (response && response.isSuccess) {
+        table.modal.hide();
+        showInfoBox('操作成功');
+        table.searchKeywords();
+    } else {
+        showErrorBox(response.errMsg, '错误提示', [{ class: 'error', content: '关闭' }]);
     }
 }
 
@@ -378,4 +411,79 @@ function getFormData(formItemIdsString) {
         formData[name] = formItemVal;
     }
     return formData;
+}
+
+async function showUpdatePannel(eventTrigger) {
+    let tableId = eventTrigger.getAttribute('data-table-id');
+    let table = tables[tableId];
+    let dataId = eventTrigger.getAttribute('data-id');
+    let fetchUrl = eventTrigger.getAttribute('data-fetch-url');
+    let updateUrl = eventTrigger.getAttribute('data-update-url');
+    let method = eventTrigger.getAttribute('data-method');
+
+    let findByIdFilter = {
+        filterItems: [
+            {
+                fieldName: 'id',
+                compareType: '=',
+                value: dataId
+            }
+        ],
+        keywords: {
+            fields: [],
+            value: ''
+        }
+    };
+    var fetchedData = await fetchData(fetchUrl, method, findByIdFilter);
+    if (fetchedData && fetchedData.data) {
+        await table.createModal();
+        let record = fetchedData.data[0];
+        table.formItemIds.forEach(formItemId => {
+            let formItem = document.querySelector(`#${formItemId}`);
+
+            let field = table.formItemIdsMapper[formItemId];
+            let fieldValue;
+            try {
+                fieldValue = record[field].toString();
+            } catch (e) {
+                console.log(e);
+            }
+
+            formItem.value = fieldValue;
+        })
+
+        let submitButton = document.querySelector(`#${table.modalId} button[data-btn-type="submit"]`);
+        submitButton.setAttribute("data-form-type", "update");
+        submitButton.setAttribute("data-update-url", updateUrl);
+        submitButton.setAttribute("data-update-method", method);
+        showModal(table);
+    }
+}
+
+async function deleteData(eventTrigger) {
+    let tableId = eventTrigger.getAttribute('data-table-id');
+    let table = tables[tableId];
+    let dataId = eventTrigger.getAttribute('data-id');
+
+    let url = eventTrigger.getAttribute('data-delete-url');
+    let method = eventTrigger.getAttribute('data-method');
+    try {
+        let response = await $.ajax({
+            url: url,
+            method: method,
+            data: "\"" + dataId + "\"",
+            contentType: 'application/json',
+            dataType: 'json',
+        });
+        if (response && response.isSuccess) {
+            showInfoBox('操作成功');
+
+            table.loadData();
+        } else {
+            showErrorBox(response.errMsg, '错误提示', [{ class: 'error', content: '关闭' }]);
+        }
+    } catch (e) {
+        showErrorBox('操作失败');
+        console.log(e);
+    }
 }

@@ -1,6 +1,6 @@
 ﻿namespace Sylas.RemoteTasks.App.Models.HttpRequestProcessor.Dtos
 {
-    public class HttpRequestProcessorInDto
+    public class HttpRequestProcessorCreateDto
     {
         public string Title { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;

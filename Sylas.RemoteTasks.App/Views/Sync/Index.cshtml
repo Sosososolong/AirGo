@@ -38,14 +38,18 @@
                 { name: 'url', title: 'Url地址' },
                 { name: 'stepCirleRunningWhenLastStepHasData', title: '步骤循环', enumValus: [ false, true ] },
                 { name: 'remark', title: '备注', width: 200, showPart: 12 },
-                { name: '', title: '操作', type: 'button', tmpl: `<button type="button" class="btn btn-primary btn-sm" data-bs-toggle="collapse" href="#collapse${tableId}{{id}}" role="button" aria-expanded="true" aria-controls="collapse${tableId}{{id}}">步骤</button>` }
+                // 操作栏
+                { name: '', title: '操作', type: 'button', tmpl: `<button type="button" class="btn btn-primary btn-sm" data-bs-toggle="collapse" href="#collapse${tableId}{{id}}" role="button" aria-expanded="true" aria-controls="collapse${tableId}{{id}}">步骤</button>
+                        <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="{{id}}" data-fetch-url="Sync/GetHttpRequestProcessors" data-update-url="Sync/UpdateHttpRequestProcessor" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
+                        <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="{{id}}" data-delete-url="Sync/DeleteHttpRequestProcessor" data-method="POST" onclick="deleteData(this)">删除</button>`
+                }
             ]
             const idFieldName = "id";
 
             function onProcessorsDataLoaded(row) {
                 const processorId = row[idFieldName];
                 const tableStepsId = `tableStepsForProcessor${processorId}`;
-                var steps = row.steps;
+                let steps = row.steps;
                 if (!steps || !(steps.length) || $(`#${tableStepsId}`).length) {
                     return;
                 }
@@ -75,8 +79,6 @@
                     `<div id="collapse${tableId}${row[idFieldName]}" class="collapse" aria-labelledby="${tableParentSelector}" data-bs-parent="#accordion"><div class="card-body">{{tableHtml}}</div></div>`
                     // addModalSettings
                     , { modalType: 'add', api: 'Sync/AddHttpRequestProcessorStepDataHandler', 'method': 'POST' }
-                    // addModalSettings
-                    , { modalType: 'update', api: 'Sync/UpdateHttpRequestProcessorStepDataHandler', 'method': 'POST' }
                 );
 
 
@@ -84,8 +86,9 @@
             }
 
             /**
-             * steps 某一条Processor所有的记录对应的所有步骤
-             * tableStepsId 当前steps所在表的Id
+             * 创建DataHandler表(一个step对应的所有DataHandler展示在一张表中)
+             * steps 某一条Processor记录对应的所有步骤, 这些steps将在一张表中展示
+             * tableStepsId steps所在表的Id
              */
             function createTableDataHandlers(steps, tableStepsId) {
                 for (let i = 0; i < steps.length; i++) {
@@ -117,16 +120,14 @@
                             `<div id="collapse${tableStepsId}${stepId}" class="collapse" aria-labelledby="${tableParentSelector}" data-bs-parent="#accordion"><div class="card-body">{{tableHtml}}</div></div>`
                             // addModalSettings
                             , { modalType: 'add', api: 'Sync/AddHttpRequestProcessorStepDataHandler', 'method': 'POST' }
-                            // addModalSettings
-                            , { modalType: 'update', api: 'Sync/UpdateHttpRequestProcessorStepDataHandler', 'method': 'POST' }
                         );
                     }
                 }
             }
 
+            // Processors
             createTable(apiUrl, tableId, tableParentSelector, ths, idFieldName, null, null, onProcessorsDataLoaded, ''
                 , { modalType: 'add', url: 'Sync/AddHttpRequestProcessor', 'method': 'POST' }
-                , { modalType: 'update', url: 'Sync/UpdateHttpRequestProcessor', 'method': 'POST' }
             )
         });
     </script>

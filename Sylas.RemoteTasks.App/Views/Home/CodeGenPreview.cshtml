@@ -37,7 +37,7 @@ h5 { color: orange; }
 [AutoTran]
 public async Task<ReturnResult<bool>> Add@(tableSimpleName)Async(@(tableSimpleName)InDto dto)
 {
-    return await _@(serviceFieldInController)Service.Add@(tableSimpleName)Async(dto);
+    return await @(serviceFieldInController).Add@(tableSimpleName)Async(dto);
 }
 /// <summary>
 /// 更新@(tableComment)
@@ -48,7 +48,7 @@ public async Task<ReturnResult<bool>> Add@(tableSimpleName)Async(@(tableSimpleNa
 [AutoTran]
 public async Task<ReturnResult<bool>> Update@(tableSimpleName)Async(@(tableSimpleName)InDto dto)
 {
-    return await _@(serviceFieldInController)Service.Update@(tableSimpleName)Async(dto);
+    return await @(serviceFieldInController).Update@(tableSimpleName)Async(dto);
 }
 /// <summary>
 /// @(tableComment)分页查询
@@ -58,7 +58,7 @@ public async Task<ReturnResult<bool>> Update@(tableSimpleName)Async(@(tableSimpl
 [HttpGet("@(tableSimpleName)s"), AllowAnonymous]
 public async Task<ReturnResult<IEnumerable<@(tableSimpleName)OutDto>>> @(tableSimpleName)sAsync([FromQuery] @(tableSimpleName)DataSearch search)
 {
-    return await _@(serviceFieldInController)Service.@(tableSimpleName)sAsync(search);
+    return await @(serviceFieldInController).@(tableSimpleName)sAsync(search);
 }
 /// <summary>
 /// 删除@(tableComment)
@@ -69,7 +69,7 @@ public async Task<ReturnResult<IEnumerable<@(tableSimpleName)OutDto>>> @(tableSi
 [AutoTran]
 public async Task<ReturnResult<bool>> Delete@(tableSimpleName)sAsync(string ids)
 {
-    return await _@(serviceFieldInController)Service.Delete@(tableSimpleName)sAsync(ids);
+    return await @(serviceFieldInController).Delete@(tableSimpleName)sAsync(ids);
 }
 </textarea>
 

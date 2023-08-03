@@ -47,11 +47,39 @@ namespace Sylas.RemoteTasks.App.Repositories
             return pages;
         }
         /// <summary>
+        /// 根据Id查询Http请求处理器
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        public async Task<HttpRequestProcessor?> GetByIdAsync(int id)
+        {
+            var pages = await _db.QueryPagedDataAsync<HttpRequestProcessor>(HttpRequestProcessor.TableName, 1, 1, "id", true, new DataFilter { FilterItems = new List<FilterItem> { new FilterItem { CompareType = "=", FieldName = "id", Value = id.ToString() } } });
+            var processor = pages.Data.FirstOrDefault();
+            if (processor is null)
+            {
+                return null;
+            }
+            var stepsFilters = new List<FilterItem>
+                {
+                    new FilterItem { FieldName = "httpProcessorId", CompareType = "=", Value = processor.Id.ToString() }
+                };
+            var steps = (await GetStepsPageAsync(1, 1000, "id", true, new DataFilter { FilterItems = stepsFilters })).Data;
+            processor.Steps = steps;
+
+            foreach (var step in steps)
+            {
+                var filterCondition = new FilterItem { FieldName = "StepId", CompareType = "=", Value = step.Id.ToString() };
+                var dataHandlers = (await GetDataHandlersPageAsync(1, 1000, "id", true, new DataFilter { FilterItems = new List<FilterItem> { filterCondition } })).Data;
+                step.DataHandlers = dataHandlers;
+            }
+            return processor;
+        }
+        /// <summary>
         /// 添加一个新的Http请求处理器
         /// </summary>
         /// <param name="processor"></param>
         /// <returns></returns>
-        public async Task<int> AddAsync(HttpRequestProcessorInDto processor)
+        public async Task<int> AddAsync(HttpRequestProcessorCreateDto processor)
         {
             string sql = $"insert into {HttpRequestProcessor.TableName} (Name, Title, Url, Remark, StepCirleRunningWhenLastStepHasData) values(@name, @title, @url, @remark, @stepCirleRunningWhenLastStepHasData)";
             var parameters = new Dictionary<string, object>
@@ -96,6 +124,9 @@ namespace Sylas.RemoteTasks.App.Repositories
                 setStatement.Append($"remark=@remark,");
                 parameters.Add("remark", processor.Remark);
             }
+            setStatement.Append($"stepCirleRunningWhenLastStepHasData=@stepCirleRunningWhenLastStepHasData,");
+            parameters.Add("stepCirleRunningWhenLastStepHasData", processor.StepCirleRunningWhenLastStepHasData);
+
             string sql = $"update {HttpRequestProcessor.TableName} set {setStatement.ToString().TrimEnd(',')} where id=@id";
             return await _db.ExecuteScalarAsync(sql, parameters);
         }

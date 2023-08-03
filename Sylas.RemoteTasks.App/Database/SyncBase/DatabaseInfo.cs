@@ -142,6 +142,7 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
             string allCountSqlTxt = $"select count(*) from {table} where 1=1 {condition}";
             
             var allCount = await conn.ExecuteScalarAsync<int>(allCountSqlTxt, parameters);
+            Console.WriteLine(sql);
             var data = await conn.QueryAsync<T>(sql, parameters);
 
             return new PagedData<T>  { Data = data, Count = allCount, TotalPages = (allCount + pageSize - 1) / pageSize };
@@ -523,7 +524,7 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
             }
         }
 
-        public static string GetPagedSql(string db, string table, DatabaseType dbType, int pageIndex, int pageSize, string orderField, bool isAsc, DataFilter filters, out string queryCondition, out Dictionary<string, object> queryConditionParameters)
+        public static string GetPagedSql(string db, string table, DatabaseType dbType, int pageIndex, int pageSize, string? orderField, bool isAsc, DataFilter filters, out string queryCondition, out Dictionary<string, object> queryConditionParameters)
         {
             string orderClause = string.Empty;
             if (!string.IsNullOrWhiteSpace(orderField))
