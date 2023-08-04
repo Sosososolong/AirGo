@@ -33,6 +33,11 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
             formItemIdsMapper: {},
             addModalSettings: addModalSettings,
             ths: ths,
+            dataSourceField: {
+                xxFieldName: [
+                    { id: 1, value: '同步应用和流程数据 - zcmu' }
+                ]
+            },
             modalId: '',
             modal: '',
             addOptions: {
@@ -48,7 +53,7 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
         targetTable.dataFilter.filterItems = filterItems;
     }
 
-    targetTable.renderBody = function (data) {
+    targetTable.renderBody = async function (data) {
         var tbody = $(`#${this.tableId} tbody`);
         tbody.empty();
         for (var j = 0; j < data.length; j++) {
@@ -64,6 +69,19 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
                 if (th.name) {
                     // 单元格只显示部分值
                     var tdValue = row[th.name];
+                    if (th.type && th.type.indexOf('dataSource') === 0) {
+                        if (!this.dataSourceField || !this.dataSourceField[th.name]) {
+                            await this.resolveDataSourceField(th);
+                        }
+                        for (let dataSourceIndex = 0; dataSourceIndex < this.dataSourceField[th.name].length; dataSourceIndex++) {
+                            let dataSource = this.dataSourceField[th.name][dataSourceIndex];
+                            if (tdValue === dataSource.id) {
+                                tdValue = dataSource.value;
+                                break;
+                            }
+                        }
+                    }
+
                     if (th.showPart && tdValue && tdValue.length > 12) {
                         tdValue = tdValue.substring(0, th.showPart) + '...'
                     }
@@ -100,7 +118,7 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
         var pagination = $(`#page-${this.tableId}`);
 
         if (data) {
-            this.renderBody(data);
+            await this.renderBody(data);
             pagination.hide();
             data = null;
             return;
@@ -110,12 +128,12 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
         const url = this.getFetchUrl();
         const method = 'POST';
 
-        function onSuccess(response) {
+        async function onSuccess(response) {
             var data = response.data;
             var totalCount = response.count;
             targetTable.totalPages = response.totalPages;
             // 将数据添加到表格中
-            targetTable.renderBody(data);
+            await targetTable.renderBody(data);
 
             // 更新分页导航
             pagination.empty();
@@ -125,12 +143,10 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
             }
             pagination.append('<li class="page-item ' + (targetTable.pageIndex == targetTable.totalPages ? 'disabled' : '') + '"><a class="page-link" href="#" data-page="' + (targetTable.pageIndex + 1) + '">Next</a></li>');
         }
-        //function onError(jqXHR, textStatus, errorThrown) {
-        //    console.log('Error: ' + errorThrown);
-        //}
+        
         var response = await fetchData(url, method, targetTable.dataFilter, this.tableId)
         if (response) {
-            onSuccess(response);
+            await onSuccess(response);
         }
     };
 
@@ -174,23 +190,8 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
                         this.formItemIdsMapper[formItemId] = th.name;
                     }
                 } else if (th.type.indexOf('dataSource') === 0) {
-                    let dataSourceApi = /dataSourceApi=([^=|]+)/.exec(th.type)[1];
+                    let dataSourceOptions = await this.resolveDataSourceField(th);
 
-                    let displayField = 'id'
-                    let displayFieldPattern = /displayField=([^=|]+)/.exec(th.type);
-                    if (displayFieldPattern && displayFieldPattern.length > 1) {
-                        displayField = displayFieldPattern[1]
-                    }
-
-                    let url = `${dataSourceApi}?pageIndex=1&pageSize=1000`;
-                    let dataSourceOptions = '';
-                    // TODO: 处理报错:
-                    let response = await fetchData(url, 'POST', null, null)
-                    if (response) {
-                        response.data.forEach(row => {
-                            dataSourceOptions += `<option value="${row['id']}">${row[displayField]}</option>`
-                        })
-                    }
                     this.addOptions.tableForm += `<div class="mb-3">
 <label for="${formItemId}" class="col-form-label">${th.title}:</label>
 <select class="form-control form-select-sm" aria-label="Default select" name="${th.name}" id="${formItemId}">${dataSourceOptions}</select>
@@ -227,6 +228,36 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
     </div>
     </div>
 </div>`;
+    }
+
+    targetTable.resolveDataSourceField = async function (thDataSource) {
+        let dataSourceApi = /dataSourceApi=([^=|]+)/.exec(thDataSource.type)[1];
+
+        let displayField = 'id'
+        let displayFieldPattern = /displayField=([^=|]+)/.exec(thDataSource.type);
+        if (displayFieldPattern && displayFieldPattern.length > 1) {
+            displayField = displayFieldPattern[1]
+        }
+
+        let url = `${dataSourceApi}?pageIndex=1&pageSize=1000`;
+        let dataSourceOptions = '';
+
+        let response = await fetchData(url, 'POST', null, null)
+        if (response) {
+            response.data.forEach(row => {
+                dataSourceOptions += `<option value="${row['id']}">${row[displayField]}</option>`
+
+                if (!this.dataSourceField) {
+                    this.dataSourceField = {};
+                }
+                if (!this.dataSourceField[thDataSource.name]) {
+                    this.dataSourceField[thDataSource.name] = []
+                }
+                // HttpRequestProcessor的id和title(id: 1, value: 同步应用和流程数据 - zcmu)
+                this.dataSourceField[thDataSource.name].push({ id: row['id'], value: row[displayField] })
+            })
+        }
+        return dataSourceOptions;
     }
 
     targetTable.initTableStruct = async function initTableStruct() {

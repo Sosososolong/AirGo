@@ -225,10 +225,10 @@ namespace Sylas.RemoteTasks.App.Repositories
                 setStatement.Append($"remark=@remark,");
                 parameters.Add("remark", step.Remark);
             }
-            if (step.HttpRequestProcessorId > 0)
+            if (step.ProcessorId > 0)
             {
                 setStatement.Append($"processorId=@processorId,");
-                parameters.Add("processorId", step.HttpRequestProcessorId);
+                parameters.Add("processorId", step.ProcessorId);
             }
             string sql = $"update {HttpRequestProcessorStep.TableName} set {setStatement.ToString().TrimEnd(',')} where id=@id";
             return await _db.ExecuteScalarAsync(sql, parameters);

@@ -65,7 +65,7 @@
                         { name: 'dataContextBuilder', title: '数据上下文构建器', showPart: 12 },
                         { name: 'remark', title: '备注', width: 200, showPart: 8 },
                         { name: 'presetDataContext', title: '预设数据上下文' },
-                        { name: 'HttpRequestProcessorId', title: 'HTTP处理器', type: 'dataSource|dataSourceApi=Sync/GetHttpRequestProcessors|displayField=title' },
+                        { name: 'processorId', title: 'HTTP处理器', type: 'dataSource|dataSourceApi=Sync/GetHttpRequestProcessors|displayField=title' },
                         { name: '', title: '操作', type: 'button', tmpl: `<button type="button" class="btn btn-primary btn-sm" data-bs-toggle="collapse" href="#collapse${tableStepsId}{{id}}" role="button" aria-expanded="true" aria-controls="collapse${tableStepsId}{{id}}">数据处理器</button>
                                 <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableStepsId}" data-id="{{id}}" data-fetch-url="Sync/GetHttpRequestProcessorSteps" data-update-url="Sync/UpdateHttpRequestProcessorStep" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
                                 <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableStepsId}" data-id="{{id}}" data-delete-url="Sync/DeleteHttpRequestProcessorStep" data-method="POST" onclick="deleteData(this)">删除</button>`

@@ -7,7 +7,7 @@
         public string Parameters { get; set; } = string.Empty;
         public string DataContextBuilder { get; set; } = string.Empty;
         public string Remark { get; set; } = string.Empty;
-        public int HttpRequestProcessorId { get; set; }
+        public int ProcessorId { get; set; }
         // ["$dataModelCodes=v_dszs_dslx_tjysjl", "$param2=value2"]
         public string PresetDataContext { get; set; } = string.Empty;
         public IEnumerable<HttpRequestProcessorStepDataHandler> DataHandlers { get; set; } = new List<HttpRequestProcessorStepDataHandler>();

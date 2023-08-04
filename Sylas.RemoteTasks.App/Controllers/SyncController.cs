@@ -186,7 +186,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             {
                 return Json(new OperationResult(false, "当前步骤执行参数不能为空"));
             }
-            if (step.HttpRequestProcessorId == 0)
+            if (step.ProcessorId == 0)
             {
                 return Json(new OperationResult(false, "所属HTTP处理器不能为空"));
             }
