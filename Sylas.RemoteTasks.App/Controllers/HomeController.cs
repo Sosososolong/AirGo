@@ -18,9 +18,10 @@ namespace Sylas.RemoteTasks.App.Controllers
     {
         private readonly DotNETOperation _coreOperations = new();
         private readonly DatabaseProvider _db;
-        private string OneTabSpace = "    ";
-        private string TwoTabsSpace = "        ";
-        private string FourTabsSpace = "                ";
+        private const char _space = ' ';
+        private readonly string _oneTabSpace = new(_space, 4);
+        private readonly string _twoTabsSpace = new(_space, 8);
+        private readonly string _fourTabsSpace = new(_space, 16);
 
         // ASP.NET Core 项目
         // 配置文件
@@ -274,14 +275,9 @@ namespace Sylas.RemoteTasks.App.Controllers
                 return Content($"sql语句: {sql}中, 没有@pageIndex和@pageSize参数");
             }
             var parameters =
-            //    new DbParameter[2]
-            //{
-            //    db.CreateDbParameter("pageIndex", 1),
-            //    db.CreateDbParameter("pageSize", 10)
-            //};
-            new Dictionary<string, object> {
-                { "pageIndex", 1 }, { "pageSize", 10 }
-            };
+                new Dictionary<string, object> {
+                    { "pageIndex", 1 }, { "pageSize", 10 }
+                };
 
             DataSet set = await _db.QueryAsync(sql, parameters);
             DataTable dataTable = set.Tables[0];
@@ -595,12 +591,12 @@ namespace Sylas.RemoteTasks.App.Controllers
                 {
                     orderByDirectionFields.Add($@"protected string orderBy{colName}Direction = ""desc"";");
                 }
-                sb.Append(FourTabsSpace)
+                sb.Append(_fourTabsSpace)
                     .AppendFormat(@"<th width=""50"" align=""center"" {0}>", colName.ToLower().Contains("time", StringComparison.CurrentCulture) ? $@"orderfield=""{primaryKey}"" class=""<%= orderBy{colName}Direction %>"">" : "") // 按时间排序其实就是按主键排序
                     .Append(Environment.NewLine)
-                    .Append(OneTabSpace + FourTabsSpace)
+                    .Append(_oneTabSpace + _fourTabsSpace)
                     .Append(colName).Append(Environment.NewLine)
-                    .Append(FourTabsSpace).Append("</th>")
+                    .Append(_fourTabsSpace).Append("</th>")
                     .Append(Environment.NewLine);
             }
 
@@ -619,9 +615,9 @@ namespace Sylas.RemoteTasks.App.Controllers
             sb.Clear(); // 清空sb内容,继续使用这个对象拼接字符串            
             foreach (string colName in columnNames)
             {
-                sb.Append(TwoTabsSpace + FourTabsSpace)
+                sb.Append(_twoTabsSpace + _fourTabsSpace)
                     .Append("<td>").Append(Environment.NewLine)
-                    .Append(OneTabSpace + TwoTabsSpace + FourTabsSpace);
+                    .Append(_oneTabSpace + _twoTabsSpace + _fourTabsSpace);
                 if (columnNames.Contains("UserID") && (colName.IndexOf("GameID") != -1 || colName.IndexOf("Accounts") != -1 || colName.IndexOf("NickName") != -1))
                 {
                     sb.Append($@"<a class=""edit"" href ='/Module/AccountManager/UserInfo.aspx?relId=<%=relId %>&userid=<%#((DataRowView)Container.DataItem)[""UserID""]%>'
@@ -633,7 +629,7 @@ namespace Sylas.RemoteTasks.App.Controllers
                     sb.Append($@"<%# Eval(""{colName}"") %>");
                 }
                 sb.Append(Environment.NewLine)
-                    .Append(TwoTabsSpace + FourTabsSpace).Append("</td>").Append(Environment.NewLine);
+                    .Append(_twoTabsSpace + _fourTabsSpace).Append("</td>").Append(Environment.NewLine);
             }
             reg = new Regex("{TableRows}");
             modifiedTemplate = reg.Replace(modifiedTemplate, sb.ToString());
@@ -641,7 +637,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             sb.Clear();
             foreach (string item in orderByDirectionFields)
             {
-                sb.Append(TwoTabsSpace)
+                sb.Append(_twoTabsSpace)
                     .Append(item).Append(Environment.NewLine);
             }
             reg = new Regex("{orderByDirectionFields}");
@@ -867,7 +863,7 @@ namespace Sylas.RemoteTasks.App.Controllers
                 StringBuilder codes = new StringBuilder();
                 foreach (string entityName in entityNamesParams)
                 {
-                    codes.Append($"public DbSet<{entityName}> {_coreOperations.ToPlural(entityName)} {{ get; set; }}").Append(Environment.NewLine).Append(TwoTabsSpace);
+                    codes.Append($"public DbSet<{entityName}> {_coreOperations.ToPlural(entityName)} {{ get; set; }}").Append(Environment.NewLine).Append(_twoTabsSpace);
                 }
                 FileHelper.InsertCodePropertyLevel(dbContextFilePath, codes.ToString().TrimEnd());
             }

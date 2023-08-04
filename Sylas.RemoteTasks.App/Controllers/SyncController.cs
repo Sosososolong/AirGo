@@ -57,7 +57,13 @@ namespace Sylas.RemoteTasks.App.Controllers
             var steps = await _repository.GetStepsPageAsync(pageIndex, pageSize, orderField, isAsc, dataFilter);
             return Json(steps);
         }
+        public async Task<IActionResult> GetHttpRequestProcessorStepDataHandlersAsync(int pageIndex, int pageSize, string orderField, bool isAsc, [FromBody] DataFilter dataFilter)
+        {
+            var steps = await _repository.GetDataHandlersPageAsync(pageIndex, pageSize, orderField, isAsc, dataFilter);
+            return Json(steps);
+        }
 
+        #region HttpRequestProcessor
         public async Task<IActionResult> AddHttpRequestProcessorAsync([FromBody] HttpRequestProcessorCreateDto processor)
         {
             if (processor == null)
@@ -120,7 +126,6 @@ namespace Sylas.RemoteTasks.App.Controllers
         }
         public async Task<IActionResult> DeleteHttpRequestProcessorAsync([FromBody] string ids)
         {
-            await Console.Out.WriteLineAsync($"ids: {ids}");
             var idlist = ids.Split(',');
             int affectedRows = 0;
             foreach (var id in idlist)
@@ -134,5 +139,182 @@ namespace Sylas.RemoteTasks.App.Controllers
             }
             return Ok(new OperationResult(false, "数据没有变化"));
         }
+        #endregion
+
+
+
+        
+        #region HttpRequestProcessorStep
+        /// <summary>
+        /// 添加步骤Step
+        /// </summary>
+        /// <param name="step"></param>
+        /// <returns></returns>
+        public async Task<IActionResult> AddHttpRequestProcessorStepAsync([FromBody] HttpRequestProcessorStepCreateDto step)
+        {
+            if (step == null)
+            {
+                return Json(new OperationResult(false, "创建步骤为空"));
+            }
+            if (string.IsNullOrWhiteSpace(step.Parameters))
+            {
+                return Json(new OperationResult(false, "当前步骤执行参数不能为空"));
+            }
+            if (step.HttpRequestProcessorId == 0)
+            {
+                return Json(new OperationResult(false, "所属HTTP处理器不能为空"));
+            }
+            var result = await _repository.AddStepAsync(step);
+            if (result > 0)
+            {
+                return Ok(new OperationResult(true, string.Empty));
+            }
+            return BadRequest(result);
+        }
+        /// <summary>
+        /// 更新步骤Step
+        /// </summary>
+        /// <param name="step"></param>
+        /// <returns></returns>
+        public async Task<IActionResult> UpdateHttpRequestProcessorStepAsync([FromBody] HttpRequestProcessorStep step)
+        {
+            if (step == null)
+            {
+                return Json(new OperationResult(false, "创建步骤为空"));
+            }
+            if (string.IsNullOrWhiteSpace(step.Parameters))
+            {
+                return Json(new OperationResult(false, "当前步骤执行参数不能为空"));
+            }
+            if (step.HttpRequestProcessorId == 0)
+            {
+                return Json(new OperationResult(false, "所属HTTP处理器不能为空"));
+            }
+            var dbStep = await _repository.GetStepByIdAsync(step.Id);
+            if (dbStep is null)
+            {
+                return NotFound("Http处理器步骤不存在");
+            }
+
+            int affectedRows = await _repository.UpdateStepAsync(step);
+            if (affectedRows > 0)
+            {
+                return Ok(new OperationResult(true, string.Empty));
+            }
+            return Ok(new OperationResult(false, "数据没有变化"));
+        }
+        /// <summary>
+        /// 删除步骤Step
+        /// </summary>
+        /// <param name="ids"></param>
+        /// <returns></returns>
+        public async Task<IActionResult> DeleteHttpRequestProcessorStepAsync([FromBody] string ids)
+        {
+            var idlist = ids.Split(',');
+            int affectedRows = 0;
+            foreach (var id in idlist)
+            {
+                affectedRows += await _repository.DeleteStepAsync(Convert.ToInt32(id));
+            }
+            
+            if (affectedRows > 0)
+            {
+                return Ok(new OperationResult(true, string.Empty));
+            }
+            return Ok(new OperationResult(false, "数据没有变化"));
+        }
+        #endregion
+
+
+
+
+        #region HttpRequestProcessorStepDataHandler
+        /// <summary>
+        /// 创建数据处理器DataHandler
+        /// </summary>
+        /// <param name="dataHandler"></param>
+        /// <returns></returns>
+        public async Task<IActionResult> AddHttpRequestProcessorStepDataHandlerAsync([FromBody] HttpRequestProcessorStepDataHandlerCreateDto dataHandler)
+        {
+            if (dataHandler == null)
+            {
+                return Json(new OperationResult(false, "数据处理器不能为空"));
+            }
+            if (string.IsNullOrWhiteSpace(dataHandler.DataHandler))
+            {
+                return Json(new OperationResult(false, "数据处理器字段不能为空"));
+            }
+            if (string.IsNullOrWhiteSpace(dataHandler.ParametersInput))
+            {
+                return Json(new OperationResult(false, "数据处理器输入参数不能为空"));
+            }
+            if (dataHandler.StepId == 0)
+            {
+                return Json(new OperationResult(false, "所属步骤不能为空"));
+            }
+            var result = await _repository.AddDataHandlerAsync(dataHandler);
+            if (result > 0)
+            {
+                return Ok(new OperationResult(true, string.Empty));
+            }
+            return BadRequest(result);
+        }
+        /// <summary>
+        /// 更新数据处理器DataHandler
+        /// </summary>
+        /// <param name="dataHandler"></param>
+        /// <returns></returns>
+        public async Task<IActionResult> UpdateHttpRequestProcessorStepDataHandlerAsync([FromBody] HttpRequestProcessorStepDataHandler dataHandler)
+        {
+            if (dataHandler == null)
+            {
+                return Json(new OperationResult(false, "数据处理器不能为空"));
+            }
+            if (string.IsNullOrWhiteSpace(dataHandler.DataHandler))
+            {
+                return Json(new OperationResult(false, "数据处理器字段不能为空"));
+            }
+            if (string.IsNullOrWhiteSpace(dataHandler.ParametersInput))
+            {
+                return Json(new OperationResult(false, "数据处理器输入参数不能为空"));
+            }
+            if (dataHandler.StepId == 0)
+            {
+                return Json(new OperationResult(false, "所属步骤不能为空"));
+            }
+            var dbStepDataHandler = await _repository.GetDataHandlerByIdAsync(dataHandler.Id);
+            if (dbStepDataHandler is null)
+            {
+                return NotFound("Http处理器步骤不存在");
+            }
+
+            int affectedRows = await _repository.UpdateDataHandlerAsync(dataHandler);
+            if (affectedRows > 0)
+            {
+                return Ok(new OperationResult(true, string.Empty));
+            }
+            return Ok(new OperationResult(false, "数据没有变化"));
+        }
+        /// <summary>
+        /// 删除数据处理器DataHandler
+        /// </summary>
+        /// <param name="ids"></param>
+        /// <returns></returns>
+        public async Task<IActionResult> DeleteHttpRequestProcessorStepDataHandlerAsync([FromBody] string ids)
+        {
+            var idlist = ids.Split(',');
+            int affectedRows = 0;
+            foreach (var id in idlist)
+            {
+                affectedRows += await _repository.DeleteDataHandlerAsync(Convert.ToInt32(id));
+            }
+
+            if (affectedRows > 0)
+            {
+                return Ok(new OperationResult(true, string.Empty));
+            }
+            return Ok(new OperationResult(false, "数据没有变化"));
+        }
+        #endregion
     }
 }

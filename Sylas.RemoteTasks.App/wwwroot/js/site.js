@@ -5,12 +5,13 @@
 
 const tables = {};
 
-function createTable(apiUrl, tableId, tableParentSelector, ths, idFieldName, filterItems = null, data = null, onDataLoaded = undefined, wrapper = '', addModalSettings) {
+function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, ths, idFieldName, filterItems = null, data = null, onDataLoaded = undefined, wrapper = '', addModalSettings) {
     if (!tables[tableId]) {
         tables[tableId] = {
-            pageIndex: 1,
+            tableId: tableId,
+            pageIndex: pageIndex,
+            pageSize: pageSize,
             totalPages: 0,
-            pageSize: 2,
             orderField: '',
             isAsc: true,
             dataFilter: {
@@ -48,7 +49,7 @@ function createTable(apiUrl, tableId, tableParentSelector, ths, idFieldName, fil
     }
 
     targetTable.renderBody = function (data) {
-        var tbody = $(`#${tableId} tbody`);
+        var tbody = $(`#${this.tableId} tbody`);
         tbody.empty();
         for (var j = 0; j < data.length; j++) {
             var row = data[j];
@@ -86,18 +87,27 @@ function createTable(apiUrl, tableId, tableParentSelector, ths, idFieldName, fil
         }
     }
 
+    // this指向的是window对象, 因为它的父作用域就是createTable()方法, createTable中的this就是window对象
+    targetTable.test = () => console.log(this);
+
+    targetTable.getFetchUrl = function () {
+        // 如果换成() => 函数形式this就成了window对象
+        return `${apiUrl}?pageIndex=${this.pageIndex}&pageSize=${this.pageSize}&orderField=${this.orderField}&isAsc=${this.isAsc}`;
+    }
+
     targetTable.loadData = async function() {
         // 分页条
-        var pagination = $(`#page-${tableId}`);
+        var pagination = $(`#page-${this.tableId}`);
 
         if (data) {
             this.renderBody(data);
             pagination.hide();
+            data = null;
             return;
         }
 
         // 发送 AJAX 请求获取数据
-        const url = `${apiUrl}?pageIndex=${targetTable.pageIndex}&pageSize=${targetTable.pageSize}&orderField=${targetTable.orderField}&isAsc=${targetTable.isAsc}`;
+        const url = this.getFetchUrl();
         const method = 'POST';
 
         function onSuccess(response) {
@@ -118,7 +128,7 @@ function createTable(apiUrl, tableId, tableParentSelector, ths, idFieldName, fil
         //function onError(jqXHR, textStatus, errorThrown) {
         //    console.log('Error: ' + errorThrown);
         //}
-        var response = await fetchData(url, method, targetTable.dataFilter, tableId)
+        var response = await fetchData(url, method, targetTable.dataFilter, this.tableId)
         if (response) {
             onSuccess(response);
         }
@@ -130,7 +140,7 @@ function createTable(apiUrl, tableId, tableParentSelector, ths, idFieldName, fil
             return;
         }
 
-        const tableDataModalId = `modelForAdd${tableId}`;
+        const tableDataModalId = `modelForAdd${this.tableId}`;
         this.modalId = tableDataModalId;
 
         //data-bs-toggle="modal" data-bs-target="#${tableDataModalId}"
@@ -139,7 +149,7 @@ function createTable(apiUrl, tableId, tableParentSelector, ths, idFieldName, fil
         for (var i = 0; i < ths.length; i++) {
             var th = ths[i]
             if (th.name) {
-                let formItemId = `${tableId}FormInput_${th.name}`;
+                let formItemId = `${this.tableId}FormInput_${th.name}`;
                 if (!th.type) {
                     if (th.enumValus) {
                         // 字段值有限, 下拉框选取
@@ -193,7 +203,7 @@ function createTable(apiUrl, tableId, tableParentSelector, ths, idFieldName, fil
                 }
             }
         }
-        let idInputId = `${tableId}FormInput_id`;
+        let idInputId = `${this.tableId}FormInput_id`;
         this.addOptions.tableForm += `<input name="id" type="hidden" id="${idInputId}" />`;
         if (this.formItemIds.indexOf(idInputId) === -1) {
             this.formItemIds.push(idInputId);
@@ -204,7 +214,7 @@ function createTable(apiUrl, tableId, tableParentSelector, ths, idFieldName, fil
     <div class="modal-dialog">
     <div class="modal-content">
         <div class="modal-header">
-        <h5 class="modal-title">${tableId}添加数据</h5>
+        <h5 class="modal-title">${this.tableId}添加数据</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
@@ -212,7 +222,7 @@ function createTable(apiUrl, tableId, tableParentSelector, ths, idFieldName, fil
         </div>
         <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
-        <button type="button" class="btn btn-primary" data-btn-type="submit" data-form-type="add" onclick="handleData(tables['${tableId}'], this)">提交</button>
+        <button type="button" class="btn btn-primary" data-btn-type="submit" data-form-type="add" onclick="handleData(tables['${this.tableId}'], this)">提交</button>
         </div>
     </div>
     </div>
@@ -220,7 +230,7 @@ function createTable(apiUrl, tableId, tableParentSelector, ths, idFieldName, fil
     }
 
     targetTable.initTableStruct = async function initTableStruct() {
-        if ($(`#${tableId}`).length) {
+        if ($(`#${this.tableId}`).length) {
             return;
         }
 
@@ -238,7 +248,7 @@ function createTable(apiUrl, tableId, tableParentSelector, ths, idFieldName, fil
         </tbody>
     </table>
     <nav aria-label="Page navigation">
-        <ul class="pagination" id="page-${tableId}">
+        <ul class="pagination" id="page-${this.tableId}">
             <li class="page-item disabled">
                 <a class="page-link" href="#" tabindex="-1" aria-disabled="true">Previous</a>
             </li>
@@ -263,11 +273,11 @@ function createTable(apiUrl, tableId, tableParentSelector, ths, idFieldName, fil
         }
 
         ths.forEach(th => {
-            $(`#${tableId} thead tr`).append(`<th>${th.title}</th>`);
+            $(`#${this.tableId} thead tr`).append(`<th>${th.title}</th>`);
         });
 
         // 分页导航点击事件
-        $(`#page-${tableId}`).on('click', 'a[data-page]', function (event) {
+        $(`#page-${this.tableId}`).on('click', 'a[data-page]', function (event) {
             event.preventDefault();
             var page = parseInt($(this).data('page'));
             if (page >= 1 && page <= targetTable.totalPages) {
@@ -357,7 +367,7 @@ async function handleData(table, eventTrigger) {
     let handleType = eventTrigger.getAttribute("data-form-type");
     let url = handleType === "add" ? table.addModalSettings.url : eventTrigger.getAttribute("data-update-url");
     let method = handleType === "add" ? table.addModalSettings.method : eventTrigger.getAttribute("data-update-method");
-    let data = getFormData(table.formItemIds.join(','));
+    let data = getFormData(table.formItemIds);
     let dataJsonString = JSON.stringify(data);
     showSpinner();
     let response = null;
@@ -388,15 +398,13 @@ async function handleData(table, eventTrigger) {
 
     if (response && response.isSuccess) {
         table.modal.hide();
-        showInfoBox('操作成功');
-        table.searchKeywords();
+        showMsgBox('操作成功', () => table.loadData()); //table.searchKeywords();
     } else {
         showErrorBox(response.errMsg, '错误提示', [{ class: 'error', content: '关闭' }]);
     }
 }
 
-function getFormData(formItemIdsString) {
-    let formItemIds = formItemIdsString.split(',');
+function getFormData(formItemIds) {
     var formData = {};
     for (var i = 0; i < formItemIds.length; i++) {
         let formItemId = formItemIds[i];
@@ -467,23 +475,23 @@ async function deleteData(eventTrigger) {
 
     let url = eventTrigger.getAttribute('data-delete-url');
     let method = eventTrigger.getAttribute('data-method');
+    let response = null;
     try {
-        let response = await $.ajax({
+        response = await $.ajax({
             url: url,
             method: method,
             data: "\"" + dataId + "\"",
             contentType: 'application/json',
             dataType: 'json',
         });
-        if (response && response.isSuccess) {
-            showInfoBox('操作成功');
-
-            table.loadData();
-        } else {
-            showErrorBox(response.errMsg, '错误提示', [{ class: 'error', content: '关闭' }]);
-        }
     } catch (e) {
         showErrorBox('操作失败');
         console.log(e);
+    }
+
+    if (response && response.isSuccess) {
+        showMsgBox('操作成功', () => table.loadData());
+    } else {
+        showErrorBox(response.errMsg, '错误提示', [{ class: 'error', content: '关闭' }]);
     }
 }

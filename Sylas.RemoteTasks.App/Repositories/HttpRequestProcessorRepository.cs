@@ -1,7 +1,9 @@
-﻿using Sylas.RemoteTasks.App.Database;
+﻿using Org.BouncyCastle.Crypto;
+using Sylas.RemoteTasks.App.Database;
 using Sylas.RemoteTasks.App.Database.SyncBase;
 using Sylas.RemoteTasks.App.Models.HttpRequestProcessor;
 using Sylas.RemoteTasks.App.Models.HttpRequestProcessor.Dtos;
+using System.Drawing.Printing;
 using System.Text;
 
 namespace Sylas.RemoteTasks.App.Repositories
@@ -32,7 +34,7 @@ namespace Sylas.RemoteTasks.App.Repositories
             {
                 var stepsFilters = new List<FilterItem>
                 {
-                    new FilterItem { FieldName = "httpProcessorId", CompareType = "=", Value = processor.Id.ToString() }
+                    new FilterItem { FieldName = "processorId", CompareType = "=", Value = processor.Id.ToString() }
                 };
                 var steps = (await GetStepsPageAsync(1, 1000, "id", true, new DataFilter { FilterItems = stepsFilters })).Data;
                 processor.Steps = steps;
@@ -61,7 +63,7 @@ namespace Sylas.RemoteTasks.App.Repositories
             }
             var stepsFilters = new List<FilterItem>
                 {
-                    new FilterItem { FieldName = "httpProcessorId", CompareType = "=", Value = processor.Id.ToString() }
+                    new FilterItem { FieldName = "processorId", CompareType = "=", Value = processor.Id.ToString() }
                 };
             var steps = (await GetStepsPageAsync(1, 1000, "id", true, new DataFilter { FilterItems = stepsFilters })).Data;
             processor.Steps = steps;
@@ -157,20 +159,37 @@ namespace Sylas.RemoteTasks.App.Repositories
         {
             return await _db.QueryPagedDataAsync<HttpRequestProcessorStep>(HttpRequestProcessorStep.TableName, pageIndex, pageSize, orderField, isAsc, filter);
         }
+        public async Task<HttpRequestProcessorStep?> GetStepByIdAsync(int id)
+        {
+            var pages = await _db.QueryPagedDataAsync<HttpRequestProcessorStep>(HttpRequestProcessorStep.TableName, 1, 1, "id", true, new DataFilter { FilterItems = new List<FilterItem> { new FilterItem { CompareType = "=", FieldName = "id", Value = id.ToString() } } });
+            var step = pages.Data.FirstOrDefault();
+            if (step is null)
+            {
+                return null;
+            }
+            var dataHandlersFilters = new List<FilterItem>
+                {
+                    new FilterItem { FieldName = "stepId", CompareType = "=", Value = step.Id.ToString() }
+                };
+            var dataHandlers = (await GetDataHandlersPageAsync(1, 1000, "id", true, new DataFilter { FilterItems = dataHandlersFilters })).Data;
+            step.DataHandlers = dataHandlers;
+            return step;
+        }
         /// <summary>
         /// 添加一个新的Http请求处理器
         /// </summary>
         /// <param name="processor"></param>
         /// <returns></returns>
-        public async Task<int> AddStepAsync(HttpRequestProcessorStep step)
+        public async Task<int> AddStepAsync(HttpRequestProcessorStepCreateDto step)
         {
-            string sql = $"insert into {HttpRequestProcessorStep.TableName} values(@parameters, @dataContextBuilder, @remark, @processorId)";
+            string sql = $"insert into {HttpRequestProcessorStep.TableName} (parameters, dataContextBuilder, remark, processorId, presetDataContext) values(@parameters, @dataContextBuilder, @remark, @processorId, @presetDataContext)";
             var parameters = new Dictionary<string, object>
             {
                 { "parameters", step.Parameters },
                 { "dataContextBuilder", step.DataContextBuilder },
                 { "remark", step.Remark },
-                { "processorId", step.HttpRequestProcessorId }
+                { "processorId", step.HttpRequestProcessorId },
+                { "presetDataContext", step.PresetDataContext },
             };
             return await _db.ExecuteScalarAsync(sql, parameters);
         }
@@ -223,7 +242,12 @@ namespace Sylas.RemoteTasks.App.Repositories
         public async Task<int> DeleteStepAsync(int id)
         {
             string sql = $"delete from {HttpRequestProcessorStep.TableName} where id=@id";
-            return await _db.ExecuteScalarAsync(sql, new Dictionary<string, object> { { "id", id } });
+            int count = await _db.ExecuteScalarAsync(sql, new Dictionary<string, object> { { "id", id } });
+
+            string deleteDataHandlers = $"delete from {HttpRequestProcessorStepDataHandler.TableName} where {nameof(HttpRequestProcessorStepDataHandler.StepId)}=@id";
+            count += await _db.ExecuteScalarAsync(deleteDataHandlers, new Dictionary<string, object> { { "id", id } });
+
+            return count;
         }
         #endregion
         
@@ -242,13 +266,24 @@ namespace Sylas.RemoteTasks.App.Repositories
             return await _db.QueryPagedDataAsync<HttpRequestProcessorStepDataHandler>(HttpRequestProcessorStepDataHandler.TableName, pageIndex, pageSize, orderField, isAsc, filter);
         }
         /// <summary>
+        /// 根据Id查询数据处理器
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        public async Task<HttpRequestProcessorStepDataHandler?> GetDataHandlerByIdAsync(int id)
+        {
+            var pages = await _db.QueryPagedDataAsync<HttpRequestProcessorStepDataHandler>(HttpRequestProcessorStepDataHandler.TableName, 1, 1, "id", true, new DataFilter { FilterItems = new List<FilterItem> { new FilterItem { CompareType = "=", FieldName = "id", Value = id.ToString() } } });
+            var dataHandler = pages.Data.FirstOrDefault();
+            return dataHandler;
+        }
+        /// <summary>
         /// 添加一个新的Http请求处理器
         /// </summary>
         /// <param name="processor"></param>
         /// <returns></returns>
-        public async Task<int> AddDataHandlerAsync(HttpRequestProcessorStepDataHandler dataHandler)
+        public async Task<int> AddDataHandlerAsync(HttpRequestProcessorStepDataHandlerCreateDto dataHandler)
         {
-            string sql = $"insert into {HttpRequestProcessorStepDataHandler.TableName} values(@dataHandler, @parametersInput, @remark, @stepId)";
+            string sql = $"insert into {HttpRequestProcessorStepDataHandler.TableName} (DataHandler, ParametersInput, Remark, StepId) values(@dataHandler, @parametersInput, @remark, @stepId)";
             var parameters = new Dictionary<string, object>
             {
                 { "dataHandler", dataHandler.DataHandler },

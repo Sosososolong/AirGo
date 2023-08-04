@@ -46,6 +46,9 @@
             ]
             const idFieldName = "id";
 
+            /**
+             * 创建表 - Steps (一张表中的所有数据对应一个Processor)
+             */
             function onProcessorsDataLoaded(row) {
                 const processorId = row[idFieldName];
                 const tableStepsId = `tableStepsForProcessor${processorId}`;
@@ -54,7 +57,7 @@
                     return;
                 }
                 createTable(
-                    "Sync/GetHttpRequestProcessorSteps",
+                    "Sync/GetHttpRequestProcessorSteps", 1, 1000,
                     tableStepsId,
                     tableParentSelector,
                     [
@@ -62,15 +65,18 @@
                         { name: 'dataContextBuilder', title: '数据上下文构建器', showPart: 12 },
                         { name: 'remark', title: '备注', width: 200, showPart: 8 },
                         { name: 'presetDataContext', title: '预设数据上下文' },
-                        { name: 'httpProcessorId', title: 'HTTP处理器', type: 'dataSource|dataSourceApi=Sync/GetHttpRequestProcessors|displayField=title' },
-                        { name: '', title: '操作', type: 'button', tmpl: `<button type="button" class="btn btn-primary btn-sm" data-bs-toggle="collapse" href="#collapse${tableStepsId}{{id}}" role="button" aria-expanded="true" aria-controls="collapse${tableStepsId}{{id}}">数据处理器</button>` }
+                        { name: 'HttpRequestProcessorId', title: 'HTTP处理器', type: 'dataSource|dataSourceApi=Sync/GetHttpRequestProcessors|displayField=title' },
+                        { name: '', title: '操作', type: 'button', tmpl: `<button type="button" class="btn btn-primary btn-sm" data-bs-toggle="collapse" href="#collapse${tableStepsId}{{id}}" role="button" aria-expanded="true" aria-controls="collapse${tableStepsId}{{id}}">数据处理器</button>
+                                <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableStepsId}" data-id="{{id}}" data-fetch-url="Sync/GetHttpRequestProcessorSteps" data-update-url="Sync/UpdateHttpRequestProcessorStep" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
+                                <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableStepsId}" data-id="{{id}}" data-delete-url="Sync/DeleteHttpRequestProcessorStep" data-method="POST" onclick="deleteData(this)">删除</button>`
+                        }
                     ],
                     idFieldName,
                     [
                         {
-                            fieldName: 'httpProcessorId',
+                            fieldName: 'processorId',
                             compareType: '=',
-                            value: '1'
+                            value: processorId.toString()
                         }
                     ],
                     steps,
@@ -78,7 +84,7 @@
                     // wrapper 每一张表关联的是Processor表的某一行数据
                     `<div id="collapse${tableId}${row[idFieldName]}" class="collapse" aria-labelledby="${tableParentSelector}" data-bs-parent="#accordion"><div class="card-body">{{tableHtml}}</div></div>`
                     // addModalSettings
-                    , { modalType: 'add', api: 'Sync/AddHttpRequestProcessorStepDataHandler', 'method': 'POST' }
+                    , { modalType: 'add', url: 'Sync/AddHttpRequestProcessorStep', 'method': 'POST' }
                 );
 
 
@@ -86,7 +92,7 @@
             }
 
             /**
-             * 创建DataHandler表(一个step对应的所有DataHandler展示在一张表中)
+             * 创建表 - DataHandler(一张表中的所有数据对应一个Step)
              * steps 某一条Processor记录对应的所有步骤, 这些steps将在一张表中展示
              * tableStepsId steps所在表的Id
              */
@@ -98,7 +104,7 @@
                     const tableDataHandlersId = `tableDataHandlersForStep${stepId}`;
                     if (loadingData && (loadingData.length) && !$(`#${tableDataHandlersId}`).length) {
                         createTable(
-                            "Sync/GetHttpRequestProcessorStepDataHandlers",
+                            "Sync/GetHttpRequestProcessorStepDataHandlers", 1, 1000,
                             tableDataHandlersId,
                             tableParentSelector,
                             [
@@ -109,9 +115,9 @@
                             idFieldName,
                             [
                                 {
-                                    fieldName: 'httpProcessorId',
+                                    fieldName: 'stepId',
                                     compareType: '=',
-                                    value: '1'
+                                    value: stepId.toString()
                                 }
                             ],
                             loadingData,
@@ -119,14 +125,14 @@
                             // wrapper 每一张表关联的是Steps表的某一行数据
                             `<div id="collapse${tableStepsId}${stepId}" class="collapse" aria-labelledby="${tableParentSelector}" data-bs-parent="#accordion"><div class="card-body">{{tableHtml}}</div></div>`
                             // addModalSettings
-                            , { modalType: 'add', api: 'Sync/AddHttpRequestProcessorStepDataHandler', 'method': 'POST' }
+                            , { modalType: 'add', url: 'Sync/AddHttpRequestProcessorStepDataHandler', 'method': 'POST' }
                         );
                     }
                 }
             }
 
             // Processors
-            createTable(apiUrl, tableId, tableParentSelector, ths, idFieldName, null, null, onProcessorsDataLoaded, ''
+            createTable(apiUrl, 1, 10, tableId, tableParentSelector, ths, idFieldName, null, null, onProcessorsDataLoaded, ''
                 , { modalType: 'add', url: 'Sync/AddHttpRequestProcessor', 'method': 'POST' }
             )
         });

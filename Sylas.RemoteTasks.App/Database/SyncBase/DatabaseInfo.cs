@@ -142,7 +142,7 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
             string allCountSqlTxt = $"select count(*) from {table} where 1=1 {condition}";
             
             var allCount = await conn.ExecuteScalarAsync<int>(allCountSqlTxt, parameters);
-            Console.WriteLine(sql);
+
             var data = await conn.QueryAsync<T>(sql, parameters);
 
             return new PagedData<T>  { Data = data, Count = allCount, TotalPages = (allCount + pageSize - 1) / pageSize };
