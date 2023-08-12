@@ -144,7 +144,7 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
             pagination.append('<li class="page-item ' + (targetTable.pageIndex == targetTable.totalPages ? 'disabled' : '') + '"><a class="page-link" href="#" data-page="' + (targetTable.pageIndex + 1) + '">Next</a></li>');
         }
         
-        var response = await fetchData(url, method, targetTable.dataFilter, this.tableId)
+        var response = await fetchData(url, method, targetTable.dataFilter, this.tableId);
         if (response) {
             await onSuccess(response);
         }

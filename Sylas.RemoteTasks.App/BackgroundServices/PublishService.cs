@@ -69,7 +69,7 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                             var parametersContent = Encoding.UTF8.GetString(bufferParameters, 0, realLength).Replace("\0", string.Empty);
                             var parametersArray = parametersContent.Split(";;;;");
                             var type = parametersArray[0];
-                            string fileName = string.Empty;
+                            var fileName = string.Empty;
                             var fileSaveDir = string.Empty;
                             switch (type)
                             {
