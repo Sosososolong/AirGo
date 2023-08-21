@@ -1,0 +1,126 @@
+﻿@{
+    ViewData["Title"] = "OAuth2.0 Debug";
+}
+
+<label for="authorize_endpoint" class="form-label">Identity Server Authorize Endpoint</label>
+<input type="text" id="authorize_endpoint" name="authorize_endpoint" class="form-control" aria-describedby="authorize_endpointHelpBlock" value="https://solong.com:4500/connect/authorize">
+<div id="authorize_endpointHelpBlock" class="form-text mb-5 text-primary">
+    授权服务器授权地址.
+</div>
+
+<form method="get" action="" id="authForm">
+    <label for="client_id" class="form-label">client_id</label>
+    <input type="text" id="client_id" name="client_id" class="form-control" aria-describedby="client_idHelpBlock">
+    <div id="client_idHelpBlock" class="form-text text-warning">
+        客户端Id.
+    </div>
+
+    <label for="client_secret" class="form-label mt-3">client_secret</label>
+    <input type="text" id="client_secret" name="client_secret" class="form-control" aria-describedby="client_secretHelpBlock">
+    <div id="client_secretHelpBlock" class="form-text">
+        客户端密钥.
+    </div>
+
+    <label for="redirect_uri" class="form-label mt-3">redirect_uri</label>
+    <input type="text" id="redirect_uri" name="redirect_uri" class="form-control" aria-describedby="redirect_uriHelpBlock" value="http://localhost:5105">
+    <div id="redirect_uriHelpBlock" class="form-text">
+        授权成功后进入的地址.
+    </div>
+    
+    <label for="response_type" class="form-label mt-3">response_type</label>
+    <input type="text" id="response_type" name="response_type" class="form-control" aria-describedby="response_typeHelpBlock" value="code">
+    <div id="response_typeHelpBlock" class="form-text">
+        授权成功后进入的地址.
+    </div>
+    
+    <label for="scope" class="form-label mt-3">scope</label>
+    <input type="text" id="scope" name="scope" class="form-control" aria-describedby="scopeHelpBlock" value="email profile roles openid form.api">
+    <div id="scopeHelpBlock" class="form-text text-warning">
+        作用域.
+    </div>
+
+    <label for="state" class="form-label mt-3">state</label>
+    <input type="text" id="state" name="state" class="form-control" aria-describedby="stateHelpBlock" value="5d926c2f2d17427292874683a94623ba">
+    <div id="stateHelpBlock" class="form-text">
+        state.
+    </div>
+
+    <label for="code_challenge" class="form-label mt-3">code_challenge</label>
+    <input type="text" id="code_challenge" name="code_challenge" class="form-control" aria-describedby="code_challengeHelpBlock" value="WIFhbkprQuOjfq2rLgpughK_SVWhasf_LlhglcSq4aQ">
+    <div id="code_challengeHelpBlock" class="form-text">
+        code_challenge.
+    </div>
+    
+    <label for="code_challenge_method" class="form-label mt-3">code_challenge_method</label>
+    <input type="text" id="code_challenge_method" name="code_challenge_method" class="form-control" aria-describedby="code_challenge_methodHelpBlock" value="S256">
+    <div id="code_challenge_methodHelpBlock" class="form-text">
+        code_challenge_method.
+    </div>
+    
+    <label for="acr_values" class="form-label mt-3">acr_values</label>
+    <input type="text" id="acr_values" name="acr_values" class="form-control" aria-describedby="acr_valuesHelpBlock" value="idp:DingTalk">
+    <div id="acr_valuesHelpBlock" class="form-text">
+        决定是钉钉授权还是微信授权等等.
+    </div>
+    
+    <label for="response_mode" class="form-label mt-3">response_mode</label>
+    <input type="text" id="response_mode" name="response_mode" class="form-control" aria-describedby="response_modeHelpBlock" value="query">
+    <div id="response_modeHelpBlock" class="form-text">
+        response_mode.
+    </div>
+    
+    <button class="btn btn-primary mt-3" type="submit" data-idp="DingTalk">钉钉授权</button>
+    <button class="btn btn-primary mt-3" type="submit" data-idp="WeChatPublic">微信公众号授权</button>
+    <button class="btn btn-primary mt-3" type="submit" data-idp="Weixin">企业微信授权</button>
+</form>
+
+@section Scripts{
+    <script>
+        var buttons = document.querySelectorAll("button.btn[type='submit']");
+        var inputIdp = document.getElementById("acr_values");
+
+        Array.from(buttons).forEach(function (button) {
+            button.addEventListener("click", function (event) {
+                var dataIdp = event.target.getAttribute("data-idp");
+                inputIdp.value = `idp:${dataIdp}`;
+            });
+        });
+
+
+        document.querySelector("#authForm").addEventListener("submit", function (event) {
+            event.preventDefault(); // 阻止默认的表单提交行为
+
+            // 获取表单数据
+            var form = event.target;
+            var formData = new FormData(form);
+
+            // 构建查询字符串
+            var queryString = new URLSearchParams(formData).toString();
+
+            // 重定向到指定页面
+            var redirectUrl = document.querySelector('#authorize_endpoint').value + "?" + queryString;
+
+            localStorage.setItem("oauth_code_authorize_endpoint", document.getElementById('authorize_endpoint').value)
+            localStorage.setItem("oauth_code_client_id", document.getElementById('client_id').value)
+            localStorage.setItem("oauth_code_scope", document.getElementById('scope').value)
+            window.location.href = redirectUrl;
+        });
+
+
+        // 从本地存储(当作配置使用)初始化授权参数
+        let authorizeEndPoint = localStorage.getItem("oauth_code_authorize_endpoint")
+        if (authorizeEndPoint) {
+            document.getElementById('authorize_endpoint').value = authorizeEndPoint;
+        }
+
+        let clientId = localStorage.getItem("oauth_code_client_id")
+        if (clientId) {
+            document.getElementById('client_id').value = clientId;
+        }
+
+        let scope = localStorage.getItem("oauth_code_scope")
+        if (scope) {
+            document.getElementById('scope').value = scope;
+        }
+    </script>
+}

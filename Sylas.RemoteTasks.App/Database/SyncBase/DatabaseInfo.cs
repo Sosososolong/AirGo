@@ -1326,11 +1326,6 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         public static async Task<IEnumerable<ColumnInfo>> GetTableColumnsInfoAsync(IDbConnection conn, string tableName)
         {
             string sql;
-            var database = conn.Database;
-            if (string.IsNullOrWhiteSpace(database))
-            {
-                throw new Exception($"从连接字符串:{conn.ConnectionString}解析数据库名失败!");
-            }
             // TODO: 数据库类型 作为公共属性
             var dbType = GetDbType(conn.ConnectionString);
             if (dbType == DatabaseType.SqlServer)
@@ -1354,6 +1349,24 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                             left join syscomments CM on C.cdefault=CM.id
                             WHERE C.id = object_id('{tableName}')";
             }
+            //else if (dbType == DatabaseType.Dm)
+            //{
+            //    sql = $@" SELECT
+            //                            column_name      ColumnCode,
+            //                            column_name      ColumnName,
+            //                            data_type        ColumnType,
+            //                            (case data_type when 'NVARCHAR2' then to_char(DATA_LENGTH) when 'NUMBER' then DATA_PRECISION||','||DATA_SCALE else to_char(data_length) end)      ColumnLength,
+            //                            'textbox'          ControlType,
+            //                            0                  IsPK, 
+            //                            CASE nullable 
+            //                                WHEN 'N' then 0
+            //                                ELSE 1
+            //                                END  IsEmpty,
+            //                            Data_default     DefaultValue
+            //                    from  all_tab_columns
+            //                    WHERE owner='{sqlExecute.DbConnection.Database}' and table_name='{table}'
+            //                    ORDER BY  COLUMN_ID ";
+            //}
             else if (dbType == DatabaseType.MySql)
             {
                 sql = $@"select
@@ -1378,7 +1391,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
 						CASE WHEN column_key='PRI' THEN 1 ELSE 0 END 	IsPK,
                         column_default 									DefaultValue,
 						ORDINAL_POSITION 								OrderNo
-                    from information_schema.columns where table_schema = '{database}' and table_name = '{tableName}' 
+                    from information_schema.columns where table_schema = '{conn.Database}' and table_name = '{tableName}' 
                     order by ORDINAL_POSITION asc";
             }
             else
@@ -1405,7 +1418,8 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             var result = await conn.QueryAsync<ColumnInfo>(sql);
             if (!result.Any())
             {
-                throw new Exception($"{database}中没有找到{tableName}表");
+                var db = string.IsNullOrWhiteSpace(conn.Database) ? Regex.Match(conn.ConnectionString, @"(?<=user\s+id=).*?(?=;)", RegexOptions.IgnoreCase).Value : conn.Database;
+                throw new Exception($"{db}中没有找到{tableName}表");
             }
             // ColumnLength: Oracle如果是Number类型, ColumnLength值可能是"10,0"
             AnalysisColumnCSharpType(result);
@@ -1554,6 +1568,69 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             }
 
             return new SyncData(deletingColumns, insertingColumns, insertingRows, updatingRows, deletingRows);
+        }
+
+        public static async Task<int> DesensitizeAsync(string connectionString, string table, IEnumerable<string> fields)
+        {
+            int affectedRows = 0;
+
+            var dbType = GetDbType(connectionString);
+            var varFlag = GetDbParameterFlag(dbType);
+            using var conn = GetDbConnection(connectionString);
+            conn.Open();
+            using var connUpdate = GetDbConnection(connectionString);
+            connUpdate.Open();
+            
+            var cols = await GetTableColumnsInfoAsync(conn, table);
+            var idField = cols.FirstOrDefault(x => x.IsPK == 1);
+            var idFieldName = idField is null ? "id" : idField.ColumnCode;
+
+            fields = fields.Select(x => x.ToLower());
+            var desensitizeCols = cols.Where(x => !string.IsNullOrWhiteSpace(x.ColumnCode) && fields.Contains(x.ColumnCode.ToLower())).ToList();
+            if (desensitizeCols.Any())
+            {
+                var records = await conn.QueryAsync($"select * from {table}");
+                foreach (var recordObj in records)
+                {
+                    JObject record = JObject.FromObject(recordObj);
+                    var properties = record.Properties();
+                    var idProp = properties.FirstOrDefault(x => x.Name.Equals(idFieldName, StringComparison.OrdinalIgnoreCase)) ?? throw new Exception($"无法找到表{table}主键");
+
+                    var parameters = new Dictionary<string, object>
+                    {
+                        { "id", idProp.Value.ToString() }
+                    };
+
+                    var updateBuiler = new StringBuilder();
+                    foreach (var col in desensitizeCols)
+                    {
+                        var p = properties.FirstOrDefault(x => x.Name.Equals(col.ColumnCode, StringComparison.OrdinalIgnoreCase));
+                        if (!string.IsNullOrWhiteSpace(col.ColumnCode) && p is not null)
+                        {
+                            var val = p.Value.ToString();
+                            if (!string.IsNullOrWhiteSpace(val))
+                            {
+                                string newVal = "***";
+                                if (val.Length > 1)
+                                {
+                                    var hiddenIndex = (int)Math.Ceiling(val.Length / 2.0);
+                                    newVal = val.StartsWith("***") ? val : "***" + val[hiddenIndex..];
+                                }
+                                
+                                parameters.Add(col.ColumnCode, newVal);
+                                updateBuiler.Append($"{col.ColumnCode}={varFlag}{col.ColumnCode},");
+                            }
+                        }
+                    }
+                    var updateStatement = updateBuiler.ToString().TrimEnd(',');
+
+                    string updateSql = $"update {table} set {updateStatement} where {idFieldName}={varFlag}id";
+                    affectedRows += await connUpdate.ExecuteAsync(updateSql, parameters);
+                }
+            }
+            conn.Close();
+            connUpdate.Close();
+            return affectedRows;
         }
     }
 

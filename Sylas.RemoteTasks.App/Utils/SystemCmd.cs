@@ -44,10 +44,14 @@ namespace Sylas.RemoteTasks.App.Utils
         {
             //此时写入到控制台的内容也会重定向到p对象的StandardOutPut中
             //Console.WriteLine(Environment.CommandLine + " --> " + Environment.NewLine);
+            // TODO: 修改为配置
+            //string winShell = ""powershell.exe"";
+            string winShell = "D:/Program Files/Git/bin/bash.exe";
             var startInfo = new ProcessStartInfo
             {
                 // 设置要启动的应用程序
-                FileName = OperatingSystem.IsWindows() ? "powershell.exe" : "/bin/bash",
+
+                FileName = OperatingSystem.IsWindows() ? winShell : "/bin/bash",
                 // 设置工作目录
                 WorkingDirectory = workingDir,
                 // 是否使用操作系统shell启动
@@ -79,7 +83,8 @@ namespace Sylas.RemoteTasks.App.Utils
             p.StandardInput.Close();
 
             // 获取输出信息
-            string strOuput = await p.StandardOutput.ReadToEndAsync();
+            string successOutput = await p.StandardOutput.ReadToEndAsync();
+            string errorOutput = await p.StandardError.ReadToEndAsync();
 
             // 等待程序执行完退出进程, 释放相关对象
             // 关闭此进程关联的程序(即shell)，其实上面已经执行了"exit"将shell程序关闭了
@@ -88,7 +93,7 @@ namespace Sylas.RemoteTasks.App.Utils
             p.Close();
             p.Dispose();
 
-            return strOuput;
+            return successOutput + Environment.NewLine + Environment.NewLine + errorOutput;
         }
     }
 }

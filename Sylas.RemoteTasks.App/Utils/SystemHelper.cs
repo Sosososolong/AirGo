@@ -24,7 +24,7 @@ namespace Sylas.RemoteTasks.App.Utils
         
         // 找到某一个窗口
         [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-        static extern IntPtr FindWindow(string? lpClassName, string? lpWindowName);
+        static extern IntPtr FindWindowW(string? lpClassName, string? lpWindowName);
 
         // 发送消息
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
@@ -140,13 +140,13 @@ namespace Sylas.RemoteTasks.App.Utils
         /// </summary>
         /// <param name="title"></param>
         /// <returns></returns>
-        public static IntPtr FindWindowByTitle(string title) => FindWindow(null, title);
+        public static IntPtr FindWindowByTitle(string title) => FindWindowW(null, title);
         /// <summary>
         /// 通过ClassName找窗口
         /// </summary>
         /// <param name="classname"></param>
         /// <returns></returns>
-        public static IntPtr FindWindowByClassName(string classname) => FindWindow(classname, null);
+        public static IntPtr FindWindowByClassName(string classname) => FindWindowW(classname, null);
     }
     public class WindowInfo
     {
