@@ -27,9 +27,9 @@ namespace Sylas.RemoteTasks.App.Utils
         /// <returns></returns>
         public static async Task SyncDataAsync(IDbConnection conn, string table, List<JToken> sourcRecords, string[] ignoreFields, string[] dateTimeFields)
         {
-            //conn.ConnectionString: "server=whitebox.com;port=3306;database=iduo_engine_hznu;user id=root;allowuservariables=True"
+            //conn.ConnectionString: "server=whitebox.com;port=3306;database=db_engine_hznu;user id=root;allowuservariables=True"
             //conn.ConnectionTimeout: 15
-            //conn.Database: "iduo_engine_hznu"
+            //conn.Database: "db_engine_hznu"
             var varFlag = ":";
             var dbRecords = await conn.QueryAsync($"select * from {table}") ?? throw new Exception($"获取{table}数据失败");
             var compareResult = CompareRecordsForSyncDb(sourcRecords, dbRecords, ignoreFields, dateTimeFields, "ID", "ID");
@@ -207,7 +207,7 @@ namespace Sylas.RemoteTasks.App.Utils
         private static string ConvertCreateTableSql(string createTableSql)
         {
             #region Oracle创建表语句
-            string oracleCreateTable = @"CREATE TABLE ""IDUO_IDS4"".""CLIENTS"" 
+            string oracleCreateTable = @"CREATE TABLE ""ACCOUNTS"".""CLIENTS"" 
    (""ID"" NUMBER(10, 0) NOT NULL ENABLE,
 	""ENABLED"" NUMBER(10, 0) NOT NULL ENABLE,
 	""CLIENTID"" NVARCHAR2(200) NOT NULL ENABLE,
@@ -252,10 +252,10 @@ namespace Sylas.RemoteTasks.App.Utils
 	""NONEDITABLE"" NUMBER(10, 0) NOT NULL ENABLE,
 	 CONSTRAINT ""PK_CLIENTS"" PRIMARY KEY(""ID"")
   USING INDEX PCTFREE 10 INITRANS 2 MAXTRANS 255 COMPUTE STATISTICS NOCOMPRESS LOGGING
-  TABLESPACE ""IDUO_IDS4""  ENABLE
+  TABLESPACE ""ACCOUNTS""  ENABLE
    ) SEGMENT CREATION DEFERRED
   PCTFREE 10 PCTUSED 40 INITRANS 1 MAXTRANS 255 NOCOMPRESS LOGGING
-  TABLESPACE ""IDUO_IDS4"" ";
+  TABLESPACE ""ACCOUNTS"" ";
             #endregion
 
             var mysqlCreateTable = createTableSql.Replace('"', '`').Replace(" ENABLE", string.Empty);

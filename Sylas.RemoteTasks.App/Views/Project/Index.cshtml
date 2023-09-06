@@ -1,17 +1,43 @@
-﻿@{
+﻿@using Sylas.RemoteTasks.App.Database.SyncBase;
+@{
     ViewData["Title"] = "Core";
 }
 <div class="container">
-    <div class="form-group">
+    @* <div class="form-group">
         <label class="col-sm-2 col-form-label">Project Path</label>
         <div class="col-sm-10">
-            <input class="form-control" type="text" name="connectionString" value="F:\工作\T11\BlogDemo.API" required />
+            <input class="form-control" type="text" name="connectionString" value="D:\.NET\my\is4\Skoruba.IdentityServer4" required />
             <div class="invalid-feedback">
                 Project path is required.
             </div>
         </div>
     </div>
-    <button class="btn btn-primary" formtarget="_blank" target-action="/Home/Index" id="generate_project">Generator Project</button>
+    <button class="btn btn-primary" formtarget="_blank" target-action="/Home/Index" id="generate_project">Generator Project</button> *@
+
+    <div class="form-group">
+        <label class="col-sm-2 col-form-label">Project</label>
+        <div class="col-sm-10">
+            <select class="form-control mb-3" id="directories">
+                
+            </select>
+            <div class="invalid-feedback">
+                Directory is required.
+            </div>
+        </div>
+        <label class="col-sm-2 col-form-label">Switching database</label>
+        <div class="col-sm-10">
+            <select class="form-control projects-select" id="database" target-type="type">
+                @foreach (DbConnectionDetial connectionDetail in ViewBag.ConnectionDetails)
+                {
+                    <option value="@($"{connectionDetail.Host}-{Convert.ToInt32(connectionDetail.DatabaseType)}")" data-toggle="tooltip" data-placement="right" title="title">@($"{connectionDetail.Host} - {connectionDetail.DatabaseType}")</option>
+                }
+            </select>
+            <div class="invalid-feedback">
+                Database is required.
+            </div>
+        </div>
+    </div>
+    <button class="btn btn-primary mt-3" formtarget="_blank" id="switching_database">Switching</button>
 </div>
 
 @section Scripts{
@@ -25,6 +51,67 @@
                 xhrFields: {
                     withCredentials: true
                 },
+            });
+        })
+
+        $("#switching_database").click(async (e) => {
+            let database = $("#database").val();
+            let databaseArr = database.split('-');
+            let host = databaseArr[0];
+            let dbType = databaseArr[1];
+            let path = document.getElementById('directories').value;
+
+            let result = await $.ajax({
+                type: "get",
+                url: `Project/ChangeConnectionString?slnDir=${path}&host=${host}&databaseType=${dbType}`,
+                data: {},
+                dataType: "json",
+                xhrFields: {
+                    withCredentials: true
+                },
+            });
+            if (result.isSuccess) {
+                showMsgBox('操作成功')
+            } else {
+                showErrorBox(result.errMsg)
+            }
+        })
+
+        // 获取解决方案目录和子目录
+        async function getProjectDirectories(path) {
+            let directoriesResponse = await $.ajax({
+                type: "get",
+                url: `Project/GetChildDirectories?path=${(path ? path : '')}`,
+                data: {},
+                dataType: "json",
+                xhrFields: {
+                    withCredentials: true
+                },
+            });
+            let data = directoriesResponse.data;
+            // 获取到数据后，将选项填充到 <select> 元素中
+            const selectElement = document.getElementById('directories');
+
+            // 清空 <select> 元素中的所有选项
+            selectElement.innerHTML = '';
+
+            // 遍历数据并创建选项元素添加到 <select> 中
+            data.forEach(item => {
+                const optionElement = document.createElement('option');
+                optionElement.value = item;  // 设置选项的值
+                optionElement.textContent = item;  // 设置选项的显示文本
+                selectElement.appendChild(optionElement);
+            });
+        }
+        $(async function() {
+            await getProjectDirectories();
+            
+            // 添加 change 事件监听器
+            const selectElement = document.getElementById('directories');
+            selectElement.addEventListener('change', async function (event) {
+                // 在事件处理程序中执行所需的操作
+                const selectedValue = event.target.value;
+                await getProjectDirectories(selectedValue);
             });
         })
     </script>

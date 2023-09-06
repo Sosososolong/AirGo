@@ -805,7 +805,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             return View();
         }
         // 添加自定义DbContext类 / 添加实体集属性
-        public IActionResult DbContextDoingSomething()
+        public async Task<IActionResult> DbContextDoingSomething()
         {
             string dbContextFileName = "MyDbContext.cs";
             if (!string.IsNullOrWhiteSpace(Request.Form["myDbContextName"]) && Request.Form["myDbContextName"] != "MyDbContext")
@@ -831,7 +831,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             {
                 // 创建文件, 初始化文件内容
                 string myDbContextContent = _coreOperations.GetMyDbContextContent(dbContextNamespace, entityNamesParams);
-                FileHelper.Write(dbContextFilePath, myDbContextContent, false, Encoding.UTF8);
+                await FileHelper.WriteAsync(dbContextFilePath, myDbContextContent, false);
 
                 // 2. Startup中将自定义DbCotext注册到容器中
                 string dbType = Request.Form["dbType"];
@@ -937,7 +937,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         }
 
         /// <summary>
-        /// 代码生成页面,Url地址如:http://localhost:5105/Home/CodeGen?tableFullName=Configs&tableComment=通用配置&connectionString=Server=192.168.1.230;Port=3306;Stmt=;Database=iduo_engine;Uid=root;Pwd=iduo2022;Allow%20User%20Variables=true;&serviceFieldInController=
+        /// 代码生成页面,Url地址如:http://localhost:5105/Home/CodeGen?tableFullName=Configs&tableComment=通用配置&connectionString=Server=127.0.0.1;Port=3306;Stmt=;Database=engine;Uid=root;Pwd=123456;Allow%20User%20Variables=true;&serviceFieldInController=
         /// </summary>
         /// <param name="database">从DI容器中获取的操作数据库的服务</param>
         /// <param name="tableFullName">表名</param>

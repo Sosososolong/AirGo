@@ -73,7 +73,6 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
         {
             _connectionString = configuration.GetConnectionString("Default") ?? throw new Exception("DatabaseInfo: 数据库连接字符串为空");
             _logger = logger;
-            _logger.LogCritical($"DatabaseInfo initialized");
             _dbType = GetDbType(_connectionString);
             _varFlag = GetDbParameterFlag(_dbType);
         }
@@ -114,6 +113,82 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
         private static IDbConnection GetOracleConnection(string host, string port, string instanceName, string username, string password) => new OracleConnection($"Data Source={host}:{port}/{instanceName};User ID={username};Password={password};PERSIST SECURITY INFO=True;Pooling = True;Max Pool Size = 100;Min Pool Size = 1;");
         private static IDbConnection GetMySqlConnection(string host, string port, string db, string username, string password) => new MySqlConnection($"Server={host};Port={port};Stmt=;Database={db};Uid={username};Pwd={password};Allow User Variables=true;");
         private static IDbConnection GetSqlServerConnection(string host, string port, string db, string username, string password) => new SqlConnection($"User ID={username};Password={password};Initial Catalog={db};Data Source={host},{(string.IsNullOrWhiteSpace(port) ? "1433" : port)}");
+        public static DbConnectionDetial GetDbConnectionDetial(string connectionString)
+        {
+            var match = RegexConst.ConnectionStringSqlite().Match(connectionString);
+            if (match.Success)
+            {
+                return new DbConnectionDetial(match.Groups["database"].Value, DatabaseType.Sqlite);
+            }
+            match = RegexConst.ConnectionStringMslocaldb().Match(connectionString);
+            if (match.Success)
+            {
+                return new DbConnectionDetial(match.Groups["database"].Value, DatabaseType.MsSqlLocalDb);
+            }
+            match = RegexConst.ConnectionStringOracle().Match(connectionString);
+            if (match.Success)
+            {
+                return new DbConnectionDetial
+                {
+                    Host = match.Groups["host"].Value,
+                    Port = Convert.ToInt32(match.Groups["port"].Value),
+                    Account = match.Groups["database"].Value,
+                    Password = match.Groups["password"].Value,
+                    Database = match.Groups["database"].Value,
+                    DatabaseType = DatabaseType.Oracle,
+                    InstanceName = match.Groups["instance"].Value
+                };
+            }
+            match = RegexConst.ConnectionStringMySql().Match(connectionString);
+            if (match.Success)
+            {
+                return new DbConnectionDetial
+                {
+                    Host = match.Groups["host"].Value,
+                    Port = Convert.ToInt32(match.Groups["port"].Value),
+                    Account = match.Groups["username"].Value,
+                    Password = match.Groups["password"].Value,
+                    Database = match.Groups["database"].Value,
+                    DatabaseType = DatabaseType.MySql
+                };
+            }
+            match = RegexConst.ConnectionStringSqlServer().Match(connectionString);
+            if (match.Success)
+            {
+                var host = match.Groups["host"].Value;
+                var port = 1433;
+                if (host.Contains(','))
+                {
+                    var hostArr = host.Split(",");
+                    host = hostArr[0];
+                    port = Convert.ToInt32(hostArr[1]);
+                }
+                return new DbConnectionDetial
+                {
+                    Host = host,
+                    Port = port,
+                    Account = match.Groups["username"].Value,
+                    Password = match.Groups["password"].Value,
+                    Database = match.Groups["database"].Value,
+                    DatabaseType = DatabaseType.SqlServer
+                };
+            }
+            match = RegexConst.ConnectionStringDm().Match(connectionString);
+            if (match.Success)
+            {
+                return new DbConnectionDetial
+                {
+                    Host = match.Groups["host"].Value,
+                    Port = Convert.ToInt32(match.Groups["port"].Value),
+                    Account = match.Groups["username"].Value,
+                    Password = match.Groups["password"].Value,
+                    Database = match.Groups["username"].Value,
+                    DatabaseType = DatabaseType.Dm
+                };
+            }
+
+            throw new Exception($"连接字符串解析失败: {connectionString}");
+        }
         #endregion
 
         /// <summary>
@@ -129,6 +204,15 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
         /// <returns></returns>
         public async Task<PagedData<T>> QueryPagedDataAsync<T>(string table, int pageIndex, int pageSize, string? orderField, bool isAsc, DataFilter filters, string db = "") where T : new()
         {
+            if (pageIndex == 0)
+            {
+                pageIndex = 1;
+            }
+            if (pageSize == 0)
+            {
+                pageSize = 20;
+            }
+
             using var conn = GetDbConnection(_connectionString);
             if (!string.IsNullOrWhiteSpace(db))
             {
@@ -309,7 +393,7 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
         {
             //conn.ConnectionString: "server=127.0.0.1;port=3306;database=engine;user id=root;allowuservariables=True"
             //conn.ConnectionTimeout: 15
-            //conn.Database: "iduo_engine_hznu"
+            //conn.Database: "db_engine_hznu"
             using var conn = GetDbConnection(_connectionString);
             if (!string.IsNullOrWhiteSpace(db))
             {
@@ -990,7 +1074,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// <summary>获取数据源中一个表的create语句和数据的insert语句</summary>
         public static async Task<TableSqlsInfo> GetTableSqlsInfoAsync(dynamic table, IDbConnection conn, IDbTransaction trans, IDbConnection targetConn, DataFilter filter)
         {
-            // IDUO.IDS4.DEPARTMENT
+            // ACCOUNTS.DEPARTMENT
             string targetTable = GetTableFullName(table);
             if (targetTable.Split('.').Last().StartsWith("_"))
             {
@@ -1634,9 +1718,6 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         }
     }
 
-    //SELECT a.BpmnBytes, a.ProcessImage FROM iduo_engine.devprocessmodel a; -- mediumblob
-    //SELECT a.FieldConfigs FROM iduo_business.sys_datasource a; -- VARCHAR(3000)
-    //SELECT a.ContentEn FROM iduo_portal.pt_joyrnalism a; -- mediumtext
 
     public class SyncData
     {

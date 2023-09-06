@@ -15,11 +15,13 @@ namespace Sylas.RemoteTasks.Test.Remote
     public partial class FetchAllDataByApiTest : IClassFixture<TestFixture>
     {
         private readonly ITestOutputHelper _outputHelper;
+        private readonly DatabaseInfo _databaseInfo;
         private readonly IConfiguration _configuration;
 
         public FetchAllDataByApiTest(ITestOutputHelper outputHelper, TestFixture fixture)
         {
             _outputHelper = outputHelper;
+            _databaseInfo = fixture.ServiceProvider.GetRequiredService<DatabaseInfo>();
             _configuration = fixture.ServiceProvider.GetRequiredService<IConfiguration>();
         }
         
@@ -191,8 +193,8 @@ namespace Sylas.RemoteTasks.Test.Remote
         [Fact]
         public async Task DataCompareTestAsync()
         {
-            using var sourceConn = DatabaseInfo.GetDbConnection("Data Source=192.168.1.227:1521/helowin;User ID=iduo_ids4;Password=iduo2022;PERSIST SECURITY INFO=True;Pooling = True;Max Pool Size = 100;Min Pool Size = 1;");
-            var compareResult = await DatabaseInfo.CompareRecordsFromDbWithDataAsync(sourceConn, "syncoc", "USERID", "LOGINNAME", new DatabaseInfo.DataInJson("D:/.NET/iduo/routine/db/同步SQL/杭师大/SYNC_OC.json", new string[] { "RECORDS" }));
+            using var sourceConn = DatabaseInfo.GetDbConnection("Data Source=192.168.1.227:1521/helowin;User ID=accounts;Password=123456;PERSIST SECURITY INFO=True;Pooling = True;Max Pool Size = 100;Min Pool Size = 1;");
+            var compareResult = await DatabaseInfo.CompareRecordsFromDbWithDataAsync(sourceConn, "syncoc", "USERID", "LOGINNAME", new DatabaseInfo.DataInJson("D:/.NET/iduo/routine/db/同步SQL/杭xx/SYNC_OC.json", new string[] { "RECORDS" }));
             _outputHelper.WriteLine("success");
         }
 
@@ -229,8 +231,8 @@ namespace Sylas.RemoteTasks.Test.Remote
         [Fact]
         public async Task ReadFiles()
         {
-            string dir1 = "D:/.NET/iduo/iduo.SiteManagement/iduo.sitemanagement.core/Entities";
-            string dir2 = "D:/.NET/iduo/iduo.portal.api/iduo.portal.core/Entities";
+            string dir1 = "D:/.NET/Id/Id.SiteManagement/Id.sitemanagement.core/Entities";
+            string dir2 = "D:/.NET/Id/Id.portal.api/Id.portal.core/Entities";
             string[] dirs = new string[] { dir1, dir2 };
             StringBuilder fileContentBuilder = new();
             foreach (var dir in dirs)
@@ -244,7 +246,7 @@ namespace Sylas.RemoteTasks.Test.Remote
                     fileContentBuilder.AppendLine();
                 }
             }
-            File.WriteAllText(@"D:\.NET\iduo\routine\txt\siteportalentities.txt", fileContentBuilder.ToString());
+            File.WriteAllText(@"D:\.NET\id\routine\txt\siteportalentities.txt", fileContentBuilder.ToString());
             
         }
         /// <summary>

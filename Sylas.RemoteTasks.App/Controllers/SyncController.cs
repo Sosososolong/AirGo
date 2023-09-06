@@ -31,11 +31,16 @@ namespace Sylas.RemoteTasks.App.Controllers
             _repository = repository;
         }
 
-        public async Task<IActionResult> Index([FromServices] RequestProcessorService service)
+        public IActionResult Index([FromServices] RequestProcessorService service)
+        {
+            return View();
+        }
+
+        public async Task<IActionResult> ExecuteHttpProcessorAsync([FromServices] RequestProcessorService service, [FromBody] int processorId)
         {
             //await service.ExecuteFromAppsettingsAsync();
-
-            return View();
+            await service.ExecuteFromDatabaseAsync(processorId);
+            return Ok(new OperationResult(true));
         }
 
         public async Task<IActionResult> GetHttpRequestProcessorsAsync(int pageIndex, int pageSize, string orderField, bool isAsc, [FromBody]DataFilter dataFilter)
@@ -160,7 +165,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             {
                 return Json(new OperationResult(false, "当前步骤执行参数不能为空"));
             }
-            if (step.HttpRequestProcessorId == 0)
+            if (step.ProcessorId == 0)
             {
                 return Json(new OperationResult(false, "所属HTTP处理器不能为空"));
             }

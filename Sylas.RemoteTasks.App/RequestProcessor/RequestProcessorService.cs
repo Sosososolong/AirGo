@@ -1,4 +1,5 @@
 ﻿using Sylas.RemoteTasks.App.Database.SyncBase;
+using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.Repositories;
 using Sylas.RemoteTasks.App.Utils;
 
@@ -55,11 +56,16 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
             }
         }
 
-        public async Task ExecuteFromDatabaseAsync()
+        public async Task<OperationResult> ExecuteFromDatabaseAsync(int id)
         {
-            var httpRequestProcessors = await _repository.GetPageAsync(1, 1000, "id", true, new DataFilter());
+            var httpRequestProcessors = await _repository.GetPageAsync(1, 1000, "id", true, new DataFilter() { FilterItems = new List<FilterItem> { new FilterItem { CompareType = "=", FieldName = "id", Value = id.ToString() } } });
             Dictionary<string, object>? dataContext = null;
-            
+
+            if (httpRequestProcessors.Data is null || !httpRequestProcessors.Data.Any())
+            {
+                return new OperationResult(false, $"没有找到Id为{id}的HttpRequestProcessor");
+            }
+
             foreach (var httpRequestProcessor in httpRequestProcessors.Data)
             {
                 var requestProcessorName = httpRequestProcessor.Name ?? throw new Exception("[HttpRequestProcessor.Name] is missing"); //$"The provided \"{pipelineItem.Key}\" configuration is invalid"
@@ -77,21 +83,10 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
 
                 var executeMethod = requestProcessorType.GetMethod("ExecuteStepsFromDbAsync") ?? throw new Exception($"IRequestProcessor的实现{requestProcessorName}中未找到StartAsync方法");
 
-                // BOOKMARK: HttpRequestProcessor - 11. 获取所有需要执行的步骤Steps
-                var stepsFilters = new List<FilterItem>
-                {
-                    new FilterItem { FieldName = "id", CompareType = "=", Value = httpRequestProcessor.Id.ToString() }
-                };
-                var steps = (await _repository.GetStepsPageAsync(1, 1000, "id", true, new DataFilter { FilterItems = stepsFilters })).Data;
-                httpRequestProcessor.Steps = steps;
+                // BOOKMARK: HttpRequestProcessor - 11. 获取所有需要执行的步骤Steps(仓储中已获取)
+                var steps = httpRequestProcessor.Steps;
 
-                // BOOKMARK: HttpRequestProcessor - 12. 获取所有需要执行的步骤对应的所有DataHandlers
-                foreach (var step in steps)
-                {
-                    var filterCondition = new FilterItem { FieldName = "StepId", CompareType = "=", Value = step.Id.ToString() };
-                    var dataHandlers = (await _repository.GetDataHandlersPageAsync(1, 1000, "id", true, new DataFilter { FilterItems = new List<FilterItem> { filterCondition } })).Data;
-                    step.DataHandlers = dataHandlers;
-                }
+                // BOOKMARK: HttpRequestProcessor - 12. 获取所有需要执行的步骤对应的所有DataHandlers(仓储中已获取)
 
                 var returned = executeMethod.Invoke(requestProcessorInstance, new object[] { httpRequestProcessor });
                 if (executeMethod.ReturnType == typeof(Task) || (executeMethod.ReturnType.IsGenericType && executeMethod.ReturnType.GetGenericTypeDefinition() == typeof(Task<>)))
@@ -104,6 +99,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                     dataContext = (returned as RequestProcessorBase ?? throw new Exception($"{requestProcessorName}对象转换为RequestProcessorBase失败")).DataContext;
                 }
             }
+            return new OperationResult(true);
         }
     }
 }

@@ -2,6 +2,6 @@
 {
     public enum DatabaseType
     {
-        MySql, SqlServer, Oracle, Sqlite
+        MySql, SqlServer, Oracle, Dm, Sqlite, MsSqlLocalDb
     }
 }

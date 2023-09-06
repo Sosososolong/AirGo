@@ -188,7 +188,7 @@ namespace Sylas.RemoteTasks.App.Repositories
                 { "parameters", step.Parameters },
                 { "dataContextBuilder", step.DataContextBuilder },
                 { "remark", step.Remark },
-                { "processorId", step.HttpRequestProcessorId },
+                { "processorId", step.ProcessorId },
                 { "presetDataContext", step.PresetDataContext },
             };
             return await _db.ExecuteScalarAsync(sql, parameters);
@@ -214,6 +214,11 @@ namespace Sylas.RemoteTasks.App.Repositories
             {
                 setStatement.Append($"parameters=@parameters,");
                 parameters.Add("parameters", step.Parameters);
+            }
+            if (!string.IsNullOrWhiteSpace(step.PresetDataContext))
+            {
+                setStatement.Append($"PresetDataContext=@PresetDataContext,");
+                parameters.Add("PresetDataContext", step.PresetDataContext);
             }
             if (!string.IsNullOrWhiteSpace(step.DataContextBuilder))
             {

@@ -452,6 +452,10 @@ function getFormData(formItemIds) {
     return formData;
 }
 
+/**
+ * 显示更新数据面板: 分页查询接口, 使用id作为条件查询出当前数据, 再把当前数据的属性值复制到对应的表单项上
+ * @param {any} eventTrigger 触发事件的元素, 可以获取元素上的自定义属性值
+ */
 async function showUpdatePannel(eventTrigger) {
     let tableId = eventTrigger.getAttribute('data-table-id');
     let table = tables[tableId];
@@ -505,6 +509,34 @@ async function deleteData(eventTrigger) {
     let dataId = eventTrigger.getAttribute('data-id');
 
     let url = eventTrigger.getAttribute('data-delete-url');
+    let method = eventTrigger.getAttribute('data-method');
+    let response = null;
+    try {
+        response = await $.ajax({
+            url: url,
+            method: method,
+            data: "\"" + dataId + "\"",
+            contentType: 'application/json',
+            dataType: 'json',
+        });
+    } catch (e) {
+        showErrorBox('操作失败');
+        console.log(e);
+    }
+
+    if (response && response.isSuccess) {
+        showMsgBox('操作成功', () => table.loadData());
+    } else {
+        showErrorBox(response.errMsg, '错误提示', [{ class: 'error', content: '关闭' }]);
+    }
+}
+
+async function execute(eventTrigger) {
+    let tableId = eventTrigger.getAttribute('data-table-id');
+    let table = tables[tableId];
+    let dataId = eventTrigger.getAttribute('data-id');
+
+    let url = eventTrigger.getAttribute('data-execute-url');
     let method = eventTrigger.getAttribute('data-method');
     let response = null;
     try {

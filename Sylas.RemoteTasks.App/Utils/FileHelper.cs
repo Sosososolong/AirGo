@@ -23,15 +23,13 @@ public partial class FileHelper
             File.Delete(file);
         }
     }
-
-    public static List<string> FindFilesRecursive(string dirPath, List<string> files = null)
+    
+    public static List<string> FindFilesRecursive(string dirPath)
     {
-        files ??= new List<string>();
-        string[] findedFiles = Directory.GetFiles(dirPath);
-        foreach (string file in findedFiles)
-        {
-            files.Add(file);
-        }
+        List<string> files = new();
+        string[] findedFiles = Directory.GetFiles(dirPath).Select(x => x.Replace('\\', '/')).ToArray();
+        files.AddRange(findedFiles);
+
         string[] dirs = Directory.GetDirectories(dirPath);
         if (!dirs.Any())
         {
@@ -40,13 +38,25 @@ public partial class FileHelper
         foreach (string dir in dirs)
         {
             if (dir.EndsWith(@"\obj") || dir.EndsWith(@"\bin") || dir.EndsWith(@"\.vs"))
+            //if (excludes.Any(dir.Contains))
             {
                 continue;
             }
-            FindFilesRecursive(dir, files);
+            files.AddRange(FindFilesRecursive(dir));
         }
         return files;
     }
+    public static List<string> FindSourceFiles(string slnDir, SourceFileType sourceFileType)
+    {
+        var sourceFiles = FindFilesRecursive(slnDir);
+        if (sourceFileType == SourceFileType.Appsettings)
+        {
+            var appsettings = sourceFiles.Where(x => x.Contains("appsettings") && x.Contains(".json")).ToList();
+            return appsettings;
+        }
+        throw new NotImplementedException();
+    }
+
     /// <summary>
     /// 获取当前结局方案文件夹
     /// </summary>
@@ -176,7 +186,7 @@ public partial class FileHelper
     public static void InsertContent(string file, Func<string, string> newContentHandler)
     {
         string originContent = string.Empty;
-        using (StreamReader sr = new StreamReader(file, Encoding.UTF8))
+        using (StreamReader sr = new StreamReader(file, new UTF8Encoding(false)))
         {
             sr.BaseStream.Seek(0, SeekOrigin.Begin);
             originContent = sr.ReadToEnd();
@@ -185,7 +195,7 @@ public partial class FileHelper
 
         string newCon = newContentHandler(originContent);
 
-        using (var streamWriter = new StreamWriter(file, false, Encoding.UTF8))
+        using (var streamWriter = new StreamWriter(file, false, new UTF8Encoding(false)))
         {
             streamWriter.Write(newCon);
             streamWriter.Flush();
@@ -204,7 +214,7 @@ public partial class FileHelper
         {
             throw new ArgumentException($"配置文件{settingsFile}不存在");
         }
-        using (StreamReader sr = new StreamReader(settingsFile, Encoding.UTF8))
+        using (StreamReader sr = new StreamReader(settingsFile, new UTF8Encoding(false)))
         {
             string settings = sr.ReadToEnd();
             // 将配置文件内容反序列化为对象
@@ -218,7 +228,7 @@ public partial class FileHelper
                 throw new Exception("json配置文件的配置减少超过20个字符, 如果您在修改某些配置, 为了防止未知bug引起配置的清空, 建议您手动修改, 否则请修改源代码");
             }
             sr.Close();
-            using (StreamWriter sw = new StreamWriter(settingsFile, false, Encoding.UTF8))
+            using (StreamWriter sw = new StreamWriter(settingsFile, false, new UTF8Encoding(false)))
             {
                 sw.Write(updatedSettings);
                 sw.Flush();
@@ -260,7 +270,7 @@ public partial class FileHelper
             throw new ArgumentException($"配置文件{settingsFile}不存在");
         }
         dynamic settingsObj = null;
-        using (StreamReader sr = new StreamReader(settingsFile, Encoding.UTF8))
+        using (StreamReader sr = new StreamReader(settingsFile, new UTF8Encoding(false)))
         {
             string settings = sr.ReadToEnd();
             // 将配置文件内容反序列化为对象
@@ -278,7 +288,7 @@ public partial class FileHelper
     public static List<string> GetProperties(string classFile)
     {
         List<string> properties = new List<string>();
-        using (StreamReader sr = new StreamReader(classFile, Encoding.UTF8))
+        using (StreamReader sr = new StreamReader(classFile, new UTF8Encoding(false)))
         {
             string fileCon = sr.ReadToEnd();
             var reg = new Regex(@"public\s+.+\s+(\w+)\s*{\s*get;\s*set;\s*}");
@@ -298,10 +308,10 @@ public partial class FileHelper
     /// </summary>
     /// <param name="file"></param>
     /// <param name="input"></param>
-    public static void Write(string file, string input, bool append, Encoding encoding)
+    public static async Task WriteAsync(string file, string input, bool append)
     {
-        using StreamWriter sw = new(file, append, encoding);
-        sw.Write(input);
+        using StreamWriter sw = new(file, append, new UTF8Encoding(false));
+        await sw.WriteAsync(input);
         sw.Flush();
         sw.Close();
     }
@@ -314,18 +324,11 @@ public partial class FileHelper
     /// <returns></returns>
     public static bool IsContentExists(string file, string content)
     {
-        StreamReader streamReader = new(file, Encoding.UTF8);
-        using (StreamReader sr = streamReader)
-        {
-            string fileContent = sr.ReadToEnd();
-            sr.Close();
-            int contentIndex = fileContent.IndexOf(content);
-            if (contentIndex == -1)
-            {
-                return false;
-            }
-            return true;
-        }
+        StreamReader streamReader = new(file, new UTF8Encoding(false));
+        using StreamReader sr = streamReader;
+        string fileContent = sr.ReadToEnd();
+        sr.Close();
+        return fileContent.Contains(content);
     }
 
     /// <summary>
@@ -583,4 +586,8 @@ public partial class FileHelper
         var resultFile = Path.Combine(dir, "SearchResult.json");
         await File.WriteAllTextAsync(resultFile, JsonConvert.SerializeObject(searchedResult));
     }
+}
+public enum SourceFileType
+{
+    Appsettings
 }

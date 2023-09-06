@@ -5,10 +5,19 @@ namespace Sylas.RemoteTasks.App.Controllers
     public class OAuthController : Controller
     {
         /// <summary>
-        /// 测试OAuth服务器的授权码授权
+        /// 测试微信钉钉第三方登录
         /// </summary>
         /// <returns></returns>
         public IActionResult Index()
+        {
+            return View();
+        }
+
+        /// <summary>
+        /// 密码模式
+        /// </summary>
+        /// <returns></returns>
+        public IActionResult Password()
         {
             return View();
         }

@@ -1,3 +1,4 @@
+using IdentityServer4.AccessTokenValidation;
 using Sylas.RemoteTasks.App.BackgroundServices;
 using Sylas.RemoteTasks.App.Database;
 using Sylas.RemoteTasks.App.DataHandlers;
@@ -27,6 +28,7 @@ builder.Services.AddSingleton<RequestProcessorDataTable>();
 builder.Services.AddSingleton<RequestProcessorWithQueryString>();
 // 添加仓储
 builder.Services.AddScoped<HttpRequestProcessorRepository>();
+builder.Services.AddScoped<DbConnectionInfoRepository>();
 
 // TODO: 动态注册所有DataHandler服务
 builder.Services.AddTransient<DataHandlerSyncDataToDb>();
@@ -41,9 +43,28 @@ builder.Services.AddDatabaseUtils();
 builder.Services.AddTransient<HostService>();
 builder.Services.AddTransient<RequestProcessorService>();
 
-
 // 后台任务
 builder.Services.AddHostedService<PublishService>();
+
+// 鉴权服务(配置Identity Server服务器)
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultScheme = IdentityServerAuthenticationDefaults.AuthenticationScheme;
+    options.DefaultAuthenticateScheme = IdentityServerAuthenticationDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = IdentityServerAuthenticationDefaults.AuthenticationScheme;
+    options.DefaultSignInScheme = IdentityServerAuthenticationDefaults.AuthenticationScheme;
+    options.DefaultForbidScheme = IdentityServerAuthenticationDefaults.AuthenticationScheme;
+}).AddIdentityServerAuthentication(options =>
+{
+    options.Authority = builder.Configuration["IdentityServerConfiguration:Authority"];
+    // 即api resource
+    options.ApiName = builder.Configuration["IdentityServerConfiguration:ApiName"];
+    // 即api resource secret
+    options.ApiSecret = builder.Configuration["IdentityServerConfiguration:ApiSecret"];
+    options.RequireHttpsMetadata = builder.Configuration.GetValue<bool>("IdentityServerConfiguration:RequireHttpsMetadata");
+    options.EnableCaching = builder.Configuration.GetValue<bool>("IdentityServerConfiguration:EnableCaching");
+    options.CacheDuration = TimeSpan.FromMinutes(builder.Configuration.GetValue<int>("IdentityServerConfiguration:CacheDuration"));
+});
 
 var app = builder.Build();
 
@@ -66,6 +87,7 @@ app.UseStaticFiles();
 
 app.UseRouting();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 if (app.Environment.IsDevelopment())

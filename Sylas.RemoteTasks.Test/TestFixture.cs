@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Sylas.RemoteTasks.App.Database.SyncBase;
 using Sylas.RemoteTasks.App.RemoteHostModule;
 using System.Configuration;
 
@@ -64,6 +65,7 @@ namespace Sylas.RemoteTasks.Test
             #endregion
 
             services.AddSingleton<HostService>();
+            services.AddScoped<DatabaseInfo>();
         }
     }
 }

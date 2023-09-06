@@ -23,8 +23,55 @@ namespace Sylas.RemoteTasks.App.RegexExp
         /// 匹配数据库连接字符串 - Sqlite
         /// </summary>
         /// <returns></returns>
-        [GeneratedRegex("^data source=[\\d\\w./\\\\:]+$", RegexOptions.IgnoreCase, "zh-CN")]
+        [GeneratedRegex("data source=(?<database>\\w+\\.db.*)", RegexOptions.IgnoreCase, "zh-CN")]
         public static partial Regex ConnectionStringSqlite();
+        /// <summary>
+        /// 匹配数据库连接字符串 - dm
+        /// </summary>
+        /// <returns></returns>
+        [GeneratedRegex("server\\s*=\\s*(?<host>[\\w\\d\\.]+);\\s*Port\\s*=\\s*(?<port>\\d+);\\s*userid\\s*=\\s*(?<username>\\w+);\\s*pwd\\s*=\\s*(?<password>.+).*", RegexOptions.IgnoreCase, "zh-CN")]
+        public static partial Regex ConnectionStringDm();
+        /// <summary>
+        /// 匹配数据库连接字符串 - mssqllocaldb
+        /// </summary>
+        /// <returns></returns>
+        [GeneratedRegex("server\\s*=\\s*\\(localdb\\)\\\\\\\\mssqllocaldb;\\s*database=(?<database>\\w+);.+", RegexOptions.IgnoreCase, "zh-CN")]
+        public static partial Regex ConnectionStringMslocaldb();
+        /// <summary>
+        /// 匹配数据库连接字符串 - sqlserver
+        /// </summary>
+        /// <returns></returns>
+        [GeneratedRegex("data\\s+source\\s*=(?<host>.+);initial\\s+catalog\\s*=\\s*(?<database>\\w+);user\\s+id=(?<username>\\w+);\\s*password\\s*=\\s*(?<password>.+?).*", RegexOptions.IgnoreCase, "zh-CN")]
+        public static partial Regex ConnectionStringSqlServer();
+        /// <summary>
+        /// 匹配数据库连接字符串 - mysql
+        /// </summary>
+        /// <returns></returns>
+        [GeneratedRegex("server\\s*=\\s*(?<host>.+);port\\s*=\\s*(?<port>\\d+);.*database\\s*=\\s*(?<database>\\w+);uid\\s*=\\s*(?<username>\\w+);pwd=(?<password>.+?).*", RegexOptions.IgnoreCase, "zh-CN")]
+        public static partial Regex ConnectionStringMySql();
+        /// <summary>
+        /// 匹配数据库连接字符串 - oracle
+        /// </summary>
+        /// <returns></returns>
+        [GeneratedRegex("data\\s+source\\s*=\\s*(?<host>[\\d\\w\\.]+):(?<port>\\d+)/(?<instance>\\w+);\\s*user\\s+id=(?<database>\\w+);password\\s*=\\s*(?<password>.+?);.+Min\\s+Pool\\s+Size\\s*=\\s*\\d+.*", RegexOptions.IgnoreCase, "zh-CN")]
+        public static partial Regex ConnectionStringOracle();
+        public static readonly List<Func<Regex>> AllConnectionStringPatterns = new()
+        {
+                ConnectionStringMySql,
+                ConnectionStringSqlServer,
+                ConnectionStringOracle,
+                ConnectionStringDm,
+                ConnectionStringSqlite,
+                ConnectionStringMslocaldb,
+        };
+
+        /// <summary>
+        /// 匹配数据库连接字符串中的数据库名
+        /// 尝试匹配顺序为: sqlserver -> oracle -> dm -> mslocaldb -> mysql -> sqlite
+        /// </summary>
+        /// <returns></returns>
+        [GeneratedRegex("(Initial\\s+Catalog\\s*=\\s*(?<database>\\w+))|(User\\s+ID\\s*=\\s*(?<database>\\w+))|(UserId\\s*=\\s*(?<database>\\w+))|(mssqllocaldb.+Database\\s*=\\s*(?<database>\\w+))|(Database\\s*=\\s*(?<database>\\w+))|(data\\s+source\\s*=\\s*(?<database>[\\w\\.]+))")]
+        public static partial Regex ConnectionStringDbName();
 
         /// <summary>
         /// 从数据库连接字符串获取Oracle数据库名
