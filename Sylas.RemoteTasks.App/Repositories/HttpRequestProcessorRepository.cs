@@ -89,6 +89,7 @@ namespace Sylas.RemoteTasks.App.Repositories
                 { "name", processor.Name },
                 { "title", processor.Title },
                 { "url", processor.Url },
+                { "headers", processor.Headers },
                 { "remark", processor.Remark },
                 { "stepCirleRunningWhenLastStepHasData", processor.StepCirleRunningWhenLastStepHasData }
             };
@@ -121,6 +122,11 @@ namespace Sylas.RemoteTasks.App.Repositories
                 setStatement.Append($"url=@url,");
                 parameters.Add("url", processor.Url);
             }
+            if (!string.IsNullOrWhiteSpace(processor.Headers))
+            {
+                setStatement.Append($"Headers=@Headers,");
+                parameters.Add("Headers", processor.Headers);
+            }
             if (!string.IsNullOrWhiteSpace(processor.Remark))
             {
                 setStatement.Append($"remark=@remark,");
@@ -140,8 +146,13 @@ namespace Sylas.RemoteTasks.App.Repositories
         /// <returns></returns>
         public async Task<int> DeleteAsync(int id)
         {
-            string sql = $"delete from {HttpRequestProcessor.TableName} where id=@id";
-            return await _db.ExecuteScalarAsync(sql, new Dictionary<string, object> { { "id", id } });
+            var deleted = await _db.ExecuteScalarsAsync(new string[] {
+                $"DELETE FROM {HttpRequestProcessorStepDataHandler.TableName} WHERE StepId IN(SELECT Id FROM HttpRequestProcessorSteps WHERE ProcessorId=@id)",
+                $"DELETE FROM {HttpRequestProcessorStep.TableName} WHERE ProcessorId=@id",
+                $"DELETE FROM {HttpRequestProcessor.TableName} WHERE Id=@id",
+            },
+            new Dictionary<string, object> { { "id", id } });
+            return deleted;
         }
         #endregion
 
@@ -186,6 +197,7 @@ namespace Sylas.RemoteTasks.App.Repositories
             var parameters = new Dictionary<string, object>
             {
                 { "parameters", step.Parameters },
+                { "requestBody", step.RequestBody },
                 { "dataContextBuilder", step.DataContextBuilder },
                 { "remark", step.Remark },
                 { "processorId", step.ProcessorId },
@@ -214,6 +226,11 @@ namespace Sylas.RemoteTasks.App.Repositories
             {
                 setStatement.Append($"parameters=@parameters,");
                 parameters.Add("parameters", step.Parameters);
+            }
+            if (!string.IsNullOrWhiteSpace(step.RequestBody))
+            {
+                setStatement.Append($"RequestBody=@RequestBody,");
+                parameters.Add("RequestBody", step.RequestBody);
             }
             if (!string.IsNullOrWhiteSpace(step.PresetDataContext))
             {

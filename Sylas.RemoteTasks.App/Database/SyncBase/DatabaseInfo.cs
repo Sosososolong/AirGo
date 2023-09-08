@@ -266,6 +266,39 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
             return await conn.ExecuteAsync(sql, parameters);
         }
         /// <summary>
+        /// 执行多条增删改的SQL语句 - 可使用db参数指定切换到当前连接的用户有权限的其他数据库
+        /// </summary>
+        /// <param name="sqls"></param>
+        /// <param name="parameters"></param>
+        /// <param name="db"></param>
+        /// <returns></returns>
+        public async Task<int> ExecuteScalarsAsync(IEnumerable<string> sqls, Dictionary<string, object> parameters, string db = "")
+        {
+            using var conn = GetDbConnection(_connectionString);
+            if (!string.IsNullOrWhiteSpace(db))
+            {
+                conn.ChangeDatabase(db);
+            }
+            var affectedRows = 0;
+            conn.Open();
+            using var trans = conn.BeginTransaction();
+            try
+            {
+                foreach (var sql in sqls)
+                {
+                    _logger.LogDebug(sql);
+                    affectedRows += await conn.ExecuteAsync(sql, parameters, transaction: trans);
+                }
+            }
+            catch (Exception)
+            {
+                trans.Rollback();
+                throw;
+            }
+            trans.Commit();
+            return affectedRows;
+        }
+        /// <summary>
         /// 执行增删改的SQL语句 - 可使用数据库连接字符串指定数据库
         /// </summary>
         /// <param name="sql"></param>

@@ -511,6 +511,7 @@ async function deleteData(eventTrigger) {
     let url = eventTrigger.getAttribute('data-delete-url');
     let method = eventTrigger.getAttribute('data-method');
     let response = null;
+    showSpinner();
     try {
         response = await $.ajax({
             url: url,
@@ -522,6 +523,8 @@ async function deleteData(eventTrigger) {
     } catch (e) {
         showErrorBox('操作失败');
         console.log(e);
+    } finally {
+        closeSpinner();
     }
 
     if (response && response.isSuccess) {
@@ -539,6 +542,7 @@ async function execute(eventTrigger) {
     let url = eventTrigger.getAttribute('data-execute-url');
     let method = eventTrigger.getAttribute('data-method');
     let response = null;
+    showSpinner();
     try {
         response = await $.ajax({
             url: url,
@@ -550,6 +554,8 @@ async function execute(eventTrigger) {
     } catch (e) {
         showErrorBox('操作失败');
         console.log(e);
+    } finally {
+        closeSpinner();
     }
 
     if (response && response.isSuccess) {

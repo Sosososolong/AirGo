@@ -10,6 +10,10 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
         {
             _requestConfig.QueryDictionary = new Dictionary<string, object>();
         }
+        protected override IEnumerable<RequestConfig> UpdateRequestConfig2(Dictionary<string, object> dataContextDictionary, string? queryJson, string bodyJson)
+        {
+            throw new NotImplementedException();
+        }
         protected override IEnumerable<RequestConfig> UpdateRequestConfig(Dictionary<string, object> dataContextDictionary, List<string> values)
         {
             var copies = new List<RequestConfig>();
@@ -47,7 +51,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                 }
                 var left = splited[0];
                 var rightExpression = splited[1];
-                var rightValue = TmplHelper.GetTmplValueFromDataContext(dataContextDictionary, rightExpression) ?? throw new Exception($"数据上下文中为解析出表达式: {rightExpression}");
+                var rightValue = TmplHelper.ResolveVariableValue(dataContextDictionary, rightExpression) ?? throw new Exception($"数据上下文中为解析出表达式: {rightExpression}");
                 var rightToken = JToken.FromObject(rightValue);
                 if (rightToken.Type == JTokenType.String)
                 {

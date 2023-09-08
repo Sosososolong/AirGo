@@ -140,7 +140,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             
             if (affectedRows > 0)
             {
-                return Ok(new OperationResult(true, string.Empty));
+                return Ok(new OperationResult(true, string.Empty) { Data = new string[] { $"{affectedRows}" } });
             }
             return Ok(new OperationResult(false, "数据没有变化"));
         }

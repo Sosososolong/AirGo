@@ -117,10 +117,10 @@ namespace Sylas.RemoteTasks.App.RegexExp
         public static partial Regex RefedPrimaryField();
 
         /// <summary>
-        /// 字符串模板, 如: ID为{id}姓名为{name}的学生
+        /// 字符串模板, 如: "ID为{id}, 姓名为{name}"
         /// </summary>
         /// <returns></returns>
-        [GeneratedRegex("\\{\\s*\\w+\\s*\\}")]
+        [GeneratedRegex("(?<rightQuotation>\"{0,1})\\{\\s*(?<name>\\w+)|(?<name>\\$\\w+)\\s*\\}(?<leftQuotation>\"{0,1})")]
         public static partial Regex StringTmpl();
 
         /// <summary>

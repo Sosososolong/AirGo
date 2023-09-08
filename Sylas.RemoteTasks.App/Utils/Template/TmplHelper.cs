@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json;
+﻿using MySqlX.XDevAPI.Relational;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Sylas.RemoteTasks.App.RegexExp;
 using Sylas.RemoteTasks.App.Utils.Template.Parser;
@@ -184,34 +185,39 @@ namespace Sylas.RemoteTasks.App.Utils.Template
         /// 替换字符串中的模板
         /// </summary>
         /// <param name="target"></param>
-        /// <param name="dataSource"></param>
-        public static string ResolveStringTmplValue(string target, JObject dataSource)
+        /// <param name="dataContext"></param>
+        public static string ResolveStringWithTmpl(object dataContext, string target)
         {
             if (string.IsNullOrWhiteSpace(target))
             {
                 return target;
             }
-            if (dataSource is null)
+            if (dataContext is null)
             {
                 return target;
             }
 
+            var dataSource = JObject.FromObject(dataContext);
             var stringTmplMatches = RegexConst.StringTmpl().Matches(target);
             foreach (var stringTmplMatch in stringTmplMatches.Cast<Match>())
             {
                 var stringTmplGroups = stringTmplMatch.Groups;
                 if (stringTmplGroups.Count > 1)
                 {
-                    string tmpl = stringTmplGroups[0].Value;
-                    string tmplField = stringTmplGroups[1].Value;
-
-                    var dataProperties = dataSource.Properties();
-                    var refedProp = dataProperties.FirstOrDefault(p => string.Equals(p.Name, tmplField, StringComparison.OrdinalIgnoreCase));
-                    if (refedProp is not null)
+                    string tmpl = stringTmplGroups["name"].Value;
+                    string leftQuotation = stringTmplGroups["leftQuotation"].Value;
+                    string rightQuotation = stringTmplGroups["rightQuotation"].Value;
+                    var tmplValue = ResolveVariableValue(dataSource.ToObject<Dictionary<string, object>>() ?? throw new Exception("无法将模板的数据上下文转换为字典"), tmpl);
+                    var tmplValueStr = tmplValue.ToString();
+                    if (string.IsNullOrWhiteSpace(leftQuotation) && string.IsNullOrWhiteSpace(rightQuotation) && tmplValue is not JObject && tmplValue is not JArray)
                     {
-                        var tmplValue = refedProp.Value;
-                        target = target.Replace(tmpl, tmplValue.ToString());
+                        tmplValueStr = $@"""{tmplValueStr}""";
                     }
+                    //if (tmplValue is JArray tmplJArray)
+                    //{
+                    //    tmplJArray.ToObject<List<string>>();
+                    //}
+                    target = target.Replace(tmpl, tmplValueStr);
                 }
             }
 
@@ -220,7 +226,9 @@ namespace Sylas.RemoteTasks.App.Utils.Template
 
         #region 处理带数据上下文的模板字符串
         /// <summary>
-        /// 构建数据上下文: 配置在使用时会产生或者获取一些数据; 数据产生并缓存一些变量供模板自己使用, 以达到动态配置的目的
+        /// 构建数据上下文: 
+        /// 为字符串模板赋予扩展数据源, 即DataContext的能力
+        /// 配置在使用时会产生或者获取一些数据; 数据产生并缓存一些变量供模板自己使用, 以达到动态配置的目的
         /// </summary>
         /// <param name="assignmentStatementTmpl">赋值语句模板, 即变量名=值</param>
         /// <param name="dataContext">包含原始的数据$data的数据上下文对象</param>
@@ -320,7 +328,14 @@ namespace Sylas.RemoteTasks.App.Utils.Template
             }
             return dataContextBuildDetail;
         }
-        public static object GetTmplValueFromDataContext(Dictionary<string, object> dataContext, string tmpl)
+        /// <summary>
+        /// dataContext: { "$ids": "[1,2,3]" }; tmpl: "$ids" => [1, 2, 3]
+        /// </summary>
+        /// <param name="dataContext"></param>
+        /// <param name="tmpl"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        public static object ResolveVariableValue(Dictionary<string, object> dataContext, string tmpl)
         {
             tmpl = tmpl.Trim();
             if (!dataContext.Any())

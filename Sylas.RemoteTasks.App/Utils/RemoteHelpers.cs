@@ -19,6 +19,16 @@ namespace Sylas.RemoteTasks.App.Utils
             var queryString = queryStringBuilder.ToString().TrimEnd('&');
             return queryString;
         }
+        private static string GetQueryString(JObject queryObj)
+        {
+            var queryStringBuilder = new StringBuilder();
+            foreach (var queryProp in queryObj.Properties())
+            {
+                queryStringBuilder.Append($"{queryProp.Name}={queryProp.Value}&");
+            }
+            var queryString = queryStringBuilder.ToString().TrimEnd('&');
+            return queryString;
+        }
 
         public static async Task<IEnumerable<JToken>?> FetchAllDataFromApiAsync(RequestConfig requestConfig)
         {
@@ -92,7 +102,7 @@ namespace Sylas.RemoteTasks.App.Utils
                         // 子查询
                         foreach (var detail in config.Details)
                         {
-                            ResolveDictionaryTmplValue(detail.QueryDictionary, record);
+                            ResolveDictionaryTmplValue(JToken.FromObject(detail.QueryDictionary ?? new Dictionary<string, object>()), record);
                             ResolveDictionaryTmplValue(detail.BodyDictionary, record);
                             await fetchDatasRecursivelyAsync(detail);
                             if (!string.IsNullOrWhiteSpace(detail.ReturnPrimaryRequest))
@@ -114,28 +124,36 @@ namespace Sylas.RemoteTasks.App.Utils
         /// <summary>
         /// 将dictionary中的模板用data的对应属性填充
         /// </summary>
-        /// <param name="dictionary"></param>
+        /// <param name="target"></param>
         /// <param name="data"></param>
-        private static void ResolveDictionaryTmplValue(IDictionary<string, object>? dictionary, JToken? data)
+        private static void ResolveDictionaryTmplValue(JToken? target, JToken? data)
         {
-            if (dictionary is null || !dictionary.Any())
+            if (target is null)
             {
                 return;
             }
+            var targetString = target.ToString();
+
             if (data is null || data is not JObject)
             {
                 return;
             }
-            var dataObj = (data as JObject) ?? new JObject();
-            foreach (var kv in dictionary)
+            if (target is JObject dataObj)
             {
-
-                if (kv.Value is null || string.IsNullOrWhiteSpace(kv.Value.ToString()))
+                var dataProps = dataObj.Properties();
+                foreach (var dataProp in dataProps)
                 {
-                    continue;
+                    if (dataProp.Value is null || string.IsNullOrWhiteSpace(dataProp.Value.ToString()))
+                    {
+                        continue;
+                    }
+                    // 如果是string, int等基础类型, kv.Value as JToken 为null, 将不处理
+                    TmplHelper.ResolveJTokenTmplValue(dataProp.Value, dataObj);
                 }
-                // 如果是string, int等基础类型, kv.Value as JToken 为null, 将不处理
-                TmplHelper.ResolveJTokenTmplValue(kv.Value as JToken, dataObj);
+            }
+            else
+            {
+                // TODO: ...
             }
 
         }
@@ -167,7 +185,7 @@ namespace Sylas.RemoteTasks.App.Utils
                 queryDictionary,
                 string pageIndexParamName,
                 bool pageIndexParamInQuery,
-                IDictionary<string, object>? bodyDictionary,
+                JToken? bodyDictionary,
                 Func<JObject, bool> responseOkPredicate,
                 Func<JObject, JToken?> getDataFunc,
                 HttpClient httpClient,
@@ -199,7 +217,7 @@ namespace Sylas.RemoteTasks.App.Utils
             var queryString = (queryDictionary is null || !queryDictionary.Any()) ? string.Empty : GetQueryString(queryDictionary);
             #region 生成POST请求时body中的参数
             string bodyContent = "";
-            bodyDictionary ??= new Dictionary<string, object>();
+            bodyDictionary ??= new JObject();
 
             // 如果请求方式是FormData/application/x-www-form-urlencoded, 那么body中的参数就跟QueryString一样: name=zhangsan&age=24, 
             // 如果请求方式是application/json, 那么body中的参数就是一个json字符串: { "name": "zhangsan", "age": 24 }, 
@@ -207,7 +225,14 @@ namespace Sylas.RemoteTasks.App.Utils
             {
                 if (mediaType == MediaType.FormuUrlencoded)
                 {
-                    bodyContent = GetQueryString(bodyDictionary);
+                    if (bodyDictionary is JObject bodyObj)
+                    {
+                        bodyContent = GetQueryString(bodyObj);
+                    }
+                    else
+                    {
+                        bodyContent = bodyDictionary.ToString();
+                    }
                 }
                 else
                 {
@@ -302,7 +327,11 @@ namespace Sylas.RemoteTasks.App.Utils
                         {
                             if (pageIndexParamInQuery)
                             {
-                                queryString = Regex.Replace(queryString, pageIndexParamName + "=(\\d+)", m => m.Groups[0].Value.Replace(m.Groups[1].Value, pageIndex.ToString()));
+                                if (!queryString.Contains(pageIndexParamName, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    queryString += string.IsNullOrWhiteSpace(queryString) ? $"&{pageIndexParamName}=1" : $"?{pageIndexParamName}=1";
+                                }
+                                queryString = Regex.Replace(queryString, pageIndexParamName + "=(\\d+)", m => m.Groups[0].Value.Replace(m.Groups[1].Value, pageIndex.ToString()), RegexOptions.IgnoreCase);
                             }
                             else
                             {
@@ -314,7 +343,7 @@ namespace Sylas.RemoteTasks.App.Utils
                         var response = await httpClient.PostAsync($"{apiUrl}?{queryString}", parameters);
                         if (response.StatusCode != System.Net.HttpStatusCode.OK)
                         {
-                            throw new Exception($"{errPrefix}: {response.ReasonPhrase}");
+                            throw new Exception($"{errPrefix}: {await response.Content.ReadAsStringAsync()}");
                         }
                         return await response.Content.ReadAsStringAsync();
                     };
@@ -415,7 +444,7 @@ namespace Sylas.RemoteTasks.App.Utils
         public string? IdFieldName { get; set; }
         public string? ParentIdFieldName { get; set; }
         public IDictionary<string, object>? QueryDictionary { get; set; }
-        public IDictionary<string, object>? BodyDictionary { get; set; }
+        public JToken? BodyDictionary { get; set; }
         public string? ResponseOkField { get; set; }
         public string? ResponseOkValue { get; set; }
         public string? ResponseDataField { get; set; }

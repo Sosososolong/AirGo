@@ -36,12 +36,13 @@
                 { name: 'title', title: '标题' },
                 { name: 'name', title: '名称/编码' },
                 { name: 'url', title: 'Url地址' },
+                { name: 'headers', showPart: 12, title: '请求头' },
                 { name: 'stepCirleRunningWhenLastStepHasData', title: '步骤循环', enumValus: [ false, true ] },
                 { name: 'remark', title: '备注', width: 200, showPart: 12 },
                 // 操作栏
                 { name: '', title: '操作', type: 'button', tmpl: `<button type="button" class="btn btn-primary btn-sm" data-bs-toggle="collapse" href="#collapse${tableId}{{id}}" role="button" aria-expanded="true" aria-controls="collapse${tableId}{{id}}">步骤</button>
                         <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="{{id}}" data-fetch-url="Sync/GetHttpRequestProcessors" data-update-url="Sync/UpdateHttpRequestProcessor" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
-                        <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="{{id}}" data-delete-url="Sync/DeleteHttpRequestProcessor" data-method="POST" onclick="deleteData(this)">删除</button>
+                        <button type="button" class="btn btn-primary btn-sm d-none" data-table-id="${tableId}" data-id="{{id}}" data-delete-url="Sync/DeleteHttpRequestProcessor" data-method="POST" onclick="deleteData(this)">删除</button>
                         <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="{{id}}" data-execute-url="Sync/ExecuteHttpProcessor" data-method="POST" onclick="execute(this)">执行</button>`
                 }
             ]
@@ -70,13 +71,14 @@
                     tableParentSelector,
                     [
                         { name: 'parameters', title: '执行参数' },
+                        { name: 'requestBody', title: '请求体' },
                         { name: 'dataContextBuilder', title: '数据上下文构建器', showPart: 12 },
                         { name: 'remark', title: '备注', width: 100, showPart: 8 },
                         { name: 'presetDataContext', title: '预设数据上下文' },
                         { name: 'processorId', title: 'HTTP处理器', type: 'dataSource|dataSourceApi=Sync/GetHttpRequestProcessors|displayField=title' },
                         { name: '', title: '操作', type: 'button', tmpl: `<button type="button" class="btn btn-primary btn-sm mt-1" data-bs-toggle="collapse" href="#collapse${tableStepsId}{{id}}" role="button" aria-expanded="true" aria-controls="collapse${tableStepsId}{{id}}">数据处理器</button>
                                 <button type="button" class="btn btn-primary btn-sm mt-1" data-table-id="${tableStepsId}" data-id="{{id}}" data-fetch-url="Sync/GetHttpRequestProcessorSteps" data-update-url="Sync/UpdateHttpRequestProcessorStep" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
-                                <button type="button" class="btn btn-primary btn-sm mt-1" data-table-id="${tableStepsId}" data-id="{{id}}" data-delete-url="Sync/DeleteHttpRequestProcessorStep" data-method="POST" onclick="deleteData(this)">删除</button>`
+                                <button type="button" class="btn btn-primary btn-sm mt-1 d-none" data-table-id="${tableStepsId}" data-id="{{id}}" data-delete-url="Sync/DeleteHttpRequestProcessorStep" data-method="POST" onclick="deleteData(this)">删除</button>`
                         }
                     ],
                     idFieldName,

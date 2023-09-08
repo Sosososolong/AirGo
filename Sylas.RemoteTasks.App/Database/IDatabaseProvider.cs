@@ -38,6 +38,14 @@ namespace Sylas.RemoteTasks.App.Database
         /// <returns></returns>
         Task<int> ExecuteScalarAsync(string sql, Dictionary<string, object> parameters, string db = "");
         /// <summary>
+        /// 执行多条增删改的SQL语句 - 可使用db参数指定切换到当前连接的用户有权限的其他数据库
+        /// </summary>
+        /// <param name="sqls"></param>
+        /// <param name="parameters"></param>
+        /// <param name="db"></param>
+        /// <returns></returns>
+        Task<int> ExecuteScalarsAsync(IEnumerable<string> sqls, Dictionary<string, object> parameters, string db = "");
+        /// <summary>
         /// 执行增删改的SQL语句 - 可使用数据库连接字符串指定数据库
         /// </summary>
         /// <param name="sql"></param>

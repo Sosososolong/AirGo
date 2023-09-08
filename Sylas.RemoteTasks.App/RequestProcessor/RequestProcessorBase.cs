@@ -20,7 +20,6 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
         public Dictionary<string, object> DataContext { get; set; }
         public RequestProcessorBase(IConfiguration configuration, ILogger<RequestProcessorBase> logger, IServiceProvider serviceProvider)
         {
-            var token = configuration["RequestPipeline:Token"] ?? throw new Exception("Token was not found");
             _requestConfig = new()
             {
                 Url = "",
@@ -35,7 +34,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                 ResponseDataField = "data",
                 ResponseOkField = "code",
                 ResponseOkValue = "1",
-                Token = token
+                Token = ""
             };
             _configuration = configuration;
             _logger = logger;
@@ -47,6 +46,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
             _logger.LogCritical("Processor Initialized");
         }
         protected abstract IEnumerable<RequestConfig> UpdateRequestConfig(Dictionary<string, object> dataContext, List<string> values);
+        protected abstract IEnumerable<RequestConfig> UpdateRequestConfig2(Dictionary<string, object> dataContextDictionary, string? queryJson, string bodyJson);
         /// <summary>
         /// 解析参数发送请求并且构建数据上下文, 最后对数据进行对应的操作
         /// </summary>
@@ -160,6 +160,25 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
         /// <exception cref="Exception"></exception>
         public async Task<RequestProcessorBase> ExecuteStepsFromDbAsync(HttpRequestProcessor processor)
         {
+            if (!string.IsNullOrWhiteSpace(processor.Headers) && processor.Headers.Length > 2)
+            {
+                var headers = JsonConvert.DeserializeObject<Dictionary<string, string>>(processor.Headers);
+                if (headers is not null)
+                {
+                    foreach (var header in headers)
+                    {
+                        if (header.Key == "Authorization" && header.Value.StartsWith("Bearer"))
+                        {
+                            _requestConfig.Token = header.Value.Replace("Bearer ", "");
+                        }
+                    }
+                }
+                else
+                {
+                    _logger.LogCritical("请求头{headers}格式不正确", processor.Headers);
+                }
+            }
+
             IEnumerable<HttpRequestProcessorStep> requestProcessorSteps = processor.Steps;
             string requestProcessorUrl = processor.Url;
             // 初始化请求地址
@@ -216,7 +235,9 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                 #endregion
 
                 #region 处理当前Step所有的Request, Datahandler
-                var requestConfigs = UpdateRequestConfig(DataContext, stepParameters);
+                var requestConfigs = string.IsNullOrEmpty(step.RequestBody)
+                    ? UpdateRequestConfig(DataContext, stepParameters)
+                    : UpdateRequestConfig2(DataContext, step.Parameters, step.RequestBody);
                 foreach (var requestConfig in requestConfigs)
                 {
                     _requestConfig = requestConfig;
@@ -278,7 +299,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
             try
             {
                 DataContext["$QueryDictionary"] = _requestConfig.QueryDictionary ?? new Dictionary<string, object>();
-                DataContext["$BodyDictionary"] = _requestConfig.BodyDictionary ?? new Dictionary<string, object>();
+                DataContext["$BodyDictionary"] = _requestConfig.BodyDictionary ?? new JObject();
                 data = await RemoteHelpers.FetchAllDataFromApiAsync(_requestConfig) ?? throw new Exception($"查询记录失败, Query String: {JsonConvert.SerializeObject(_requestConfig.QueryDictionary)}{Environment.NewLine}PayLoad {JsonConvert.SerializeObject(_requestConfig.QueryDictionary)}");
             }
             catch (Exception)
@@ -298,7 +319,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
             foreach (var dataHandler in dataHandlers)
             {
                 var handler = dataHandler.Handler;
-                var opParameters = dataHandler.Parameters.Select(x => TmplHelper.GetTmplValueFromDataContext(DataContext, x)).ToArray();
+                var opParameters = dataHandler.Parameters.Select(x => TmplHelper.ResolveVariableValue(DataContext, x)).ToArray();
 
                 Type dataHandlerType = ReflectionHelper.GetTypeByClassName(handler);
                 MethodInfo handlerStartMethod = dataHandlerType.GetMethod("StartAsync") ?? throw new Exception($"DataHandler {handler} 没有实现Operation方法");
