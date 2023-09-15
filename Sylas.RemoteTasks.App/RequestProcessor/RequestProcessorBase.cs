@@ -155,11 +155,17 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
         /// <summary>
         /// 解析参数发送请求并且构建数据上下文, 最后对数据进行对应的操作
         /// </summary>
-        /// <param name="parameters"></param>
+        /// <param name="processor"></param>
+        /// <param name="stepId">指定执行processor的具体某个步骤; 0表示执行所有步骤</param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public async Task<RequestProcessorBase> ExecuteStepsFromDbAsync(HttpRequestProcessor processor)
+        public async Task<RequestProcessorBase> ExecuteStepsFromDbAsync(HttpRequestProcessor processor, int stepId)
         {
+            //if (startDataContext is not null && startDataContext.Any())
+            //{
+            //    DataContext = startDataContext;
+            //}
+
             if (!string.IsNullOrWhiteSpace(processor.Headers) && processor.Headers.Length > 2)
             {
                 var headers = JsonConvert.DeserializeObject<Dictionary<string, string>>(processor.Headers);
@@ -179,12 +185,26 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                 }
             }
 
-            IEnumerable<HttpRequestProcessorStep> requestProcessorSteps = processor.Steps;
             string requestProcessorUrl = processor.Url;
             // 初始化请求地址
             _requestConfig.Url = requestProcessorUrl;
 
-            var requestProcessorStepsArray = requestProcessorSteps.ToArray();
+            var requestProcessorStepsArray = processor.Steps.ToArray();
+            if (stepId > 0)
+            {
+                var targetStep = requestProcessorStepsArray.FirstOrDefault(x => x.Id == stepId) ?? throw new Exception($"没有找到指定步骤{stepId}");
+                if (targetStep.Previous != 0)
+                {
+                    var previousStep = requestProcessorStepsArray.FirstOrDefault(x => x.Id == targetStep.Previous) ?? throw new Exception($"没有找到上一个步骤{targetStep.Previous}");
+                    if (previousStep.EndDataContext.Length > 0)
+                    {
+                        DataContext = JsonConvert.DeserializeObject<Dictionary<string, object>>(previousStep.EndDataContext) ?? throw new Exception($"继承上一个步骤的数据上下文失败: {previousStep.EndDataContext}");
+                    }
+                }
+
+                // 只执行指定步骤
+                requestProcessorStepsArray = new HttpRequestProcessorStep[] { targetStep };
+            }
             var stepCount = requestProcessorStepsArray.Length;
             var backtrackingNextStep = false;
             var currentStepIndex = 0;
@@ -235,6 +255,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                 #endregion
 
                 #region 处理当前Step所有的Request, Datahandler
+                // requestConfigs - 当前步骤可能会生成多个请求(参数)
                 var requestConfigs = string.IsNullOrEmpty(step.RequestBody)
                     ? UpdateRequestConfig(DataContext, stepParameters)
                     : UpdateRequestConfig2(DataContext, step.Parameters, step.RequestBody);
@@ -267,6 +288,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                     // 2. DataHandler处理数据
                     await ExecuteOperationAsync(dataHandlerInfos);
                 }
+                step.EndDataContext = JsonConvert.SerializeObject(DataContext);
                 #endregion
             }
 

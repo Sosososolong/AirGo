@@ -374,12 +374,7 @@ namespace Sylas.RemoteTasks.App.Utils
 
                     var responseContent = await queryAsync();
 
-                    var responseObj = JsonConvert.DeserializeObject<JObject>(responseContent);
-
-                    if (responseObj is null)
-                    {
-                        throw new Exception($"返回数据不是一个对象: {responseContent}");
-                    }
+                    var responseObj = JsonConvert.DeserializeObject<JObject>(responseContent) ?? throw new Exception($"返回数据不是一个对象: {responseContent}");
                     // 检查并获取响应数据
                     var data = GetData(responseObj, errPrefix, responseOkPredicate, getDataFunc);
 

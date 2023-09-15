@@ -222,31 +222,30 @@ namespace Sylas.RemoteTasks.App.Repositories
             }
 
             StringBuilder setStatement = new();
-            if (!string.IsNullOrWhiteSpace(step.Parameters))
-            {
-                setStatement.Append($"parameters=@parameters,");
-                parameters.Add("parameters", step.Parameters);
-            }
-            if (!string.IsNullOrWhiteSpace(step.RequestBody))
-            {
-                setStatement.Append($"RequestBody=@RequestBody,");
-                parameters.Add("RequestBody", step.RequestBody);
-            }
-            if (!string.IsNullOrWhiteSpace(step.PresetDataContext))
-            {
-                setStatement.Append($"PresetDataContext=@PresetDataContext,");
-                parameters.Add("PresetDataContext", step.PresetDataContext);
-            }
-            if (!string.IsNullOrWhiteSpace(step.DataContextBuilder))
-            {
-                setStatement.Append($"dataContextBuilder=@dataContextBuilder,");
-                parameters.Add("dataContextBuilder", step.DataContextBuilder);
-            }
-            if (!string.IsNullOrWhiteSpace(step.Remark))
-            {
-                setStatement.Append($"remark=@remark,");
-                parameters.Add("remark", step.Remark);
-            }
+            setStatement.Append($"parameters=@parameters,");
+            parameters.Add("parameters", step.Parameters);
+
+            setStatement.Append($"RequestBody=@RequestBody,");
+            parameters.Add("RequestBody", step.RequestBody);
+
+            setStatement.Append($"PresetDataContext=@PresetDataContext,");
+            parameters.Add("PresetDataContext", step.PresetDataContext);
+
+            setStatement.Append($"dataContextBuilder=@dataContextBuilder,");
+            parameters.Add("dataContextBuilder", step.DataContextBuilder);
+
+            setStatement.Append($"remark=@remark,");
+            parameters.Add("remark", step.Remark ?? "");
+
+            setStatement.Append($"EndDataContext=@EndDataContext,");
+            parameters.Add("EndDataContext", step.EndDataContext ?? "");
+
+            setStatement.Append($"Previous=@Previous,");
+            parameters.Add("Previous", step.Previous);
+
+            setStatement.Append($"Next=@Next,");
+            parameters.Add("Next", step.Next);
+
             if (step.ProcessorId > 0)
             {
                 setStatement.Append($"processorId=@processorId,");

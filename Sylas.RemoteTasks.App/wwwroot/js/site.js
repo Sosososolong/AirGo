@@ -537,7 +537,7 @@ async function deleteData(eventTrigger) {
 async function execute(eventTrigger) {
     let tableId = eventTrigger.getAttribute('data-table-id');
     let table = tables[tableId];
-    let dataId = eventTrigger.getAttribute('data-id');
+    let dataContent = eventTrigger.getAttribute('data-content');
 
     let url = eventTrigger.getAttribute('data-execute-url');
     let method = eventTrigger.getAttribute('data-method');
@@ -547,7 +547,7 @@ async function execute(eventTrigger) {
         response = await $.ajax({
             url: url,
             method: method,
-            data: "\"" + dataId + "\"",
+            data: dataContent.toString(),
             contentType: 'application/json',
             dataType: 'json',
         });

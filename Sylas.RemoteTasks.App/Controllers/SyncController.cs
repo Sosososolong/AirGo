@@ -36,10 +36,14 @@ namespace Sylas.RemoteTasks.App.Controllers
             return View();
         }
 
-        public async Task<IActionResult> ExecuteHttpProcessorAsync([FromServices] RequestProcessorService service, [FromBody] int processorId)
+        public async Task<IActionResult> ExecuteHttpProcessorAsync([FromServices] RequestProcessorService service, [FromBody] ProcessorExecuteDto dto)
         {
             //await service.ExecuteFromAppsettingsAsync();
-            await service.ExecuteFromDatabaseAsync(processorId);
+            if (dto is null || dto.ProcessorIds is null)
+            {
+                return Ok(new OperationResult(false, "参数不能为空"));
+            }
+            await service.ExecuteFromDatabaseAsync(dto.ProcessorIds, dto.StepId);
             return Ok(new OperationResult(true));
         }
 

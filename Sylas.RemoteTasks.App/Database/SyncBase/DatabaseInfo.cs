@@ -444,6 +444,7 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
             var compareResult = CompareRecords(sourceRecords, dbRecords, ignoreFields, sourceIdField, targetIdField);
 
             var inserts = compareResult.ExistInSourceOnly;
+            // TODO: 尝试将GetInsertSqlInfosAsync的分批批量插入语句逻辑移植到GetTableSqlsInfoAsync, 然后这里替换为GetTableSqlsInfoAsync, 好处是表不存在可以创建表
             var insertSqlInfos = await GetInsertSqlInfosAsync(inserts, table, conn);
             foreach (var sqlInfo in insertSqlInfos)
             {
@@ -1132,7 +1133,15 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         public static string GetDbParameterFlag(string connectionString) => GetDbType(connectionString) == DatabaseType.Oracle ? ":" : "@";
         public static string GetDbParameterFlag(DatabaseType dbType) => dbType == DatabaseType.Oracle ? ":" : "@";
 
-        /// <summary>获取数据源中一个表的数据的insert语句</summary>
+        /// <summary>
+        /// 获取数据源中一个表的数据的insert语句, 表不存在则生成创建表语句
+        /// </summary>
+        /// <param name="sourceTable"></param>
+        /// <param name="sourceConn"></param>
+        /// <param name="trans"></param>
+        /// <param name="targetConn"></param>
+        /// <param name="filter"></param>
+        /// <returns></returns>
         public static async Task<TableSqlsInfo> GetTableSqlsInfoAsync(string sourceTable, IDbConnection sourceConn, IDbTransaction trans, IDbConnection targetConn, DataFilter filter)
         {
             var tableName = sourceTable.Split('.').Last();
