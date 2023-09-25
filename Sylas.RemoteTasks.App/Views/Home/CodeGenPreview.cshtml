@@ -211,7 +211,7 @@ public class @(tableSimpleName)Configuration : EntityTypeConfigurationBase<@(tab
             var entity = @(tableFieldName)Repository.GetFirst(x => x.Id == dto.Id);
             if (entity is null)
             {
-                return await Task.FromResult(new ReturnResult<bool>(ReturnResultCode.Invalid, false, "@(tableComment)责任不存在"));
+                return await Task.FromResult(new ReturnResult<bool>(ReturnResultCode.Invalid, false, "@(tableComment)不存在"));
             }
 
             var updating = dto.MapTo<@(tableSimpleName)>();

@@ -91,7 +91,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                         {
                             var handlerName = dataHandler.GetValue<string>("Handler") ?? throw new Exception("没有找到Handler");
                             var handlerParameters = dataHandler.GetSection("Parameters").GetChildren().Select(x => x.Value ?? "").ToList();
-                            dataContextHandlers.Add(new DataHandlerInfo(handlerName, handlerParameters));
+                            dataContextHandlers.Add(new DataHandlerInfo(handlerName, handlerParameters, dataHandler.GetValue<int>("OrderNo")));
                             _logger?.LogDebug($"call ResolveAsync, 获取DataHandlers, DataHandler: {handlerName}, 参数:{Environment.NewLine}{string.Join(Environment.NewLine, handlerParameters)}");
                         }
                     }
@@ -145,7 +145,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                         }
                     }
                     // 2. DataHandler处理数据
-                    await ExecuteOperationAsync(dataContextHandlers);
+                    await ExecuteDataHandlersAsync(dataContextHandlers.Select(x => new HttpRequestProcessorStepDataHandler { Id = dataContextHandlers.IndexOf(x), DataHandler = x.Handler, ParametersInput = JsonConvert.SerializeObject(x.Parameters) }));
                 }
                 #endregion
             }
@@ -193,9 +193,9 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
             if (stepId > 0)
             {
                 var targetStep = requestProcessorStepsArray.FirstOrDefault(x => x.Id == stepId) ?? throw new Exception($"没有找到指定步骤{stepId}");
-                if (targetStep.Previous != 0)
+                var previousStep = requestProcessorStepsArray.FirstOrDefault(x => x.OrderNo < targetStep.OrderNo);
+                if (previousStep is not null)
                 {
-                    var previousStep = requestProcessorStepsArray.FirstOrDefault(x => x.Id == targetStep.Previous) ?? throw new Exception($"没有找到上一个步骤{targetStep.Previous}");
                     if (previousStep.EndDataContext.Length > 0)
                     {
                         DataContext = JsonConvert.DeserializeObject<Dictionary<string, object>>(previousStep.EndDataContext) ?? throw new Exception($"继承上一个步骤的数据上下文失败: {previousStep.EndDataContext}");
@@ -226,14 +226,8 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                 _logger.LogDebug($"call ResolveAsync, 获取DataContext模板配置 {string.Join(',', dataContextTmpls)}");
                 // Step - DataHandlers
                 var dataHandlers = step.DataHandlers;
-                foreach (var dataHandler in dataHandlers)
-                {
-                    var handlerName = dataHandler.DataHandler;
-                    var handlerParameters = JsonConvert.DeserializeObject<List<string>>(dataHandler.ParametersInput) ?? new List<string>();
-                    // BOOKMARK: HttpRequestProcessor - 11. 处理Step - 获取所有需要执行的步骤对应的所有DataHandlerInfos
-                    dataHandlerInfos.Add(new DataHandlerInfo(handlerName, handlerParameters));
-                    _logger.LogDebug($"call ResolveAsync, 获取DataHandlers, DataHandler: {handlerName}, 参数:{Environment.NewLine}{string.Join(Environment.NewLine, handlerParameters)}");
-                }
+                // BOOKMARK: HttpRequestProcessor - 11. 处理Step - 获取所有需要执行的步骤对应的所有DataHandlerInfos
+
                 // Step - 最后一个执行完之后如果有数据, 是否要重新从第一个开始循环执行
                 if (stepIndex == stepCount - 1 && processor.StepCirleRunningWhenLastStepHasData)
                 {
@@ -286,9 +280,19 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                         }
                     }
                     // 2. DataHandler处理数据
-                    await ExecuteOperationAsync(dataHandlerInfos);
+                    await ExecuteDataHandlersAsync(dataHandlers);
                 }
-                step.EndDataContext = JsonConvert.SerializeObject(DataContext);
+
+                // BOOKMARK: 持久化当前步骤结束时候的上下文数据 1.准备工作, 当前Http请求获取到的数据$data不要, $data数据量可能巨大, 下一步骤需要的数据应该先从$data中提取出来
+                var persistingDataContex = new Dictionary<string, object>();
+                foreach (var item in DataContext)
+                {
+                    if (item.Key != "$data")
+                    {
+                        persistingDataContex.Add(item.Key, item.Value);
+                    }
+                }
+                step.EndDataContext = JsonConvert.SerializeObject(persistingDataContex);
                 #endregion
             }
 
@@ -336,12 +340,49 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
             var buildDetail = DataContext.BuildDataContextBySource(data, dataContextTmpls, logger);
             return buildDetail;
         }
-        async Task ExecuteOperationAsync(List<DataHandlerInfo> dataHandlers)
+        async Task ExecuteDataHandlersAsync(IEnumerable<HttpRequestProcessorStepDataHandler> dataHandlers)
         {
+            //var previous = 0;
+            //HttpRequestProcessorStepDataHandler? dataHandler = null;
+            //int loopCount = 0;
+            //while (true)
+            //{
+            //    dataHandler = dataHandlers.FirstOrDefault(x => x.Previous == previous);
+            //    if (dataHandler is null)
+            //    {
+            //        break;
+            //    }
+            //    var handler = dataHandler.DataHandler;
+
+            //    _logger.LogInformation($"执行数据处理器: {handler}; {dataHandler.Remark}");
+
+            //    var handlerParameters = JsonConvert.DeserializeObject<List<string>>(dataHandler.ParametersInput) ?? new List<string>();
+            //    var opParameters = handlerParameters.Select(x => TmplHelper.ResolveVariableValue(DataContext, x)).ToArray();
+
+            //    Type dataHandlerType = ReflectionHelper.GetTypeByClassName(handler);
+            //    MethodInfo handlerStartMethod = dataHandlerType.GetMethod("StartAsync") ?? throw new Exception($"DataHandler {handler} 没有实现Operation方法");
+            //    var opInstance = _serviceProvider.GetService(dataHandlerType);
+
+            //    // BOOKMARK: DataHandler 调用StartAsync()方法
+            //    var invokeResult = handlerStartMethod.Invoke(opInstance, new object[] { opParameters });
+            //    if (handlerStartMethod.ReturnType == typeof(Task) || handlerStartMethod.ReturnType.IsGenericType && handlerStartMethod.ReturnType.GetGenericTypeDefinition() == typeof(Task<>))
+            //    {
+            //        await (invokeResult as Task ?? throw new Exception($"{handler}.Start()结果为NULL, 而非Task"));
+            //    }
+            //    previous = dataHandler.Id;
+            //    loopCount++;
+            //    if (loopCount > 10)
+            //    {
+            //        throw new Exception($"已经执行超过10个数据处理器");
+            //    }
+            //}
+            dataHandlers = dataHandlers.OrderBy(x => x.OrderNo).ToList();
             foreach (var dataHandler in dataHandlers)
             {
-                var handler = dataHandler.Handler;
-                var opParameters = dataHandler.Parameters.Select(x => TmplHelper.ResolveVariableValue(DataContext, x)).ToArray();
+
+                var handler = dataHandler.DataHandler;
+                var handlerParameters = JsonConvert.DeserializeObject<List<string>>(dataHandler.ParametersInput) ?? new List<string>();
+                var opParameters = handlerParameters.Select(x => TmplHelper.ResolveVariableValue(DataContext, x)).ToArray();
 
                 Type dataHandlerType = ReflectionHelper.GetTypeByClassName(handler);
                 MethodInfo handlerStartMethod = dataHandlerType.GetMethod("StartAsync") ?? throw new Exception($"DataHandler {handler} 没有实现Operation方法");

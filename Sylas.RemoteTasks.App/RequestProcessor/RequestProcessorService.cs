@@ -103,6 +103,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                     dataContext = (returned as RequestProcessorBase ?? throw new Exception($"{requestProcessorName}对象转换为RequestProcessorBase失败")).DataContext;
                 }
 
+                // BOOKMARK: 持久化当前步骤结束时候的上下文数据 2.持久化到数据库, 以便下一次可以直接执行它的下一步
                 foreach (var step in httpRequestProcessor.Steps.Where(x => x.Id == stepId || stepId == 0))
                 {
                     await _repository.UpdateStepAsync(step);

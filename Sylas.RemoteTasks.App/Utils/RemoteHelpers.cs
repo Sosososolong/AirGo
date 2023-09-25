@@ -343,7 +343,7 @@ namespace Sylas.RemoteTasks.App.Utils
                         var response = await httpClient.PostAsync($"{apiUrl}?{queryString}", parameters);
                         if (response.StatusCode != System.Net.HttpStatusCode.OK)
                         {
-                            throw new Exception($"{errPrefix}: {await response.Content.ReadAsStringAsync()}");
+                            throw new Exception($"{errPrefix} {response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
                         }
                         return await response.Content.ReadAsStringAsync();
                     };

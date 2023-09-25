@@ -67,7 +67,7 @@ namespace Sylas.RemoteTasks.App.Repositories
                 { "createTime", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") },
                 { "updateTime", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") }
             };
-            return await _db.ExecuteScalarAsync(sql, parameters);
+            return await _db.ExecuteSqlAsync(sql, parameters);
         }
         /// <summary>
         /// 更新数据库连接字符串信息
@@ -79,7 +79,7 @@ namespace Sylas.RemoteTasks.App.Repositories
         {
             var parameters = new Dictionary<string, object> { { "id", dbConnectionString.Id } };
 
-            var recordCount = await _db.ExecuteScalarAsync($"select count(*) from {DbConnectionInfo.TableName} where id=@id", parameters);
+            var recordCount = await _db.ExecuteSqlAsync($"select count(*) from {DbConnectionInfo.TableName} where id=@id", parameters);
             if (recordCount == 0)
             {
                 throw new Exception("DbConnectionString不存在");
@@ -115,7 +115,7 @@ namespace Sylas.RemoteTasks.App.Repositories
             parameters.Add("update", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
 
             string sql = $"update {DbConnectionInfo.TableName} set {setStatement.ToString().TrimEnd(',')} where id=@id";
-            return await _db.ExecuteScalarAsync(sql, parameters);
+            return await _db.ExecuteSqlAsync(sql, parameters);
         }
 
         /// <summary>
@@ -126,7 +126,7 @@ namespace Sylas.RemoteTasks.App.Repositories
         public async Task<int> DeleteAsync(int id)
         {
             string sql = $"delete from {DbConnectionInfo.TableName} where id=@id";
-            return await _db.ExecuteScalarAsync(sql, new Dictionary<string, object> { { "id", id } });
+            return await _db.ExecuteSqlAsync(sql, new Dictionary<string, object> { { "id", id } });
         }
         #endregion
     }

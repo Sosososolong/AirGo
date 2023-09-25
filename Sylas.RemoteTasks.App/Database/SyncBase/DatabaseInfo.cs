@@ -249,13 +249,13 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
             return await QueryPagedDataAsync<T>(table, pageIndex, pageSize, orderField, isAsc, filters);
         }
         /// <summary>
-        /// 执行增删改的SQL语句 - 可使用db参数指定切换到当前连接的用户有权限的其他数据库
+        /// 执行增删改的SQL语句返回受影响的行数 - 可使用db参数指定切换到当前连接的用户有权限的其他数据库
         /// </summary>
         /// <param name="sql"></param>
         /// <param name="parameters"></param>
         /// <param name="db"></param>
         /// <returns></returns>
-        public async Task<int> ExecuteScalarAsync(string sql, Dictionary<string, object> parameters, string db = "")
+        public async Task<int> ExecuteSqlAsync(string sql, Dictionary<string, object> parameters, string db = "")
         {
             using var conn = GetDbConnection(_connectionString);
             if (!string.IsNullOrWhiteSpace(db))
@@ -263,7 +263,23 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
                 conn.ChangeDatabase(db);
             }
             _logger.LogDebug(sql);
-            return await conn.ExecuteAsync(sql, parameters);
+
+            conn.Open();
+            using IDbTransaction trans = conn.BeginTransaction();
+            int res;
+            try
+            {
+                res = await conn.ExecuteAsync(sql, parameters, trans);
+            }
+            catch (Exception)
+            {
+                trans.Rollback();
+                throw;
+            }
+            
+            trans.Commit();
+            conn.Close();
+            return res;
         }
         /// <summary>
         /// 执行多条增删改的SQL语句 - 可使用db参数指定切换到当前连接的用户有权限的其他数据库
@@ -272,7 +288,7 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
         /// <param name="parameters"></param>
         /// <param name="db"></param>
         /// <returns></returns>
-        public async Task<int> ExecuteScalarsAsync(IEnumerable<string> sqls, Dictionary<string, object> parameters, string db = "")
+        public async Task<int> ExecuteSqlsAsync(IEnumerable<string> sqls, Dictionary<string, object> parameters, string db = "")
         {
             using var conn = GetDbConnection(_connectionString);
             if (!string.IsNullOrWhiteSpace(db))
@@ -299,6 +315,36 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
             return affectedRows;
         }
         /// <summary>
+        /// 执行SQL语句并返回唯一一个值 - 可使用db参数指定切换到当前连接的用户有权限的其他数据库
+        /// </summary>
+        /// <param name="sql"></param>
+        /// <param name="parameters"></param>
+        /// <param name="db"></param>
+        /// <returns></returns>
+        public async Task<int> ExecuteScalarAsync(string sql, Dictionary<string, object> parameters, string db = "")
+        {
+            using var conn = GetDbConnection(_connectionString);
+            if (!string.IsNullOrWhiteSpace(db))
+            {
+                conn.ChangeDatabase(db);
+            }
+            var lastInsertRowId = 0;
+            conn.Open();
+            using var trans = conn.BeginTransaction();
+            try
+            {
+                _logger.LogDebug(sql);
+                lastInsertRowId = await conn.ExecuteScalarAsync<int>(sql, parameters, transaction: trans);
+            }
+            catch (Exception)
+            {
+                trans.Rollback();
+                throw;
+            }
+            trans.Commit();
+            return lastInsertRowId;
+        }
+        /// <summary>
         /// 执行增删改的SQL语句 - 可使用数据库连接字符串指定数据库
         /// </summary>
         /// <param name="sql"></param>
@@ -308,7 +354,7 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
         public async Task<int> ExecuteScalarWithConnectionStringAsync(string sql, Dictionary<string, object> parameters, string connectionString)
         {
             _connectionString = connectionString;
-            return await ExecuteScalarAsync(sql, parameters);
+            return await ExecuteSqlAsync(sql, parameters);
         }
 
 
@@ -490,11 +536,22 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
                     deleteSqlsBuilder.Append($"delete from {targetTable} where {targetIdField}={varFlag}id{index};{Environment.NewLine}");
                     parameters.Add($"id{index}", targetIdVal.ToObject<dynamic>());
                     index++;
+
+                    if (index > 0 && index % 100 == 0 || index >= compareResult.Changed.Count)
+                    {
+                        if (deleteSqlsBuilder.Length > 0)
+                        {
+                            var deleteSqls = $"SET foreign_key_checks=0;{Environment.NewLine}" + deleteSqlsBuilder.ToString() + $"SET foreign_key_checks=1;";
+                            var deleted = await conn.ExecuteAsync(deleteSqls, parameters);
+                            logger?.LogInformation($"已经删除{deleted}条记录");
+                            deleteSqlsBuilder.Clear();
+                        }
+                        else
+                        {
+                            logger?.LogInformation($"没有旧数据需要删除");
+                        }
+                    }
                 }
-                var deleteSqls = $"SET foreign_key_checks=0;{Environment.NewLine}" + deleteSqlsBuilder.ToString() + $"SET foreign_key_checks=1;";
-                logger?.LogInformation(deleteSqls);
-                var deleted = await conn.ExecuteAsync(deleteSqls, parameters);
-                logger?.LogInformation($"已经删除{deleted}条记录");
             }
         }
         static void LogData(ILogger? logger, string table, int inserted, SqlInfo sqlInfo)

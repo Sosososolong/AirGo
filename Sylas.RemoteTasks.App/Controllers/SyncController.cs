@@ -148,6 +148,21 @@ namespace Sylas.RemoteTasks.App.Controllers
             }
             return Ok(new OperationResult(false, "数据没有变化"));
         }
+
+        /// <summary>
+        /// 克隆
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        public async Task<IActionResult> CloneProcessorAsync([FromBody] int id)
+        {
+            if (id == 0)
+            {
+                return BadRequest("克隆对象不能为空");
+            }
+            var cloneAffectedRows = await _repository.CloneAsync(id);
+            return Ok(new OperationResult(cloneAffectedRows > 0, ""));
+        }
         #endregion
 
 
@@ -172,6 +187,17 @@ namespace Sylas.RemoteTasks.App.Controllers
             if (step.ProcessorId == 0)
             {
                 return Json(new OperationResult(false, "所属HTTP处理器不能为空"));
+            }
+
+            // Step排序递增策略(实现默认按添加顺序执行)
+            if (step.OrderNo == 0)
+            {
+                var processor = await _repository.GetByIdAsync(step.ProcessorId) ?? throw new Exception($"没有找到步骤所属的Http处理器");
+                var lastStep = processor.Steps.OrderBy(x => x.OrderNo).LastOrDefault();
+                if (lastStep is not null)
+                {
+                    step.OrderNo = lastStep.OrderNo + 10;
+                }
             }
             var result = await _repository.AddStepAsync(step);
             if (result > 0)
@@ -261,6 +287,18 @@ namespace Sylas.RemoteTasks.App.Controllers
             {
                 return Json(new OperationResult(false, "所属步骤不能为空"));
             }
+
+            // DataHandler排序递增策略(实现默认按添加顺序执行)
+            if (dataHandler.OrderNo == 0)
+            {
+                var step = await _repository.GetStepByIdAsync(dataHandler.StepId) ?? throw new Exception($"没有找到数据处理器所属步骤");
+                var lastStep = step.DataHandlers.OrderBy(x => x.OrderNo).LastOrDefault();
+                if (lastStep is not null)
+                {
+                    dataHandler.OrderNo = lastStep.OrderNo + 10;
+                }
+            }
+
             var result = await _repository.AddDataHandlerAsync(dataHandler);
             if (result > 0)
             {

@@ -32,6 +32,7 @@
             const tableId = 'tableProcessors';
 
             const tableParentSelector = "#tableContainer";
+            // TODO: 像克隆这样按钮支持自定义表单, 可以传入克隆的处理器Title, Name等参数
             const ths = [
                 { name: 'title', title: '标题' },
                 { name: 'name', title: '名称/编码' },
@@ -43,6 +44,7 @@
                 { name: '', title: '操作', type: 'button', tmpl: `<button type="button" class="btn btn-primary btn-sm" data-bs-toggle="collapse" href="#collapse${tableId}{{id}}" role="button" aria-expanded="true" aria-controls="collapse${tableId}{{id}}">步骤</button>
                         <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="{{id}}" data-fetch-url="Sync/GetHttpRequestProcessors" data-update-url="Sync/UpdateHttpRequestProcessor" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
                         <button type="button" class="btn btn-primary btn-sm d-none" data-table-id="${tableId}" data-id="{{id}}" data-delete-url="Sync/DeleteHttpRequestProcessor" data-method="POST" onclick="deleteData(this)">删除</button>
+                        <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-content="&quot;{{id}}&quot;" data-execute-url="Sync/CloneProcessor" data-method="POST" onclick="execute(this)">克隆</button>
                         <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-content="{ &quot;processorIds&quot;: [{{id}}], &quot;stepId&quot;: 0 }" data-execute-url="Sync/ExecuteHttpProcessor" data-method="POST" onclick="execute(this)">执行</button>`
                 }
             ]
@@ -77,8 +79,7 @@
                         { name: 'remark', title: '备注', width: 100, showPart: 8 },
                         { name: 'presetDataContext', title: '预设数据上下文', showPart: 8 },
                         { name: 'endDataContext', title: '执行完成后的数据上下文', showPart: 8 },
-                        { name: 'previous', title: '上一个步骤' },
-                        { name: 'next', title: '下一个步骤' },
+                        //{ name: 'previous', title: '上一个步骤', type: `dataSource|dataSourceApi=Sync/GetHttpRequestProcessorSteps|displayField=remark|body={"filterItems":[{"fieldName":"processorId","compareType": "=","value":"${processorId}"}],"keywords": {"fields": [],"value": ""}}|defaultValue=0` },
                         { name: 'processorId', title: 'HTTP处理器', type: 'dataSource|dataSourceApi=Sync/GetHttpRequestProcessors|displayField=title' },
                         { name: '', title: '操作', type: 'button', tmpl: `<button type="button" class="btn btn-primary btn-sm mt-1" data-bs-toggle="collapse" href="#collapse${tableStepsId}{{id}}" role="button" aria-expanded="true" aria-controls="collapse${tableStepsId}{{id}}">数据处理器</button>
                                 <button type="button" class="btn btn-primary btn-sm mt-1" data-table-id="${tableStepsId}" data-id="{{id}}" data-fetch-url="Sync/GetHttpRequestProcessorSteps" data-update-url="Sync/UpdateHttpRequestProcessorStep" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
@@ -125,7 +126,18 @@
                             [
                                 { name: 'dataHandler', title: '数据处理器' },
                                 { name: 'parametersInput', title: '参数' },
-                                { name: 'remark', title: '备注', width: 200, showPart: 8 }
+                                { name: 'stepId', title: '步骤' },
+                                //{ name: 'previous', title: '上一个数据处理器', type: `dataSource|dataSourceApi=Sync/GetHttpRequestProcessorStepDataHandlers|displayField=remark|body={"filterItems":[{"fieldName":"stepId","compareType": "=","value":"${stepId}"}],"keywords": {"fields": [],"value": ""}}|defaultValue=0` },
+                                { name: 'enabled', title: '是否启用', enumValus: [false, true] },
+                                { name: 'remark', title: '备注', width: 200 },
+                                {
+                                    name: '',
+                                    title: '操作',
+                                    type: 'button',
+                                    tmpl: `
+                                        <button type="button" class="btn btn-primary btn-sm mt-1" data-table-id="${tableDataHandlersId}" data-id="{{id}}" data-fetch-url="Sync/GetHttpRequestProcessorStepDataHandlers" data-update-url="Sync/UpdateHttpRequestProcessorStepDataHandler" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
+                                        <button type="button" class="btn btn-primary btn-sm mt-1 d-none" data-table-id="${tableDataHandlersId}" data-id="{{id}}" data-delete-url="Sync/DeleteHttpRequestProcessorStepDataHandler" data-method="POST" onclick="deleteData(this)">删除</button>`
+                                }
                             ],
                             idFieldName,
                             [

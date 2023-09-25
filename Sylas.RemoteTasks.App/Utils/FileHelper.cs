@@ -13,9 +13,9 @@ namespace Sylas.RemoteTasks.App.Utils;
 
 public partial class FileHelper
 {
-    private static string OneTabSpace = "    ";
-    private static string TwoTabsSpace = "        ";
-    private static string FourTabsSpace = "                ";
+    private static readonly string _oneTabSpace = new(' ', 4);
+    private static readonly string _twoTabsSpace = new(' ', 8);
+    private static readonly string _fourTabsSpace = new(' ', 16);
     public static void DeleteFiles(List<string> files)
     {
         foreach (string file in files)
@@ -384,7 +384,7 @@ public partial class FileHelper
             if (lastProperty != null)
             {
                 string lastPropertyString = lastProperty.Value; // "public DbSet<Employee> Employees { get; set; }"
-                string modifiedPropertyString = lastPropertyString + Environment.NewLine + TwoTabsSpace + codes;
+                string modifiedPropertyString = lastPropertyString + Environment.NewLine + _twoTabsSpace + codes;
                 return originCode.Replace(lastPropertyString, modifiedPropertyString); // 匹配的属性应该是独一无二的, 所以这里肯定只是替换一次
             }
             // 添加第一个属性
@@ -396,7 +396,7 @@ public partial class FileHelper
                 regex = new Regex(@"\s{4}{");
 
                 string classLeftBrackets = regex.Match(originCode).Value;
-                classLeftBrackets = classLeftBrackets + Environment.NewLine + TwoTabsSpace + codes;
+                classLeftBrackets = classLeftBrackets + Environment.NewLine + _twoTabsSpace + codes;
 
                 return regex.Replace(originCode, classLeftBrackets, 1); // 只替换一次
             }
@@ -416,7 +416,7 @@ public partial class FileHelper
             Regex regex = new Regex(methodName + @"\(.*\r\n\s{8}{[\w\W]*?\s{8}}");
             Match onModelCreatingMatch = regex.Match(originCode);
             string oldPart = onModelCreatingMatch.Value;
-            string newPart = onModelCreatingMatch.Value.TrimEnd('}') + OneTabSpace + codes + Environment.NewLine + TwoTabsSpace + "}";
+            string newPart = onModelCreatingMatch.Value.TrimEnd('}') + _oneTabSpace + codes + Environment.NewLine + _twoTabsSpace + "}";
             return originCode.Replace(oldPart, newPart);
         });
     }
@@ -446,7 +446,7 @@ public partial class FileHelper
                 Regex regex = new Regex(methodName + @"\(.*\r\n\s{8}{[\w\W]*?\s{8}}");
                 Match onModelCreatingMatch = regex.Match(originCode);
                 string oldPart = onModelCreatingMatch.Value;
-                string newPart = onModelCreatingMatch.Value.TrimEnd('}') + OneTabSpace + codes + Environment.NewLine + TwoTabsSpace + "}";
+                string newPart = onModelCreatingMatch.Value.TrimEnd('}') + _oneTabSpace + codes + Environment.NewLine + _twoTabsSpace + "}";
                 return originCode.Replace(oldPart, newPart);
             }
             if (codesExistPredicate == null)
@@ -478,7 +478,7 @@ public partial class FileHelper
             }
 
             string insertPosition = insertPositionStatement.ToString();
-            string newCodes = insertPosition.ToString() + insertPositionTrivia + Environment.NewLine + OneTabSpace + TwoTabsSpace + codes;
+            string newCodes = insertPosition.ToString() + insertPositionTrivia + Environment.NewLine + _oneTabSpace + _twoTabsSpace + codes;
             return originCode.Replace(insertPosition, newCodes);
         });
     }

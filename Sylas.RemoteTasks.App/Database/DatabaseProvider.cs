@@ -352,7 +352,7 @@ public class DatabaseProvider : IDatabaseProvider
     /// <param name="parameters"></param>
     /// <param name="db"></param>
     /// <returns></returns>
-    public async Task<int> ExecuteScalarAsync(string sql, Dictionary<string, object> parameters, string db = "")
+    public async Task<int> ExecuteSqlAsync(string sql, Dictionary<string, object> parameters, string db = "")
     {
         var dataSet = await QueryAsync(sql, parameters, db);
         return Convert.ToInt32(dataSet.Tables[0].Rows[0][0]);
@@ -364,7 +364,7 @@ public class DatabaseProvider : IDatabaseProvider
     /// <param name="parameters"></param>
     /// <param name="db"></param>
     /// <returns></returns>
-    public async Task<int> ExecuteScalarsAsync(IEnumerable<string> sqls, Dictionary<string, object> parameters, string db = "")
+    public async Task<int> ExecuteSqlsAsync(IEnumerable<string> sqls, Dictionary<string, object> parameters, string db = "")
     {
         var affectedRows = 0;
         foreach (var sql in sqls)
@@ -373,6 +373,18 @@ public class DatabaseProvider : IDatabaseProvider
             affectedRows += Convert.ToInt32(dataSet.Tables[0].Rows[0][0]);
         }
         return affectedRows;
+    }
+    /// <summary>
+    /// 执行SQL语句并返回唯一一个值 - 可使用db参数指定切换到当前连接的用户有权限的其他数据库
+    /// </summary>
+    /// <param name="sql"></param>
+    /// <param name="parameters"></param>
+    /// <param name="db"></param>
+    /// <returns></returns>
+    public async Task<int> ExecuteScalarAsync(string sql, Dictionary<string, object> parameters, string db = "")
+    {
+        var dataSet = await QueryAsync(sql, parameters, db);
+        return Convert.ToInt32(dataSet.Tables[0].Rows[0][0]);
     }
     /// <summary>
     /// 执行增删改的SQL语句 - 可使用数据库连接字符串指定数据库

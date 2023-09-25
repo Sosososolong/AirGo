@@ -30,21 +30,29 @@ namespace Sylas.RemoteTasks.App.Database
         Task<PagedData<T>> QueryPagedDataWithConnectionStringAsync<T>(string table, int pageIndex, int pageSize, string? orderField, bool isAsc, DataFilter filters, string connectionString) where T : new();
 
         /// <summary>
-        /// 执行增删改的SQL语句 - 可使用db参数指定切换到当前连接的用户有权限的其他数据库
+        /// 执行增删改的SQL语句返回受影响的行数 - 可使用db参数指定切换到当前连接的用户有权限的其他数据库
+        /// </summary>
+        /// <param name="sql"></param>
+        /// <param name="parameters"></param>
+        /// <param name="db"></param>
+        /// <returns></returns>
+        Task<int> ExecuteSqlAsync(string sql, Dictionary<string, object> parameters, string db = "");
+        /// <summary>
+        /// 执行多条增删改的SQL语句返回受影响的行数 - 可使用db参数指定切换到当前连接的用户有权限的其他数据库
+        /// </summary>
+        /// <param name="sqls"></param>
+        /// <param name="parameters"></param>
+        /// <param name="db"></param>
+        /// <returns></returns>
+        Task<int> ExecuteSqlsAsync(IEnumerable<string> sqls, Dictionary<string, object> parameters, string db = "");
+        /// <summary>
+        /// 执行SQL语句并返回唯一一个值 - 可使用db参数指定切换到当前连接的用户有权限的其他数据库
         /// </summary>
         /// <param name="sql"></param>
         /// <param name="parameters"></param>
         /// <param name="db"></param>
         /// <returns></returns>
         Task<int> ExecuteScalarAsync(string sql, Dictionary<string, object> parameters, string db = "");
-        /// <summary>
-        /// 执行多条增删改的SQL语句 - 可使用db参数指定切换到当前连接的用户有权限的其他数据库
-        /// </summary>
-        /// <param name="sqls"></param>
-        /// <param name="parameters"></param>
-        /// <param name="db"></param>
-        /// <returns></returns>
-        Task<int> ExecuteScalarsAsync(IEnumerable<string> sqls, Dictionary<string, object> parameters, string db = "");
         /// <summary>
         /// 执行增删改的SQL语句 - 可使用数据库连接字符串指定数据库
         /// </summary>

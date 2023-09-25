@@ -1,4 +1,5 @@
 using IdentityServer4.AccessTokenValidation;
+using Microsoft.AspNetCore.Authorization;
 using Sylas.RemoteTasks.App.BackgroundServices;
 using Sylas.RemoteTasks.App.Database;
 using Sylas.RemoteTasks.App.DataHandlers;
@@ -33,6 +34,7 @@ builder.Services.AddScoped<DbConnectionInfoRepository>();
 // TODO: 动态注册所有DataHandler服务
 builder.Services.AddTransient<DataHandlerSyncDataToDb>();
 builder.Services.AddTransient<DataHandlerCreateTable>();
+builder.Services.AddTransient<DataHandlerAnonymization>();
 
 // 添加帮助类
 builder.Services.AddSingleton<DatabaseProvider>();
@@ -64,6 +66,18 @@ builder.Services.AddAuthentication(options =>
     options.RequireHttpsMetadata = builder.Configuration.GetValue<bool>("IdentityServerConfiguration:RequireHttpsMetadata");
     options.EnableCaching = builder.Configuration.GetValue<bool>("IdentityServerConfiguration:EnableCaching");
     options.CacheDuration = TimeSpan.FromMinutes(builder.Configuration.GetValue<int>("IdentityServerConfiguration:CacheDuration"));
+});
+
+builder.Services.AddAuthorization(config =>
+{
+    config.AddPolicy("sfapi.2", policyBuilder =>
+    {
+        policyBuilder.RequireScope("sfapi2");
+    });
+    config.AddPolicy("sfapi.3", policyBuilder =>
+    {
+        policyBuilder.RequireScope("sfapi3");
+    });
 });
 
 var app = builder.Build();

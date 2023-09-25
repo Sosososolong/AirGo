@@ -181,6 +181,7 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
                         this.addOptions.tableForm += `<div class="mb-3">
 <label for="${formItemId}" class="col-form-label">${th.title}:</label>
 <input class="form-control form-control-sm" type="text" placeholder="${th.title}" name="${th.name}" id="${formItemId}" aria-label=".form-control-sm example">
+<!--<textarea class="form-control form-control-sm" name="${th.name}" id="${formItemId}" aria-label=".form-control-sm example"></textarea>-->
 </div>`;
                     }
 
@@ -230,19 +231,39 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
 </div>`;
     }
 
+    /**
+     * 处理下拉选择框的数据源
+     * @param {any} thDataSource
+     * @returns
+     */
     targetTable.resolveDataSourceField = async function (thDataSource) {
-        let dataSourceApi = /dataSourceApi=([^=|]+)/.exec(thDataSource.type)[1];
+        let dataSourceApi = /dataSourceApi=([^|]+)/.exec(thDataSource.type)[1];
 
+        // 下拉框的数据源的显示字段, 如title, 就显示以数据源的title字段显示
         let displayField = 'id'
-        let displayFieldPattern = /displayField=([^=|]+)/.exec(thDataSource.type);
+        let displayFieldPattern = /displayField=([^|]+)/.exec(thDataSource.type);
         if (displayFieldPattern && displayFieldPattern.length > 1) {
             displayField = displayFieldPattern[1]
         }
 
-        let url = `${dataSourceApi}?pageIndex=1&pageSize=1000`;
-        let dataSourceOptions = '';
+        // 下拉框的数据源过滤参数
+        let bodyDataFilter = {};
+        let bodyContentPattern = /body=([^|]+)/.exec(thDataSource.type);
+        if (bodyContentPattern && bodyContentPattern.length > 1) {
+            bodyDataFilter = JSON.parse(bodyContentPattern[1])
+        }
 
-        let response = await fetchData(url, 'POST', null, null)
+        // 下拉框的默认值
+        let defaultValue = '';
+        let defaultValuePattern = /defaultValue=([^|]+)/.exec(thDataSource.type);
+        if (defaultValuePattern && defaultValuePattern.length > 1) {
+            defaultValue = defaultValuePattern[1]
+        }
+
+        let url = `${dataSourceApi}?pageIndex=1&pageSize=1000`;
+        let dataSourceOptions = `<option value="${defaultValue}">请选择</option>`;
+
+        let response = await fetchData(url, 'POST', bodyDataFilter, null)
         if (response) {
             response.data.forEach(row => {
                 dataSourceOptions += `<option value="${row['id']}">${row[displayField]}</option>`

@@ -122,7 +122,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             return Json(new OperationResult(true, ""));
         }
 
-        [Authorize(AuthenticationSchemes = IdentityServerAuthenticationDefaults.AuthenticationScheme)]
+        [Authorize(AuthenticationSchemes = IdentityServerAuthenticationDefaults.AuthenticationScheme, Policy = "sfapi.2")]
         public IActionResult GetChildDirectories(string path)
         {
             if (string.IsNullOrWhiteSpace(path))
@@ -138,6 +138,11 @@ namespace Sylas.RemoteTasks.App.Controllers
             var result = new List<string> { path };
             result.AddRange(Directory.GetDirectories(path).Select(x => x.Replace('\\', '/')));
             return Ok(new OperationResult(true, result));
+        }
+        [Authorize(AuthenticationSchemes = IdentityServerAuthenticationDefaults.AuthenticationScheme, Policy = "sfapi.3")]
+        public IActionResult TestApiScope3()
+        {
+            return Ok();
         }
     }
 }
