@@ -83,15 +83,15 @@ namespace Sylas.RemoteTasks.App.Repositories
         /// <returns></returns>
         public async Task<int> AddAsync(HttpRequestProcessorCreateDto processor)
         {
-            string sql = $"insert into {HttpRequestProcessor.TableName} (Name, Title, Url, Headers, Remark, StepCirleRunningWhenLastStepHasData) values(@name, @title, @url, @Headers, @remark, @stepCirleRunningWhenLastStepHasData);SELECT last_insert_rowid();";
+            string sql = $"insert into {HttpRequestProcessor.TableName} (Name, Title, Url, Headers, Remark, StepCirleRunningWhenLastStepHasData) values(@Name, @Title, @Url, @Headers, @Remark, @StepCirleRunningWhenLastStepHasData);SELECT last_insert_rowid();";
             var parameters = new Dictionary<string, object>
             {
-                { "name", processor.Name },
-                { "title", processor.Title },
-                { "url", processor.Url },
-                { "headers", processor.Headers },
-                { "remark", processor.Remark },
-                { "stepCirleRunningWhenLastStepHasData", processor.StepCirleRunningWhenLastStepHasData }
+                { "Name", processor.Name },
+                { "Title", processor.Title },
+                { "Url", processor.Url },
+                { "Headers", processor.Headers },
+                { "Remark", processor.Remark },
+                { "StepCirleRunningWhenLastStepHasData", processor.StepCirleRunningWhenLastStepHasData }
             };
             return await _db.ExecuteScalarAsync(sql, parameters);
         }
@@ -219,11 +219,11 @@ namespace Sylas.RemoteTasks.App.Repositories
         /// <returns></returns>
         public async Task<int> AddStepAsync(HttpRequestProcessorStepCreateDto step)
         {
-            string sql = $"insert into {HttpRequestProcessorStep.TableName} (parameters, dataContextBuilder, remark, processorId, presetDataContext) values(@parameters, @dataContextBuilder, @remark, @processorId, @presetDataContext);SELECT last_insert_rowid();";
+            string sql = $"insert into {HttpRequestProcessorStep.TableName} (parameters, RequestBody, dataContextBuilder, remark, processorId, presetDataContext) values(@parameters, @RequestBody, @dataContextBuilder, @remark, @processorId, @presetDataContext);SELECT last_insert_rowid();";
             var parameters = new Dictionary<string, object>
             {
                 { "parameters", step.Parameters },
-                { "requestBody", step.RequestBody },
+                { "RequestBody", step.RequestBody },
                 { "dataContextBuilder", step.DataContextBuilder },
                 { "remark", step.Remark },
                 { "processorId", step.ProcessorId },

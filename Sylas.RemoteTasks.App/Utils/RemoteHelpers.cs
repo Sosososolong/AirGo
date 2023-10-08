@@ -132,7 +132,6 @@ namespace Sylas.RemoteTasks.App.Utils
             {
                 return;
             }
-            var targetString = target.ToString();
 
             if (data is null || data is not JObject)
             {

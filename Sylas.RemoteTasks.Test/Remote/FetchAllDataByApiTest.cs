@@ -24,116 +24,6 @@ namespace Sylas.RemoteTasks.Test.Remote
             _databaseInfo = fixture.ServiceProvider.GetRequiredService<DatabaseInfo>();
             _configuration = fixture.ServiceProvider.GetRequiredService<IConfiguration>();
         }
-        
-
-        /// <summary>
-        /// 获取数据模型数据
-        /// </summary>
-        /// <returns></returns>
-        [Fact]
-        public async Task FetchDataModelAsync()
-        {
-            string gateway = _configuration["SyncFromApiToDb:Gateway"] ?? string.Empty;
-            string mainModelId = _configuration["SyncFromApiToDb:MainModelId"] ?? string.Empty;
-            string token = _configuration["SyncFromApiToDb:Token"] ?? string.Empty;
-            string appDB = _configuration["SyncFromApiToDb:AppDB"] ?? string.Empty;
-            string targetConnectionString = _configuration["SyncFromApiToDb:TargetDbConnectionString"] ?? string.Empty;
-
-            await fetchDataModelsRecursivelyAsync(mainModelId);
-
-            #region 同步数据模型
-            async Task fetchDataModelsRecursivelyAsync(string modelId)
-            {
-                string table = "DevDataModel";
-                var queryDictionary = new Dictionary<string, object>
-                {
-                    { "db",  appDB}, // AppDB
-                    { "table",  table},
-                    { "pageIndex", 1 },
-                    { "pageSize", 20 },
-                    { "isAsc", true }
-                };
-                var filterItem = new Dictionary<string, object> { { "FieldName", "id" }, { "CompareType", "=" }, { "Value", modelId } };
-                var filterItems = new List<Dictionary<string, object>> { filterItem };
-                var bodyDictionary = new Dictionary<string, object>
-                {
-                    {
-                        "FilterItems", filterItems
-                    }
-                };
-                var dataModel = await RemoteHelpers.FetchAllDataFromApiAsync($"{gateway}/form/api/DataSource/GetDataTable",
-                                                                       "获取数据源MENUS数据失败",
-                                                                       queryDictionary,
-                                                                       "pageIndex",
-                                                                       true,
-                                                                       bodyDictionary,
-                                                                       response => response["code"]?.ToString() == "1",
-                                                                       response => response["data"] ?? new JArray(),
-                                                                       new HttpClient(),
-                                                                       "id",
-                                                                       "",
-                                                                       false,
-                                                                       "post",
-                                                                       token);
-                Assert.NotNull(dataModel);
-                var dm = dataModel.FirstOrDefault();
-                if (dm is null)
-                {
-                    System.Diagnostics.Debug.WriteLine($"================================================= DataModel Not Found: {modelId} =================================================");
-                    return;
-                }
-
-                // 获取模型字段表数据
-                table = "DevDataModelField";
-                queryDictionary["table"] = table;
-                filterItem = new Dictionary<string, object> { { "FieldName", "modelid" }, { "CompareType", "include" }, { "Value", modelId } };
-                filterItems = new List<Dictionary<string, object>> { filterItem };
-                bodyDictionary = new Dictionary<string, object>
-                {
-                    {
-                        "FilterItems", filterItems
-                    }
-                };
-                var modelFields = await RemoteHelpers.FetchAllDataFromApiAsync($"{gateway}/form/api/DataSource/GetDataTable",
-                                                                       "获取数据源MENUS数据失败",
-                                                                       queryDictionary,
-                                                                       "pageIndex",
-                                                                       true,
-                                                                       bodyDictionary,
-                                                                       response => response["code"]?.ToString() == "1",
-                                                                       response => response["data"] ?? new JArray(),
-                                                                       new HttpClient(),
-                                                                       "id",
-                                                                       "",
-                                                                       false,
-                                                                       requestMethod: "post",
-                                                                       authorizationHeaderToken: token);
-                Assert.True(modelFields.Any());
-                System.Diagnostics.Debug.WriteLine($"================================================= {table}: {modelFields.Count} records =================================================");
-
-                using IDbConnection conn = DatabaseInfo.GetDbConnection(targetConnectionString);
-                conn.Open();
-                await DatabaseHelper.SyncDataAsync(conn, "DevDataModel", new List<JToken> { dm }, new string[] { "NO" }, new string[] { "CREATEDTIME", "UPDATEDTIME" });
-                await DatabaseHelper.SyncDataAsync(conn, table, modelFields, new string[] { "NO" }, new string[] { "CREATEDTIME", "UPDATEDTIME" });
-
-                // TODO: 切换到DatabaseInfo同步数据(支持创建表)
-
-
-                var childModelFields = modelFields.Where(x => x["DATATYPE"]?.ToString() == "21");
-                foreach (var field in childModelFields)
-                {
-                    var childModelId = field["REFMODELID"]?.ToString();
-                    if (string.IsNullOrWhiteSpace(childModelId))
-                    {
-                        System.Diagnostics.Debug.WriteLine($"================================================= {field["ID"]}[{field["NAME"]}] is detail-field, but responding DataModel Id is empty =================================================");
-                        continue;
-                    }
-                    System.Diagnostics.Debug.WriteLine($"================================================= 子模型{field["ID"]}[{field["NAME"]}]正在同步 =================================================");
-                    await fetchDataModelsRecursivelyAsync(childModelId);
-                }
-            }
-            #endregion
-        }
 
         /// <summary>
         /// 数据库 数据脱敏
@@ -187,18 +77,6 @@ namespace Sylas.RemoteTasks.Test.Remote
         }
 
         /// <summary>
-        /// 对比数据: 数据库 和 json文件
-        /// </summary>
-        /// <returns></returns>
-        [Fact]
-        public async Task DataCompareTestAsync()
-        {
-            using var sourceConn = DatabaseInfo.GetDbConnection("Data Source=192.168.1.227:1521/helowin;User ID=accounts;Password=123456;PERSIST SECURITY INFO=True;Pooling = True;Max Pool Size = 100;Min Pool Size = 1;");
-            var compareResult = await DatabaseInfo.CompareRecordsFromDbWithDataAsync(sourceConn, "syncoc", "USERID", "LOGINNAME", new DatabaseInfo.DataInJson("D:/.NET/iduo/routine/db/同步SQL/杭xx/SYNC_OC.json", new string[] { "RECORDS" }));
-            _outputHelper.WriteLine("success");
-        }
-
-        /// <summary>
         /// 从文本文件中提取出需要的数据
         /// </summary>
         /// <returns></returns>
@@ -229,7 +107,7 @@ namespace Sylas.RemoteTasks.Test.Remote
         /// </summary>
         /// <returns></returns>
         [Fact]
-        public async Task ReadFiles()
+        public void ReadFiles()
         {
             string dir1 = "D:/.NET/Id/Id.SiteManagement/Id.sitemanagement.core/Entities";
             string dir2 = "D:/.NET/Id/Id.portal.api/Id.portal.core/Entities";
@@ -379,20 +257,6 @@ namespace Sylas.RemoteTasks.Test.Remote
             }
             dbTransaction.Commit();
             _outputHelper.WriteLine("同步结束");
-        }
-
-        [Fact]
-        async Task GetPagedData_InQuery()
-        {
-            string connectionString = "Server=whitebox.com;Port=3306;Stmt=;Database=ids4_alphal;Uid=root;Pwd=123456;Allow User Variables=true";
-            using var conn = DatabaseInfo.GetDbConnection(connectionString);
-            var data = await DatabaseInfo.GetPagedDataAsync("users", 1, 10, "id", false, conn, new DataFilter
-            {
-                FilterItems = new List<FilterItem>
-                {
-                    new FilterItem{ FieldName = "id", CompareType = "in", Value = "00006,00008" }
-                }
-            });
         }
     }
 }

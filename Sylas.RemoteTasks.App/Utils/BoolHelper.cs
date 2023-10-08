@@ -8,8 +8,7 @@
         /// <param name="sourceValue"></param>
         /// <param name="targetValue"></param>
         /// <returns></returns>
-        public static bool StringValueNotEquals(this object? sourceValue, object? targetValue) =>
-            ((sourceValue is not null && !string.IsNullOrWhiteSpace(sourceValue.ToString())) || (targetValue is not null && !string.IsNullOrWhiteSpace(targetValue.ToString()))) && sourceValue?.ToString() != targetValue?.ToString();
+        public static bool StringValueNotEquals(this object? sourceValue, object? targetValue, StringComparison comparisonType = StringComparison.Ordinal) => !string.Equals($"{sourceValue}", $"{targetValue}", comparisonType);
 
         /// <summary>
         /// 比较两个值类型
@@ -17,7 +16,6 @@
         /// <param name="sourceValue"></param>
         /// <param name="targetValue"></param>
         /// <returns></returns>
-        public static bool StringValueEquals(this object? sourceValue, object? targetValue) =>
-            (string.IsNullOrWhiteSpace(sourceValue?.ToString()) && string.IsNullOrWhiteSpace(targetValue?.ToString())) || sourceValue?.ToString() == targetValue?.ToString();
+        public static bool StringValueEquals(this object? sourceValue, object? targetValue, StringComparison comparisonType = StringComparison.Ordinal) => string.Equals($"{sourceValue}", $"{targetValue}", comparisonType);
     }
 }
