@@ -1,18 +1,10 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.JSInterop;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using Sylas.RemoteTasks.App.Database.SyncBase;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.Models.HttpRequestProcessor;
 using Sylas.RemoteTasks.App.Models.HttpRequestProcessor.Dtos;
 using Sylas.RemoteTasks.App.Repositories;
 using Sylas.RemoteTasks.App.RequestProcessor;
-using Sylas.RemoteTasks.App.Utils;
-using System.Net.Http.Headers;
-using System.Text;
-using System.Text.RegularExpressions;
-using static Sylas.RemoteTasks.App.RemoteHostModule.StartupHelper;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {
@@ -47,7 +39,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             return Ok(new OperationResult(true));
         }
 
-        public async Task<IActionResult> GetHttpRequestProcessorsAsync(int pageIndex, int pageSize, string orderField, bool isAsc, [FromBody]DataFilter dataFilter)
+        public async Task<IActionResult> GetHttpRequestProcessorsAsync(int pageIndex, int pageSize, string orderField, bool isAsc, [FromBody] DataFilter dataFilter)
         {
             if (pageIndex == 0)
             {
@@ -141,7 +133,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             {
                 affectedRows += await _repository.DeleteAsync(Convert.ToInt32(id));
             }
-            
+
             if (affectedRows > 0)
             {
                 return Ok(new OperationResult(true, string.Empty) { Data = new string[] { $"{affectedRows}" } });
@@ -160,15 +152,29 @@ namespace Sylas.RemoteTasks.App.Controllers
             {
                 return BadRequest("克隆对象不能为空");
             }
-            var cloneAffectedRows = await _repository.CloneAsync(id);
-            return Ok(new OperationResult(cloneAffectedRows > 0, ""));
+            var clonedProcessorId = await _repository.CloneAsync(id);
+            return Ok(new OperationResult(clonedProcessorId > 0, ""));
         }
         #endregion
 
 
 
-        
+
         #region HttpRequestProcessorStep
+        /// <summary>
+        /// 克隆
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        public async Task<IActionResult> CloneStepAsync([FromBody] int id)
+        {
+            if (id == 0)
+            {
+                return BadRequest("克隆对象不能为空");
+            }
+            var clonedStepId = await _repository.CloneStepAsync(id);
+            return Ok(new OperationResult(clonedStepId > 0, ""));
+        }
         /// <summary>
         /// 添加步骤Step
         /// </summary>
@@ -251,7 +257,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             {
                 affectedRows += await _repository.DeleteStepAsync(Convert.ToInt32(id));
             }
-            
+
             if (affectedRows > 0)
             {
                 return Ok(new OperationResult(true, string.Empty));

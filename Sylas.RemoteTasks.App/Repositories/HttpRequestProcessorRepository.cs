@@ -196,6 +196,22 @@ namespace Sylas.RemoteTasks.App.Repositories
         {
             return await _db.QueryPagedDataAsync<HttpRequestProcessorStep>(HttpRequestProcessorStep.TableName, pageIndex, pageSize, orderField, isAsc, filter);
         }
+
+        public async Task<int> CloneStepAsync(int id)
+        {
+            var step = await GetStepByIdAsync(id) ?? throw new Exception($"未找到指定的Step:{id}");
+            var clonedStepId = await AddStepAsync(step.ToCreateDto());
+            if (clonedStepId <= 0)
+            {
+                return 0;
+            }
+            foreach (var handler in step.DataHandlers)
+            {
+                handler.StepId = clonedStepId;
+                _ = await AddDataHandlerAsync(handler.ToCreateDto());
+            }
+            return clonedStepId;
+        }
         public async Task<HttpRequestProcessorStep?> GetStepByIdAsync(int id)
         {
             var pages = await _db.QueryPagedDataAsync<HttpRequestProcessorStep>(HttpRequestProcessorStep.TableName, 1, 1, "id", true, new DataFilter { FilterItems = new List<FilterItem> { new FilterItem { CompareType = "=", FieldName = "id", Value = id.ToString() } } });

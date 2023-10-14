@@ -2,7 +2,7 @@
 {
     public class BatchesSchedule
     {
-        public static async Task CpuTasksExecuteAsync(IEnumerable<object> source, IEnumerable<object> target, Action<IEnumerable<object>> handleBatch)
+        public static async Task CpuTasksExecuteAsync(IEnumerable<object> target, Action<IEnumerable<object>> handleBatch)
         {
             var tasks = new List<Task>();
             var batches = new List<List<object>>();

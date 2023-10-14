@@ -1,6 +1,7 @@
 ﻿//using MySqlConnector;
 //using Microsoft.Data.SqlClient;
 using Dapper;
+using Google.Protobuf.WellKnownTypes;
 using Microsoft.Data.Sqlite;
 using MySql.Data.MySqlClient;
 using MySqlX.XDevAPI.Relational;
@@ -484,14 +485,17 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
             
             // 先获取数据
             var dbRecords = await conn.QueryAsync($"select * from {conn.Database}.{table}") ?? throw new Exception($"获取{table}数据失败");
-            // 然后删除已存在
-            await DeleteExistRecordsAsync(conn, table, sourceRecords, dbRecords, varFlag, ignoreFields, sourceIdField, targetIdField, _logger);
-            // 再重新获取数据
-            dbRecords = await conn.QueryAsync($"select * from {conn.Database}.{table}") ?? throw new Exception($"获取{table}数据失败");
 
-            var compareResult = await CompareRecords(sourceRecords, dbRecords, ignoreFields, sourceIdField, targetIdField);
+            var compareResult = await CompareRecordsAsync(sourceRecords, dbRecords, ignoreFields, sourceIdField, targetIdField);
+            // 然后删除已存在并且发生了变化的数据
+            await DeleteExistRecordsAsync(conn, compareResult, table, varFlag, targetIdField, _logger);
 
             var inserts = compareResult.ExistInSourceOnly;
+            if (compareResult.Changed.Any())
+            {
+                compareResult.Changed.ForEach(x => inserts.Add(x.SourceRecord));
+            }
+
             // TODO: 尝试将GetInsertSqlInfosAsync的分批批量插入语句逻辑移植到GetTableSqlsInfoAsync, 然后这里替换为GetTableSqlsInfoAsync, 好处是表不存在可以创建表
             var insertSqlInfos = await GetInsertSqlInfosAsync(inserts, table, conn);
             foreach (var sqlInfo in insertSqlInfos)
@@ -513,69 +517,124 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
                 #endregion
             }
         }
-        
-        static async Task DeleteExistRecordsAsync(IDbConnection conn, string targetTable, object source, object target, string varFlag, string[] ignoreFields, string sourceIdField, string targetIdField, ILogger? logger = null)
+
+        static List<string> GetPrimaryKeys(JObject? sourceRecord, string sourceIdField)
         {
-            var sourceRecords = JArray.FromObject(source);
-            var targetRecords = JArray.FromObject(target);
-            if (targetRecords.Any())
+            List<string> sourcePrimaryKeys = new();
+            var sourceFirstPropertieNames = sourceRecord?.Properties()?.Select(x => x.Name.ToLower())?.ToList();
+            sourcePrimaryKeys = CheckRecordIdFields(sourceIdField ?? string.Empty, sourceFirstPropertieNames);
+            return sourcePrimaryKeys;
+
+            #region 本地方法, 校验参数提供的数据Id字段, 支持组合Id, 不存在的去掉; 如果提供的字段都不存在则校验有可能存在的主键字段如: id,guid, 存在则添加.
+            List<string> CheckRecordIdFields(string idFieldName, List<string>? allFields)
             {
-                List<Task> tasks = new();
-                var batchSize = 5000;
-                JArray batchDataContainer = new();
-                for (int i = 0; i < targetRecords.Count; i++)
+                if (allFields is null || !allFields.Any())
                 {
-                    var item = targetRecords[i];
-                    batchDataContainer.Add(item);
+                    return idFieldName.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+                }
 
-                    if (i > 0 && (i + 1) % batchSize == 0)
+                List<string> idFields = new();
+                var sourceIdFieldArr = idFieldName.Split(',');
+                // 校验参数提供的Id字段是否存在
+                foreach (var idField in sourceIdFieldArr)
+                {
+                    if (allFields.Any(x => x == idField.ToLower()))
                     {
-                        // 处理业务逻辑
-                        Console.WriteLine($"{Environment.CurrentManagedThreadId} i: {i}; ....batchDataContainer.Count: {batchDataContainer.Count}");
-                        tasks.Add(Task.Run(async () => await DeleteFromComparedResultAsync(batchDataContainer)));
-
-                        // 准备新容器, 存放并处理下一批数据
-                        batchDataContainer = new();
+                        idFields.Add(idField);
                     }
                 }
-                await Task.WhenAll(tasks.ToArray());
-
-
-                async Task DeleteFromComparedResultAsync(JArray targetData)
+                if (!idFields.Any())
                 {
-                    var compareResult = await CompareRecords(sourceRecords, targetData, ignoreFields, sourceIdField, targetIdField);
-                    var deleteSqlsBuilder = new StringBuilder();
-                    var index = 0;
-                    Dictionary<string, dynamic> parameters = new();
-                    foreach (var item in compareResult.Changed)
+                    if (allFields.Any(x => x == "id"))
                     {
-                        var itemProps = item.TargetRecord.Properties();
-                        targetIdField = string.IsNullOrEmpty(targetIdField) ? itemProps.First().Name : targetIdField;
-                        var targetIdVal = itemProps.FirstOrDefault(x => string.Equals(x.Name, targetIdField, StringComparison.OrdinalIgnoreCase))?.Value;
+                        idFields.Add("id");
+                    }
+                    else if (allFields.Any(x => x == "guid"))
+                    {
+                        idFields.Add("guid");
+                    }
+                    else
+                    {
+                        idFields.Add(allFields.First());
+                    }
+                }
+                return idFields;
+            }
+            #endregion
+        }
+        
+        static async Task DeleteExistRecordsAsync(IDbConnection conn, DataComparedResult compareResult, string targetTable, string varFlag, string targetIdField, ILogger? logger = null)
+        {
+            if (!compareResult.Changed.Any())
+            {
+                return;
+            }
+
+            StringBuilder deleteSqlsBuilder = new();
+            var index = 0;
+            Dictionary<string, dynamic> parameters = new();
+            foreach (var item in compareResult.Changed)
+            {
+                var itemProps = item.TargetRecord.Properties();
+                
+                if (targetIdField.Contains(','))
+                {
+                    var targetPrimaryKeys = GetPrimaryKeys(compareResult.Changed.FirstOrDefault()?.TargetRecord, targetIdField);
+                    StringBuilder conditionsBuilder = new();
+                    for (int i = 0; i < targetPrimaryKeys.Count; i++)
+                    {
+                        var targetPrimaryKey = targetPrimaryKeys[i];
+                        var targetIdVal = itemProps.FirstOrDefault(x => string.Equals(x.Name, targetPrimaryKey, StringComparison.OrdinalIgnoreCase))?.Value;
                         if (targetIdVal is null)
                         {
                             var firstProp = itemProps.First();
                             targetIdField = firstProp.Name;
                             targetIdVal = firstProp.Value;
                         }
-                        deleteSqlsBuilder.Append($"delete from {targetTable} where {targetIdField}={varFlag}id{index};{Environment.NewLine}");
-                        parameters.Add($"id{index}", targetIdVal.ToObject<dynamic>());
-                        index++;
 
-                        if (index > 0 && index % 100 == 0 || index >= compareResult.Changed.Count)
+                        conditionsBuilder.Append($" and {targetPrimaryKey}={varFlag}id{i}{index}");
+                        parameters.Add($"id{i}{index}", targetIdVal.ToObject<dynamic>());
+                    }
+                    deleteSqlsBuilder.Append($"delete from {targetTable} where 1=1 {conditionsBuilder};{Environment.NewLine}");
+                }
+                else
+                {
+                    targetIdField = string.IsNullOrEmpty(targetIdField) ? itemProps.First().Name : targetIdField;
+                    var targetIdVal = itemProps.FirstOrDefault(x => string.Equals(x.Name, targetIdField, StringComparison.OrdinalIgnoreCase))?.Value;
+                    if (targetIdVal is null)
+                    {
+                        var firstProp = itemProps.First();
+                        targetIdField = firstProp.Name;
+                        targetIdVal = firstProp.Value;
+                    }
+
+                    deleteSqlsBuilder.Append($"{varFlag}id{index},");
+                    parameters.Add($"id{index}", targetIdVal.ToObject<dynamic>());
+                }
+                
+                
+                index++;
+
+                if (index > 0 && index % 100 == 0 || index >= compareResult.Changed.Count)
+                {
+                    if (deleteSqlsBuilder.Length > 0)
+                    {
+                        string deleteSqls;
+                        if (targetIdField.Contains(','))
                         {
-                            if (deleteSqlsBuilder.Length > 0)
-                            {
-                                var deleteSqls = $"SET foreign_key_checks=0;{Environment.NewLine}" + deleteSqlsBuilder.ToString() + $"SET foreign_key_checks=1;";
-                                var deleted = await conn.ExecuteAsync(deleteSqls, parameters);
-                                logger?.LogInformation($"已经删除{deleted}条记录");
-                                deleteSqlsBuilder.Clear();
-                            }
-                            else
-                            {
-                                logger?.LogInformation($"没有旧数据需要删除");
-                            }
+                            deleteSqls = $"SET foreign_key_checks=0;{Environment.NewLine}{deleteSqlsBuilder}{Environment.NewLine}SET foreign_key_checks=1;";
                         }
+                        else
+                        {
+                            deleteSqls = $"SET foreign_key_checks=0;{Environment.NewLine}delete from `{targetTable}` where {targetIdField} in({deleteSqlsBuilder.ToString().TrimEnd(',')});{Environment.NewLine}SET foreign_key_checks=1;";
+                        }
+                        var deleted = await conn.ExecuteAsync(deleteSqls, parameters);
+                        logger?.LogInformation($"已经删除{deleted}条记录");
+                        deleteSqlsBuilder.Clear();
+                    }
+                    else
+                    {
+                        logger?.LogInformation($"没有旧数据需要删除");
                     }
                 }
             }
@@ -584,27 +643,27 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
         {
             logger?.LogInformation($"数据表{table}新增{inserted}条数据数据");
 
-            var fieldsMatch = Regex.Match(sqlInfo.Sql, @"insert\s+into\s+\w+\s*\(`{0,1}\w+`{0,1}(?<otherFields>(,\s*`{0,1}\w+`{0,1}\s*)*)\)", RegexOptions.IgnoreCase);
-            var fieldsCount = fieldsMatch.Groups["otherFields"].Value.Count(x => x == ',') + 1;
+            //var fieldsMatch = Regex.Match(sqlInfo.Sql, @"insert\s+into\s+\w+\s*\(`{0,1}\w+`{0,1}(?<otherFields>(,\s*`{0,1}\w+`{0,1}\s*)*)\)", RegexOptions.IgnoreCase);
+            //var fieldsCount = fieldsMatch.Groups["otherFields"].Value.Count(x => x == ',') + 1;
 
-            var names = sqlInfo.Parameters.Keys;
-            var parameterBuilder = new StringBuilder();
-            var index = 0;
-            foreach (var name in names)
-            {
-                index++;
-                var val = sqlInfo.Parameters[name]?.ToString();
-                val = val?.Length > 50 ? val?[..50] : val;
-                if (!string.IsNullOrWhiteSpace(val))
-                {
-                    parameterBuilder.Append($"{val}\t");
-                    if (index % fieldsCount == 0)
-                    {
-                        parameterBuilder.Append(Environment.NewLine);
-                    }
-                }
-            }
-            logger?.LogInformation(parameterBuilder.ToString());
+            //var names = sqlInfo.Parameters.Keys;
+            //var parameterBuilder = new StringBuilder();
+            //var index = 0;
+            //foreach (var name in names)
+            //{
+            //    index++;
+            //    var val = sqlInfo.Parameters[name]?.ToString();
+            //    val = val?.Length > 50 ? val?[..50] : val;
+            //    if (!string.IsNullOrWhiteSpace(val))
+            //    {
+            //        parameterBuilder.Append($"{val}\t");
+            //        if (index % fieldsCount == 0)
+            //        {
+            //            parameterBuilder.Append(Environment.NewLine);
+            //        }
+            //    }
+            //}
+            //logger?.LogInformation(parameterBuilder.ToString());
         }
         public static async Task<List<SqlInfo>> GetInsertSqlInfosAsync(object data, string table, IDbConnection conn)
         {
@@ -1296,7 +1355,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             // columnsStatement =           "Name, Age"
             string columnsStatement = GetFieldsStatement(colInfos);
 
-            var comparedResult = await CompareRecords(sourceDataTable.Rows.Cast<DataRow>(), targetDataTable.Rows.Cast<DataRow>(), Array.Empty<string>(), sourcePrimaryKey, targetPrimaryKey);
+            var comparedResult = await CompareRecordsAsync(sourceDataTable.Rows.Cast<DataRow>(), targetDataTable.Rows.Cast<DataRow>(), Array.Empty<string>(), sourcePrimaryKey, targetPrimaryKey);
 
             // 为数据源中的每一条数据生成对应的insert语句的部分
             foreach (DataRow dataItem in sourceDataTable.Rows)
@@ -1418,7 +1477,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             var sourceRecordsDynamic = await conn.QueryAsync($"select * from {table}");
             var sourceRecords = sourceRecordsDynamic.Select(x => JObject.FromObject(x) ?? throw new Exception("数据库数据异常, 数据转换失败")).ToList();
             var targetRecords = FileHelper.GetRecords(targetJsonInfo.FilePath, targetJsonInfo.DataFields);
-            return await CompareRecords(sourceRecords, targetRecords, Array.Empty<string>(), sourceIdentityField, targetIdentityField);
+            return await CompareRecordsAsync(sourceRecords, targetRecords, Array.Empty<string>(), sourceIdentityField, targetIdentityField);
         }
 
         /// <summary>
@@ -1426,12 +1485,31 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// </summary>
         /// <param name="sourceRecordsData">源数据</param>
         /// <param name="targetRecordsData">要对比的目标数据表中查询出的数据</param>
-        /// <param name="sourceIdentityField">源数据中的标识字段</param>
-        /// <param name="targetIdentityField">目标数据中的标识字段</param>
+        /// <param name="sourceIdField">源数据中的标识字段</param>
+        /// <param name="targetIdField">目标数据中的标识字段</param>
         /// <returns></returns>
-        public static async Task<DataComparedResult> CompareRecords(IEnumerable<object> sourceRecordsData, IEnumerable<object> targetRecordsData, string[] ignoreFields, string sourceIdentityField, string targetIdentityField)
+        public static async Task<DataComparedResult> CompareRecordsAsync(IEnumerable<object> sourceRecordsData, IEnumerable<object> targetRecordsData, string[] ignoreFields, string sourceIdField, string targetIdField)
         {
-            Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} ThreadID: {Environment.CurrentManagedThreadId} source: {sourceRecordsData.Count()}; target: {targetRecordsData.Count()}");
+            #region 处理有数据有为空的情况
+            if ((sourceRecordsData is null || !sourceRecordsData.Any()) && (targetRecordsData is null || !targetRecordsData.Any()))
+            {
+                return new DataComparedResult();
+            }
+            if ((sourceRecordsData is null || !sourceRecordsData.Any()) && (targetRecordsData is not null && targetRecordsData.Any()))
+            {
+                return new DataComparedResult { ExistInTargetOnly = JArray.FromObject(targetRecordsData) };
+            }
+            if ((sourceRecordsData is not null && sourceRecordsData.Any()) && (targetRecordsData is null || !targetRecordsData.Any()))
+            {
+                return new DataComparedResult { ExistInSourceOnly = JArray.FromObject(sourceRecordsData) };
+            }
+            #endregion
+
+            #region 参数校验
+            if (sourceIdField.Count(x => x == ',') != targetIdField.Count(x => x == ','))
+            {
+                throw new Exception($"提供Source的主键字段{sourceIdField}与Target的主键字段{targetIdField}无法一一对应");
+            }
             var sourceRecords = sourceRecordsData.Select(JObject.FromObject).ToList();
             var targetRecords = targetRecordsData.Select(JObject.FromObject).ToList();
             if (sourceRecords is null)
@@ -1442,50 +1520,105 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             {
                 throw new Exception("对比数据目标数据集为空");
             }
-            var sourceIdentityFields = new string[] { sourceIdentityField, "Id", "GUID", sourceRecords?.FirstOrDefault()?.Properties()?.FirstOrDefault()?.Name ?? "" };
-            var targetIdentityFields = new string[] { targetIdentityField, "Id", "GUID", targetRecords?.FirstOrDefault()?.Properties()?.FirstOrDefault()?.Name ?? "" };
+            #endregion
 
+            #region 获取主键字段
+            var sourcePrimaryKeys = GetPrimaryKeys(sourceRecords.FirstOrDefault(), sourceIdField);
+            var targetPrimaryKeys = GetPrimaryKeys(targetRecords.FirstOrDefault(), targetIdField);
+            if (!sourcePrimaryKeys.Any() || !targetPrimaryKeys.Any())
+            {
+                throw new Exception("主键字段不能为空");
+            }
+            if (sourcePrimaryKeys.Count != targetPrimaryKeys.Count)
+            {
+                throw new Exception($"解析后的主键字段无法一一对应, 请检查拼写");
+            }
+            #endregion
+
+            #region 定义线程安全的数据容器和其他变量
             // 假设Target中都是全新数据
             var existInSourceOnly = new List<JObject>();
             existInSourceOnly.AddRange(sourceRecords);
 
-            DataComparedResult compareResult = new();
-
-            ConcurrentBag<JObject> notExistInSource = new();
+            // 遍历Target, Source中没有找到的项目
             ConcurrentBag<JObject> existInTarget = new();
+            // Source找到了 - 数据变化了
             ConcurrentBag<ChangedRecord> changed = new();
+            // Source找到了 - 数据变化了
+            ConcurrentBag<ChangedRecord> notChanged = new();
+            #endregion
 
-            // 分批对比数据
-            await BatchesSchedule.CpuTasksExecuteAsync(sourceRecords, targetRecords, CompareBatchData);
-            
-            // 获取ExistInSourceOnly
-            notExistInSource.ToList().ForEach(x => existInSourceOnly.Remove(x));
-            existInSourceOnly.ForEach(compareResult.ExistInSourceOnly.Add);
-            // 获取ExistInTargetOnly
-            compareResult.ExistInTargetOnly = JArray.FromObject(existInTarget);
-            // 获取Changed
-            compareResult.Changed = changed.ToList();
-            
-            Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} ThreadID: {Environment.CurrentManagedThreadId} the end!");
+            #region 调用CPU密集型任务帮助类进行多线程分批对比数据
+            await BatchesSchedule.CpuTasksExecuteAsync(targetRecords, CompareBatchData);
+            #endregion
+
+            #region 构建数据对比结果并返回
+
+            // 对比结果
+            DataComparedResult compareResult = new()
+            {
+                ExistInTargetOnly = JArray.FromObject(existInTarget),
+                Changed = changed.ToList(),
+                NotChanged = notChanged.ToList()
+            };
+
+            // 计算对比结果中的ExistInSourceOnly: Source中出去变化的和没变化的(Souce中找到的)即Source中独有的数据
+            compareResult.Changed.ForEach(x => existInSourceOnly.Remove(x.SourceRecord));
+            compareResult.NotChanged.ForEach(x => existInSourceOnly.Remove(x.SourceRecord));
+            if (existInSourceOnly.Any())
+            {
+                existInSourceOnly.ForEach(compareResult.ExistInSourceOnly.Add);
+            }
+
+            // 返回
             return compareResult;
 
+            #endregion
 
+
+            #region 本地方法, 数据对比逻辑
             void CompareBatchData(IEnumerable<object> batchData)
             {
                 var start = DateTime.Now;
                 foreach (var targetBatchItem in batchData.Cast<JObject>())
                 {
                     JObject? existedSourceRecord = null;
+                    List<string> targetIdValues = new();
+                    // target 主键值; 支持多个
+                    foreach (var targetPk in targetPrimaryKeys)
+                    {
+                        targetIdValues.Add(targetBatchItem.Properties().FirstOrDefault(x => string.Equals(targetPk, x.Name, StringComparison.OrdinalIgnoreCase))?.Value?.ToString() ?? throw new Exception($"查找ID失败"));
+                    }
+
+                    #region 数据源中查找对应的数据
                     foreach (var sourceRecord in sourceRecords)
                     {
-                        var sourceId = sourceRecord.Properties().FirstOrDefault(x => sourceIdentityFields.Any(idField => string.Equals(idField, x.Name, StringComparison.OrdinalIgnoreCase)))?.Value?.ToString() ?? throw new Exception($"查找ID失败");
-                        var targetId = targetBatchItem.Properties().FirstOrDefault(x => targetIdentityFields.Any(idField => string.Equals(idField, x.Name, StringComparison.OrdinalIgnoreCase)))?.Value?.ToString() ?? throw new Exception($"查找ID失败");
-
-                        if (sourceId is not null && targetId is not null && sourceId.ToString() == targetId.ToString())
+                        // 获取所有主键字段的值
+                        List<string> sourceIdValues = new();
+                        foreach (var sourcePrimaryKey in sourcePrimaryKeys)
                         {
-                            existedSourceRecord = sourceRecord; break;
+                            sourceIdValues.Add(sourceRecord.Properties().FirstOrDefault(x => string.Equals(sourcePrimaryKey, x.Name, StringComparison.OrdinalIgnoreCase))?.Value?.ToString() ?? throw new Exception($"查找ID失败"));
+                        }
+
+                        // 比较是否所有主键字段值都相同
+                        bool allPksHasSameValue = true;
+                        for (int i = 0; i < sourceIdValues.Count; i++)
+                        {
+                            if ($"{sourceIdValues[i]}" != $"{targetIdValues[i]}")
+                            {
+                                allPksHasSameValue = false;
+                                break;
+                            }
+                        }
+
+                        // 都相同表示同一条数据, Source中找到数据, 查找数据结束
+                        if (allPksHasSameValue)
+                        {
+                            existedSourceRecord = sourceRecord;
+                            break;
                         }
                     }
+                    #endregion
 
                     // 数据源中没有当前数据
                     if (existedSourceRecord is null)
@@ -1494,12 +1627,11 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                     }
                     else
                     {
-                        notExistInSource.Add(existedSourceRecord);
-
                         var existedSourceProps = existedSourceRecord.Properties();
                         var existedTargetProps = targetBatchItem.Properties();
 
                         #region 比较每个字段的值, 判断同一条数据是否发生了变化
+                        bool hasChanged = false;
                         foreach (var sourceProp in existedSourceProps)
                         {
                             // 忽略字段不比较
@@ -1512,10 +1644,15 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                             {
                                 if (sourceProp.Value.StringValueNotEquals(targetProp.Value)) // 当前字段(key)的值不相同(至少有一个不为null且不为空字符串 并且两个字段值不相等)
                                 {
-                                    changed.Add(new ChangedRecord { SourceRecord = targetBatchItem, TargetRecord = existedSourceRecord });
+                                    changed.Add(new ChangedRecord { SourceRecord = existedSourceRecord, TargetRecord = targetBatchItem });
+                                    hasChanged = true;
                                     break;
                                 }
                             }
+                        }
+                        if (!hasChanged)
+                        {
+                            notChanged.Add(new ChangedRecord { SourceRecord = existedSourceRecord, TargetRecord = targetBatchItem });
                         }
                         #endregion
                     }
@@ -1524,6 +1661,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                 //File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs/DataCompare.txt"), $"已经处理了{batchData.Count()}; 耗时: {(end - start).TotalSeconds}/s{Environment.NewLine}");
                 Console.WriteLine($"已经处理了{batchData.Count()}; 耗时: {(end - start).TotalSeconds}/s{Environment.NewLine}");
             }
+            #endregion
         }
 
 
@@ -1542,6 +1680,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             public JArray ExistInSourceOnly { get; set; } = new JArray();
             public JArray ExistInTargetOnly { get; set; } = new JArray();
             public List<ChangedRecord> Changed { get; set; } = new List<ChangedRecord>();
+            public List<ChangedRecord> NotChanged { get; set; } = new List<ChangedRecord>();
         }
         public class ChangedRecord
         {

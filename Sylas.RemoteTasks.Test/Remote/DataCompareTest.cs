@@ -187,7 +187,7 @@ namespace Sylas.RemoteTasks.Test.Remote
             #endregion
 
             var before = DateTime.Now;
-            var result = await DatabaseInfo.CompareRecords(source, target, Array.Empty<string>(), "Id", "Id");
+            var result = await DatabaseInfo.CompareRecordsAsync(source, target, Array.Empty<string>(), "Id", "Id");
             var end = DateTime.Now;
             _outputHelper.WriteLine("对比数据完毕" + (end - before).TotalSeconds.ToString() + "/s"); // 20s
             _outputHelper.WriteLine($"ExistInSourceOnly:{result.ExistInSourceOnly.Count}; ExistInTargetOnly:{result.ExistInTargetOnly.Count}; Changed:{result.Changed.Count}"); // SouceOnly:50000 TargetOnly:1000 Changed:0
