@@ -1,6 +1,4 @@
-﻿using MySqlX.XDevAPI.Relational;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
 using Sylas.RemoteTasks.App.RegexExp;
 using Sylas.RemoteTasks.App.Utils.Template.Parser;
 using System.Text.RegularExpressions;

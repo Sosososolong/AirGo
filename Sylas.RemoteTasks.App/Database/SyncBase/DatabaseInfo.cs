@@ -1,10 +1,8 @@
 ﻿//using MySqlConnector;
 //using Microsoft.Data.SqlClient;
 using Dapper;
-using Google.Protobuf.WellKnownTypes;
 using Microsoft.Data.Sqlite;
 using MySql.Data.MySqlClient;
-using MySqlX.XDevAPI.Relational;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Oracle.ManagedDataAccess.Client;
@@ -15,8 +13,6 @@ using System.Data;
 using System.Data.SqlClient;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using static Sylas.RemoteTasks.App.RemoteHostModule.StartupHelper;
 
 namespace Sylas.RemoteTasks.App.Database.SyncBase
 {

@@ -5,13 +5,10 @@ namespace Sylas.RemoteTasks.App.Utils
 {
     public static class SystemHelper
     {
-        // 操作系统接口
+        #region  操作系统接口
         // 1. 显示窗口
         [DllImport("user32.dll")]
         static extern bool ShowWindow(IntPtr hwnd, int nCmdShow);
-
-        [DllImport("user32.dll")]
-        public static extern bool SetForegroundWindow(IntPtr hWnd);
         [DllImport("user32.dll")]
         static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
         [DllImport("user32.dll")]
@@ -21,7 +18,7 @@ namespace Sylas.RemoteTasks.App.Utils
         delegate bool EnumWindowsCallback(IntPtr hWnd, IntPtr lParam);
         [DllImport("user32.dll")]
         static extern bool EnumWindows(EnumWindowsCallback lpEnumFunc, IntPtr lParam);
-        
+
         // 找到某一个窗口
         [DllImport("user32.dll", CharSet = CharSet.Unicode)]
         static extern IntPtr FindWindowW(string? lpClassName, string? lpWindowName);
@@ -30,6 +27,12 @@ namespace Sylas.RemoteTasks.App.Utils
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
         static extern IntPtr SendMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
 
+        [DllImport("user32.dll")]
+        static extern IntPtr GetForegroundWindow();
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        static extern int GetWindowTextLength(IntPtr hWnd);
+        [DllImport("user32.dll")]
+        public static extern bool SetForegroundWindow(IntPtr hWnd);
         [DllImport("user32.dll", CharSet = CharSet.Unicode)]
         static extern int GetWindowText(IntPtr hWnd, StringBuilder lpWindowText, int nMaxCount);
 
@@ -52,21 +55,58 @@ namespace Sylas.RemoteTasks.App.Utils
         static extern bool IsIconic(IntPtr hWnd);
 
         // ShowWindow 函数中用到的常量值
+        /// <summary>
+        /// 窗体被隐藏
+        /// </summary>
         static int SW_HIDE => 0;
+        /// <summary>
+        /// 正常状态, 不是最小化也不是最大化
+        /// </summary>
         static int SW_SHOWNORMAL => 1;
+        /// <summary>
+        /// 最小化托盘模式
+        /// </summary>
         static int SW_SHOWMINIMIZED => 2;
+        /// <summary>
+        /// 最大化
+        /// </summary>
         static int SW_SHOWMAXIMIZED => 3;
+        /// <summary>
+        /// 正常状态, 但是不激活焦点
+        /// </summary>
         static int SW_SHOWNOACTIVATE => 4;
+        /// <summary>
+        /// 窗体被显示, 同时激活焦点
+        /// </summary>
         static int SW_SHOW => 5;
+        /// <summary>
+        /// 窗体被最小化
+        /// </summary>
         static int SW_MINIMIZE => 6;
+        /// <summary>
+        /// 窗体被最小化为托盘模式，但不激活焦点
+        /// </summary>
         static int SW_SHOWMINNOACTIVE => 7;
+        /// <summary>
+        /// 窗体被显示，但不激活焦点
+        /// </summary>
         static int SW_SHOWNA => 8;
+        /// <summary>
+        /// 窗体被还原到之前的状态
+        /// </summary>
         static int SW_RESTORE => 9;
+        /// <summary>
+        /// 根据窗体的显示属性，显示窗体
+        /// </summary>
+        static int SW_SHOWDEFAULT => 10;
         // 发送还原窗口消息给系统托盘图标
         static int WM_LBUTTONDOWN => 0x0201;
         static int WM_LBUTTONUP => 0x0202;
 
         static readonly List<WindowInfo> _windowsList = new();
+        #endregion
+
+        #region 封装操作系统操作窗体相关接口
         public static List<WindowInfo> GetAllWindows()
         {
             static bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam)
@@ -119,21 +159,85 @@ namespace Sylas.RemoteTasks.App.Utils
                 }
                 return true;
             }
-            
+
 
             EnumWindows(EnumWindowsProc, IntPtr.Zero);
 
             return _windowsList;
         }
+        /// <summary>
+        /// 获取当前处于激活焦点的窗体的句柄和标题
+        /// </summary>
+        /// <returns></returns>
+        public static (IntPtr, string) GetForegroundWindowHandlerAndTitle()
+        {
+            IntPtr hWnd = GetForegroundWindow();
+            int length = GetWindowTextLength(hWnd);
+            StringBuilder caption = new();
 
-        public static bool ShowWindow(IntPtr hwnd) => ShowWindow(hwnd, SW_RESTORE);
-        public static bool ShowWindowAsync(IntPtr hwnd) => ShowWindowAsync(hwnd, SW_RESTORE);
+            if (length > 0)
+            {
+                _ = GetWindowText(hWnd, caption, length);
+            }
+            return (hWnd, caption.ToString());
+        }
+        /// <summary>
+        /// 根据窗体句柄获取窗体状态信息
+        /// </summary>
+        /// <param name="hWnd">窗体句柄</param>
+        /// <returns></returns>
+        public static WINDOWPLACEMENT GetWindowStatus(IntPtr hWnd)
+        {
+            WINDOWPLACEMENT placement = new();
+            placement.length = Marshal.SizeOf(placement);
+            GetWindowPlacement(hWnd, ref placement);
+
+            return placement;
+        }
+        
+        /// <summary>
+        /// 根据窗体标题获取窗体状态信息
+        /// </summary>
+        /// <param name="title">窗体标题</param>
+        /// <returns></returns>
+        public static WINDOWPLACEMENT GetWindowStatus(string title)
+        {
+            var hWnd = FindWindowByTitle(title);
+            return GetWindowStatus(hWnd);
+        }
+        public static bool ShowWindow(IntPtr hwnd)
+        {
+            return ShowWindow(hwnd, SW_SHOWDEFAULT);
+        }
+        public static bool ShowWindow(string title)
+        {
+            var hwnd = FindWindowByTitle(title);
+            return ShowWindow(hwnd, SW_SHOWDEFAULT);
+        }
+        public static bool ShowWindowAsync(IntPtr hwnd)
+        {
+            return ShowWindowAsync(hwnd, SW_RESTORE);
+        }
+        public static bool ShowWindowAsync(string title)
+        {
+            var hwnd = FindWindowByTitle(title);
+            return ShowWindowAsync(hwnd, SW_RESTORE);
+        }
         public static bool RestoreWindowFromTray(IntPtr handle)
         {
             var r1 = SendMessage(handle, WM_LBUTTONDOWN, IntPtr.Zero, IntPtr.Zero);
             var r2 = SendMessage(handle, WM_LBUTTONUP, IntPtr.Zero, IntPtr.Zero);
             Console.WriteLine($"r1: {r1}; r2: {r2}");
             return r1 + r2 > 0;
+        }
+        /// <summary>
+        /// 最小化到托盘
+        /// </summary>
+        /// <param name="hwnd"></param>
+        /// <returns></returns>
+        public static bool ShowWindowInTray(IntPtr hwnd)
+        {
+            return ShowWindow(hwnd, SW_SHOWMINIMIZED);
         }
         /// <summary>
         /// 通过标题找窗口
@@ -147,7 +251,10 @@ namespace Sylas.RemoteTasks.App.Utils
         /// <param name="classname"></param>
         /// <returns></returns>
         public static IntPtr FindWindowByClassName(string classname) => FindWindowW(classname, null);
+        #endregion
     }
+
+    #region 窗体信息的辅助类
     public class WindowInfo
     {
         public IntPtr Handle { get; set; }
@@ -179,6 +286,9 @@ namespace Sylas.RemoteTasks.App.Utils
     {
         public int length;
         public int flags;
+        /// <summary>
+        /// 对应SW_HIDE, SW_SHOWNORMAL, ...
+        /// </summary>
         public int showCmd;
         public POINT minPosition;
         public POINT maxPosition;
@@ -197,4 +307,5 @@ namespace Sylas.RemoteTasks.App.Utils
         public int Y;
         public override string ToString() => $"[{X}, {Y}]";
     }
+    #endregion
 }

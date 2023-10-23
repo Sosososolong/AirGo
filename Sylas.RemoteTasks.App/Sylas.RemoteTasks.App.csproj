@@ -8,6 +8,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Utils\新文件夹\**" />
+    <Content Remove="Utils\新文件夹\**" />
+    <EmbeddedResource Remove="Utils\新文件夹\**" />
+    <None Remove="Utils\新文件夹\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Remove="TaskConfig.log.json" />
   </ItemGroup>
 

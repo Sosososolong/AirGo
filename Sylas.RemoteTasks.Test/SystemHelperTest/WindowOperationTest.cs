@@ -32,13 +32,17 @@ namespace Sylas.RemoteTasks.Test.SystemHelperTest
         }
 
         [Fact]
-        public void ShowWindowNotInTrayQtScrcpy()
+        public async Task GetForegroundWindow()
         {
-            //var res = SystemHelper.RestoreWindowFromTray(21628630);
-            //SystemHelper.SetForegroundWindow(21628630);
-            var qtScrcpyHanle = SystemHelper.FindWindowByTitle("QtScrcpy");
-            _outputHelper.WriteLine(qtScrcpyHanle.ToString());
-            SystemHelper.ShowWindowAsync(qtScrcpyHanle);
+            // 启动测试后, 给2秒钟的时间将测试窗体置顶并处于焦点激活状态
+            await Task.Delay(2000);
+            (IntPtr hWnd, string title) = SystemHelper.GetForegroundWindowHandlerAndTitle();
+            _outputHelper.WriteLine($"Title: {title}; Handler: {hWnd}");
+
+            await Task.Delay(1 * 1000);
+            _outputHelper.WriteLine(SystemHelper.ShowWindowInTray(hWnd).ToString());
+            await Task.Delay(1 * 1000);
+            _outputHelper.WriteLine(SystemHelper.ShowWindow(hWnd).ToString());
         }
     }
 }
