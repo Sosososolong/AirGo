@@ -44,5 +44,11 @@ namespace Sylas.RemoteTasks.Test.SystemHelperTest
             await Task.Delay(1 * 1000);
             _outputHelper.WriteLine(SystemHelper.ShowWindow(hWnd).ToString());
         }
+
+        [Fact]
+        public void GlobalHotKey()
+        {
+            SystemHelper.RegisterGlobalHotKey(new string[] { "ctrl", "shift" }, "f12", null);
+        }
     }
 }
