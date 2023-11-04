@@ -1,18 +1,16 @@
-﻿using System.Configuration;
-using System.Text.RegularExpressions;
-using Microsoft.Extensions.Options;
-using Sylas.RemoteTasks.App.Database;
+﻿using Sylas.RemoteTasks.App.Database;
 using Sylas.RemoteTasks.App.Database.SyncBase;
+using Sylas.RemoteTasks.App.RemoteHostModule;
 using Sylas.RemoteTasks.App.RequestProcessor;
 
-namespace Sylas.RemoteTasks.App.RemoteHostModule
+namespace Sylas.RemoteTasks.App.Utils
 {
     public static class StartupHelper
     {
         public static void AddRemoteHostManager(this IServiceCollection services, IConfiguration configuration)
         {
             var remoteHosts = configuration.GetSection("Hosts").Get<List<RemoteHost>>() ?? new List<RemoteHost>();
-            
+
             services.AddSingleton(remoteHosts);
 
             // TODO: 没有配置的给默认的值
@@ -42,12 +40,31 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
             //   如果一次请求中也需要使用多个DatabaseInfo, 那么可以使用DatabaseInfoFactory创建一个新的对象, 并且可以继承线程内的DatabaseInfo的配置
             // 从这里看, Scoped是比较灵活的方式, 特定情况下它也可以实现Transient的效果
             services.AddScoped<DatabaseInfo>();
-            
+
             // 即时创建新的DatabaseInfo, 单例即可
             services.AddSingleton<DatabaseInfoFactory>();
 
             services.AddScoped<IDatabaseProvider, DatabaseProvider>();
             services.AddScoped<IDatabaseProvider, DatabaseInfo>();
+        }
+
+        public static void AddGlobalHotKeys(this IServiceCollection services, IConfiguration configuration)
+        {
+            if (Environment.OSVersion.VersionString.Contains("Windows"))
+            {
+                var globalHotKeys = configuration.GetChildren().Where(x => x.Key == "GlobalHotKeys").First().GetChildren();
+                foreach (var globalHotKey in globalHotKeys)
+                {
+                    if (globalHotKey.Value is null)
+                    {
+                        break;
+                    }
+                    var keys = globalHotKey.Value.Split('+').ToList();
+                    var lastKey = keys.Last();
+                    keys.Remove(lastKey);
+                    SystemHelper.RegisterGlobalHotKey(keys.ToArray(), lastKey, null);
+                }
+            }
         }
 
         public static class LiftTimeTestContainer

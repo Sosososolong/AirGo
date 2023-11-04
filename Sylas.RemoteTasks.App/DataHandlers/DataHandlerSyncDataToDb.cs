@@ -1,6 +1,5 @@
 ﻿using Newtonsoft.Json.Linq;
 using Sylas.RemoteTasks.App.Database.SyncBase;
-using static Sylas.RemoteTasks.App.RemoteHostModule.StartupHelper;
 
 namespace Sylas.RemoteTasks.App.DataHandlers
 {

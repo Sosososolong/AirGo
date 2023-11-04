@@ -7,7 +7,6 @@ using Sylas.RemoteTasks.App.Repositories;
 using Sylas.RemoteTasks.App.Utils;
 using Sylas.RemoteTasks.App.Utils.Template;
 using System.Reflection;
-using static Sylas.RemoteTasks.App.RemoteHostModule.StartupHelper;
 
 namespace Sylas.RemoteTasks.App.RequestProcessor
 {

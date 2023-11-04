@@ -1,6 +1,5 @@
 using IdentityServer4.AccessTokenValidation;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.Extensions.Configuration;
 using Sylas.RemoteTasks.App.BackgroundServices;
 using Sylas.RemoteTasks.App.Database;
 using Sylas.RemoteTasks.App.DataHandlers;
@@ -19,18 +18,8 @@ builder.WebHost.ConfigureKestrel((context, serverOptions) =>
 // 我实际用的真实的配置文件, 这个文件不会上传到git; 也可以在项目上右键 -> "管理用户机密" -> 添加真实的配置覆盖掉appsettings.json
 builder.Configuration.AddJsonFile("TaskConfig.log.json", optional: true, reloadOnChange: true);
 
-var globalHotKeys = builder.Configuration.GetChildren().Where(x => x.Key == "GlobalHotKeys").First().GetChildren();
-foreach (var globalHotKey in globalHotKeys)
-{
-    if (globalHotKey.Value is null)
-    {
-        break;
-    }
-    var keys = globalHotKey.Value.Split('+').ToList();
-    var lastKey = keys.Last();
-    keys.Remove(lastKey);
-    SystemHelper.RegisterGlobalHotKey(keys.ToArray(), lastKey, null);
-}
+// 注册全局热键
+builder.Services.AddGlobalHotKeys(builder.Configuration);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();

@@ -527,7 +527,7 @@ namespace Sylas.RemoteTasks.App.Utils
             "home" => VK_HOME,
             "end" => VK_END,
             "space" => VK_SPACE,
-            _ => Convert.ToChar(vk)
+            _ => Convert.ToChar(vk.ToUpper())
         };
         public static void RegisterGlobalHotKey(string[] mks, string vk, Action callback)
         {
