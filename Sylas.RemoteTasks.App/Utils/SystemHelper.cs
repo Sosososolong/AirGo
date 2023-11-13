@@ -207,7 +207,7 @@ namespace Sylas.RemoteTasks.App.Utils
         [DllImport("user32.dll")]
         static extern bool UnregisterHotKey(IntPtr hWnd, int id);
         #endregion
-        
+
         #region  操作系统接口 - 查找操作窗体
         // 显示窗口
         [DllImport("user32.dll")]
@@ -308,7 +308,7 @@ namespace Sylas.RemoteTasks.App.Utils
 
         static readonly List<WindowInfo> _windowsList = new();
         #endregion
-        
+
         #region 消息代码
         public const int WM_HOTKEY = 0x0312;
         public const int WM_DESTROY = 0x0002;
@@ -404,7 +404,7 @@ namespace Sylas.RemoteTasks.App.Utils
 
             return placement;
         }
-        
+
         /// <summary>
         /// 根据窗体标题获取窗体状态信息
         /// </summary>
@@ -462,35 +462,6 @@ namespace Sylas.RemoteTasks.App.Utils
         /// <returns></returns>
         public static IntPtr FindWindowByClassName(string classname) => FindWindowW(classname, null);
 
-        static int _currentId = 0;
-        static List<HotKeyInfo> _hotKeys = new();
-        static IntPtr WindowProc(IntPtr hwnd, uint uMsg, IntPtr wParam, IntPtr lParam)
-        {
-            switch (uMsg)
-            {
-                case WM_HOTKEY:
-                    if (wParam.ToInt32() == _currentId)
-                    {
-                        Console.WriteLine("全局热键被触发");
-                        var hotKey = _hotKeys.FirstOrDefault(x => x.Handler == hwnd);
-                        if (hotKey.Callback is not null)
-                        {
-                            hotKey.Callback();
-                        }
-                    }
-                    break;
-
-                case WM_DESTROY:
-                    Console.WriteLine("Destroy msg");
-                    _ = PostQuitMessage(0);
-                    break;
-
-                default:
-                    return DefWindowProc(hwnd, uMsg, wParam, lParam);
-            }
-
-            return IntPtr.Zero;
-        }
         static int GetMkValue(string mk) => mk.ToLower() switch
         {
             "ctrl" => MOD_CONTROL,
@@ -529,9 +500,38 @@ namespace Sylas.RemoteTasks.App.Utils
             "space" => VK_SPACE,
             _ => Convert.ToChar(vk.ToUpper())
         };
-        public static void RegisterGlobalHotKey(string[] mks, string vk, Action callback)
+
+        static IntPtr WindowProc(IntPtr hwnd, uint uMsg, IntPtr wParam, IntPtr lParam)
         {
-            _currentId++;
+            Console.WriteLine($"WindowProc uMsg: {uMsg}; wParam(HotKeyId): {wParam}");
+            switch (uMsg)
+            {
+                case WM_HOTKEY:
+                    var hotKey = _globalHotKeys.FirstOrDefault(x => x.Id == wParam);
+                    if (hotKey is not null)
+                    {
+                        Console.WriteLine($"全局热键[{wParam}]被触发: {hotKey}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"未找到热键{wParam}");
+                    }
+                    break;
+
+                case WM_DESTROY:
+                    Console.WriteLine("Destroy msg");
+                    _ = PostQuitMessage(0);
+                    break;
+
+                default:
+                    return DefWindowProc(hwnd, uMsg, wParam, lParam);
+            }
+
+            return IntPtr.Zero;
+        }
+        public static List<GlobalHotKey> _globalHotKeys = new();
+        public static void RegisterGlobalHotKey(List<GlobalHotKey> globalHotKeys)
+        {
             Task.Run(() =>
             {
                 IntPtr hwnd;
@@ -544,60 +544,44 @@ namespace Sylas.RemoteTasks.App.Utils
                 {
                     lpfnWndProc = WindowProc,
                     hInstance = hInstance,
-                    lpszClassName = $"HotkeyWindowClass{_currentId}"
+                    lpszClassName = $"HotkeyWindow"
                 };
                 RegisterClass(ref wc);
                 hwnd = CreateWindowEx(0, wc.lpszClassName, "Z", 0, 0, 0, 0, 0, IntPtr.Zero, IntPtr.Zero, hInstance, IntPtr.Zero);
 
-                int hotkeyMk = 0;
-                foreach (var mk in mks)
+                globalHotKeys = globalHotKeys.DistinctBy(x => Tuple.Create(x.Id, x.VmKey)).ToList();
+                _globalHotKeys = globalHotKeys;
+                foreach (var globalHotKey in globalHotKeys)
                 {
-                    int mkValue = GetMkValue(mk);
-                    if (hotkeyMk == 0)
+                    int hotkeyMk = 0;
+                    foreach (var mk in globalHotKey.Modifiers)
                     {
-                        hotkeyMk = mkValue;
+                        int mkValue = GetMkValue(mk);
+                        if (hotkeyMk == 0)
+                        {
+                            hotkeyMk = mkValue;
+                        }
+                        else
+                        {
+                            hotkeyMk |= mkValue;
+                        }
                     }
-                    else
+                    uint hotkeyVk = GetVkValue(globalHotKey.VmKey);
+
+                    // 注册全局热键
+                    if (!RegisterHotKey(hwnd, globalHotKey.Id, hotkeyMk, hotkeyVk))
                     {
-                        hotkeyMk |= mkValue;
+                        Console.WriteLine($"无法注册全局热键 {globalHotKey}");
+                        return;
                     }
-                }
-                uint hotkeyVk = GetVkValue(vk);
 
-                var hotkeyName = string.Join('_', mks.Select(x => x.ToLower())) + vk;
+                    Console.WriteLine($"成功注册热键{globalHotKey}[{globalHotKey.Id}]: {hwnd} - {wc.lpszClassName}; Thread: {Environment.CurrentManagedThreadId}");
+                }
 
-                if (_hotKeys.Any(x => x.Name == hotkeyName))
-                {
-                    // 关闭窗体
-                    var registed = _hotKeys.First(x => x.Name == hotkeyName);
-                    Console.WriteLine($"热键已经注册: name: {registed.Name}; handler: {registed.Handler}; id: {registed.Id};");
-                    return;
-                }
-                // 注册全局热键
-                if (!RegisterHotKey(hwnd, _currentId, hotkeyMk, hotkeyVk))
-                //if (!RegisterHotKey(hwnd, _currentId, MOD_CONTROL| MOD_SHIFT, VK_F12))
-                {
-                    Console.WriteLine("无法注册全局热键");
-                    return;
-                }
-                // ctrl_shiftK, 0x00001, 回调函数, 热键id, 是否关闭热键
-                _hotKeys.Add(new HotKeyInfo(_currentId, hotkeyName, hwnd, callback, false));
-                Console.WriteLine($"成功注册热键{hotkeyName}: {hwnd} - {wc.lpszClassName}; Thread: {Environment.CurrentManagedThreadId}");
                 // 消息循环
                 while ((bRet = GetMessage(out MSG msg, IntPtr.Zero, 0, 0)) != 0)
                 {
-                    Console.WriteLine($"接收到消息: {bRet}");
-                    if (!_hotKeys.Any(x => x.Handler == hwnd))
-                    {
-                        Console.WriteLine("热键状态存储异常, 注销热键");
-                        break;
-                    }
-                    var hotkey = _hotKeys.First(x => x.Handler == hwnd);
-                    if (hotkey.Disabled)
-                    {
-                        Console.WriteLine("检测到热键已关闭, 注销热键");
-                        break;
-                    }
+                    Console.WriteLine($"接收到消息: {bRet}; msg: {msg.message}");
                     if (bRet == -1)
                     {
                         Console.WriteLine("获取消息失败");
@@ -609,10 +593,6 @@ namespace Sylas.RemoteTasks.App.Utils
                         DispatchMessage(ref msg);
                     }
                 }
-
-                // 注销全局热键
-                UnregisterHotKey(hwnd, _currentId);
-                Console.WriteLine("注销热键, 子线程退出");
             });
             return;
         }
@@ -633,7 +613,7 @@ namespace Sylas.RemoteTasks.App.Utils
         public override string ToString() => $"Title: {Title}; IsIconic: {IsIconic}; Handle: {Handle}; Visiable: {IsVisiable}; React: {Rect}; Placement: {Placement}; ClassName: {ClassName}; ProcessId: {ProcessId};";
     }
     #endregion
-    
+
     #region 定义系统API相关的结构体
     [StructLayout(LayoutKind.Sequential)]
     public struct RECT
@@ -688,36 +668,19 @@ namespace Sylas.RemoteTasks.App.Utils
         public uint time;
         public POINT pt;
     }
-    public struct HotKeyInfo
+
+    public class GlobalHotKey
     {
-        public HotKeyInfo(int id, string name, nint handler, Action callback, bool disabled)
+        public GlobalHotKey(int id, List<string> modifiers, string vmKey)
         {
             Id = id;
-            Name = name;
-            Handler = handler;
-            Callback = callback;
-            Disabled = disabled;
+            Modifiers = modifiers;
+            VmKey = vmKey;
         }
-        /// <summary>
-        /// 热键id
-        /// </summary>
         public int Id { get; set; }
-        /// <summary>
-        /// 热键的拼接作为热键名, 如: ctrl_shiftK
-        /// </summary>
-        public string Name { get; set; }
-        /// <summary>
-        /// 接收消息的窗体句柄
-        /// </summary>
-        public nint Handler { get; set; }
-        /// <summary>
-        /// 回调函数
-        /// </summary>
-        public Action Callback { get; set; }
-        /// <summary>
-        /// 是否关闭热键
-        /// </summary>
-        public bool Disabled { get; set; }
+        public List<string> Modifiers { get; set; } = new List<string>();
+        public string VmKey { get; set; } = string.Empty;
+        public override string ToString() => $"{string.Join('+', Modifiers)}+{VmKey}";
     }
     #endregion
 }

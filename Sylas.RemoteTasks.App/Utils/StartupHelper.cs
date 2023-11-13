@@ -53,6 +53,8 @@ namespace Sylas.RemoteTasks.App.Utils
             if (Environment.OSVersion.VersionString.Contains("Windows"))
             {
                 var globalHotKeys = configuration.GetChildren().Where(x => x.Key == "GlobalHotKeys").First().GetChildren();
+                int hotKeyId = 1;
+                List<GlobalHotKey> globalHotKeyList = new();
                 foreach (var globalHotKey in globalHotKeys)
                 {
                     if (globalHotKey.Value is null)
@@ -62,8 +64,9 @@ namespace Sylas.RemoteTasks.App.Utils
                     var keys = globalHotKey.Value.Split('+').ToList();
                     var lastKey = keys.Last();
                     keys.Remove(lastKey);
-                    SystemHelper.RegisterGlobalHotKey(keys.ToArray(), lastKey, null);
+                    globalHotKeyList.Add(new GlobalHotKey(hotKeyId++, keys, lastKey));
                 }
+                SystemHelper.RegisterGlobalHotKey(globalHotKeyList);
             }
         }
 
