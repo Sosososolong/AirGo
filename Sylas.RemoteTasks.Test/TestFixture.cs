@@ -1,8 +1,10 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Sylas.RemoteTasks.App.Database;
 using Sylas.RemoteTasks.App.Database.SyncBase;
 using Sylas.RemoteTasks.App.RemoteHostModule;
+using Sylas.RemoteTasks.App.Repositories;
 using System.Configuration;
 
 namespace Sylas.RemoteTasks.Test
@@ -64,8 +66,13 @@ namespace Sylas.RemoteTasks.Test
             });
             #endregion
 
+            #region 仓储
+            services.AddScoped(typeof(RepositoryBase<>), typeof(RepositoryBase<>));
+            #endregion
+
             services.AddSingleton<HostService>();
             services.AddScoped<DatabaseInfo>();
+            services.AddScoped<IDatabaseProvider, DatabaseInfo>();
         }
     }
 }

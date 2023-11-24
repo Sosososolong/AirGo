@@ -1,0 +1,81 @@
+﻿@{
+    ViewData["Title"] = "Snippets";
+}
+
+<div class="container">
+    <h1>Snippets Manager</h1>
+    <div class="row">
+        <div class="col-md-6">
+            <form id="search-form">
+                <div class="mb-3">
+                    <label for="search-input" class="form-label">关键字</label>
+                    <input type="text" class="form-control" id="search-input">
+                </div>
+                <button type="submit" class="btn btn-primary">搜索</button>
+            </form>
+        </div>
+    </div>
+    <div id="tableContainer">
+        <table>
+            <tr class="align">
+
+            </tr>
+        </table>
+    </div>
+</div>
+
+@section Scripts{
+    <script>
+        $(function () {
+            const apiUrl = "/Snippet/GetSnippets";
+            
+            const tableId = 'datatable';
+
+            const tableParentSelector = "#tableContainer";
+
+            const ths = [
+                { name: 'title', title: '标题' },
+                { name: 'description', title: '描述' },
+                { name: 'content', showPart: 12, title: '内容' },
+                { name: 'headers', showPart: 12, title: '请求头' },
+                { name: 'tmplVariables', title: '模板变量' },
+                { name: 'typeId', title: '类型', type: 'dataSource|dataSourceApi=Snippet/GetSnippetById|displayField=name' },
+                { name: 'createTime', title: '创建时间' },
+                { name: 'updateTime', title: '更新时间' },
+                // 操作栏
+                { name: '', title: '操作', type: 'button', tmpl: `<button type="button" class="btn btn-primary btn-sm" data-bs-toggle="collapse" href="#collapse${tableId}{{id}}" role="button" aria-expanded="true" aria-controls="collapse${tableId}{{id}}">步骤</button>
+                        <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="{{id}}" data-fetch-url="/Sync/GetHttpRequestProcessors" data-update-url="/Sync/UpdateHttpRequestProcessor" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
+                        <button type="button" class="btn btn-primary btn-sm d-none" data-table-id="${tableId}" data-id="{{id}}" data-delete-url="/Sync/DeleteHttpRequestProcessor" data-method="POST" onclick="deleteData(this)">删除</button>
+                        <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-content="&quot;{{id}}&quot;" data-execute-url="/Sync/CloneProcessor" data-method="POST" onclick="execute(this)">克隆</button>
+                        <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-content="{ &quot;processorIds&quot;: [{{id}}], &quot;stepId&quot;: 0 }" data-execute-url="/Sync/ExecuteHttpProcessor" data-method="POST" onclick="execute(this)">执行</button>`
+                }
+            ]
+            const idFieldName = "id";
+
+            /**
+             * HttpRequestProcessors
+             */
+            createTable(
+                apiUrl,                 // 接口地址
+                1,                      // pageIndex
+                10,                     // pageSize
+                tableId,                // 给数据表一个标识符, 方便一个页面操作多个数据表
+                tableParentSelector,    // 数据表父元素
+                ths,                    // 数据表列配置
+                idFieldName,            // 数据的Id字段名
+                null,                   // 数据过滤条件集合 FilterItems
+                null,                   // 初始化数据(有的话就渲染此数据, 不会请求接口)
+                onDataLoaded,           // 订阅数据渲染完成事件
+                '',                     // 对数据表添加父元素, 使用{{tableHtml}}变量代表整个数据表html
+                { url: 'Sync/AddHttpRequestProcessor', 'method': 'POST' }   // 添加修改数据表单弹窗; url为添加数据的url(修改的url放到修改按钮上); method也是请求添加数据接口的请求方法
+            )
+
+            /**
+             * 回调函数
+             */
+            function onDataLoaded(row) {
+                return;   
+            }
+        });
+    </script>
+}

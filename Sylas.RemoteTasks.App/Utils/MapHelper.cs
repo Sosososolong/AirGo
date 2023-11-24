@@ -1,4 +1,7 @@
-﻿using System.Linq.Expressions;
+﻿using Dapper;
+using System.Data;
+using System.Linq.Expressions;
+using System.Reflection;
 
 namespace Sylas.RemoteTasks.App.Utils
 {
@@ -113,12 +116,53 @@ namespace Sylas.RemoteTasks.App.Utils
             // 这里的示例仅支持字符串和整数类型
             // 你可以根据自己的需求进行扩展
 
-            int intValue;
-            if (int.TryParse(value, out intValue))
+            if (int.TryParse(value, out int intValue))
             {
                 return typeof(int);
             }
             return typeof(string);
+        }
+
+        /// <summary>
+        /// 构建一个 将指定对象转换为DynamicParameters 的lambda表达式
+        /// </summary>
+        /// <param name="parameterFields"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        public static Func<T, DynamicParameters> BuildGetterSqlExecutionParameters<T>(IEnumerable<string> parameterFields)
+        {
+            Type entityType = typeof(T);
+
+            if (parameterFields is null || !parameterFields.Any())
+            {
+                parameterFields = entityType.GetProperties(BindingFlags.Public | BindingFlags.Instance).Select(x => x.Name);
+            }
+
+            var type = typeof(DynamicParameters);
+            var entity = Expression.Parameter(entityType, "sp");
+            var result = Expression.Variable(type, "result");
+            var init = Expression.Assign(result, Expression.New(type));
+            var addMethod = type.GetMethod("Add", new Type[] { typeof(string), typeof(object), typeof(DbType?), typeof(ParameterDirection?), typeof(int?) }) ?? throw new Exception($"{type.Name}没有找到Add方法");
+            List<Expression> expressions = new() { init };
+            foreach (var fieldName in parameterFields)
+            {
+                var call = Expression.Call(result,
+                    addMethod,
+                    Expression.Constant(fieldName),
+                    Expression.Convert(Expression.Property(entity, fieldName), typeof(object)),
+                    Expression.Default(typeof(DbType?)), Expression.Default(typeof(ParameterDirection?)), Expression.Default(typeof(int?)));
+                expressions.Add(call);
+            }
+
+            var returnLabel = Expression.Label(type);
+            var returnExpression = Expression.Return(returnLabel, result, type);
+            var returnLableTarget = Expression.Label(returnLabel, result);
+
+            expressions.Add(returnExpression);
+            expressions.Add(returnLableTarget);
+            var block = Expression.Block(new[] { result }, expressions);
+            var lambda = Expression.Lambda<Func<T, DynamicParameters>>(block, entity).Compile();
+            return lambda;
         }
     }
 }

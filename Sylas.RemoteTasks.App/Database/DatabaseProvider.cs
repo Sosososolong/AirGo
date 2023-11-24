@@ -352,9 +352,9 @@ public class DatabaseProvider : IDatabaseProvider
     /// <param name="parameters"></param>
     /// <param name="db"></param>
     /// <returns></returns>
-    public async Task<int> ExecuteSqlAsync(string sql, Dictionary<string, object> parameters, string db = "")
+    public async Task<int> ExecuteSqlAsync(string sql, object parameters, string db = "")
     {
-        var dataSet = await QueryAsync(sql, parameters, db);
+        var dataSet = await QueryAsync(sql, parameters as Dictionary<string, object> ?? new Dictionary<string, object>(), db);
         return Convert.ToInt32(dataSet.Tables[0].Rows[0][0]);
     }
     /// <summary>

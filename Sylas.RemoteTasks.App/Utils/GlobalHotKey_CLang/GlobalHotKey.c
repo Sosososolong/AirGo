@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include <windows.h>
 #include <ctype.h>
 #define MAX_TITLE_LENGTH 100
@@ -149,23 +150,114 @@ int ReadHotKeyConfig(char* filename)
             char* next = strtok(NULL, "+");
 
             if (next == NULL) {
-                vmKey = toupper(*modifier);
-                printf("vmKey..........: %c\n", vmKey);
+                if (strcasecmp(modifier, "space") == 0) {
+                    vmKey = VK_SPACE;
+                    printf("VmKey: %s\n", "space");
+                }
+                else if (strcasecmp(modifier, "enter") == 0) {
+                    vmKey = VK_RETURN;
+                    printf("VmKey: %s\n", "enter");
+                }
+                else if (strcasecmp(modifier, "tab") == 0) {
+                    vmKey = VK_TAB;
+                    printf("VmKey: %s\n", "tab");
+                }
+                else if (strcasecmp(modifier, "esc") == 0) {
+                    vmKey = VK_ESCAPE;
+                    printf("VmKey: %s\n", "esc");
+                }
+                else if (strcasecmp(modifier, "backspace") == 0) {
+                    vmKey = VK_BACK;
+                    printf("VmKey: %s\n", "backspace");
+                }
+                else if (strcasecmp(modifier, "capslock") == 0) {
+                    vmKey = VK_CAPITAL;
+                    printf("VmKey: %s\n", "capslock");
+                }
+                else if (strcasecmp(modifier, "numlock") == 0) {
+                    vmKey = VK_NUMLOCK;
+                    printf("VmKey: %s\n", "numlock");
+                }
+                else if (strcasecmp(modifier, "scrolllock") == 0) {
+                    vmKey = VK_SCROLL;
+                    printf("VmKey: %s\n", "scrolllock");
+                }
+                else if (strcasecmp(modifier, "printscreen") == 0) {
+                    vmKey = VK_SNAPSHOT;
+                    printf("VmKey: %s\n", "printscreen");
+                }
+                else if (strcasecmp(modifier, "pause") == 0) {
+                    vmKey = VK_PAUSE;
+                    printf("VmKey: %s\n", "pause");
+                }
+                else if (strcasecmp(modifier, "f1") == 0) {
+                    vmKey = VK_F1;
+                    printf("VmKey: %s\n", "f1");
+                }
+                else if (strcasecmp(modifier, "f2") == 0) {
+                    vmKey = VK_F2;
+                    printf("VmKey: %s\n", "f2");
+                }
+                else if (strcasecmp(modifier, "f3") == 0) {
+                    vmKey = VK_F3;
+                    printf("VmKey: %s\n", "f3");
+                }
+                else if (strcasecmp(modifier, "f4") == 0) {
+                    vmKey = VK_F4;
+                    printf("VmKey: %s\n", "f4");
+                }
+                else if (strcasecmp(modifier, "f5") == 0) {
+                    vmKey = VK_F5;
+                    printf("VmKey: %s\n", "f5");
+                }
+                else if (strcasecmp(modifier, "f6") == 0) {
+                    vmKey = VK_F6;
+                    printf("VmKey: %s\n", "f6");
+                }
+                else if (strcasecmp(modifier, "f7") == 0) {
+                    vmKey = VK_F7;
+                    printf("VmKey: %s\n", "f7");
+                }
+                else if (strcasecmp(modifier, "f8") == 0) {
+                    vmKey = VK_F8;
+                    printf("VmKey: %s\n", "f8");
+                }
+                else if (strcasecmp(modifier, "f9") == 0) {
+                    vmKey = VK_F9;
+                    printf("VmKey: %s\n", "f9");
+                }
+                else if (strcasecmp(modifier, "f10") == 0) {
+                    vmKey = VK_F10;
+                    printf("VmKey: %s\n", "f10");
+                }
+                else if (strcasecmp(modifier, "f11") == 0) {
+                    vmKey = VK_F11;
+                    printf("VmKey: %s\n", "f11");
+                }
+                else if (strcasecmp(modifier, "f12") == 0) {
+                    vmKey = VK_F12;
+                    printf("VmKey: %s\n", "f12");
+                }
+                else {
+                    vmKey = toupper(*modifier);
+                    printf("vmKey: %c\n", vmKey);
+                }
                 break;
             }
-            else {
-                printf("modifier........: %s\n", modifier);
+            else
+            {
+                printf("modifier %s\n", modifier);
                 strcpy(modifier, modifier);
-                if (strstr(modifier, "ctrl") != NULL) {
+                if (strcasecmp(modifier, "ctrl") == 0) {
                     modifiers |= MOD_CONTROL;
                 }
-                else if (strstr(modifier, "shift") != NULL) {
+                else if (strcasecmp(modifier, "shift") == 0) {
                     modifiers |= MOD_SHIFT;
                 }
-                else if (strstr(modifier, "alt") != NULL) {
+                else if (strcasecmp(modifier, "alt") == 0) {
                     modifiers |= MOD_ALT;
                 }
-                else if (strstr(modifier, "win") != NULL) {
+                else if (strcasecmp(modifier, "win") == 0) {
                     modifiers |= MOD_WIN;
                 }
                 else {

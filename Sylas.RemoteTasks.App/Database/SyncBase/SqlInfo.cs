@@ -1,4 +1,6 @@
 ﻿using Dapper;
+using Sylas.RemoteTasks.App.Utils;
+using System.Reflection;
 
 namespace Sylas.RemoteTasks.App.Database.SyncBase
 {

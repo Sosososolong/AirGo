@@ -36,7 +36,7 @@ namespace Sylas.RemoteTasks.App.Database
         /// <param name="parameters"></param>
         /// <param name="db"></param>
         /// <returns></returns>
-        Task<int> ExecuteSqlAsync(string sql, Dictionary<string, object> parameters, string db = "");
+        Task<int> ExecuteSqlAsync(string sql, object parameters, string db = "");
         /// <summary>
         /// 执行多条增删改的SQL语句返回受影响的行数 - 可使用db参数指定切换到当前连接的用户有权限的其他数据库
         /// </summary>

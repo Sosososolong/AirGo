@@ -48,7 +48,7 @@ namespace Sylas.RemoteTasks.Test.SystemHelperTest
         [Fact]
         public void GlobalHotKey()
         {
-            SystemHelper.RegisterGlobalHotKey(new string[] { "ctrl", "shift" }, "f12", null);
+            SystemHelper.RegisterGlobalHotKey(new List<GlobalHotKey> { new GlobalHotKey(1, new List<string> { "ctrl", "shift" }, "f12") });
         }
     }
 }

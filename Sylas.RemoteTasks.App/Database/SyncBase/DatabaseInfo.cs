@@ -254,7 +254,7 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
         /// <param name="parameters"></param>
         /// <param name="db"></param>
         /// <returns></returns>
-        public async Task<int> ExecuteSqlAsync(string sql, Dictionary<string, object> parameters, string db = "")
+        public async Task<int> ExecuteSqlAsync(string sql, object parameters, string db = "")
         {
             using var conn = GetDbConnection(_connectionString);
             if (!string.IsNullOrWhiteSpace(db))
