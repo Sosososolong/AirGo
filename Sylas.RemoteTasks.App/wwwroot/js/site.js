@@ -260,7 +260,7 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
             defaultValue = defaultValuePattern[1]
         }
 
-        let url = `${dataSourceApi}?pageIndex=1&pageSize=1000`;
+        let url = `${dataSourceApi}`;
         let dataSourceOptions = `<option value="${defaultValue}">请选择</option>`;
 
         let response = await fetchData(url, 'POST', bodyDataFilter, null)

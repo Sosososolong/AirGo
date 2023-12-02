@@ -22,9 +22,10 @@ namespace Sylas.RemoteTasks.App.Repositories
         /// <param name="isAsc"></param>
         /// <param name="filter"></param>
         /// <returns></returns>
-        public async Task<PagedData<T>> GetPageAsync(int pageIndex, int pageSize, string orderField, bool isAsc, DataFilter filter)
+        public async Task<PagedData<T>> GetPageAsync(int pageIndex, int pageSize, string orderField = "", bool isAsc = true, DataFilter? filter = null)
         {
-            var pages = await _db.QueryPagedDataAsync<T>(nameof(T), pageIndex, pageSize, orderField, isAsc, filter);
+            filter ??= new DataFilter();
+            var pages = await _db.QueryPagedDataAsync<T>(DbTableInfo<T>._tableName, pageIndex, pageSize, orderField, isAsc, filter);
             return pages;
         }
         /// <summary>
@@ -34,7 +35,7 @@ namespace Sylas.RemoteTasks.App.Repositories
         /// <returns></returns>
         public async Task<T?> GetByIdAsync(int id)
         {
-            var pages = await _db.QueryPagedDataAsync<T>(nameof(T), 1, 1, "id", true, new DataFilter { FilterItems = new List<FilterItem> { new FilterItem { CompareType = "=", FieldName = "id", Value = id.ToString() } } });
+            var pages = await _db.QueryPagedDataAsync<T>(DbTableInfo<T>._tableName, 1, 1, "id", true, new DataFilter { FilterItems = new List<FilterItem> { new FilterItem { CompareType = "=", FieldName = "id", Value = id.ToString() } } });
             var connectionString = pages.Data.FirstOrDefault();
             if (connectionString is null)
             {
@@ -64,10 +65,10 @@ namespace Sylas.RemoteTasks.App.Repositories
         /// <exception cref="Exception"></exception>
         public async Task<int> UpdateAsync(T t)
         {
-            var recordCount = await _db.ExecuteSqlAsync($"select count(*) from {nameof(T)} where id=@id", new Dictionary<string, object> { { "id", t.Id } });
+            var recordCount = await _db.ExecuteSqlAsync($"select count(*) from {DbTableInfo<T>._tableName} where id=@id", new Dictionary<string, object> { { "id", t.Id } });
             if (recordCount == 0)
             {
-                throw new Exception($"{nameof(T)}不存在");
+                throw new Exception($"{DbTableInfo<T>._tableName}不存在");
             }
             var start = DateTime.Now;
             var sql = DbTableInfo<T>._updateSql;
@@ -83,7 +84,7 @@ namespace Sylas.RemoteTasks.App.Repositories
         /// <returns></returns>
         public async Task<int> DeleteAsync(int id)
         {
-            string sql = $"delete from {nameof(T)} where id=@id";
+            string sql = $"delete from {DbTableInfo<T>._tableName} where id=@id";
             return await _db.ExecuteSqlAsync(sql, new Dictionary<string, object> { { "id", id } });
         }
         #endregion

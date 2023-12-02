@@ -7,6 +7,7 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
 {
     public class DbTableInfo<T>
     {
+        public readonly static string _tableName;
         public readonly static string _insertSql;
         public readonly static string _updateSql;
         public readonly static Func<T, DynamicParameters> _getInsertSqlParameters;
@@ -15,6 +16,9 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
         {
             #region 反射获取实体类的基本信息
             var entityType = typeof(T);
+
+            _tableName = entityType.Name;
+
             var properties = entityType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
             // entityType.GetCustomAttribute 自定义特性获取主键信息或者其他信息
             var allPropertyNames = properties.Select(x => x.Name).ToList();
