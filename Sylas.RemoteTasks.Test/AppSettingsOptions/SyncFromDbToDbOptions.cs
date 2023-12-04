@@ -9,9 +9,9 @@ namespace Sylas.RemoteTasks.Test.AppSettingsOptions
     public class SyncFromDbToDbOptions
     {
         public const string Key = nameof(SyncFromDbToDbOptions);
-        public string? SourceDb { get; set; }
-        public string? SourceTable { get; set; }
-        public string? SourceConnectionString { get; set; }
-        public string? TargetConnectionString { get; set; }
+        public string SourceDb { get; set; }
+        public string SourceTable { get; set; }
+        public string SourceConnectionString { get; set; }
+        public string TargetConnectionString { get; set; }
     }
 }
