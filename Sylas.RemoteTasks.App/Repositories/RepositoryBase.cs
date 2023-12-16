@@ -3,14 +3,9 @@ using Sylas.RemoteTasks.App.Database;
 
 namespace Sylas.RemoteTasks.App.Repositories
 {
-    public class RepositoryBase<T> where T : EntityBase<int>, new()
+    public class RepositoryBase<T>(IDatabaseProvider databaseProvider) where T : EntityBase<int>, new()
     {
-        private readonly IDatabaseProvider _db;
-
-        public RepositoryBase(IDatabaseProvider databaseProvider)
-        {
-            _db = databaseProvider;
-        }
+        private readonly IDatabaseProvider _db = databaseProvider;
 
         #region 管理数据
         /// <summary>

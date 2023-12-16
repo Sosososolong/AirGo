@@ -1,4 +1,5 @@
 ﻿using Sylas.RemoteTasks.App.Database;
+using System;
 
 namespace Sylas.RemoteTasks.App.Snippets
 {
@@ -6,7 +7,8 @@ namespace Sylas.RemoteTasks.App.Snippets
     {
         public Snippet()
         {
-
+            CreateTime = DateTime.Now;
+            UpdateTime = DateTime.Now;
         }
         public Snippet(string title, string description, string content, string tmplVariables, int typeId, DateTime createTime, DateTime updateTime)
         {

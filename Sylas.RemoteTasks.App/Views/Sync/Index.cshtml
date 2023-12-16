@@ -101,7 +101,7 @@
                     null,
                     // wrapper 每一张表关联的是Processor表的某一行数据
                     `<div id="collapse${tableId}${row[idFieldName]}" class="collapse" aria-labelledby="${tableParentSelector}" data-bs-parent="#accordion"><div class="card-body">{{tableHtml}}</div></div>`
-                    // addModalSettings
+                    // Modal Settings
                     , { modalType: 'add', url: 'Sync/AddHttpRequestProcessorStep', 'method': 'POST' }
                 );
 
@@ -153,7 +153,7 @@
                             null,
                             // wrapper 每一张表关联的是Steps表的某一行数据
                             `<div id="collapse${tableStepsId}${stepId}" class="collapse" aria-labelledby="${tableParentSelector}" data-bs-parent="#accordion"><div class="card-body">{{tableHtml}}</div></div>`
-                            // addModalSettings
+                            // Modal Settings
                             , { modalType: 'add', url: 'Sync/AddHttpRequestProcessorStepDataHandler', 'method': 'POST' }
                         );
                     }

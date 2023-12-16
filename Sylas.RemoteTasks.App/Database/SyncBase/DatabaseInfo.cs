@@ -387,7 +387,7 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
         /// 同步数据库
         /// </summary>
         /// <exception cref="Exception"></exception>
-        public static async Task SyncDatabaseByConnectionStringsAsync(string sourceConnectionString, string targetConnectionString, string sourceSyncedDb = "", string sourceSyncedTable = "")
+        public static async Task SyncDatabaseByConnectionStringsAsync(string sourceConnectionString, string targetConnectionString, string sourceSyncedDb = "", string sourceSyncedTable = "", bool ignoreException = false)
         {
             using var sourceConn = GetDbConnection(sourceConnectionString);
             // 数据源-数据库
@@ -409,11 +409,6 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
                 var dbTransaction = targetConn.BeginTransaction();
                 await foreach (var tableSqlsInfo in tableSqlsInfoCollection)
                 {
-                    if (string.IsNullOrEmpty(tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql))
-                    {
-                        // $"表{tableSqlsInfo.TableName}没有数据无需处理"
-                        continue;
-                    }
                     try
                     {
                         if (!string.IsNullOrWhiteSpace(tableSqlsInfo.BatchInsertSqlInfo.CreateTableSql))
@@ -421,15 +416,29 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
                             // 创建表(或者修改字段)不会回滚
                             _ = await targetConn.ExecuteAsync(tableSqlsInfo.BatchInsertSqlInfo.CreateTableSql, transaction: dbTransaction);
                         }
+
+                        if (string.IsNullOrEmpty(tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql))
+                        {
+                            // $"表{tableSqlsInfo.TableName}没有数据无需处理"
+                            continue;
+                        }
+
                         var affectedRowsCount = await targetConn.ExecuteAsync(tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql, tableSqlsInfo.BatchInsertSqlInfo.Parameters, transaction: dbTransaction);
                         // $"{tableSqlsInfo.TableName}: {affectedRowsCount}条数据"
                     }
                     catch (Exception ex)
                     {
                         // 批量插入SQL语句: tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql
-                        //TODO: userlogins 组合主键
-                        dbTransaction.Rollback();
-                        throw;
+                        if (!ignoreException)
+                        {
+                            dbTransaction.Rollback();
+                            throw;
+                        }
+
+                        Console.WriteLine(ex);
+                        Console.WriteLine($"tableSqlsInfo.BatchInsertSqlInfo.CreateTableSql: {tableSqlsInfo.BatchInsertSqlInfo.CreateTableSql}");
+                        Console.WriteLine($"tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql: {tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql}");
+                        dbTransaction.Commit();
                     }
                 }
                 dbTransaction.Commit();
@@ -867,7 +876,18 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
                         string varName = $"keyWords{keyWordsField}";
                         if (!queryConditionParameters.ContainsKey(varName))
                         {
-                            keyWordsCondition += $" or {keyWordsField} like CONCAT(CONCAT('%', {parameterFlag}{varName}), '%')";
+                            if (dbType == DatabaseType.MySql)
+                            {
+                                keyWordsCondition += $" or {keyWordsField} like CONCAT(CONCAT('%', {parameterFlag}{varName}), '%')";
+                            }
+                            else if (dbType == DatabaseType.SqlServer)
+                            {
+                                keyWordsCondition += $" or {keyWordsField} like '%'+{parameterFlag}{varName}+'%'";
+                            }
+                            else
+                            {
+                                keyWordsCondition += $" or {keyWordsField} like '%'||{parameterFlag}{varName}||'%'";
+                            }
                             queryConditionParameters.Add(varName, filters.Keywords.Value);
                         }
                     }
@@ -1372,70 +1392,6 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                 pageIndex++;
             }
         }
-        
-        //public static async Task<TableInsertSqlsInfo> GetTableInsertSqlsInfoAsync(IDbConnection targetConn, string table, List<JToken> dataSource)
-        //{
-        //    var dbVarFlag = GetDbParameterFlag(targetConn.ConnectionString);
-        //    var insertSqlBuilder = new StringBuilder();
-        //    // insert语句参数
-        //    var parameters = new Dictionary<string, object>();
-        //    // 参数名后缀(第一条数据的Name字段, 参数名为Name1, 第二条为Name2, ...)
-        //    var random = 1;
-
-        //    if (!dataSource.Any())
-        //    {
-        //        return new TableInsertSqlsInfo
-        //        {
-        //            TableName = table
-        //        };
-        //    }
-
-        //    IEnumerable<ColumnInfo> targetTableColInfos = await GetTableColumnsInfoAsync(targetConn, table);
-        //    // columnsStatement =           "Name, Age"
-        //    string columnsStatement = GetFieldsStatement(targetTableColInfos);
-
-        //    var targetDataTable = await QueryAsync(targetConn, $"select * from {table}", new Dictionary<string, object>(), null);
-        //    var targetPrimaryKey = targetTableColInfos.FirstOrDefault(x => x.IsPK == 1)?.ColumnName ?? "Id";
-        //    var comparedResult = CompareRecords(dataSource, targetDataTable.Rows.Cast<DataRow>(), Array.Empty<string>(), targetPrimaryKey, targetPrimaryKey);
-
-        //    // 为数据源中的每一条数据生成对应的insert语句的部分
-        //    foreach (JObject dataItem in dataSource.Cast<JObject>())
-        //    {
-        //        // 重复的数据不做处理
-        //        if (targetDataTable.Rows.Count > 0 && AlreadyExistInTarget(targetDataTable.Rows, dataItem))
-        //        {
-        //            continue;
-        //        }
-
-        //        // (@Name1, @Age1),
-        //        string currentRecordSql = GenerateInsertSql(dataItem, targetTableColInfos, parameters, dbVarFlag, random);
-        //        insertSqlBuilder.Append($"{currentRecordSql}");
-        //        random++;
-        //    }
-        //    // 如果表中已经存在所有数据, 那么insertSqlBuilder为空的
-        //    if (insertSqlBuilder.Length == 0)
-        //    {
-        //        Console.WriteLine($"{table}已经拥有所有记录");
-        //        return new TableInsertSqlsInfo
-        //        {
-        //            TableName = table,
-        //        };
-        //    }
-        //    // 最终的insert语句
-        //    // var targetTableAllDataInsertSql = $"insert into {table}({columnsStatement}) values{Environment.NewLine}{insertSqlBuilder.ToString().TrimEnd(',', '\r', '\n')};";
-        //    var targetTableAllDataInsertSql = GetBatchInsertSql(table, columnsStatement, insertSqlBuilder.ToString());
-        //    return new TableInsertSqlsInfo
-        //    {
-        //        TableName = table,
-
-        //        BatchInsertSqlOnly = new BatchInsertSqlOnly()
-        //        {
-        //            // mysql 本次会话取消外键约束检查
-        //            BatchInsertSql = targetTableAllDataInsertSql, // $"SET foreign_key_checks=0;{Environment.NewLine}{targetTableAllDataInsertSql}",
-        //            Parameters = parameters
-        //        }
-        //    };
-        //}
 
         /// <summary>
         /// 将数据库中的数据和指定的数据集合进行对比

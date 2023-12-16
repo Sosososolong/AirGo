@@ -5,7 +5,7 @@
 
 const tables = {};
 
-function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, ths, idFieldName, filterItems = null, data = null, onDataLoaded = undefined, wrapper = '', addModalSettings) {
+function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, ths, idFieldName, filterItems = null, keywords = null, data = null, onDataLoaded = undefined, wrapper = '', modalSettings) {
     if (!tables[tableId]) {
         tables[tableId] = {
             tableId: tableId,
@@ -29,9 +29,10 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
             },
             onDataLoaded: onDataLoaded,
             wrapper: wrapper,
-            formItemIds: [],
+            formItemIds: [], // `${this.tableId}FormInput_${th.name}`
+            formItemIdsForAddPannel: [], // 比formItems少一个Id字段的表单项dom的id
             formItemIdsMapper: {},
-            addModalSettings: addModalSettings,
+            modalSettings: modalSettings,
             ths: ths,
             dataSourceField: {
                 xxFieldName: [
@@ -39,10 +40,13 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
                 ]
             },
             modalId: '',
-            modal: '',
+            modal: {}, // 当前table的bootstrap.Modal对象
             addOptions: {
-                tableForm: '',
-                button: ''
+                button: '',
+            },
+            tableForm: {
+                formHtml: '',
+                formHtmlFieldPk: '',
             }
         }
     }
@@ -51,6 +55,9 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
 
     if (filterItems) {
         targetTable.dataFilter.filterItems = filterItems;
+    }
+    if (keywords) {
+        targetTable.dataFilter.keywords = keywords;
     }
 
     targetTable.renderBody = async function (data) {
@@ -151,65 +158,76 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
     };
 
     targetTable.createModal = async function () {
+        // BOOKMARK: 前端/frontend封装site.js - 创建模态框
         if (this.modalId && this.modal) {
             // 已经创建过了
             return;
         }
 
-        const tableDataModalId = `modelForAdd${this.tableId}`;
+        const tableDataModalId = `modelForTable${this.tableId}`;
         this.modalId = tableDataModalId;
 
+        // BOOKMARK: 前端/frontend封装site.js - 创建模态框 1."添加"按钮(弹出表单)
         //data-bs-toggle="modal" data-bs-target="#${tableDataModalId}"
         this.addOptions.button = `<button type="button" class="btn btn-primary btn-sm mt-3" onclick="showAddPannel(tables['${tableId}'])">添加</button>`;
-        // 构建modal表单 - tableForm
+        // BOOKMARK: 前端/frontend封装site.js - 创建模态框 2.表单项 除Id字段外的其他表单项
         for (var i = 0; i < ths.length; i++) {
             var th = ths[i]
             if (th.name) {
+                if (th.name === 'createTime' || th.name === 'updateTime') {
+                    continue;
+                }
                 let formItemId = `${this.tableId}FormInput_${th.name}`;
                 if (!th.type) {
                     if (th.enumValus) {
-                        // 字段值有限, 下拉框选取
+                        // BOOKMARK: 前端/frontend封装site.js - 创建模态框 3.1表单项 除Id字段外的其他表单项 - 拉选框/数据源/枚举
                         let dataSourceOptions = '';
                         th.enumValus.forEach(val => {
                             dataSourceOptions += `<option value="${val}">${val}</option>`
                         })
-                        this.addOptions.tableForm += `<div class="mb-3">
+                        this.tableForm.formHtml += `<div class="mb-3">
 <label for="${formItemId}" class="col-form-label">${th.title}:</label>
 <select class="form-control form-select-sm" aria-label="Default select" name="${th.name}" id="${formItemId}">${dataSourceOptions}</select>
 </div>`;
                     } else {
-                        this.addOptions.tableForm += `<div class="mb-3">
+                        // BOOKMARK: 前端/frontend封装site.js - 创建模态框 3.2表单项 除Id字段外的其他表单项 - 普通字段
+                        this.tableForm.formHtml += `<div class="mb-3">
 <label for="${formItemId}" class="col-form-label">${th.title}:</label>
 <input class="form-control form-control-sm" type="text" placeholder="${th.title}" name="${th.name}" id="${formItemId}" aria-label=".form-control-sm example">
 <!--<textarea class="form-control form-control-sm" name="${th.name}" id="${formItemId}" aria-label=".form-control-sm example"></textarea>-->
 </div>`;
                     }
 
-                    // 记录表单项Id
+                    // BOOKMARK: 前端/frontend封装site.js - 创建模态框 3.3表单项 除Id字段外的其他表单项 - 记录表单项的元素Id
                     if (this.formItemIds.indexOf(formItemId) === -1) {
                         this.formItemIds.push(formItemId);
+                        this.formItemIdsForAddPannel.push(formItemId);
                         this.formItemIdsMapper[formItemId] = th.name;
                     }
                 } else if (th.type.indexOf('dataSource') === 0) {
                     let dataSourceOptions = await this.resolveDataSourceField(th);
 
-                    this.addOptions.tableForm += `<div class="mb-3">
+                    this.tableForm.formHtml += `<div class="mb-3">
 <label for="${formItemId}" class="col-form-label">${th.title}:</label>
 <select class="form-control form-select-sm" aria-label="Default select" name="${th.name}" id="${formItemId}">${dataSourceOptions}</select>
 </div>`;
                     // 记录表单项Id
                     if (this.formItemIds.indexOf(formItemId) === -1) {
                         this.formItemIds.push(formItemId);
+                        this.formItemIdsForAddPannel.push(formItemId);
                         this.formItemIdsMapper[formItemId] = th.name;
                     }
                 }
             }
         }
-        let idInputId = `${this.tableId}FormInput_id`;
-        this.addOptions.tableForm += `<input name="id" type="hidden" id="${idInputId}" />`;
-        if (this.formItemIds.indexOf(idInputId) === -1) {
-            this.formItemIds.push(idInputId);
-            this.formItemIdsMapper[idInputId] = 'id';
+        let pkInputId = `${this.tableId}FormInput_id`;
+        // BOOKMARK: 前端/frontend封装site.js - 创建模态框 表单项 - Id字段对应的隐藏域
+        this.tableForm.formHtmlFieldPk = `<input name="id" type="hidden" id="${pkInputId}" />`;
+        this.tableForm.formHtml += this.tableForm.formHtmlFieldPk;
+        if (this.formItemIds.indexOf(pkInputId) === -1) {
+            this.formItemIds.push(pkInputId);
+            this.formItemIndexOfPkField = this.formItemIds.indexOf(pkInputId);
+            this.formItemIdsMapper[pkInputId] = 'id'; // 默认所有表的主键字段名都是id, 如果出现例外可以考虑给table添加一个属性pkFieldName存储主键的字段名
         }
 
         this.addOptions.modalHtml = `<div class="modal fade" tabindex="-1" id="${tableDataModalId}">
@@ -220,7 +238,7 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
-        ${this.addOptions.tableForm}
+        ${this.tableForm.formHtml}
         </div>
         <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
@@ -286,7 +304,7 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
             return;
         }
 
-        if (this.addModalSettings) {
+        if (this.modalSettings) {
             await this.createModal();
         }
 
@@ -321,6 +339,7 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
         $(tableParentSelector).append(tableHtml)
         // 获取对应的modal
         if (this.modalId) {
+            // BOOKMARK: 前端/frontend封装site.js - table对象的 bootstrap.Modal对象
             this.modal = new bootstrap.Modal(`#${this.modalId}`);
         }
 
@@ -349,7 +368,7 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
     // 搜索表单提交事件
     $('#search-form').submit(function (event) {
         event.preventDefault();
-        searchQuery = $('#search-input').val().trim();
+        targetTable.dataFilter.keywords.value = $('#search-input').val().trim();
         targetTable.pageIndex = 1;
         targetTable.loadData();
     });
@@ -408,6 +427,9 @@ async function fetchData(url, method, dataFilter, renderElementId, finallyAction
 function showAddPannel(table) {
     let submitButton = document.querySelector(`#${table.modalId} button[data-btn-type="submit"]`);
     submitButton.setAttribute("data-form-type", "add");
+
+    let modalTitle = document.querySelector(`#${table.modalId} .modal-title`);
+    modalTitle.innerHTML = modalTitle.innerHTML.replace("更新", "添加");
     showModal(table);
 }
 
@@ -417,9 +439,13 @@ function showModal(table) {
 
 async function handleData(table, eventTrigger) {
     let handleType = eventTrigger.getAttribute("data-form-type");
-    let url = handleType === "add" ? table.addModalSettings.url : eventTrigger.getAttribute("data-update-url");
-    let method = handleType === "add" ? table.addModalSettings.method : eventTrigger.getAttribute("data-update-method");
-    let data = getFormData(table.formItemIds);
+    let url = handleType === "add" ? table.modalSettings.url : eventTrigger.getAttribute("data-update-url");
+    let method = handleType === "add" ? table.modalSettings.method : eventTrigger.getAttribute("data-update-method");
+
+    // 需要提交的数据对应的所有表单项(添加时不需要Id字段, 如果带上了值为""的Id字段, 会因为转为int类型失败从而导致参数自动绑定失败)
+    let formItemIds = handleType === "add" ? table.formItemIdsForAddPannel : table.formItemIds;
+
+    let data = getFormData(formItemIds);
     let dataJsonString = JSON.stringify(data);
     showSpinner();
     let response = null;
@@ -432,8 +458,6 @@ async function handleData(table, eventTrigger) {
             contentType: 'application/json;charset=utf-8',
             dataType: 'json'
         });
-
-        closeSpinner();
     } catch (e) {
         if (e.status === 500) {
             showErrorBox('接口异常, 请联系系统管理员')
@@ -456,6 +480,9 @@ async function handleData(table, eventTrigger) {
     }
 }
 
+/**
+ * 获取表单/模态框提交的数据
+ */
 function getFormData(formItemIds) {
     var formData = {};
     for (var i = 0; i < formItemIds.length; i++) {
@@ -520,6 +547,9 @@ async function showUpdatePannel(eventTrigger) {
         submitButton.setAttribute("data-form-type", "update");
         submitButton.setAttribute("data-update-url", updateUrl);
         submitButton.setAttribute("data-update-method", method);
+
+        let modalTitle = document.querySelector(`#${table.modalId} .modal-title`);
+        modalTitle.innerHTML = modalTitle.innerHTML.replace("添加", "更新");
         showModal(table);
     }
 }

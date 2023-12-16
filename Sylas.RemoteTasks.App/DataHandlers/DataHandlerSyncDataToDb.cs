@@ -12,7 +12,8 @@ namespace Sylas.RemoteTasks.App.DataHandlers
             var scope = serviceScopeFactory.CreateScope();
             _databaseInfo = scope.ServiceProvider.GetRequiredService<DatabaseInfo>();
         }
-        public async Task StartAsync(params object[] parameters)
+        static readonly string[] _connectionStringSubStrings = ["data source=", "initial catalog=", "server="];
+    public async Task StartAsync(params object[] parameters)
         {
             if (parameters.Length < 2)
             {
@@ -34,13 +35,13 @@ namespace Sylas.RemoteTasks.App.DataHandlers
             IEnumerable<JToken> data = dataSource is IEnumerable<JToken> enumerableData ? enumerableData : new List<JToken>() { JToken.FromObject(dataSource) };
             
             // 数据库连接字符串中, sqlserver, oracle, sqite包含"Data Source=xxx"; mysql, mslocaldb包含"Server=xxx"
-            if (new string[] { "data source=", "initial catalog=", "server=" }.Any(x => targetDb.Contains(x, StringComparison.OrdinalIgnoreCase)))
+            if (_connectionStringSubStrings.Any(x => targetDb.Contains(x, StringComparison.OrdinalIgnoreCase)))
             {
-                await _databaseInfo.SyncDatabaseWithTargetConnectionStringAsync(table, data, Array.Empty<string>(), sourceIdField: idField, targetIdField: idField, targetDb);
+                await _databaseInfo.SyncDatabaseWithTargetConnectionStringAsync(table, data, [], sourceIdField: idField, targetIdField: idField, targetDb);
             }
             else
             {
-                await _databaseInfo.SyncDatabaseWithTargetDbAsync(table, data, Array.Empty<string>(), sourceIdField: idField, targetIdField: idField, targetDb);
+                await _databaseInfo.SyncDatabaseWithTargetDbAsync(table, data, [], sourceIdField: idField, targetIdField: idField, targetDb);
             }
         }
     }
