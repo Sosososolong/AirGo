@@ -36,13 +36,13 @@ namespace Sylas.RemoteTasks.App.Controllers
         public async Task<IActionResult> AddSnippetAsync([FromBody] Snippet snippet)
         {
             var added = await _snippetRepository.AddAsync(snippet);
-            return added > 0 ? Ok() : BadRequest();
+            return added > 0 ? Ok(new OperationResult(true)) : BadRequest();
         }
         
         public async Task<IActionResult> UpdateSnippetAsync([FromBody] Snippet snippet)
         {
             var added = await _snippetRepository.UpdateAsync(snippet);
-            return added > 0 ? Ok() : BadRequest();
+            return added > 0 ? Ok(new OperationResult(true)) : BadRequest();
         }
 
         public async Task<IActionResult> GetSnippetTypesAsync(string keyword)

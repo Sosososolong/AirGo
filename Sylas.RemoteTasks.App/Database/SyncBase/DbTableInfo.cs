@@ -26,20 +26,20 @@ namespace Sylas.RemoteTasks.App.Database.SyncBase
 
             #region 获取insert语句和update语句
             var primaryKeyProp = properties.FirstOrDefault(x => x.Name.ToLower() == "id") ?? throw new Exception($"{entityType.Name}没有找到Id字段");
-            var otherPropertyNames = allPropertyNames.Where(x => x.ToLower() != "id");
+            var otherPropertyNames = allPropertyNames.Where(x => !x.Equals("id", StringComparison.CurrentCultureIgnoreCase));
 
             // 自增主键的数据类型一般是int或者long
             var autoIncreasingPkTypeNames = new string[] { typeof(int).Name, typeof(long).Name };
             var insertSqlFields = autoIncreasingPkTypeNames.Contains(primaryKeyProp.PropertyType.Name) ? otherPropertyNames : allPropertyNames;
             var insertSqlFieldsStatement = string.Join(',', insertSqlFields);
             var insertSqlValuesStatement = string.Join(",", insertSqlFields.Select(x => $"@{x}"));
-            _insertSql = $"insert into {nameof(Snippet)} ({insertSqlFieldsStatement}) values ({insertSqlValuesStatement})";
+            _insertSql = $"insert into {entityType.Name} ({insertSqlFieldsStatement}) values ({insertSqlValuesStatement})";
 
             // Int32 String DateTime
             var updateSqlFields = otherPropertyNames;
-            var updateSqlFieldsStatement = string.Join(',', updateSqlFields);
-            var updateSqlValuesStatement = string.Join(",", updateSqlFields.Select(x => $"@{x}"));
-            _updateSql = $"update into {nameof(Snippet)} ({updateSqlFieldsStatement}) values ({updateSqlValuesStatement})";
+            var updateFieldItems = updateSqlFields.Select(x => $"{x}=@{x}");
+            var updateFieldsStatement = string.Join(",", updateFieldItems);
+            _updateSql = $"update {entityType.Name} set {updateFieldsStatement};";
             #endregion
 
             #region 构建sql执行参数的lambda表达式目录树并缓存lambda表达式

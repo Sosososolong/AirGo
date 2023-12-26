@@ -60,7 +60,7 @@ namespace Sylas.RemoteTasks.App.Repositories
         /// <exception cref="Exception"></exception>
         public async Task<int> UpdateAsync(T t)
         {
-            var recordCount = await _db.ExecuteSqlAsync($"select count(*) from {DbTableInfo<T>._tableName} where id=@id", new Dictionary<string, object> { { "id", t.Id } });
+            var recordCount = await _db.ExecuteScalarAsync($"select count(*) from {DbTableInfo<T>._tableName} where id=@id", new Dictionary<string, object> { { "id", t.Id } });
             if (recordCount == 0)
             {
                 throw new Exception($"{DbTableInfo<T>._tableName}不存在");
@@ -68,7 +68,6 @@ namespace Sylas.RemoteTasks.App.Repositories
             var start = DateTime.Now;
             var sql = DbTableInfo<T>._updateSql;
             var parameters = DbTableInfo<T>._getUpdateSqlParameters(t);
-            await Console.Out.WriteLineAsync($"仓储获取Insert语句信息耗时: {(DateTime.Now - start).TotalMilliseconds}/ms");
             return await _db.ExecuteSqlAsync(sql, parameters);
         }
 
