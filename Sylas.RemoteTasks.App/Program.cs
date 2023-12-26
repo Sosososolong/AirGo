@@ -77,11 +77,13 @@ builder.Services.AddAuthorization(config =>
 {
     config.AddPolicy("sfapi.2", policyBuilder =>
     {
-        policyBuilder.RequireScope("sfapi2");
+        //policyBuilder.RequireScope("sfapi2");
+        policyBuilder.RequireAssertion(context => context.User.Claims.Any(c => c.Type == "scope" && new string[] { "sfapi2", "sfapi3", "iduo.api" }.Contains(c.Value)));
     });
     config.AddPolicy("sfapi.3", policyBuilder =>
     {
-        policyBuilder.RequireScope("sfapi3");
+        //policyBuilder.RequireScope("sfapi3");
+        policyBuilder.RequireAssertion(context => context.User.Claims.Any(c => c.Type == "scope" && new string[] { "sfapi2", "sfapi3", "iduo.api" }.Contains(c.Value)));
     });
 });
 

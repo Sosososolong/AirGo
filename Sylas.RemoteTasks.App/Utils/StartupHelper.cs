@@ -72,11 +72,11 @@ namespace Sylas.RemoteTasks.App.Utils
 
         public static class LiftTimeTestContainer
         {
-            public static List<RequestProcessorDataTable> requestProcessorDataTableApis { get; set; } = new List<RequestProcessorDataTable>();
-            public static List<ILogger> requestProcessorDataTableApisLog { get; set; } = new List<ILogger>();
-            public static List<IConfiguration> configurations { get; set; } = new List<IConfiguration>();
-            public static List<IServiceProvider> serviceProviders { get; set; } = new List<IServiceProvider>();
-            public static List<DatabaseInfo> databaseInfos { get; set; } = new List<DatabaseInfo>();
+            public static List<RequestProcessorDataTable> requestProcessorDataTableApis { get; set; } = [];
+            public static List<ILogger> requestProcessorDataTableApisLog { get; set; } = [];
+            public static List<IConfiguration> configurations { get; set; } = [];
+            public static List<IServiceProvider> serviceProviders { get; set; } = [];
+            public static List<DatabaseInfo> databaseInfos { get; set; } = [];
         }
     }
 }

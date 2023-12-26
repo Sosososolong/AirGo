@@ -53,7 +53,7 @@
             /**
              * HttpRequestProcessors
              */
-            createTable(apiUrl, 1, 10, tableId, tableParentSelector, ths, idFieldName, null, null, onProcessorsDataLoaded, ''
+            createTable(apiUrl, 1, 10, tableId, tableParentSelector, ths, idFieldName, null, null, null, onProcessorsDataLoaded, ''
                 , { modalType: 'add', url: 'Sync/AddHttpRequestProcessor', 'method': 'POST' }
             )
 
@@ -97,6 +97,7 @@
                             value: processorId.toString()
                         }
                     ],
+                    null,
                     steps,
                     null,
                     // wrapper 每一张表关联的是Processor表的某一行数据
@@ -149,6 +150,7 @@
                                     value: stepId.toString()
                                 }
                             ],
+                            null,
                             loadingData,
                             null,
                             // wrapper 每一张表关联的是Steps表的某一行数据

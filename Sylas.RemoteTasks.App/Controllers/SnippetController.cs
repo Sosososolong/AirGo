@@ -33,13 +33,19 @@ namespace Sylas.RemoteTasks.App.Controllers
             var snippetPage = await _snippetRepository.GetPageAsync(pageIndex, pageSize, orderField, isAsc, dataFilter);
             return Json(snippetPage);
         }
-        public async Task<IActionResult> AddSnippet([FromBody] Snippet snippet)
+        public async Task<IActionResult> AddSnippetAsync([FromBody] Snippet snippet)
         {
             var added = await _snippetRepository.AddAsync(snippet);
             return added > 0 ? Ok() : BadRequest();
         }
+        
+        public async Task<IActionResult> UpdateSnippetAsync([FromBody] Snippet snippet)
+        {
+            var added = await _snippetRepository.UpdateAsync(snippet);
+            return added > 0 ? Ok() : BadRequest();
+        }
 
-        public async Task<IActionResult> GetSnippetTypes(string keyword)
+        public async Task<IActionResult> GetSnippetTypesAsync(string keyword)
         {
             Keywords keywords = string.IsNullOrWhiteSpace(keyword)
                 ? new Keywords()
