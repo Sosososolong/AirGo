@@ -1,12 +1,11 @@
 using IdentityServer4.AccessTokenValidation;
-using Microsoft.AspNetCore.Authorization;
 using Sylas.RemoteTasks.App.BackgroundServices;
 using Sylas.RemoteTasks.App.Database;
 using Sylas.RemoteTasks.App.DataHandlers;
+using Sylas.RemoteTasks.App.Helpers;
 using Sylas.RemoteTasks.App.RemoteHostModule;
 using Sylas.RemoteTasks.App.Repositories;
 using Sylas.RemoteTasks.App.RequestProcessor;
-using Sylas.RemoteTasks.App.Utils;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -64,7 +63,7 @@ builder.Services.AddAuthentication(options =>
 }).AddIdentityServerAuthentication(options =>
 {
     options.Authority = builder.Configuration["IdentityServerConfiguration:Authority"];
-    // 即api resource
+    // 即api resource (获取token时参数scope关联的api resource)
     options.ApiName = builder.Configuration["IdentityServerConfiguration:ApiName"];
     // 即api resource secret
     options.ApiSecret = builder.Configuration["IdentityServerConfiguration:ApiSecret"];
@@ -78,12 +77,12 @@ builder.Services.AddAuthorization(config =>
     config.AddPolicy("sfapi.2", policyBuilder =>
     {
         //policyBuilder.RequireScope("sfapi2");
-        policyBuilder.RequireAssertion(context => context.User.Claims.Any(c => c.Type == "scope" && new string[] { "sfapi2", "sfapi3", "iduo.api" }.Contains(c.Value)));
+        policyBuilder.RequireAssertion(context => context.User.Claims.Any(c => c.Type == "scope" && c.Value == "sfapi2"));
     });
     config.AddPolicy("sfapi.3", policyBuilder =>
     {
         //policyBuilder.RequireScope("sfapi3");
-        policyBuilder.RequireAssertion(context => context.User.Claims.Any(c => c.Type == "scope" && new string[] { "sfapi2", "sfapi3", "iduo.api" }.Contains(c.Value)));
+        policyBuilder.RequireAssertion(context => context.User.Claims.Any(c => c.Type == "scope" && c.Value == "sfapi3"));
     });
 });
 

@@ -1,20 +1,15 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Sylas.RemoteTasks.App.Utils;
+using Sylas.RemoteTasks.Utils;
 using Xunit.Abstractions;
 
 namespace Sylas.RemoteTasks.Test.SystemHelperTest
 {
-    public partial class WindowOperationTest : IClassFixture<TestFixture>
+    public partial class WindowOperationTest(ITestOutputHelper outputHelper, TestFixture fixture) : IClassFixture<TestFixture>
     {
-        private readonly ITestOutputHelper _outputHelper;
-        private readonly IConfiguration _configuration;
+        private readonly ITestOutputHelper _outputHelper = outputHelper;
+        private readonly IConfiguration _configuration = fixture.ServiceProvider.GetRequiredService<IConfiguration>();
 
-        public WindowOperationTest(ITestOutputHelper outputHelper, TestFixture fixture)
-        {
-            _outputHelper = outputHelper;
-            _configuration = fixture.ServiceProvider.GetRequiredService<IConfiguration>();
-        }
         [Fact]
         public void ShowAllWindowsTest()
         {
@@ -48,7 +43,7 @@ namespace Sylas.RemoteTasks.Test.SystemHelperTest
         [Fact]
         public void GlobalHotKey()
         {
-            SystemHelper.RegisterGlobalHotKey(new List<GlobalHotKey> { new GlobalHotKey(1, new List<string> { "ctrl", "shift" }, "f12") });
+            SystemHelper.RegisterGlobalHotKey([new GlobalHotKey(1, ["ctrl", "shift"], "f12")]);
         }
     }
 }

@@ -1,12 +1,10 @@
-﻿using Dapper;
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using Sylas.RemoteTasks.App.Database.SyncBase;
-using Sylas.RemoteTasks.App.Utils;
+using Sylas.RemoteTasks.Database;
+using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Test.AppSettingsOptions;
-using System.Data;
+using Sylas.RemoteTasks.Utils;
 using System.Text;
 using Xunit.Abstractions;
 
@@ -56,7 +54,7 @@ namespace Sylas.RemoteTasks.Test.Remote
             Assert.NotNull(targetDbConnectionString);
             Assert.True(configData is not null);
             var conn = DatabaseInfo.GetDbConnection(targetDbConnectionString);
-            await DatabaseHelper.SyncDataAsync(conn, "devdatamodel", config.Data?.ToList(), Array.Empty<string>(), Array.Empty<string>());
+            await DatabaseHelper.SyncDataAsync(conn, "devdatamodel", config.Data?.ToList() ?? [], [], []);
         }
 
         /// <summary>
@@ -125,7 +123,7 @@ namespace Sylas.RemoteTasks.Test.Remote
                 }
             }
             File.WriteAllText(@"D:\.NET\id\routine\txt\siteportalentities.txt", fileContentBuilder.ToString());
-            
+
         }
         /// <summary>
         /// 将比较大的秒的值格式化为x天x时x分x秒的格式

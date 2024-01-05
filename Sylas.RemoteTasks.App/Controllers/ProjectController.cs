@@ -1,29 +1,24 @@
 ﻿using IdentityServer4.AccessTokenValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Sylas.RemoteTasks.App.Database.SyncBase;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.RegexExp;
 using Sylas.RemoteTasks.App.Repositories;
-using Sylas.RemoteTasks.App.Utils;
+using Sylas.RemoteTasks.Database.SyncBase;
+using Sylas.RemoteTasks.Utils;
 using System.Text.RegularExpressions;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {
-    public partial class ProjectController : Controller
+    public partial class ProjectController(DbConnectionInfoRepository dbConnectionInfoRepository, IConfiguration configuration) : Controller
     {
-        private readonly DbConnectionInfoRepository _dbConnectionInfoRepository;
-        private readonly IConfiguration _configuration;
+        private readonly DbConnectionInfoRepository _dbConnectionInfoRepository = dbConnectionInfoRepository;
+        private readonly IConfiguration _configuration = configuration;
 
-        public ProjectController(DbConnectionInfoRepository dbConnectionInfoRepository, IConfiguration configuration)
-        {
-            _dbConnectionInfoRepository = dbConnectionInfoRepository;
-            _configuration = configuration;
-        }
         public async Task<IActionResult> Index()
         {
             var connectionInfos = (await _dbConnectionInfoRepository.GetPageAsync(1, 10000, "Name", true, new DataFilter())).Data;
-            List<DbConnectionDetial> connectionDetails = new();
+            List<DbConnectionDetial> connectionDetails = [];
             foreach (var connectionInfo in connectionInfos)
             {
                 var connectionDetail = DatabaseInfo.GetDbConnectionDetial(connectionInfo.ConnectionString);

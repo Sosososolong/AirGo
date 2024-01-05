@@ -1,5 +1,5 @@
 ﻿using Newtonsoft.Json;
-using Sylas.RemoteTasks.App.Database.SyncBase;
+using Sylas.RemoteTasks.Database.SyncBase;
 
 namespace Sylas.RemoteTasks.App.DataHandlers
 {

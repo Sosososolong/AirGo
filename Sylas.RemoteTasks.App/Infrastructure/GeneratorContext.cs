@@ -1,7 +1,6 @@
-﻿using System.Text.RegularExpressions;
+﻿using Sylas.RemoteTasks.Utils;
 using System.Text;
-using Sylas.RemoteTasks.App.Utils;
-using Sylas.RemoteTasks.App.Entities;
+using System.Text.RegularExpressions;
 
 namespace Sylas.RemoteTasks.App.Infrastructure
 {
@@ -30,7 +29,7 @@ namespace Sylas.RemoteTasks.App.Infrastructure
             {
                 Directory.CreateDirectory(CurrentProject.BaseDir);
             }
-            string result = await CmdHandler.ExecuteAsync(new List<string> {
+            string result = await CmdHandler.ExecuteAsync([
                 CmdHandler.CreateSlnStatement
                 ,
                 CmdHandler.CreateWebEmptyStatement
@@ -44,7 +43,7 @@ namespace Sylas.RemoteTasks.App.Infrastructure
                 CmdHandler.AddinSlnCore
                 ,
                 CmdHandler.AddinSlnInfrastructure
-            }, CurrentProject.BaseDir);
+            ], CurrentProject.BaseDir);
 
             FileHelper.DeleteFiles(CurrentProject.SolutionFiles.Where(f => f.EndsWith("Class1.cs")).Select(f => f).ToList());
 

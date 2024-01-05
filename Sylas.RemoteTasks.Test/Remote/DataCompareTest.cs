@@ -1,23 +1,15 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Newtonsoft.Json.Linq;
-using Newtonsoft.Json;
-using Sylas.RemoteTasks.App.Database.SyncBase;
+using Sylas.RemoteTasks.Database.SyncBase;
 using Xunit.Abstractions;
 
 namespace Sylas.RemoteTasks.Test.Remote
 {
-    public class DataCompareTest : IClassFixture<TestFixture>
+    public class DataCompareTest(ITestOutputHelper outputHelper, TestFixture fixture) : IClassFixture<TestFixture>
     {
-        private readonly ITestOutputHelper _outputHelper;
-        private readonly DatabaseInfo _databaseInfo;
-        private readonly IConfiguration _configuration;
-        public DataCompareTest(ITestOutputHelper outputHelper, TestFixture fixture)
-        {
-            _outputHelper = outputHelper;
-            _databaseInfo = fixture.ServiceProvider.GetRequiredService<DatabaseInfo>();
-            _configuration = fixture.ServiceProvider.GetRequiredService<IConfiguration>();
-        }
+        private readonly ITestOutputHelper _outputHelper = outputHelper;
+        private readonly DatabaseInfo _databaseInfo = fixture.ServiceProvider.GetRequiredService<DatabaseInfo>();
+        private readonly IConfiguration _configuration = fixture.ServiceProvider.GetRequiredService<IConfiguration>();
 
         /// <summary>
         /// 数据库 数据脱敏

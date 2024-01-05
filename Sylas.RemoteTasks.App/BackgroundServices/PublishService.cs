@@ -1,19 +1,14 @@
-﻿using Sylas.RemoteTasks.App.Utils;
-using System.Net;
+﻿using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
 namespace Sylas.RemoteTasks.App.BackgroundServices
 {
-    public class PublishService : BackgroundService
+    public class PublishService(IConfiguration configuration) : BackgroundService
     {
-        public PublishService(IConfiguration configuration)
-        {
-            _configuration = configuration;
-        }
         private const int bufferSize = 1024 * 1024;
         private readonly byte ZeroByteValue = Encoding.UTF8.GetBytes("0").First();
-        private readonly IConfiguration _configuration;
+        private readonly IConfiguration _configuration = configuration;
 
         protected override Task ExecuteAsync(CancellationToken stoppingToken)
         {

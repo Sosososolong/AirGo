@@ -2,15 +2,14 @@
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Sylas.RemoteTasks.App.Database;
-using Sylas.RemoteTasks.App.Database.SyncBase;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.Models;
-using Sylas.RemoteTasks.App.Utils;
+using Sylas.RemoteTasks.Database.SyncBase;
+using Sylas.RemoteTasks.Utils;
 using System.Data;
 using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {

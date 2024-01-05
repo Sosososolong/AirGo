@@ -1,8 +1,8 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Sylas.RemoteTasks.App.Utils;
+using Sylas.RemoteTasks.Utils;
 using System.Dynamic;
-using static Sylas.RemoteTasks.App.Utils.NodesHelper;
+using static Sylas.RemoteTasks.Utils.NodesHelper;
 
 namespace Sylas.RemoteTasks.Test.Nodes
 {
@@ -15,16 +15,16 @@ namespace Sylas.RemoteTasks.Test.Nodes
         public void GetChildrenNodes()
         {
             var nodes = new Node[] {
-                new Node { ID = 1, ParentID = 0 },
-                new Node { ID = 2, ParentID = 1 },
-                new Node { ID = 3, ParentID = 1 },
+                new() { ID = 1, ParentID = 0 },
+                new() { ID = 2, ParentID = 1 },
+                new() { ID = 3, ParentID = 1 },
 
-                new Node { ID = 4, ParentID = 0 },
-                new Node { ID = 5, ParentID = 4 },
-                new Node { ID = 6, ParentID = 4 },
-                new Node { ID = 7, ParentID = 6 }
+                new() { ID = 4, ParentID = 0 },
+                new() { ID = 5, ParentID = 4 },
+                new() { ID = 6, ParentID = 4 },
+                new() { ID = 7, ParentID = 6 }
             };
-            var res = GetChildren(nodes.ToList());
+            var res = GetChildren([.. nodes]);
             Assert.NotNull(res);
             Assert.True(res.Any());
             System.Diagnostics.Debug.WriteLine(JsonConvert.SerializeObject(res));
@@ -46,7 +46,7 @@ namespace Sylas.RemoteTasks.Test.Nodes
             dynamic n7 = new ExpandoObject(); n1.ID = 1; n1.ParentID = 0; nodes.Add(n7);
             var res = GetDynamicChildren(nodes);
             Assert.NotNull(res);
-            Assert.True(res.Any());
+            Assert.True(res.Count != 0);
             System.Diagnostics.Debug.WriteLine(JsonConvert.SerializeObject(res));
         }
 

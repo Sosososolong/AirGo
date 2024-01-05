@@ -7,6 +7,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Sylas.RemoteTasks.App", "Sy
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Sylas.RemoteTasks.Test", "Sylas.RemoteTasks.Test\Sylas.RemoteTasks.Test.csproj", "{7F96E3C5-69B9-489D-A732-40E4A0192C22}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sylas.RemoteTasks.Database", "Sylas.RemoteTasks.Database\Sylas.RemoteTasks.Database.csproj", "{B7AB40AE-9045-4CEF-B3C2-AC59EC3BA463}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sylas.RemoteTasks.Utils", "Sylas.RemoteTasks.Utils\Sylas.RemoteTasks.Utils.csproj", "{4C8CF5D9-C644-4893-A500-2250D8F48BB1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +25,14 @@ Global
 		{7F96E3C5-69B9-489D-A732-40E4A0192C22}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7F96E3C5-69B9-489D-A732-40E4A0192C22}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7F96E3C5-69B9-489D-A732-40E4A0192C22}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B7AB40AE-9045-4CEF-B3C2-AC59EC3BA463}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B7AB40AE-9045-4CEF-B3C2-AC59EC3BA463}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B7AB40AE-9045-4CEF-B3C2-AC59EC3BA463}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B7AB40AE-9045-4CEF-B3C2-AC59EC3BA463}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4C8CF5D9-C644-4893-A500-2250D8F48BB1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4C8CF5D9-C644-4893-A500-2250D8F48BB1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4C8CF5D9-C644-4893-A500-2250D8F48BB1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4C8CF5D9-C644-4893-A500-2250D8F48BB1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

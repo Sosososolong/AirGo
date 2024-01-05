@@ -1,8 +1,8 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Sylas.RemoteTasks.App.Database.SyncBase;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.Repositories;
 using Sylas.RemoteTasks.App.Snippets;
+using Sylas.RemoteTasks.Database.SyncBase;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {
@@ -38,7 +38,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             var added = await _snippetRepository.AddAsync(snippet);
             return added > 0 ? Ok(new OperationResult(true)) : BadRequest();
         }
-        
+
         public async Task<IActionResult> UpdateSnippetAsync([FromBody] Snippet snippet)
         {
             var added = await _snippetRepository.UpdateAsync(snippet);

@@ -1,10 +1,6 @@
-﻿using Microsoft.Extensions.Hosting;
-using Renci.SshNet;
+﻿using Renci.SshNet;
 using Sylas.RemoteTasks.App.RegexExp;
-using Sylas.RemoteTasks.App.Utils;
-using System.Collections.Concurrent;
-using System.Linq;
-using System.Text.RegularExpressions;
+using Sylas.RemoteTasks.Utils;
 
 namespace Sylas.RemoteTasks.App.RemoteHostModule
 {
@@ -271,14 +267,14 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
                         var filename = Path.GetFileName(remoteFile);
                         var relativePath = remoteFile.Replace(remote, string.Empty); // "www/index.html"
                         var localfile = Path.Combine(local, relativePath).Replace('\\', '/');
-                        
+
                         // 校验本地目录
                         var localfileDir = Path.GetDirectoryName(localfile)?.Replace('\\', '/');
                         if (!string.IsNullOrWhiteSpace(localfileDir) && !Directory.Exists(localfileDir))
                         {
                             Directory.CreateDirectory(localfileDir);
                         }
-                        
+
                         using var localFile = File.OpenWrite(localfile);
                         conn.DownloadFile(remoteFile, localFile);
                     }
@@ -384,14 +380,14 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
             var error = cmd.Error;
 
             ReturnConnection(conn);
-            
+
             if (string.IsNullOrWhiteSpace(error))
             {
                 return Tuple.Create(true, output);
             }
             return Tuple.Create(false, error);
         }
-        
+
         /// <summary>
         /// 使用SSH连接主机处理文件, 服务器上没有该文件则上传; 如果文件上传了, 说明不是容器环境那么也需要将处理后的文件下载下来
         /// </summary>

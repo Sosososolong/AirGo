@@ -1,11 +1,11 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Sylas.RemoteTasks.App.Database.SyncBase;
+using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.App.DataHandlers;
 using Sylas.RemoteTasks.App.Models.HttpRequestProcessor;
 using Sylas.RemoteTasks.App.Repositories;
-using Sylas.RemoteTasks.App.Utils;
-using Sylas.RemoteTasks.App.Utils.Template;
+using Sylas.RemoteTasks.Utils;
+using Sylas.RemoteTasks.Utils.Template;
 using System.Reflection;
 
 namespace Sylas.RemoteTasks.App.RequestProcessor

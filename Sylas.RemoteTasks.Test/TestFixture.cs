@@ -1,11 +1,10 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Sylas.RemoteTasks.App.Database;
-using Sylas.RemoteTasks.App.Database.SyncBase;
 using Sylas.RemoteTasks.App.RemoteHostModule;
 using Sylas.RemoteTasks.App.Repositories;
-using System.Configuration;
+using Sylas.RemoteTasks.Database;
+using Sylas.RemoteTasks.Database.SyncBase;
 
 namespace Sylas.RemoteTasks.Test
 {

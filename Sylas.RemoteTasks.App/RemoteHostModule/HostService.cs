@@ -1,9 +1,4 @@
-﻿using MySqlX.XDevAPI.Common;
-using Renci.SshNet;
-using Sylas.RemoteTasks.App.Utils;
-using System.Text.RegularExpressions;
-
-namespace Sylas.RemoteTasks.App.RemoteHostModule
+﻿namespace Sylas.RemoteTasks.App.RemoteHostModule
 {
     public class HostService
     {
@@ -40,7 +35,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
         {
             return _hostInfoManagers;
         }
-        
+
         public object Execute(ExecuteDto executeDto)
         {
             var hostInfoManager = _hostInfoManagers.FirstOrDefault(x => x.RemoteHost.Ip == executeDto.HostIp);

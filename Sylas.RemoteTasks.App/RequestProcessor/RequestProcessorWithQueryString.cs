@@ -1,6 +1,6 @@
 ﻿using Newtonsoft.Json.Linq;
-using Sylas.RemoteTasks.App.Utils;
-using Sylas.RemoteTasks.App.Utils.Template;
+using Sylas.RemoteTasks.Utils;
+using Sylas.RemoteTasks.Utils.Template;
 
 namespace Sylas.RemoteTasks.App.RequestProcessor
 {

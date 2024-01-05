@@ -1,5 +1,6 @@
-﻿using Sylas.RemoteTasks.App.Database.SyncBase;
-using Sylas.RemoteTasks.App.Database;
+﻿using Sylas.RemoteTasks.App.Database;
+using Sylas.RemoteTasks.Database;
+using Sylas.RemoteTasks.Database.SyncBase;
 
 namespace Sylas.RemoteTasks.App.Repositories
 {
@@ -68,6 +69,7 @@ namespace Sylas.RemoteTasks.App.Repositories
             var start = DateTime.Now;
             var sql = DbTableInfo<T>._updateSql;
             var parameters = DbTableInfo<T>._getUpdateSqlParameters(t);
+            await Console.Out.WriteLineAsync($"仓储获取Update语句信息耗时: {(DateTime.Now - start).TotalMilliseconds}/ms");
             return await _db.ExecuteSqlAsync(sql, parameters);
         }
 

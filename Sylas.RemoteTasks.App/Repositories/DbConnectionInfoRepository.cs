@@ -1,7 +1,7 @@
-﻿using Sylas.RemoteTasks.App.Database;
-using Sylas.RemoteTasks.App.Database.SyncBase;
+﻿using Sylas.RemoteTasks.App.Models.DbConnectionStrings;
 using Sylas.RemoteTasks.App.Models.DbConnectionStrings.Dtos;
-using Sylas.RemoteTasks.App.Models.DbConnectionStrings;
+using Sylas.RemoteTasks.Database;
+using Sylas.RemoteTasks.Database.SyncBase;
 using System.Text;
 
 namespace Sylas.RemoteTasks.App.Repositories
