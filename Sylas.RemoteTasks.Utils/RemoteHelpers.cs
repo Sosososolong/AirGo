@@ -322,7 +322,7 @@ namespace Sylas.RemoteTasks.Utils
             // **1. 分页递归(根据父级Id获取所有子节点,可能有多页数据)**
             async Task<List<JToken>> ApiChildrenDataAsync()
             {
-                List<JToken> allApiDatas = new();
+                List<JToken> allApiDatas = [];
                 var pageIndex = 1;
 
                 #region 请求方式和参数
@@ -433,31 +433,84 @@ namespace Sylas.RemoteTasks.Utils
             return data;
         }
     }
+    /// <summary>
+    /// http请求的媒体类型
+    /// </summary>
     public class MediaType
     {
+        /// <summary>
+        /// 媒体类型 - form-urlencoded
+        /// </summary>
         public const string FormuUrlencoded = "application/x-www-form-urlencoded";
+        /// <summary>
+        /// 媒体类型 - json
+        /// </summary>
         public const string Json = "application/json";
     }
-
+    /// <summary>
+    /// Http请求参数配置
+    /// </summary>
     public class RequestConfig
     {
+        /// <summary>
+        /// 请求地址
+        /// </summary>
         public string? Url { get; set; }
+        /// <summary>
+        /// 分页页码字段
+        /// </summary>
         public string? PageIndexField { get; set; }
+        /// <summary>
+        /// 分页每页多少条数据对应的字段
+        /// </summary>
         public bool? PageIndexParamInQuery { get; set; }
+        /// <summary>
+        /// 数据的Id字段名
+        /// </summary>
         public string? IdFieldName { get; set; }
+        /// <summary>
+        /// 父级数据的外键字段名称(如果有的话)
+        /// </summary>
         public string? ParentIdFieldName { get; set; }
+        /// <summary>
+        /// querystring字典
+        /// </summary>
         public IDictionary<string, object>? QueryDictionary { get; set; }
+        /// <summary>
+        /// 请求体中数据字典
+        /// </summary>
         public JToken? BodyDictionary { get; set; }
+        /// <summary>
+        /// 响应数据中表示成功的字段
+        /// </summary>
         public string? ResponseOkField { get; set; }
+        /// <summary>
+        /// 响应json中表示成功的字段值是多少时表示成功
+        /// </summary>
         public string? ResponseOkValue { get; set; }
+        /// <summary>
+        /// 响应json中数据所在的字段
+        /// </summary>
         public string? ResponseDataField { get; set; }
+        /// <summary>
+        /// 请求失败时返回的信息
+        /// </summary>
         public string? FailMsg { get; set; }
+        /// <summary>
+        /// 匹配ParentId的正则表达式
+        /// </summary>
         public string? UpdateBodyParentIdRegex { get; set; }
+        /// <summary>
+        /// ParentId所要替换为的新值
+        /// </summary>
         public string? UpdateBodyParentIdValue { get; set; }
         /// <summary>
         /// get or post
         /// </summary>
-        public string RequestMethod { get; set; }
+        public string RequestMethod { get; set; } = "GET";
+        /// <summary>
+        /// 请求的token
+        /// </summary>
         public string? Token { get; set; }
         /// <summary>
         /// 请求获取的数据

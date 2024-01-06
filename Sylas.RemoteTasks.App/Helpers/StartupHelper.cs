@@ -71,14 +71,5 @@ namespace Sylas.RemoteTasks.App.Helpers
                 SystemHelper.RegisterGlobalHotKey(globalHotKeyList);
             }
         }
-
-        public static class LiftTimeTestContainer
-        {
-            public static List<RequestProcessorDataTable> requestProcessorDataTableApis { get; set; } = [];
-            public static List<ILogger> requestProcessorDataTableApisLog { get; set; } = [];
-            public static List<IConfiguration> configurations { get; set; } = [];
-            public static List<IServiceProvider> serviceProviders { get; set; } = [];
-            public static List<DatabaseInfo> databaseInfos { get; set; } = [];
-        }
     }
 }

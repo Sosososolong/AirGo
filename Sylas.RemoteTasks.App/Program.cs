@@ -28,8 +28,8 @@ builder.Services.AddHttpContextAccessor();
 // 添加远程主机服务对象
 builder.Services.AddRemoteHostManager(builder.Configuration);
 // 添加"网络请求任务"工厂
-builder.Services.AddSingleton<RequestProcessorDataTable>();
-builder.Services.AddSingleton<RequestProcessorWithQueryString>();
+builder.Services.AddSingleton<RequestProcessorBase>();
+
 // 添加仓储 - 泛型仓储
 builder.Services.AddScoped(typeof(RepositoryBase<>), typeof(RepositoryBase<>));
 builder.Services.AddScoped<HttpRequestProcessorRepository>();

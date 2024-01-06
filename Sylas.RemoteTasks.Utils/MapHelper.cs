@@ -8,16 +8,21 @@ using System.Reflection;
 
 namespace Sylas.RemoteTasks.Utils
 {
+    /// <summary>
+    /// 对象转化/复制帮助类
+    /// </summary>
+    /// <typeparam name="TIn"></typeparam>
+    /// <typeparam name="TOut"></typeparam>
     public static class MapHelper<TIn, TOut>
     {
         /// <summary>
         /// 其结果被赋值给静态只读字段cache。因此，GetFunc()只会在类第一次被访问时被调用一次
         /// </summary>
-        private static readonly Func<TIn, TOut> cache = GetFunc();
+        private static readonly Func<TIn, TOut> _cache = GetFunc();
         private static Func<TIn, TOut> GetFunc()
         {
             ParameterExpression parameterExpression = Expression.Parameter(typeof(TIn), "p");
-            List<MemberBinding> memberBindingList = new();
+            List<MemberBinding> memberBindingList = [];
 
             foreach (var item in typeof(TOut).GetProperties())
             {
@@ -32,13 +37,18 @@ namespace Sylas.RemoteTasks.Utils
                 memberBindingList.Add(memberBinding);
             }
 
-            MemberInitExpression memberInitExpression = Expression.MemberInit(Expression.New(typeof(TOut)), memberBindingList.ToArray());
+            MemberInitExpression memberInitExpression = Expression.MemberInit(Expression.New(typeof(TOut)), [.. memberBindingList]);
             Expression<Func<TIn, TOut>> lambda = Expression.Lambda<Func<TIn, TOut>>(memberInitExpression, new ParameterExpression[] { parameterExpression });
             return lambda.Compile();
         }
+        /// <summary>
+        /// 从TIn对象获取TOut对象
+        /// </summary>
+        /// <param name="tIn"></param>
+        /// <returns></returns>
         public static TOut Map(TIn tIn)
         {
-            return cache(tIn);
+            return _cache(tIn);
         }
     }
 

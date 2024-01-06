@@ -10,7 +10,7 @@ using System.Reflection;
 
 namespace Sylas.RemoteTasks.App.RequestProcessor
 {
-    public abstract class RequestProcessorBase : IRequestProcessor
+    public class RequestProcessorBase : IRequestProcessor
     {
         protected RequestConfig _requestConfig;
         private readonly IConfiguration _configuration;
@@ -24,10 +24,10 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                 Url = "",
                 FailMsg = "",
                 IdFieldName = "id",
-                PageIndexField = "",
-                PageIndexParamInQuery = false,
+                PageIndexField = "PageIndex",
+                PageIndexParamInQuery = true,
                 ParentIdFieldName = string.Empty,
-                QueryDictionary = null,
+                QueryDictionary = new Dictionary<string, object>(),
                 BodyDictionary = null,
                 RequestMethod = "post",
                 ResponseDataField = "data",
@@ -38,119 +38,44 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
             _configuration = configuration;
             _logger = logger;
             _serviceProvider = serviceProvider;
-            DataContext = new Dictionary<string, object>();
+            DataContext = [];
             // TODO: 添加初始化配置
             //DataContext["$dataModelCodes"] = new JArray("yct_xkzygs");
 
             _logger.LogCritical("Processor Initialized");
         }
-        protected abstract IEnumerable<RequestConfig> UpdateRequestConfig(Dictionary<string, object> dataContext, List<string> values);
-        protected abstract IEnumerable<RequestConfig> UpdateRequestConfig2(Dictionary<string, object> dataContextDictionary, string? queryJson, string bodyJson);
         /// <summary>
-        /// 解析参数发送请求并且构建数据上下文, 最后对数据进行对应的操作
+        /// 设置分页页码参数名
         /// </summary>
-        /// <param name="parameters"></param>
-        /// <returns></returns>
-        /// <exception cref="Exception"></exception>
-        public async Task<RequestProcessorBase> ExecuteStepsFromAppsettingsAsync(IEnumerable<IConfigurationSection> requestProcessorSteps, string requestProcessorUrl)
+        /// <param name="pageIndexField"></param>
+        public void SetPageIndexField(string pageIndexField)
         {
-            // 初始化请求地址
-            _requestConfig.Url = requestProcessorUrl;
-
-            var requestProcessorStepsArray = requestProcessorSteps.ToArray();
-            var stepCount = requestProcessorStepsArray.Length;
-            var backtrackingNextStep = false;
-            var currentStepIndex = 0;
-            for (int stepIndex = 0; stepIndex < stepCount; stepIndex++)
-            {
-                currentStepIndex = stepIndex;
-                // { "Parameters": "", "DataContextBuilder": [] }
-                var requestProcessorStep = requestProcessorStepsArray[stepIndex];
-                var stepDetail = requestProcessorStep.GetChildren();
-                List<string> values = new();
-                var dataContextTmpls = new List<string>();
-                var dataContextHandlers = new List<DataHandlerInfo>();
-                _logger.LogInformation($"{new string('*', 20)} New RequestProcessor Step {stepIndex} {new string('*', 20)}");
-                foreach (var stepDetailItem in stepDetail)
-                {
-                    if (stepDetailItem.Key == "Parameters")
-                    {
-                        values = (stepDetailItem.Value ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
-                        _logger?.LogDebug($"call ResolveAsync, 获取请求参数 {stepDetailItem.Value}");
-                    }
-                    else if (stepDetailItem.Key == "DataContextBuilder")
-                    {
-                        dataContextTmpls = stepDetailItem.GetChildren().Select(x => x.Value ?? "").ToList();
-                        _logger?.LogDebug($"call ResolveAsync, 获取DataContext模板配置 {string.Join(',', dataContextTmpls)}");
-                    }
-                    else if (stepDetailItem.Key == "DataHandlers")
-                    {
-                        var dataHandlers = stepDetailItem.GetChildren();
-                        foreach (var dataHandler in dataHandlers)
-                        {
-                            var handlerName = dataHandler.GetValue<string>("Handler") ?? throw new Exception("没有找到Handler");
-                            var handlerParameters = dataHandler.GetSection("Parameters").GetChildren().Select(x => x.Value ?? "").ToList();
-                            dataContextHandlers.Add(new DataHandlerInfo(handlerName, handlerParameters, dataHandler.GetValue<int>("OrderNo")));
-                            _logger?.LogDebug($"call ResolveAsync, 获取DataHandlers, DataHandler: {handlerName}, 参数:{Environment.NewLine}{string.Join(Environment.NewLine, handlerParameters)}");
-                        }
-                    }
-                    else if (stepDetailItem.Key == "BacktrackingStepIndex")
-                    {
-                        // 预期的值n需要-1, 因为for循环里面会执行++操作正好等于预期值n
-                        stepIndex = Convert.ToInt16(stepDetailItem.Value) - 1;
-                        backtrackingNextStep = true;
-                    }
-                    else if (stepDetailItem.Key == "DataContext")
-                    {
-                        // 初始化DataContext
-                        var dataContextItems = stepDetailItem.GetChildren();
-                        foreach (var dataContextItem in dataContextItems)
-                        {
-                            DataContext[dataContextItem.Key] = dataContextItem.Value ?? "";
-                        }
-                    }
-                    else
-                    {
-                        _logger?.LogError($"无效的Task: {stepDetailItem.Key}");
-                    }
-                }
-                var requestConfigs = UpdateRequestConfig(DataContext, values);
-
-                #region 处理当前Step所有的Request, Datahandler
-                foreach (var requestConfig in requestConfigs)
-                {
-                    _requestConfig = requestConfig;
-                    // 1. 发起请求, 构建DataContext
-                    var buildDetails = await RequestAndBuildDataContextAsync(dataContextTmpls, _logger);
-
-                    if (backtrackingNextStep)
-                    {
-                        // 只要重置一项成功就算成功, 否则就是重置失败(认为是因为返回的数据无效, 不需要迭代了)
-                        var resetDataContextSuccess = false;
-                        foreach (var resetDataContextItem in buildDetails)
-                        {
-                            var resetValue = resetDataContextItem.Value;
-                            if (!(resetValue is null || (resetValue is JArray itemJArray && itemJArray.Count == 0) || (resetValue is IEnumerable<JToken> itemList && !itemList.Any())))
-                            {
-                                // DataContext只要有一项重置成功就设为true
-                                resetDataContextSuccess = true;
-                                break;
-                            }
-                        }
-                        if (!resetDataContextSuccess)
-                        {
-                            stepIndex = currentStepIndex;
-                            _logger.LogInformation($"无需回溯, 还原stepIndex: {currentStepIndex}");
-                        }
-                    }
-                    // 2. DataHandler处理数据
-                    await ExecuteDataHandlersAsync(dataContextHandlers.Select(x => new HttpRequestProcessorStepDataHandler { Id = dataContextHandlers.IndexOf(x), DataHandler = x.Handler, ParametersInput = JsonConvert.SerializeObject(x.Parameters) }));
-                }
-                #endregion
-            }
-
-            return this;
+            _requestConfig.PageIndexField = pageIndexField;
         }
+        /// <summary>
+        /// 处理QueryString参数和Body参数
+        /// </summary>
+        /// <param name="dataContextDictionary"></param>
+        /// <param name="queryJson"></param>
+        /// <param name="bodyJson"></param>
+        /// <returns></returns>
+        protected virtual IEnumerable<RequestConfig> UpdateRequestConfig(Dictionary<string, object> dataContextDictionary, string? queryJson, string bodyJson)
+        {
+            if (!string.IsNullOrWhiteSpace(queryJson))
+            {
+                var resolvedQueryJson = TmplHelper.ResolveStringWithTmpl(dataContextDictionary, queryJson);
+                var queryParams = JsonConvert.DeserializeObject<Dictionary<string, object>>(resolvedQueryJson);
+                _requestConfig.QueryDictionary = queryParams;
+            }
+            if (!string.IsNullOrWhiteSpace(bodyJson) && _requestConfig.RequestMethod.Equals("post", StringComparison.CurrentCultureIgnoreCase))
+            {
+                var resolvedBodyJson = TmplHelper.ResolveStringWithTmpl(dataContextDictionary, bodyJson);
+                var bodyParams = JsonConvert.DeserializeObject<JToken>(resolvedBodyJson);
+                _requestConfig.BodyDictionary = bodyParams;
+            }
+            return new List<RequestConfig>() { CloneReqeustConfig() };
+        }
+
         /// <summary>
         /// 解析参数发送请求并且构建数据上下文, 最后对数据进行对应的操作
         /// </summary>
@@ -217,11 +142,8 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                 var dataHandlerInfos = new List<DataHandlerInfo>();
                 _logger.LogInformation($"{new string('*', 20)} New RequestProcessor Step {stepIndex} {new string('*', 20)}");
 
-                // Step - Parameters
-                List<string> stepParameters = (step.Parameters ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
-                _logger.LogDebug($"call ResolveAsync, 获取请求参数: {step.Parameters ?? ""}");
                 // Step - DataContextBuilders
-                List<string> dataContextTmpls = JsonConvert.DeserializeObject<List<string>>(step.DataContextBuilder) ?? new();
+                List<string> dataContextTmpls = JsonConvert.DeserializeObject<List<string>>(step.DataContextBuilder) ?? [];
                 _logger.LogDebug($"call ResolveAsync, 获取DataContext模板配置 {string.Join(',', dataContextTmpls)}");
                 // Step - DataHandlers
                 var dataHandlers = step.DataHandlers;
@@ -235,7 +157,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                     backtrackingNextStep = true;
                 }
                 // Step - 初始化DataContext
-                var dataContextItems = JsonConvert.DeserializeObject<List<string>>(step.PresetDataContext) ?? new List<string>();
+                var dataContextItems = JsonConvert.DeserializeObject<List<string>>(step.PresetDataContext) ?? [];
                 foreach (var dataContextItem in dataContextItems)
                 {
                     var dckv = dataContextItem.Split('=', StringSplitOptions.RemoveEmptyEntries);
@@ -249,9 +171,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
 
                 #region 处理当前Step所有的Request, Datahandler
                 // requestConfigs - 当前步骤可能会生成多个请求(参数)
-                var requestConfigs = string.IsNullOrEmpty(step.RequestBody)
-                    ? UpdateRequestConfig(DataContext, stepParameters)
-                    : UpdateRequestConfig2(DataContext, step.Parameters, step.RequestBody);
+                var requestConfigs = UpdateRequestConfig(DataContext, step.Parameters, step.RequestBody);
                 foreach (var requestConfig in requestConfigs)
                 {
                     _requestConfig = requestConfig;

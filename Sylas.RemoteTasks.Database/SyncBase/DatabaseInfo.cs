@@ -584,7 +584,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <returns></returns>
         static List<string> GetPrimaryKeys(JObject? sourceRecord, string sourceIdField)
         {
-            List<string> sourcePrimaryKeys = new();
+            List<string> sourcePrimaryKeys = [];
             var sourceFirstPropertieNames = sourceRecord?.Properties()?.Select(x => x.Name.ToLower())?.ToList();
             sourcePrimaryKeys = CheckRecordIdFields(sourceIdField ?? string.Empty, sourceFirstPropertieNames);
             return sourcePrimaryKeys;
@@ -597,7 +597,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                     return idFieldName.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
                 }
 
-                List<string> idFields = new();
+                List<string> idFields = [];
                 var sourceIdFieldArr = idFieldName.Split(',');
                 // 校验参数提供的Id字段是否存在
                 foreach (var idField in sourceIdFieldArr)
@@ -1569,6 +1569,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// </summary>
         /// <param name="sourceRecordsData">源数据</param>
         /// <param name="targetRecordsData">要对比的目标数据表中查询出的数据</param>
+        /// <param name="ignoreFields"></param>
         /// <param name="sourceIdField">源数据中的标识字段</param>
         /// <param name="targetIdField">目标数据中的标识字段</param>
         /// <returns></returns>
@@ -1731,16 +1732,8 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                         {
                             var sourcePkValue = sourceRecord.Properties().FirstOrDefault(x => string.Equals(sourcePrimaryKey, x.Name, StringComparison.OrdinalIgnoreCase))?.Value?.ToString() ?? throw new Exception($"查找ID失败");
                             sourceIdValues.Add(sourcePrimaryKey, sourcePkValue);
-                            //if (sourcePkValue == targetBatchItem.Properties().FirstOrDefault(x => string.Equals(sourcePrimaryKey, x.Name, StringComparison.OrdinalIgnoreCase))?.Value?.ToString())
-                            //{
-                            //    sourceIdValues.Add(sourcePrimaryKey, sourcePkValue);
-                            //}
                         }
-                        //if (sourceIdValues.Count != targetIdValues.Count)
-                        //{
-                        //    continue;
-                        //}
-                        //existedSourceRecord = sourceRecord;
+                        
                         // 比较是否所有主键字段值都相同
                         bool allPksHasSameValue = true;
                         foreach (var sourceIdValue in sourceIdValues)
