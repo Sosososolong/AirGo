@@ -1,0 +1,36 @@
+﻿@{
+    ViewData["Title"] = "Sync Databases";
+}
+
+<form method="get" action="SyncDbs" id="requestForm">
+    <label for="sourceConnectionString" class="form-label">sourceConnectionString</label>
+    <input type="text" id="sourceConnectionString" name="sourceConnectionString" class="form-control" aria-describedby="sourceConnectionStringHelpBlock">
+    <div id="sourceConnectionStringHelpBlock" class="form-text text-warning">
+        源数据库连接字符串.
+    </div>
+    
+    <label for="sourceDatabase" class="form-label">sourceDatabase</label>
+    <input type="text" id="sourceDatabase" name="sourceDatabase" class="form-control" aria-describedby="sourceDatabaseHelpBlock">
+    <div id="sourceDatabaseHelpBlock" class="form-text text-warning">
+        源数据库.
+    </div>
+    
+    <label for="sourceTable" class="form-label">sourceTable</label>
+    <input type="text" id="sourceTable" name="sourceTable" class="form-control" aria-describedby="sourceTableHelpBlock">
+    <div id="sourceTableHelpBlock" class="form-text text-warning">
+        源数据表.
+    </div>
+
+    <label for="targetConnectionString" class="form-label mt-3">targetConnectionString</label>
+    <input type="text" id="targetConnectionString" name="targetConnectionString" class="form-control" aria-describedby="targetConnectionStringHelpBlock">
+    <div id="targetConnectionStringHelpBlock" class="form-text">
+        目标数据库连接字符串.
+    </div>
+
+    <button class="btn btn-primary mt-3" type="submit">开始同步</button>
+    <label class="text-primary">@ViewBag.Message</label>
+</form>
+
+@section Scripts {
+    
+}

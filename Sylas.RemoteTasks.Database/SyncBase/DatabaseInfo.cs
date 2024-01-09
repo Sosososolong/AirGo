@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MySql.Data.MySqlClient;
+using MySqlX.XDevAPI.Relational;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Oracle.ManagedDataAccess.Client;
@@ -445,7 +446,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             targetConn.Open();
             foreach (var table in res)
             {
-                if (!string.IsNullOrWhiteSpace(sourceSyncedTable) && table?.TABLE_NAME != sourceSyncedTable)
+                if (!string.IsNullOrWhiteSpace(sourceSyncedTable) && !table.Equals(sourceSyncedTable, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -797,7 +798,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <returns></returns>
         /// <exception cref="NotImplementedException"></exception>
 
-        public static async Task<IEnumerable<dynamic>> GetAllTablesAsync(IDbConnection conn, string dbName)
+        public static async Task<IEnumerable<string>> GetAllTablesAsync(IDbConnection conn, string dbName)
         {
             string connstr = conn.ConnectionString;
             var dbtype = GetDbType(connstr);
@@ -805,14 +806,15 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             {
                 dbName = conn.Database;
             }
-            return dbtype switch
+            var tables = dbtype switch
             {
-                DatabaseType.MySql => await conn.QueryAsync($"select * from information_schema.`TABLES` WHERE table_schema='{dbName}'"),
-                DatabaseType.SqlServer => throw new NotImplementedException(),
-                DatabaseType.Oracle => throw new NotImplementedException(),
-                DatabaseType.Sqlite => throw new NotImplementedException(),
+                DatabaseType.MySql => await conn.QueryAsync("select TABLE_NAME from information_schema.`TABLES` WHERE table_schema='{dbName}'"),
+                DatabaseType.SqlServer => await conn.QueryAsync("SELECT name AS TABLE_NAME FROM sys.tables;"),
+                DatabaseType.Oracle => await conn.QueryAsync($"SELECT TABLE_NAME FROM user_tables"),
+                DatabaseType.Sqlite => await conn.QueryAsync($"SELECT name as TABLE_NAME FROM sqlite_master WHERE type='table';"),
                 _ => throw new NotImplementedException(),
             };
+            return tables.Select(x => (x as IDictionary<string, object> ?? throw new Exception("DapperRow转换为字典失败"))["TABLE_NAME"].ToString());
         }
         /// <summary>
         /// 获取一个库中的所有表
@@ -859,14 +861,14 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// 获取"数据库[.dbo].数据表"形式的数据表名
         /// </summary>
         /// <param name="connectionString"></param>
-        /// <param name="tableDynamic"></param>
+        /// <param name="table"></param>
         /// <returns></returns>
-        public static string GetTableFullName(string connectionString, dynamic tableDynamic)
+        public static string GetTableFullName(string connectionString, string table)
         {
             //var databaseType = GetDbType(connectionString);
             //var dbname = databaseType == DatabaseType.MySql ? tableDynamic.TABLE_SCHEMA : tableDynamic.TABLESPACE_NAME;
             //return $"{dbname}.{tableDynamic.TABLE_NAME}";
-            return $"{tableDynamic.TABLE_NAME}";
+            return table;
         }
         private static void ValideParameter(string parameter)
         {
@@ -892,7 +894,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <returns></returns>
         /// <exception cref="ArgumentException"></exception>
         /// <exception cref="Exception"></exception>
-        public static string GetPagedSql(string db, string table, DatabaseType dbType, int pageIndex, int pageSize, string? orderField, bool isAsc, DataFilter filters, out string queryCondition, out Dictionary<string, object> queryConditionParameters)
+        public static string GetPagedSql(string db, string table, DatabaseType dbType, int pageIndex, int pageSize, string? orderField, bool isAsc, DataFilter? filters, out string queryCondition, out Dictionary<string, object> queryConditionParameters)
         {
             string orderClause = string.Empty;
             if (!string.IsNullOrWhiteSpace(orderField))
@@ -989,7 +991,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             }
             #endregion
 
-            string baseSqlTxt = $"select * from {db}.{table} where 1=1 {queryCondition}";
+            string baseSqlTxt = $"select * from {table} where 1=1 {queryCondition}";
             
             #region 不同数据库对应的SQL语句
             string sql = dbType switch
@@ -1012,14 +1014,25 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
 
             return sql;
         }
-        public static async Task<PagedData> GetPagedDataAsync(string table, int pageIndex, int pageSize, string? orderField, bool isAsc, IDbConnection dbConn, DataFilter filters)
+        /// <summary>
+        /// 数据库分页数据
+        /// </summary>
+        /// <param name="table"></param>
+        /// <param name="pageIndex"></param>
+        /// <param name="pageSize"></param>
+        /// <param name="orderField"></param>
+        /// <param name="isAsc"></param>
+        /// <param name="dbConn"></param>
+        /// <param name="filters"></param>
+        /// <returns></returns>
+        public static async Task<PagedData> GetPagedDataAsync(string table, int pageIndex, int pageSize, string? orderField, bool isAsc, IDbConnection dbConn, DataFilter? filters)
         {
             // TODO: 数据库类型 作为公共属性
             var dbType = GetDbType(dbConn.ConnectionString);
 
             string sql = GetPagedSql(dbConn.Database, table, dbType, pageIndex, pageSize, orderField, isAsc, filters, out string condition, out Dictionary<string, object> parameters);
 
-            string allCountSqlTxt = $"select count(*) from {dbConn.Database}.{table} where 1=1 {condition}";
+            string allCountSqlTxt = $"select count(*) from {table} where 1=1 {condition}";
             var data = await dbConn.QueryAsync(sql, parameters);
             var allCount = await dbConn.ExecuteScalarAsync<int>(allCountSqlTxt, parameters);
             var dataReader = await dbConn.ExecuteReaderAsync(sql, parameters);
@@ -1378,21 +1391,11 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             return createSql;
         }
 
-        /// <summary>获取数据源中一个表的create语句和数据的insert语句</summary>
-        public static async IAsyncEnumerable<TableSqlsInfo> GetTableSqlsInfoCollectionAsync(dynamic table, IDbConnection conn, IDbTransaction trans, IDbConnection targetConn, DataFilter filter)
-        {
-            // ACCOUNTS.DEPARTMENT
-            string targetTable = GetTableFullName(targetConn.ConnectionString, table);
-            if (targetTable.Split('.').Last().StartsWith('_'))
-            {
-                yield break;
-            }
-            var result = GetTableSqlsInfoCollectionAsync(targetTable, conn, trans, targetConn, filter);
-            await foreach (var item in result)
-            {
-                yield return item;
-            }
-        }
+        /// <summary>
+        /// 根据数据库连接字符串判断数据库类型
+        /// </summary>
+        /// <param name="connectionString"></param>
+        /// <returns></returns>
         public static DatabaseType GetDbType(string connectionString)
         {
             var lowerConnStr = connectionString.ToLower();
@@ -1425,9 +1428,15 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// <param name="targetConn"></param>
         /// <param name="filter"></param>
         /// <returns></returns>
-        public static async IAsyncEnumerable<TableSqlsInfo> GetTableSqlsInfoCollectionAsync(string sourceTable, IDbConnection sourceConn, IDbTransaction trans, IDbConnection targetConn, DataFilter filter)
+        public static async IAsyncEnumerable<TableSqlsInfo> GetTableSqlsInfoCollectionAsync(string sourceTable, IDbConnection sourceConn, IDbTransaction? trans, IDbConnection targetConn, DataFilter? filter)
         {
+            sourceTable = GetTableFullName(targetConn.ConnectionString, sourceTable);
             var tableName = sourceTable.Split('.').Last();
+            if (tableName.StartsWith('_'))
+            {
+                yield break;
+            }
+
             // 1. 获取源表的所有字段信息
             #region 获取源表的所有字段信息
             IEnumerable<ColumnInfo> colInfos = await GetTableColumnsInfoAsync(sourceConn, tableName);
@@ -1452,7 +1461,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"查询数据出错targetTableDataSql: {sourceTable}");
+                    Console.WriteLine($"查询数据出错sourceTable: {sourceTable}");
                     Console.WriteLine(ex.ToString());
                 }
                 if (sourceDataTable.Rows.Count == 0)
@@ -1994,7 +2003,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// <param name="parameters"></param>
         /// <param name="transaction"></param>
         /// <returns></returns>
-        public static async Task<DataTable> QueryAsync(IDbConnection conn, string sql, object parameters, IDbTransaction transaction)
+        public static async Task<DataTable> QueryAsync(IDbConnection conn, string sql, object parameters, IDbTransaction? transaction)
         {
             var dataTable = new DataTable();
             var reader = await conn.ExecuteReaderAsync(sql, param: parameters, transaction: transaction);

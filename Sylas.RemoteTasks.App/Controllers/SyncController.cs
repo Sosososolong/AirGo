@@ -157,9 +157,6 @@ namespace Sylas.RemoteTasks.App.Controllers
         }
         #endregion
 
-
-
-
         #region HttpRequestProcessorStep
         /// <summary>
         /// 克隆
@@ -266,9 +263,6 @@ namespace Sylas.RemoteTasks.App.Controllers
         }
         #endregion
 
-
-
-
         #region HttpRequestProcessorStepDataHandler
         /// <summary>
         /// 创建数据处理器DataHandler
@@ -369,5 +363,22 @@ namespace Sylas.RemoteTasks.App.Controllers
             return Ok(new OperationResult(false, "数据没有变化"));
         }
         #endregion
+
+        public async Task<IActionResult> SyncDbs(string sourceConnectionString, string sourceDatabase, string sourceTable, string targetConnectionString)
+        {
+            if (!string.IsNullOrWhiteSpace($"{sourceConnectionString}{sourceDatabase}{sourceTable}{targetConnectionString}"))
+            {
+                if (string.IsNullOrWhiteSpace(sourceConnectionString) || string.IsNullOrWhiteSpace(targetConnectionString))
+                {
+                    ViewBag.Message = "源和目标连接字符串不能为空";
+                }
+                else
+                {
+                    await DatabaseInfo.SyncDatabaseByConnectionStringsAsync(sourceConnectionString, targetConnectionString, sourceDatabase, sourceTable);
+                    ViewBag.Message = "同步成功";
+                }
+            }
+            return View();
+        }
     }
 }
