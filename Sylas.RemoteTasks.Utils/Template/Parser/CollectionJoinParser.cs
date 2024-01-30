@@ -6,11 +6,22 @@ using System.Text.RegularExpressions;
 
 namespace Sylas.RemoteTasks.Utils.Template.Parser
 {
+    /// <summary>
+    /// 解析模板表达式
+    /// </summary>
     public class CollectionJoinParser : ITmplParser
     {
+        /// <summary>
+        /// 解析模板表达式
+        /// </summary>
+        /// <param name="tmpl"></param>
+        /// <param name="dataContext"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
         public ParseResult Parse(string tmpl, Dictionary<string, object> dataContext)
         {
-            var joinExpression = Regex.Match(tmpl, @"(?<key>\$\w+)\s+join\s+(?<splitor>.+)$");
+            tmpl = tmpl.Trim().TrimStart('$', '{').TrimEnd('}');
+            var joinExpression = Regex.Match(tmpl, @"(?<key>\${0,1}\w+)\s+join\s+(?<splitor>.+)$");
             if (joinExpression.Success)
             {
                 var key = joinExpression.Groups["key"].Value;

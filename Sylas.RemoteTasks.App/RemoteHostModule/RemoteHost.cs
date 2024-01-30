@@ -1,4 +1,6 @@
-﻿namespace Sylas.RemoteTasks.App.RemoteHostModule
+﻿using Sylas.RemoteTasks.Utils.CommandExecutor;
+
+namespace Sylas.RemoteTasks.App.RemoteHostModule
 {
     public class RemoteHost
     {
@@ -14,7 +16,7 @@
         public string PrivateKey { get; set; } = "";
         public string Pwd { get; set; } = "123456";
 
-        public List<CommandInfo> Commands { get; set; } = new List<CommandInfo>();
+        public List<CommandInfo> Commands { get; set; } = [];
 
         private SshHelper? _sshConnection;
         public SshHelper SshConnection

@@ -16,12 +16,46 @@ using System.Threading.Tasks;
 
 namespace Sylas.RemoteTasks.Database
 {
+    /// <summary>
+    /// 数据库操作助手
+    /// </summary>
     public static partial class DatabaseHelper
     {
+        /// <summary>
+        /// 获取创建表的Sql语句
+        /// </summary>
+        /// <param name="tableName"></param>
+        /// <returns></returns>
         public static string GetTableCreateSql(string tableName) => $"select dbms_metadata.get_ddl('TABLE','{tableName.ToUpper()}') from dual";
-
+        /// <summary>
+        /// 获取Oracle连接字符串
+        /// </summary>
+        /// <param name="host"></param>
+        /// <param name="port"></param>
+        /// <param name="instanceName"></param>
+        /// <param name="username"></param>
+        /// <param name="password"></param>
+        /// <returns></returns>
         public static IDbConnection GetOracleConnection(string host, string port, string instanceName, string username, string password) => new OracleConnection($"Data Source={host}:{port}/{instanceName};User ID={username};Password={password};PERSIST SECURITY INFO=True;Pooling = True;Max Pool Size = 100;Min Pool Size = 1;");
+        /// <summary>
+        /// 获取MySql连接字符串
+        /// </summary>
+        /// <param name="host"></param>
+        /// <param name="port"></param>
+        /// <param name="db"></param>
+        /// <param name="username"></param>
+        /// <param name="password"></param>
+        /// <returns></returns>
         public static IDbConnection GetMySqlConnection(string host, string port, string db, string username, string password) => new MySqlConnection($"Server={host};Port={port};Stmt=;Database={db};Uid={username};Pwd={password};Allow User Variables=true;");
+        /// <summary>
+        /// 获取SqlServer连接字符串
+        /// </summary>
+        /// <param name="host"></param>
+        /// <param name="port"></param>
+        /// <param name="db"></param>
+        /// <param name="username"></param>
+        /// <param name="password"></param>
+        /// <returns></returns>
         public static IDbConnection GetSqlServerConnection(string host, string port, string db, string username, string password) => string.IsNullOrWhiteSpace(port) ? new SqlConnection($"User ID={username};Password={password};Initial Catalog={db};Data Source={host}") : new SqlConnection($"User ID={username};Password={password};Initial Catalog={db};Data Source={host},{port}");
         /// <summary>
         /// 通用同步逻辑
@@ -29,7 +63,10 @@ namespace Sylas.RemoteTasks.Database
         /// <param name="conn"></param>
         /// <param name="table"></param>
         /// <param name="sourcRecords"></param>
+        /// <param name="ignoreFields"></param>
+        /// <param name="dateTimeFields"></param>
         /// <returns></returns>
+        /// <exception cref="Exception"></exception>
         public static async Task SyncDataAsync(IDbConnection conn, string table, List<JToken> sourcRecords, string[] ignoreFields, string[] dateTimeFields)
         {
             //conn.ConnectionString: "server=whitebox.com;port=3306;database=db_engine_hznu;user id=root;allowuservariables=True"
@@ -78,20 +115,22 @@ namespace Sylas.RemoteTasks.Database
         /// 对比数据返回用于同步数据表操作的数据(要新增的数据, 要更新的数据, 要删除的数据)
         /// </summary>
         /// <param name="sourceRecords"></param>
-        /// <param name="dbRecords"></param>
+        /// <param name="dbRecordsDynamic"></param>
         /// <param name="ignoreFields"></param>
         /// <param name="dateTimeFields"></param>
+        /// <param name="sourceIdField"></param>
+        /// <param name="targetIdField"></param>
         /// <returns></returns>
         public static CompareResult CompareRecordsForSyncDb(List<JToken> sourceRecords, IEnumerable<dynamic>? dbRecordsDynamic, string[] ignoreFields, string[] dateTimeFields, string sourceIdField, string targetIdField)
         {
-            JArray inserts = new();
-            JArray updates = new();
-            JArray deletes = new();
+            JArray inserts = [];
+            JArray updates = [];
+            JArray deletes = [];
             var sqlValueBuilder = new StringBuilder();
 
             bool dbRecordsIsJObject = true;
             var dbRecords = new List<JObject>();
-            if (dbRecordsDynamic.Any())
+            if (dbRecordsDynamic is not null && dbRecordsDynamic.Any())
             {
                 dbRecordsIsJObject = dbRecordsDynamic.First() is JObject;
                 foreach (var item in dbRecordsDynamic)
@@ -109,7 +148,7 @@ namespace Sylas.RemoteTasks.Database
                 }
                 else
                 {
-                    dbRecords.Remove(currentDbRecord);
+                    dbRecords?.Remove(currentDbRecord);
 
                     bool needUpdate = false;
                     foreach (var propKV in (JObject)sourceItem)
@@ -148,7 +187,7 @@ namespace Sylas.RemoteTasks.Database
                                 else
                                 {
                                     var v1 = propKV.Value;
-                                    string v2 = currentDbRecord is JObject ? (currentDbRecord as JObject)[propKV.Key].ToString() : (currentDbRecord as IDictionary<string, object>)?[propKV.Key]?.ToString();
+                                    string v2 = currentDbRecord is JObject ? (currentDbRecord as JObject)[propKV.Key]?.ToString() ?? "" : (currentDbRecord as IDictionary<string, object>)?[propKV.Key]?.ToString() ?? "";
                                     // v2是dynamic类型时会报错
                                     v1EqualsV2 = v1.StringValueEquals(v2);
                                 }
@@ -168,9 +207,12 @@ namespace Sylas.RemoteTasks.Database
             }
 
             // dbRecords剩下的就是它自己独有的数据, 也就是需要删除的数据
-            foreach (var dbRecord in dbRecords)
+            if (dbRecords is not null)
             {
-                deletes.Add(dbRecord);
+                foreach (var dbRecord in dbRecords)
+                {
+                    deletes.Add(dbRecord);
+                }
             }
 
             return new CompareResult() { Inserts = inserts, Updates = updates, Deletes = deletes };
@@ -211,58 +253,6 @@ namespace Sylas.RemoteTasks.Database
 
         private static string ConvertCreateTableSql(string createTableSql)
         {
-            #region Oracle创建表语句
-            string oracleCreateTable = @"CREATE TABLE ""ACCOUNTS"".""CLIENTS"" 
-   (""ID"" NUMBER(10, 0) NOT NULL ENABLE,
-	""ENABLED"" NUMBER(10, 0) NOT NULL ENABLE,
-	""CLIENTID"" NVARCHAR2(200) NOT NULL ENABLE,
-	""PROTOCOLTYPE"" NVARCHAR2(200) NOT NULL ENABLE,
-	""REQUIRECLIENTSECRET"" NUMBER(10, 0) NOT NULL ENABLE,
-	""CLIENTNAME"" NVARCHAR2(200),
-	""DESCRIPTION"" NVARCHAR2(1000),
-	""CLIENTURI"" NVARCHAR2(2000),
-	""LOGOURI"" NVARCHAR2(2000),
-	""REQUIRECONSENT"" NUMBER(10, 0) NOT NULL ENABLE,
-	""ALLOWREMEMBERCONSENT"" NUMBER(10, 0) NOT NULL ENABLE,
-	""ALWAYSINCLUDEUCLAIMS"" NUMBER(10, 0) NOT NULL ENABLE,
-	""REQUIREPKCE"" NUMBER(10, 0) NOT NULL ENABLE,
-	""ALLOWPLAINTEXTPKCE"" NUMBER(10, 0) NOT NULL ENABLE,
-	""ALLOWACCESSTOKENSVIABROWSER"" NUMBER(10, 0) NOT NULL ENABLE,
-	""FRONTCHANNELLOGOUTURI"" NVARCHAR2(2000),
-	""FRONTCHANNELLOGOUT"" NUMBER(10, 0) NOT NULL ENABLE,
-	""BACKCHANNELLOGOUTURI"" NVARCHAR2(2000),
-	""BACKCHANNELLOGOUT"" NUMBER(10, 0) NOT NULL ENABLE,
-	""ALLOWOFFLINEACCESS"" NUMBER(10, 0) NOT NULL ENABLE,
-	""IDENTITYTOKENLIFETIME"" NUMBER(10, 0) NOT NULL ENABLE,
-	""ACCESSTOKENLIFETIME"" NUMBER(10, 0) NOT NULL ENABLE,
-	""AUTHORIZATIONCODELIFETIME"" NUMBER(10, 0) NOT NULL ENABLE,
-	""CONSENTLIFETIME"" NUMBER(10, 0),
-	""ABSOLUTEREFRESHTOKENLIFETIME"" NUMBER(10, 0) NOT NULL ENABLE,
-	""SLIDINGREFRESHTOKENLIFETIME"" NUMBER(10, 0) NOT NULL ENABLE,
-	""REFRESHTOKENUSAGE"" NUMBER(10, 0) NOT NULL ENABLE,
-	""UPDATEACCESSONREFRESH"" NUMBER(10, 0) NOT NULL ENABLE,
-	""REFRESHTOKENEXPIRATION"" NUMBER(10, 0) NOT NULL ENABLE,
-	""ACCESSTOKENTYPE"" NUMBER(10, 0) NOT NULL ENABLE,
-	""ENABLELOCALLOGIN"" NUMBER(10, 0) NOT NULL ENABLE,
-	""INCLUDEJWTID"" NUMBER(10, 0) NOT NULL ENABLE,
-	""ALWAYSSENDCLIENTCLAIMS"" NUMBER(10, 0) NOT NULL ENABLE,
-	""CLIENTCLAIMSPREFIX"" NVARCHAR2(200),
-	""PAIRWISESUBJECTSALT"" NVARCHAR2(200),
-	""CREATED"" TIMESTAMP(6) NOT NULL ENABLE,
-	""UPDATED"" TIMESTAMP(6),
-	""LASTACCESSED"" TIMESTAMP(6),
-	""USERSSOLIFETIME"" NUMBER(10, 0),
-	""USERCODETYPE"" NVARCHAR2(100),
-	""DEVICECODELIFETIME"" NUMBER(10, 0) NOT NULL ENABLE,
-	""NONEDITABLE"" NUMBER(10, 0) NOT NULL ENABLE,
-	 CONSTRAINT ""PK_CLIENTS"" PRIMARY KEY(""ID"")
-  USING INDEX PCTFREE 10 INITRANS 2 MAXTRANS 255 COMPUTE STATISTICS NOCOMPRESS LOGGING
-  TABLESPACE ""ACCOUNTS""  ENABLE
-   ) SEGMENT CREATION DEFERRED
-  PCTFREE 10 PCTUSED 40 INITRANS 1 MAXTRANS 255 NOCOMPRESS LOGGING
-  TABLESPACE ""ACCOUNTS"" ";
-            #endregion
-
             var mysqlCreateTable = createTableSql.Replace('"', '`').Replace(" ENABLE", string.Empty);
             mysqlCreateTable = RegexConst.OracleNumber.Replace(mysqlCreateTable, m => $"int({m.Groups[1].Value})");
             mysqlCreateTable = RegexConst.OracleVarchar.Replace(mysqlCreateTable, m => $"varchar({m.Groups[1].Value})");
@@ -288,11 +278,22 @@ namespace Sylas.RemoteTasks.Database
             return DatabaseType.SqlServer;
         }
     }
-
+    /// <summary>
+    /// 两个集合比较结果
+    /// </summary>
     public class CompareResult
     {
-        public JArray Inserts { get; set; }
-        public JArray Updates { get; set; }
-        public JArray Deletes { get; set; }
+        /// <summary>
+        /// 需要插入的数据
+        /// </summary>
+        public JArray Inserts { get; set; } = [];
+        /// <summary>
+        /// 需要更新的数据
+        /// </summary>
+        public JArray Updates { get; set; } = [];
+        /// <summary>
+        /// 需要删除的数据
+        /// </summary>
+        public JArray Deletes { get; set; } = [];
     }
 }

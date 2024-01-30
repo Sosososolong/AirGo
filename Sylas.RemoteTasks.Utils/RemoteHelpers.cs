@@ -13,6 +13,9 @@ using System.Threading.Tasks;
 
 namespace Sylas.RemoteTasks.Utils
 {
+    /// <summary>
+    /// 处理远程(HTTP)请求
+    /// </summary>
     public static class RemoteHelpers
     {
         private static string GetQueryString(IDictionary<string, object> queryDictionary)
@@ -35,7 +38,11 @@ namespace Sylas.RemoteTasks.Utils
             var queryString = queryStringBuilder.ToString().TrimEnd('&');
             return queryString;
         }
-
+        /// <summary>
+        /// 从Api接口获取所有数据
+        /// </summary>
+        /// <param name="requestConfig"></param>
+        /// <returns></returns>
         public static async Task<IEnumerable<JToken>?> FetchAllDataFromApiAsync(RequestConfig requestConfig)
         {
             // 备份原始配置对象, 用于递归发送新的请求时用 ...
@@ -63,6 +70,10 @@ namespace Sylas.RemoteTasks.Utils
 
             async Task fetchDatasRecursivelyAsync(RequestConfig config)
             {
+                if (string.IsNullOrWhiteSpace(config.ResponseOkField) || string.IsNullOrWhiteSpace(config.ResponseDataField))
+                {
+                    throw new Exception($"ResponseOkField或者ResponseDataField为空");
+                }
                 bool responseOkPredicate(JObject response) => response[config.ResponseOkField]?.ToString() == config.ResponseOkValue;
                 var responseDataFieldArr = config.ResponseDataField.Split(':');
                 JToken? getDataFunc(JObject response)
@@ -80,7 +91,7 @@ namespace Sylas.RemoteTasks.Utils
 
                 using var httpClient = new HttpClient();
                 var records = await FetchAllDataFromApiAsync(config.Url, config.FailMsg,
-                                                                       config.QueryDictionary, config.PageIndexField, config.PageIndexParamInQuery.Value, config.BodyDictionary,
+                                                                       config.QueryDictionary, config.PageIndexField, config.PageIndexParamInQuery, config.BodyDictionary,
                                                                        responseOkPredicate,
                                                                        getDataFunc,
                                                                        httpClient,
@@ -113,10 +124,10 @@ namespace Sylas.RemoteTasks.Utils
                             await fetchDatasRecursivelyAsync(detail);
                             if (!string.IsNullOrWhiteSpace(detail.ReturnPrimaryRequest))
                             {
-                                var newConfigs = TmplHelper.ResolveJTokenByDataSourceTmpl(JToken.FromObject(config), JToken.FromObject(detail.Data), detail.ReturnPrimaryRequest);
+                                var newConfigs = TmplHelper.ResolveJTokenByDataSourceTmpl(JToken.FromObject(config), JToken.FromObject(detail.Data ?? throw new Exception("detail.Data is null")), detail.ReturnPrimaryRequest);
                                 foreach (var newConfig in newConfigs)
                                 {
-                                    var newConfigObj = newConfig.ToObject<RequestConfig>();
+                                    var newConfigObj = newConfig.ToObject<RequestConfig>() ?? throw new Exception("newConfig can not convert to RequestConfig instance");
                                     newConfigObj.Data = config.Data;
                                     newConfigObj.Details = config.Details;
                                     await FetchAllDataFromApiAsync(newConfigObj);
@@ -455,23 +466,23 @@ namespace Sylas.RemoteTasks.Utils
         /// <summary>
         /// 请求地址
         /// </summary>
-        public string? Url { get; set; }
+        public string Url { get; set; } = string.Empty;
         /// <summary>
         /// 分页页码字段
         /// </summary>
-        public string? PageIndexField { get; set; }
+        public string PageIndexField { get; set; } = string.Empty;
         /// <summary>
         /// 分页每页多少条数据对应的字段
         /// </summary>
-        public bool? PageIndexParamInQuery { get; set; }
+        public bool PageIndexParamInQuery { get; set; } = false;
         /// <summary>
         /// 数据的Id字段名
         /// </summary>
-        public string? IdFieldName { get; set; }
+        public string IdFieldName { get; set; } = string.Empty;
         /// <summary>
         /// 父级数据的外键字段名称(如果有的话)
         /// </summary>
-        public string? ParentIdFieldName { get; set; }
+        public string ParentIdFieldName { get; set; } = string.Empty;
         /// <summary>
         /// querystring字典
         /// </summary>
@@ -495,15 +506,15 @@ namespace Sylas.RemoteTasks.Utils
         /// <summary>
         /// 请求失败时返回的信息
         /// </summary>
-        public string? FailMsg { get; set; }
+        public string FailMsg { get; set; } = string.Empty;
         /// <summary>
         /// 匹配ParentId的正则表达式
         /// </summary>
-        public string? UpdateBodyParentIdRegex { get; set; }
+        public string UpdateBodyParentIdRegex { get; set; } = string.Empty;
         /// <summary>
         /// ParentId所要替换为的新值
         /// </summary>
-        public string? UpdateBodyParentIdValue { get; set; }
+        public string UpdateBodyParentIdValue { get; set; } = string.Empty;
         /// <summary>
         /// get or post
         /// </summary>
@@ -511,7 +522,7 @@ namespace Sylas.RemoteTasks.Utils
         /// <summary>
         /// 请求的token
         /// </summary>
-        public string? Token { get; set; }
+        public string Token { get; set; } = string.Empty;
         /// <summary>
         /// 请求获取的数据
         /// </summary>

@@ -4,6 +4,9 @@ using System.Threading.Tasks;
 
 namespace Sylas.RemoteTasks.Database
 {
+    /// <summary>
+    /// 数据库基本操作
+    /// </summary>
     public interface IDatabaseProvider
     {
         /// <summary>

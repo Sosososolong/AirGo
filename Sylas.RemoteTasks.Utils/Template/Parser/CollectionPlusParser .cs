@@ -5,12 +5,23 @@ using System.Text.RegularExpressions;
 
 namespace Sylas.RemoteTasks.Utils.Template.Parser
 {
+    /// <summary>
+    /// 
+    /// </summary>
     public class CollectionPlusParser : ITmplParser
     {
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="tmpl"></param>
+        /// <param name="dataContext"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
         public ParseResult Parse(string tmpl, Dictionary<string, object> dataContext)
         {
+            tmpl = tmpl.Trim().TrimStart('$', '{').TrimEnd('}');
             // $var1+$var2
-            var specifiedRecordFieldValueExpression = Regex.Match(tmpl, @"(?<left>\$\w+)\s*\+\s*(?<right>\$\w+)");
+            var specifiedRecordFieldValueExpression = Regex.Match(tmpl, @"(?<left>\${0,1}\w+)\s*\+\s*(?<right>\${0,1}\w+)");
             if (specifiedRecordFieldValueExpression.Success)
             {
                 var left = specifiedRecordFieldValueExpression.Groups["left"].Value;

@@ -116,15 +116,15 @@
                 <div class="form-group col-md-6">
                     <label id="operatinPathInfo">项目路径</label>
                     <select class="form-control projects-select" id="operatinPathInfo" target-type="path">
-                        @foreach (var item in ViewBag.ProjectPathInfos as Newtonsoft.Json.Linq.JObject)
+                        @foreach (var item in ViewBag.ProjectPathInfos as Newtonsoft.Json.Linq.JObject ?? throw new Exception("ProjectPathInfos数据异常"))
                         {
                             @if (ViewBag.CurrentPath as string == item.Key)
                             {
-                                <option value="@item.Key" selected="selected" data-toggle="tooltip" data-placement="right" title="@item.Value["SolutionDirectory"] - @item.Value["ClientPosition"]">@item.Key (@item.Value["SolutionDirectory"] - @item.Value["ClientPosition"])</option>
+                                <option value="@item.Key" selected="selected" data-toggle="tooltip" data-placement="right" title="@item.Value?["SolutionDirectory"] - @item.Value?["ClientPosition"]">@item.Key (@item.Value?["SolutionDirectory"] - @item.Value?["ClientPosition"])</option>
                             }
                             else
                             {
-                                <option value="@item.Key" data-toggle="tooltip" data-placement="right" title="@item.Value["SolutionDirectory"] - @item.Value["ClientPosition"]">@item.Key (@item.Value["SolutionDirectory"] - @item.Value["ClientPosition"])</option>
+                                <option value="@item.Key" data-toggle="tooltip" data-placement="right" title="@item.Value?["SolutionDirectory"] - @item.Value?["ClientPosition"]">@item.Key (@item.Value?["SolutionDirectory"] - @item.Value?["ClientPosition"])</option>
                             }
                         }
                     </select>

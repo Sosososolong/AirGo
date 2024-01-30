@@ -5,12 +5,27 @@ using System.Linq;
 
 namespace Sylas.RemoteTasks.Utils
 {
+    /// <summary>
+    /// 父子级节点类型对象帮助类
+    /// </summary>
     public static partial class NodesHelper
     {
+        /// <summary>
+        /// 父子级节点
+        /// </summary>
         public class Node
         {
+            /// <summary>
+            /// 标识字段Id
+            /// </summary>
             public int ID { get; set; }
+            /// <summary>
+            /// 父级节点Id
+            /// </summary>
             public int ParentID { get; set; }
+            /// <summary>
+            /// 子节点集合
+            /// </summary>
             public List<Node> Children { get; set; } = [];
         }
         private static List<Node> GetObjectsFormatted(List<Node> allObjects, List<Node> targetObjects, int parentId = 0)
@@ -81,7 +96,7 @@ namespace Sylas.RemoteTasks.Utils
         /// <summary>
         /// 将所有Node类型的节点allNodes 按照上下级的方式展示
         /// </summary>
-        /// <param name="parentId"></param>
+        /// <param name="allNodes"></param>
         /// <returns></returns>
         public static List<Node> GetChildren(List<Node> allNodes)
         {
@@ -118,7 +133,7 @@ namespace Sylas.RemoteTasks.Utils
         /// <summary>
         /// 将所有动态类型节点allNodes 按照上下级的方式展示
         /// </summary>
-        /// <param name="parentId"></param>
+        /// <param name="allNodes"></param>
         /// <returns></returns>
         public static List<dynamic> GetDynamicChildren(List<dynamic> allNodes)
         {
@@ -164,7 +179,10 @@ namespace Sylas.RemoteTasks.Utils
         /// <summary>
         /// 将所有节点allNodes(JArray) 按照上下级的方式展示
         /// </summary>
-        /// <param name="parentId"></param>
+        /// <param name="allNodes"></param>
+        /// <param name="idPropName"></param>
+        /// <param name="parentIdPropName"></param>
+        /// <param name="childrenPropName"></param>
         /// <returns></returns>
         public static JArray GetDynamicChildren(JArray allNodes, string idPropName, string parentIdPropName, string childrenPropName)
         {
@@ -297,12 +315,13 @@ namespace Sylas.RemoteTasks.Utils
         /// 扁平化获取所有子项
         /// </summary>
         /// <param name="list"></param>
+        /// <param name="childrenField">childrenField</param>
         /// <returns></returns>
         public static List<JObject> GetAll(List<JObject> list, string childrenField)
         {
             if (list is null || !list.Any())
             {
-                return new List<JObject>();
+                return [];
             }
             var result = new List<JObject>();
             getAllChildren(list);

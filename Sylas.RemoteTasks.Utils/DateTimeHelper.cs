@@ -11,6 +11,7 @@ namespace Sylas.RemoteTasks.Utils
         /// 当"x秒"过大的时候, 转换为x分x秒或者x时x分x秒, 或者 x天x时x分x秒
         /// </summary>
         /// <param name="seconds"></param>
+        /// <param name="decimals">decimals</param>
         /// <returns></returns>
         public static string FormatSeconds(decimal seconds, int decimals)
         {

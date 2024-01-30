@@ -4,14 +4,38 @@ using System.Text.RegularExpressions;
 
 namespace Sylas.RemoteTasks.App.RegexExp
 {
+    /// <summary>
+    /// 预定义常用正则对象
+    /// </summary>
     public class RegexConst
     {
+        /// <summary>
+        /// 匹配Oracle的整型类型
+        /// </summary>
         public static readonly Regex OracleNumber = new ("NUMBER\\((\\d+),\\s*0\\)");
+        /// <summary>
+        /// 匹配Oracle的字符串类型
+        /// </summary>
         public static readonly Regex OracleVarchar = new ("NVARCHAR2\\((\\d+)\\)");
+        /// <summary>
+        /// 匹配Oracle的时间类型
+        /// </summary>
         public static readonly Regex OracleDateTime = new ("TIMESTAMP\\(\\d\\)");
+        /// <summary>
+        /// 匹配Oracle的主键
+        /// </summary>
         public static readonly Regex OraclePrimaryKey = new ("CONSTRAINT\\s`\\w+`\\sPRIMARY\\sKEY\\(`(ID)`\\)");
+        /// <summary>
+        /// 匹配Oracle的USING INDEX表达式
+        /// </summary>
         public static readonly Regex OracleUsingIndex = new ("USING\\sINDEX.*");
+        /// <summary>
+        /// 匹配Oracle的表空间表达式
+        /// </summary>
         public static readonly Regex OracleTableSpace = new ("TABLESPACE.*");
+        /// <summary>
+        /// 匹配Oracle的SEGMENT表达式
+        /// </summary>
         public static readonly Regex OracleSegment = new ("(?<=\\)\\s*)SEGMENT\\s.*\\n.*");
 
         /// <summary>
@@ -44,6 +68,9 @@ namespace Sylas.RemoteTasks.App.RegexExp
         /// </summary>
         /// <returns></returns>
         public static readonly Regex ConnectionStringOracle = new ("data\\s+source\\s*=\\s*(?<host>[\\d\\w\\.]+):(?<port>\\d+)/(?<instance>\\w+);\\s*user\\s+id=(?<database>\\w+);password\\s*=\\s*(?<password>.+?);.+Min\\s+Pool\\s+Size\\s*=\\s*\\d+.*", RegexOptions.IgnoreCase);
+        /// <summary>
+        /// 数据库连接字符串正则对象集合
+        /// </summary>
         public static readonly List<Regex> AllConnectionStringPatterns =
         [
                 ConnectionStringMySql,
@@ -94,14 +121,16 @@ namespace Sylas.RemoteTasks.App.RegexExp
         /// <returns></returns>
         public static readonly Regex ColumnTypeBlob = new ("(byte\\[\\])|(lob)|(varbinary)");
 
-
+        /// <summary>
+        /// 被引用的主键字段
+        /// </summary>
         public static readonly Regex RefedPrimaryField = new ("\\{\\{\\$primary\\.(\\w+)\\}\\}");
 
         /// <summary>
         /// 字符串模板, 如: "ID为{id}, 姓名为{name}"
         /// </summary>
         /// <returns></returns>
-        public static readonly Regex StringTmpl = new ("(?<rightQuotation>\"{0,1})\\{\\s*(?<name>\\w+)|(?<name>\\$\\w+)\\s*\\}(?<leftQuotation>\"{0,1})");
+        public static readonly Regex StringTmpl = new ("(?<name>\\{{2}\\s*.+\\}{2})|(?<name>\\$.+)|(?<name>\\$\\{.+\\})");
 
         /// <summary>
         /// 匹配正则表达式中的分组
@@ -115,11 +144,14 @@ namespace Sylas.RemoteTasks.App.RegexExp
         /// <returns></returns>
         public static readonly Regex CurrentObjPropTmpl = new ("\\$RemoteHostInfo[\\.](?<propName>\\w+)");
 
+
+#pragma warning disable CS1570 // XML 注释出现 XML 格式错误
         /// <summary>
         /// 上传 upload   (?<local>[^\s]+) (?<remote>[^\s]+) -include=(?<include>[^\s+]) -exclude=(?<exclude>[^\s]+)
         /// </summary>
         /// <returns></returns>
         public static readonly Regex CommandRegex = new ("(?<action>(upload|download))\\s+(\"|')(?<local>[^\"]+)(\"|')\\s*(\"|')(?<remote>[^\"]+)(\"|')\\s*(-include=(?<include>[^\\s+])){0,1}\\s*(-exclude=(?<exclude>[^\\s]+)){0,1}");
+#pragma warning restore CS1570 // XML 注释出现 XML 格式错误
         /// <summary>
         /// 匹配字符串模板, 模板规定了如何将dataSource(JObject或JArray)中的符合条件的一条或多条数据的某个属性赋值给target的某个属性, 每条数据赋值一次都产生一个target副本
         /// 如 $primary.BodyDictionary.FilterItems.Value=$records[\"DATATYPE\"=21].REFMODELID 表示修改 target.BodyDictionary.FilterItems.Value 的值为 DataType为21的dataSource的RefModelId字段值, 可能多个

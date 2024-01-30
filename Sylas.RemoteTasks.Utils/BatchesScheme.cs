@@ -8,7 +8,7 @@ namespace Sylas.RemoteTasks.Utils
     /// <summary>
     /// 多批次处理大量工作的方案
     /// </summary>
-    public class BatchesSchedule
+    public class BatchesScheme
     {
         /// <summary>
         /// 执行CPU密集型任务

@@ -11,7 +11,6 @@ public class DotNETOperation
 {
     private readonly string OneTabSpace = "    ";
     private readonly string TwoTabsSpace = "        ";
-    private readonly string FourTabsSpace = "                ";
     /// <summary>
     /// 单词变成单数形式
     /// </summary>
@@ -219,11 +218,12 @@ namespace {dbContextNamespace}
             SyntaxTree tree = CSharpSyntaxTree.ParseText(originCode);
             SyntaxNode root = tree.GetRoot();
             MethodDeclarationSyntax method = root.DescendantNodes().OfType<MethodDeclarationSyntax>().Where(m => m.Identifier.ValueText == "OnModelCreating").First();
-            SyntaxList<StatementSyntax> methodStatements = method.Body.Statements;
-            string insertPosition = methodStatements.Where(statement => statement.ToString().Contains(".HasOne") || statement.ToString().Contains(".WithMany")).LastOrDefault().ToString();
+            var mbody = method.Body ?? throw new Exception("Method Body异常");
+            SyntaxList<StatementSyntax> methodStatements = mbody.Statements;
+            string insertPosition = methodStatements.Where(statement => statement.ToString().Contains(".HasOne") || statement.ToString().Contains(".WithMany")).LastOrDefault()?.ToString() ?? "";
             if (string.IsNullOrEmpty(insertPosition))
             {
-                insertPosition = methodStatements.LastOrDefault().ToString();
+                insertPosition = methodStatements.LastOrDefault()?.ToString() ?? "";
             }
 
             string newCodes = insertPosition + Environment.NewLine + OneTabSpace + TwoTabsSpace + codes;

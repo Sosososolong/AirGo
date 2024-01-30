@@ -1,23 +1,33 @@
 ﻿using Renci.SshNet;
 using Sylas.RemoteTasks.App.RegexExp;
-using Sylas.RemoteTasks.Utils;
+using Sylas.RemoteTasks.Utils.Extensions;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 
-namespace Sylas.RemoteTasks.App.RemoteHostModule
+namespace Sylas.RemoteTasks.Utils.CommandExecutor
 {
     /// <summary>
     /// 每一个实例对应一台远程主机的SSH连接
     /// </summary>
-    public partial class SshHelper : IDisposable
+    public class SshHelper : IDisposable, ICommandExecutor
     {
         private readonly int _maxConnections;
         private int _currentConnections;
         private readonly object _syncLock = new();
-        private readonly List<SshClient> _sshConnectionPool = new();
-        private readonly List<SftpClient> _sftpConnectionPool = new();
+        private readonly List<SshClient> _sshConnectionPool = [];
+        private readonly List<SftpClient> _sftpConnectionPool = [];
         private string Host { get; set; }
-        public int Port { get; }
+        private int Port { get; } = 0;
         private string UserName { get; set; }
         private string PrivateKey { get; set; }
+        /// <summary>
+        /// 从池中获取一个SSH连接
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="InvalidOperationException"></exception>
+        /// <exception cref="Exception"></exception>
         public SshClient GetConnection()
         {
             if (!_sshConnectionPool.TryTake(out SshClient? connection))
@@ -50,6 +60,12 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
             }
             return connection ?? throw new Exception("Ssh connection is null");
         }
+        /// <summary>
+        /// 从池中获取一个SFTP连接
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="InvalidOperationException"></exception>
+        /// <exception cref="Exception"></exception>
         public SftpClient GetSftpConnection()
         {
             if (!_sftpConnectionPool.TryTake(out SftpClient? connection))
@@ -108,7 +124,9 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
             }
         }
 
-
+        /// <summary>
+        /// 释放资源
+        /// </summary>
         public void Dispose()
         {
             while (_sshConnectionPool.TryTake(out SshClient? connection))
@@ -117,7 +135,15 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
                 connection?.Dispose();
                 _currentConnections--;
             }
+            GC.SuppressFinalize(this);
         }
+        /// <summary>
+        /// 构造函数, 提供远程服务器信息
+        /// </summary>
+        /// <param name="host"></param>
+        /// <param name="port"></param>
+        /// <param name="username"></param>
+        /// <param name="privateKey"></param>
         public SshHelper(string host, int port, string username, string privateKey)
         {
             Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 创建了一个SshHelper对象");
@@ -138,6 +164,8 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
         }
 
 
+
+#pragma warning disable CS1570 // XML 注释出现 XML 格式错误
         /// <summary>
         /// 运行命令
         /// shell命令
@@ -147,9 +175,10 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
         /// <param name="command"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public SshCommand RunCommand(string command)
+        public SshCommand? RunCommand(string command)
+#pragma warning restore CS1570 // XML 注释出现 XML 格式错误
         {
-            var cmdMatch = RegexConst.CommandRegex().Match(command);
+            var cmdMatch = RegexConst.CommandRegex.Match(command);
             var action = cmdMatch.Groups["action"].Value.Replace('\\', '/');
             var local = cmdMatch.Groups["local"].Value.Replace('\\', '/');
             var remote = cmdMatch.Groups["remote"].Value.Replace('\\', '/');
@@ -176,7 +205,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
                     remote = remote.EndsWith('/') ? remote : $"{remote}/";
 
                     EnsureDirectoryExist(remote, conn);
-                    localFiles = FileHelper.FindFilesRecursive(local, f => includes == null || !includes.Any() || (includes.Any(part => Path.GetFileName(f).Contains(part)) && (excludes == null || !excludes.Any(part => Path.GetFileName(f).Contains(part)))), null, null);
+                    localFiles = FileHelper.FindFilesRecursive(local, f => includes == null || !includes.Any() || includes.Any(part => Path.GetFileName(f).Contains(part)) && (excludes == null || !excludes.Any(part => Path.GetFileName(f).Contains(part))), null, null);
                     foreach (var localFile in localFiles)
                     {
                         var localFileRelativePath = localFile.Replace(local, "");
@@ -328,6 +357,13 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
                 ReturnConnection(conn);
             }
         }
+        /// <summary>
+        /// 读取远程文件
+        /// </summary>
+        /// <param name="remotePath"></param>
+        /// <param name="includes"></param>
+        /// <param name="excludes"></param>
+        /// <returns></returns>
         public string[] GetRemoteFiles(string remotePath, string[]? includes, string[]? excludes)
         {
             #region 生成正则
@@ -367,13 +403,11 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
         /// <summary>
         /// 使用ssh连接主机执行命令
         /// </summary>
-        /// <param name="host"></param>
-        /// <param name="username"></param>
-        /// <param name="password"></param>
         /// <param name="command"></param>
-        public Tuple<bool, string> ExecuteCommand(string command)
+        public CommandResult ExecuteCommand(string command)
         {
             var conn = GetConnection();
+
             var cmd = conn.CreateCommand(command);
             _ = cmd.Execute();
             var output = cmd.Result;
@@ -383,21 +417,18 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
 
             if (string.IsNullOrWhiteSpace(error))
             {
-                return Tuple.Create(true, output);
+                return new(true, output);
             }
-            return Tuple.Create(false, error);
+            return new(false, error);
         }
 
         /// <summary>
         /// 使用SSH连接主机处理文件, 服务器上没有该文件则上传; 如果文件上传了, 说明不是容器环境那么也需要将处理后的文件下载下来
         /// </summary>
-        /// <param name="host">远程主机, 如192.168.1.229</param>
         /// <param name="localPathSourceFile">文件在form环境中的路径, 如: C:/temp/temp.doc</param>
         /// <param name="remotePathSourceFile">文件上传到服务器上的路径, 如: /home/administrator/web/attachments/Convert/temp.doc</param>
         /// <param name="localPathResultFile">处理后的文件在form环境中的路径, 如: C:/temp/temp.pdf</param>
         /// <param name="remotePathResultFile">处理后的文件在服务器上的路径, 如: /home/administrator/web/attachments/Convert/temp.pdf</param>
-        /// <param name="username">服务器用户名</param>
-        /// <param name="privateKey">本地/容器的ssh密钥</param>
         /// <param name="command">处理文件的命令</param>
         public Tuple<bool, string> HandleFile(string localPathSourceFile, string remotePathSourceFile, string localPathResultFile, string remotePathResultFile, string command)
         {

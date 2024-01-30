@@ -24,7 +24,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             return View();
         }
 
-        public async Task<IActionResult> GetSnippets(int pageIndex, int pageSize, string orderField, bool isAsc = true, [FromBody] DataFilter dataFilter = null)
+        public async Task<IActionResult> GetSnippets(int pageIndex, int pageSize, string orderField, bool isAsc = true, [FromBody] DataFilter? dataFilter = null)
         {
             if (string.IsNullOrWhiteSpace(orderField))
             {

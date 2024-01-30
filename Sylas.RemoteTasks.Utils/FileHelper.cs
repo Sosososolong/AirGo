@@ -456,7 +456,7 @@ public partial class FileHelper
     /// <param name="codes">要插入的代码</param>
     /// <param name="insertPositionPredicate">怎么找到插入代码的位置(插到找到的位置后面)</param>
     /// <param name="codesExistPredicate">如果只插入一句代码, 怎么判断要插入的代码是否存在, 如果插入的是代码段的话暂时不传参数</param>
-    public static void InsertCode(string classFile, string methodName, string codes, Func<StatementSyntax, bool> insertPositionPredicate = null, Func<StatementSyntax, bool> codesExistPredicate = null)
+    public static void InsertCode(string classFile, string methodName, string codes, Func<StatementSyntax, bool>? insertPositionPredicate = null, Func<StatementSyntax, bool>? codesExistPredicate = null)
     {
         InsertContent(classFile, originCode =>
         {
@@ -477,7 +477,7 @@ public partial class FileHelper
                 string newPart = onModelCreatingMatch.Value.TrimEnd('}') + _oneTabSpace + codes + Environment.NewLine + _twoTabsSpace + "}";
                 return originCode.Replace(oldPart, newPart);
             }
-            if (codesExistPredicate == null)
+            if (codesExistPredicate is null)
             {
                 if (method.Body.ToString().Contains(codes))
                 {

@@ -9,6 +9,9 @@ using System.Text.RegularExpressions;
 
 namespace Sylas.RemoteTasks.Utils.Template
 {
+    /// <summary>
+    /// 文本模板帮助类
+    /// </summary>
     public static partial class TmplHelper
     {
         /// <summary>
@@ -84,6 +87,7 @@ namespace Sylas.RemoteTasks.Utils.Template
         /// </summary>
         /// <param name="target"></param>
         /// <param name="dataSource"></param>
+        /// <param name="assignmentTmpl"></param>
         public static List<JObject> ResolveJTokenByDataSourceTmpl(JToken? target, JToken dataSource, string assignmentTmpl)
         {
             if (dataSource is null)
@@ -95,12 +99,12 @@ namespace Sylas.RemoteTasks.Utils.Template
                 return [];
             }
             #region 解析模板
-            // <filterProp>为<filterValue>的数据, 取<dataProp>的值 赋值给target的<targetPorp>属性
+            // <filterProp>为<filterValue>的数据, 取<dataProp>的值 赋值给target的<targetProp>属性
             var match = RegexConst.AssignmentRulesTmpl.Match(assignmentTmpl);
             var filterProp = match.Groups["filterProp"].Value; // DATATYPE
             var filterValue = match.Groups["filterValue"].Value; // 21
             var dataProp = match.Groups["dataProp"].Value; // REFMODELID
-            var targetProp = match.Groups["targetPorp"].Value; // .BodyDictionary.FilterItems.Value
+            var targetProp = match.Groups["targetProp"].Value; // .BodyDictionary.FilterItems.Value
             #endregion
 
             var result = new List<JObject>();
@@ -145,7 +149,7 @@ namespace Sylas.RemoteTasks.Utils.Template
                                         // 每个target, 即targetJObj在这里更新属性 产生一个新的副本
                                         var expectedValue = dataSourceKeys.FirstOrDefault(x => x.Name.Equals(dataProp, StringComparison.OrdinalIgnoreCase))?.Value;
                                         // BOOKMARK: TmplHelper 复制一份targetJObj -> targetJObjCopied, 再更新 targetJObjCopied, 添加到result中
-                                        var targetJObjCopied = targetJObj.DeepClone() as JObject;
+                                        var targetJObjCopied = targetJObj.DeepClone() as JObject ?? throw new Exception("DeepClone异常");
                                         var targetProps = targetProp.Split('.', StringSplitOptions.RemoveEmptyEntries);
                                         JToken? targetCurrentVal = null;
                                         for (int i = 0; i < targetProps.Length; i++)
@@ -184,130 +188,58 @@ namespace Sylas.RemoteTasks.Utils.Template
         }
 
         /// <summary>
-        /// 替换字符串中的模板
+        /// 构建数据上下文dataContext, Key都是"$"开头:
+        ///   根据source填充dataContextBuilderTmpls中所有模板, 并合并到dataContext中
+        ///       CollectionJoinParser
+        ///       CollectionPlusParser                      CollectionPlusParser[$allDevFormIds=$bizFormIds+$listFormIds]
+        ///       CollectionSelectParser                    CollectionSelectParser[$deployIds=$data select DeployId]
+        ///       CollectionSelectItemRegexSubStringParser
+        ///       DataPropertyParser                        DataPropertyParser[$idpath=$data[0].IDPATH]
+        ///       RegexSubStringParser
+        ///       TypeConversionParser
+        ///   source以"$data"缓存到dataContext中
+        ///   配置在使用时会产生或者获取一些数据; 数据产生并缓存一些变量供模板使用, 以达到动态配置的目的
         /// </summary>
-        /// <param name="target"></param>
-        /// <param name="dataContext"></param>
-        public static string ResolveStringWithTmpl(object dataContext, string target)
-        {
-            if (string.IsNullOrWhiteSpace(target))
-            {
-                return target;
-            }
-            if (dataContext is null)
-            {
-                return target;
-            }
-
-            var dataSource = JObject.FromObject(dataContext);
-            var stringTmplMatches = RegexConst.StringTmpl.Matches(target);
-            foreach (var stringTmplMatch in stringTmplMatches.Cast<Match>())
-            {
-                var stringTmplGroups = stringTmplMatch.Groups;
-                if (stringTmplGroups.Count > 1)
-                {
-                    string tmpl = stringTmplGroups["name"].Value;
-                    string leftQuotation = stringTmplGroups["leftQuotation"].Value;
-                    string rightQuotation = stringTmplGroups["rightQuotation"].Value;
-                    var tmplValue = ResolveVariableValue(dataSource.ToObject<Dictionary<string, object>>() ?? throw new Exception("无法将模板的数据上下文转换为字典"), tmpl);
-                    var tmplValueStr = tmplValue.ToString();
-                    if (string.IsNullOrWhiteSpace(leftQuotation) && string.IsNullOrWhiteSpace(rightQuotation) && tmplValue is not JObject && tmplValue is not JArray)
-                    {
-                        tmplValueStr = $@"""{tmplValueStr}""";
-                    }
-                    //if (tmplValue is JArray tmplJArray)
-                    //{
-                    //    tmplJArray.ToObject<List<string>>();
-                    //}
-                    target = target.Replace(tmpl, tmplValueStr);
-                }
-            }
-
-            return target;
-        }
-
-        #region 处理带数据上下文的模板字符串
-        /// <summary>
-        /// 构建数据上下文: 
-        /// 为字符串模板赋予扩展数据源, 即DataContext的能力
-        /// 配置在使用时会产生或者获取一些数据; 数据产生并缓存一些变量供模板自己使用, 以达到动态配置的目的
-        /// </summary>
-        /// <param name="assignmentStatementTmpl">赋值语句模板, 即变量名=值</param>
+        /// <param name="logger"></param>
+        /// <param name="source">数据源 - 就是将它($data)或者它的部分属性存储到dataContext中</param>
+        /// <param name="dataContextBuilderTmpls">赋值语句模板, 即变量名=值; 变量名就是dataContext的键, 值通过模板获取source的属性值;支持各种自定义XxxParser, 用于解析获取结构复杂的source属性值</param>
         /// <param name="dataContext">包含原始的数据$data的数据上下文对象</param>
         /// <returns></returns>
         public static Dictionary<string, object?> BuildDataContextBySource(this Dictionary<string, object> dataContext, IEnumerable<JToken> source, List<string> dataContextBuilderTmpls, ILogger? logger = null)
         {
             // key为要构建的dataContext的key, value为给key赋的值, 有可能会赋多次值
-            Dictionary<string, object?> dataContextBuildDetail = new();
-            
+            Dictionary<string, object?> dataContextBuildDetail = [];
             dataContext["$data"] = source;
             // 解析DataContext
             foreach (var dataContextBuilderTmpl in dataContextBuilderTmpls)
             {
+                // dataContextBuilderTmpls示例:
                 // $datavar=data, $idpath=data[0].idpath, ...
-                //"DataPropertyParser[$mainDataModels =$data[0].formConfiguration.dataModels]"
-                //"CollectionSelectParser[$mainDataModelIds=$mainDataModels select Id]"
+                //"$mainDataModels=DataPropertyParser[$data[0].formConfiguration.dataModels]"
+                //"$mainDataModelIds=CollectionSelectParser[$mainDataModels select Id]"
 
-                string assignmentLeft;
                 object? variableValueResolved = null;
                 string[]? sourceKeys = null;
-                var originResponseMatch = Regex.Match(dataContextBuilderTmpl, @"(?<assignmentLeft>^\$\w+)=\$data$");
-                // 1. 缓存结果$data
-                if (originResponseMatch.Success)
-                {
-                    assignmentLeft = originResponseMatch.Groups["assignmentLeft"].Value;
-                    variableValueResolved = dataContext["$data"];
-                    logger?.LogDebug($"call {nameof(BuildDataContextBySource)}, key={assignmentLeft}, 缓存source data");
-                }
-                else
-                {
-                    var dataContextBuilderMatch = Regex.Match(dataContextBuilderTmpl, @"(?<parser>^\w+Parser)\[(?<assignment>.+)\]$");
-                    var parserName = dataContextBuilderMatch.Groups["parser"].Value;
-                    var assignment = dataContextBuilderMatch.Groups["assignment"].Value;
-                    var tokens = assignment.Split("=", StringSplitOptions.RemoveEmptyEntries);
-                    assignmentLeft = tokens[0];
-                    var assignmentRight = tokens[1];
+                var originResponseMatch = Regex.Match(dataContextBuilderTmpl, @"(?<dataContextNewKey>^\$\w+)=\$data$");
+                var dataContextBuilderMatch = Regex.Match(dataContextBuilderTmpl, @"(?<dataContextNewKey>[\w\$@]*)=(?<expressionWithParser>.+)");
+                string dataContextNewKey = dataContextBuilderMatch.Groups["dataContextNewKey"].Value;
+                var expressionWithParser = dataContextBuilderMatch.Groups["expressionWithParser"].Value;
 
-                    #region 解析数据
-                    // 2. 缓存指定数据的某个属性值
-                    // 3. 缓存经过动态构建表达式树过滤的结果集
-                    // 4. 缓存正则获取字段值的一部分
-                    // 5. 缓存类型转换后的结果
-                    // 6. 缓存Select集合中的某个属性集合的结果
-                    var parseResult = new ParseResult(false);
-                    var tmplParsers = ReflectionHelper.GetTypes(typeof(ITmplParser));
-                    var tmplParser = tmplParsers.FirstOrDefault(x => x.Name == parserName) ?? throw new Exception($"未找到Parser: {parserName}");
-
-                    ITmplParser parser = ReflectionHelper.CreateInstance(tmplParser) as ITmplParser ?? throw new Exception($"Creating an instance of the type [{tmplParser.Name}] has failed");
-                    parseResult = parser.Parse(assignmentRight, dataContext);
-                    if (parseResult.Success)
-                    {
-                        variableValueResolved = parseResult.Value;
-                        sourceKeys = parseResult.DataSourceKeys;
-                        if (sourceKeys is null)
-                        {
-                            throw new Exception($"TmplParser解析成功, 但是未返回解析模板中的数据源的Key {nameof(parseResult.DataSourceKeys)}");
-                        }
-                        dataContextBuildDetail[assignmentLeft] = variableValueResolved;
-                        logger?.LogDebug($"call {nameof(BuildDataContextBySource)}, key={assignmentLeft}: {(variableValueResolved?.ToString()?.Length > 50 ? variableValueResolved?.ToString()?[..50] : variableValueResolved?.ToString())}");
-                    }
-                    if (parseResult.Value is null)
-                    {
-                        logger?.LogWarning($"All parsers failed to resolve the template [{assignmentRight}]");
-                    }
-                    #endregion
-                }
+                #region 解析数据
+                variableValueResolved = ResolveExpressionValue(expressionWithParser, dataContext);
+                dataContextBuildDetail[dataContextNewKey] = variableValueResolved;
+                logger?.LogDebug($"call {nameof(BuildDataContextBySource)}, key={dataContextNewKey}: {(variableValueResolved?.ToString()?.Length > 50 ? variableValueResolved?.ToString()?[..50] : variableValueResolved?.ToString())}");
+                #endregion
 
                 #region 处理解析好的数据
                 if (variableValueResolved is not null)
                 {
-                    // 数据源来源于当前请求得到最新数据也就是当前$data, 将解析出来的值追加;
-                    if (!assignmentLeft.Contains("w_") && dataContext.ContainsKey(assignmentLeft) && dataContext[assignmentLeft] is not null && sourceKeys is not null && sourceKeys.Any(x => string.Equals(x, "$data", StringComparison.OrdinalIgnoreCase)))
+                    // key {dataContextNewKey}已经存在, 则追加值; 数据源来源于当前请求得到最新数据也就是当前$data, 将解析出来的值追加;
+                    if (!dataContextNewKey.Contains("w_") && dataContext.ContainsKey(dataContextNewKey) && dataContext[dataContextNewKey] is not null && sourceKeys is not null && sourceKeys.Any(x => string.Equals(x, "$data", StringComparison.OrdinalIgnoreCase)))
                     {
-                        // key {assignmentLeft}已经存在, 则追加值
-                        if (dataContext[assignmentLeft] is not JArray oldValueJArray)
+                        if (dataContext[dataContextNewKey] is not JArray oldValueJArray)
                         {
-                            oldValueJArray = new JArray(dataContext[assignmentLeft]);
+                            oldValueJArray = new JArray(dataContext[dataContextNewKey]);
                         }
                         if (variableValueResolved is JArray newValueJArray)
                         {
@@ -323,50 +255,197 @@ namespace Sylas.RemoteTasks.Utils.Template
                     }
                     else
                     {
-                        dataContext[assignmentLeft] = variableValueResolved;
+                        dataContext[dataContextNewKey] = variableValueResolved;
                     }
                 }
                 #endregion
             }
             return dataContextBuildDetail;
         }
+
         /// <summary>
-        /// dataContext: { "$ids": "[1,2,3]" }; tmpl: "$ids" => [1, 2, 3]
+        /// 解析模板上下文后面的变量也可能会引用前面的变量, 这里依次解析出所有的值
         /// </summary>
         /// <param name="dataContext"></param>
-        /// <param name="tmpl"></param>
+        public static void ResolveSelfTmplValues(this Dictionary<string, object> dataContext)
+        {
+            foreach (var item in dataContext)
+            {
+                if (item.Value is string stringValue && stringValue.TryGetExpressions(out IEnumerable<string> expressions))
+                {
+                    foreach (var expression in expressions)
+                    {
+                        var expressionValue = ResolveExpressionValue(expression, dataContext).ToString();
+                        stringValue = stringValue.Replace(expression, expressionValue);
+                    }
+                    dataContext[item.Key] = stringValue;
+                }
+            }
+        }
+
+        static readonly Dictionary<string, ITmplParser> _parserObjectMap = [];
+        /// <summary>
+        /// dataContext的Key可能是"$expression"开头, 也可能被双花括号括起来"{{expression}}"
+        /// dataContext: { "$ids": "[1,2,3]" }; tmpl: "$ids" => [1, 2, 3]
+        /// </summary>
+        /// <param name="tmplWithParser">字符串模板 $app/${app}/{{app}}</param>
+        /// <param name="dataContextObject">模板上下文</param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static object ResolveVariableValue(Dictionary<string, object> dataContext, string tmpl)
+        public static object ResolveExpressionValue(string tmplWithParser, object dataContextObject)
         {
-            tmpl = tmpl.Trim();
-            if (!dataContext.Any())
+            if (string.IsNullOrWhiteSpace(tmplWithParser))
             {
-                return tmpl;
+                return tmplWithParser;
             }
-            if (tmpl.StartsWith("$"))
+            if (dataContextObject is null)
             {
-                var splitedTmpls = tmpl.Split('.', StringSplitOptions.RemoveEmptyEntries);
-                var data = dataContext.FirstOrDefault(x => string.Equals(x.Key, splitedTmpls[0], StringComparison.OrdinalIgnoreCase)).Value ?? throw new Exception($"数据上下文中未找到索引: {splitedTmpls[0]}");
-                for (var i = 1;  i < splitedTmpls.Length; i++)
+                return tmplWithParser;
+            }
+            if (dataContextObject is not Dictionary<string, object> dataContextDictionary)
+            {
+                dataContextDictionary = JObject.FromObject(dataContextObject).ToObject<Dictionary<string, object>>() ?? throw new Exception("无法将模板的数据上下文转换为字典");
+            }
+            var stringTmplMatches = RegexConst.StringTmpl.Matches(tmplWithParser);
+            List<string> results = [tmplWithParser];
+            foreach (var stringTmplMatch in stringTmplMatches.Cast<Match>())
+            {
+                var stringTmplGroups = stringTmplMatch.Groups;
+                if (stringTmplGroups.Count > 1)
                 {
-                    if (data is Dictionary<string, object> dataDictionary)
+                    string tmpl = stringTmplGroups["name"].Value;
+                    var tmplValue = ResolveFromDictionary(tmpl, dataContextDictionary);
+                    if (tmplValue is IEnumerable<object> arrayValue)
                     {
-                        data = dataDictionary.FirstOrDefault(x => string.Equals(x.Key, splitedTmpls[i], StringComparison.OrdinalIgnoreCase)).Value ?? throw new Exception($"数据上下文中未找到索引: {splitedTmpls[0]}");
-                    }
-                    else if (data is JObject dataJObj)
-                    {
-                        data = dataJObj.Properties().FirstOrDefault(x => string.Equals(x.Name, splitedTmpls[i], StringComparison.OrdinalIgnoreCase))?.Value ?? throw new Exception($"数据上下文中未找到索引: {splitedTmpls[0]}");
+                        List<string> newResults = [];
+                        foreach (var arrayItem in arrayValue)
+                        {
+                            List<string> cpResults = [];
+                            foreach (var resultItem in results)
+                            {
+                                var expValue = arrayItem.ToString();
+                                cpResults.Add(resultItem.Replace(tmpl, expValue));
+                            }
+                            newResults.AddRange(cpResults);
+                        }
+                        results = newResults;
                     }
                     else
                     {
-                        throw new Exception($"{splitedTmpls[i-1]}中无法获取属性{splitedTmpls[i]}");
+                        for (int i = 0; i < results.Count; i++)
+                        {
+                            results[i] = results[i].Replace(tmpl, tmplValue.ToString());
+                        }
                     }
                 }
-                return data;
             }
-            return tmpl;
+            return results.Count == 1 ? results.First().ToString() : results;
+
+            object ResolveFromDictionary(string tmplExpressionWithParser, Dictionary<string, object> dataContext)
+            {
+                tmplExpressionWithParser = tmplExpressionWithParser.TrimStart('$', '{').TrimEnd('}');
+                #region 获取Parser名
+                var dataContextBuilderMatch = Regex.Match(tmplExpressionWithParser, @"((?<parser>\w+Parser)\[(?<expression>.+)\]$)|(?<expression>.+)");
+                var parserName = dataContextBuilderMatch.Groups["parser"].Value;
+                var parserExpression = dataContextBuilderMatch.Groups["expression"].Value;
+                if (string.IsNullOrWhiteSpace(parserName))
+                {
+                    parserName = "DataPropertyParser";
+                }
+                #endregion
+
+                #region 获取Parser对象
+                var parseResult = new ParseResult(false);
+                if (!_parserObjectMap.TryGetValue(parserName, out ITmplParser parser))
+                {
+                    var tmplParsers = ReflectionHelper.GetTypes(typeof(ITmplParser));
+                    var tmplParser = tmplParsers.FirstOrDefault(x => x.Name == parserName) ?? throw new Exception($"未找到Parser: {parserName}");
+
+                    parser = ReflectionHelper.CreateInstance(tmplParser) as ITmplParser ?? throw new Exception($"Creating an instance of the type [{tmplParser.Name}] has failed");
+                    _parserObjectMap[parserName] = parser;
+                }
+                #endregion
+
+                #region 使用Parser解析模板值
+                parseResult = parser.Parse(parserExpression, dataContext);
+                var sourceKeys = parseResult.DataSourceKeys;
+                if (sourceKeys is not null)
+                {
+                    if (parseResult.Success && parseResult.Value is not null)
+                    {
+                        return parseResult.Value;
+                    }
+                    return parserExpression;
+                }
+                #endregion
+
+                throw new Exception($"TmplParser解析成功, 但是未返回解析模板中的数据源的Key {nameof(parseResult.DataSourceKeys)}");
+            }
         }
-        #endregion
+        /// <summary>
+        /// test
+        /// </summary>
+        /// <param name="dataContext"></param>
+        /// <param name="tmplExpression"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        public static object ResolveExpressionValue2(string tmplExpression, Dictionary<string, object> dataContext)
+        {
+            #region 如果没有可用的上下文直接返回
+            tmplExpression = tmplExpression.Trim();
+            if (!dataContext.Any())
+            {
+                return tmplExpression;
+            }
+            #endregion
+
+            #region 处理模板中的可能出现的变量标识符
+            string[] splitedTmpls;
+            string startExpression;
+
+            tmplExpression = tmplExpression.TrimStart('{', '$').TrimEnd('}');
+            splitedTmpls = tmplExpression.Split('.', StringSplitOptions.RemoveEmptyEntries);
+            startExpression = splitedTmpls[0];
+            #endregion
+
+            #region 依次解析表达式并返回最终得到的解析结果
+            object? data = dataContext; //.FirstOrDefault(x => string.Equals(x.Key.TrimStart('$'), startExpression, StringComparison.OrdinalIgnoreCase)).Value ?? throw new Exception($"数据上下文中未找到索引: {splitedTmpls[0]}");
+            for (var i = 0; i < splitedTmpls.Length; i++)
+            {
+                if (data is Dictionary<string, object> dataContextDictionary)
+                {
+                    data = dataContextDictionary.FirstOrDefault(x => string.Equals(x.Key.Trim('$'), splitedTmpls[i], StringComparison.OrdinalIgnoreCase)).Value ?? throw new Exception($"数据上下文中未找到索引: {splitedTmpls[i]}");
+                }
+                else
+                {
+                    if (data is not JObject dataContextJObj)
+                    {
+                        dataContextJObj = JObject.FromObject(data);
+                    }
+                    data = dataContextJObj.Properties().FirstOrDefault(x => string.Equals(x.Name, splitedTmpls[i], StringComparison.OrdinalIgnoreCase))?.Value ?? throw new Exception($"数据上下文中未找到索引: {splitedTmpls[i]}");
+                }
+            }
+            return data;
+            #endregion
+        }
+
+        /// <summary>
+        /// 获取字符串中的模板
+        /// </summary>
+        /// <param name="source">可能含模板的表达式</param>
+        /// <param name="expressions">模板表达式</param>
+        /// <returns></returns>
+        static bool TryGetExpressions(this string source, out IEnumerable<string> expressions)
+        {
+            var tmplExpressionMatchs = Regex.Matches(source, @"(?<exp>\$\w+)|(?<exp>\$\{[^\{\}]+\})|(?<exp>\{\{[^\{\}]+\}\})");
+            if (!tmplExpressionMatchs.Any())
+            {
+                expressions = Enumerable.Empty<string>();
+                return false;
+            }
+
+            expressions = tmplExpressionMatchs.Cast<Match>().Select(m => m.Groups["exp"].Value);
+            return true;
+        }
     }
 }

@@ -131,7 +131,7 @@ namespace Sylas.RemoteTasks.Utils
                 List<JToken>? result = null;
                 try
                 {
-                    result = await RemoteHelpers.FetchAllDataFromApiAsync(url, "接口测试请求失败", requestParameters, string.Empty, false, null, res => res["code"]?.ToString() == "1", res => res["data"], httpClient, null, null, false, "get", authorizationHeaderToken: authorizationHeaderToken);
+                    result = await RemoteHelpers.FetchAllDataFromApiAsync(url, "接口测试请求失败", requestParameters, string.Empty, false, null, res => res["code"]?.ToString() == "1", res => res["data"], httpClient, "", "", false, "get", authorizationHeaderToken: authorizationHeaderToken);
                 }
                 catch (Exception ex)
                 {

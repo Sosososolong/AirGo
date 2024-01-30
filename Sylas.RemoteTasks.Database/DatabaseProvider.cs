@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Linq;
 using Sylas.RemoteTasks.Database.SyncBase;
-using Sylas.RemoteTasks.Utils;
+using Sylas.RemoteTasks.Utils.Extensions;
 
 namespace Sylas.RemoteTasks.App.Database;
 
@@ -37,7 +37,7 @@ public class DatabaseProvider : IDatabaseProvider
     /// <summary>
     /// 连接字符串
     /// </summary>
-    public string? ConnectionString { get; set; }
+    public string ConnectionString { get; set; } = string.Empty;
 
     /// <summary>
     /// 获取与某个C#数据类型对应的在SQL server数据库中的类型
@@ -109,7 +109,7 @@ public class DatabaseProvider : IDatabaseProvider
     /// <param name="commandText"></param>
     /// <param name="commandParameters"></param>
     /// <param name="mustCloseConn"></param>
-    private void PrepareCommand(DbConnection connection, DbCommand command, DbTransaction transaction, CommandType commandType, string commandText, DbParameter[] commandParameters, out bool mustCloseConn)
+    private void PrepareCommand(DbConnection connection, DbCommand command, DbTransaction? transaction, CommandType commandType, string commandText, DbParameter[] commandParameters, out bool mustCloseConn)
     {
         if (connection.State != ConnectionState.Open)
         {

@@ -1,19 +1,14 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Sylas.RemoteTasks.App.RemoteHostModule;
+using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {
-    public class HostsController : Controller
+    public class HostsController(ILoggerFactory loggerFactory, HostService hostService) : Controller
     {
-        private readonly HostService _hostService;
+        private readonly HostService _hostService = hostService;
 
-        public HostsController(ILoggerFactory loggerFactory, HostService hostService)
-        {
-            _logger = loggerFactory.CreateLogger<HostsController>();
-            _hostService = hostService;
-        }
-
-        public ILogger _logger { get; }
+        public ILogger Logger { get; } = loggerFactory.CreateLogger<HostsController>();
 
         public IActionResult Index()
         {
@@ -29,6 +24,11 @@ namespace Sylas.RemoteTasks.App.Controllers
         public IActionResult Execute([FromBody] ExecuteDto executeDto)
         {
             return Json(_hostService.Execute(executeDto));
+        }
+
+        public IActionResult Test()
+        {
+            return Ok(AnythingInfo.Test());
         }
     }
 }

@@ -6,7 +6,7 @@ Write-Host $currentDirectory
 #Write-Host "currentDirectory: $($currentDirectory)"
 
 # 读取项目文件内容
-$projectFileContent = Get-Content -Path "../Sylas.RemoteTasks.Database/Sylas.RemoteTasks.Database.csproj"
+$projectFileContent = Get-Content -Path "../Sylas.RemoteTasks.Utils/Sylas.RemoteTasks.Utils.csproj"
 
 # 使用正则表达式匹配版本号
 $versionPattern = '<Version>(.*?)<\/Version>'

@@ -55,10 +55,10 @@ namespace Sylas.RemoteTasks.Test
             services.AddSingleton(serviceProvider =>
             {
                 var remoteHostInfoFactory = serviceProvider.GetService<RemoteHostInfoFactory>() ?? throw new Exception("DI容器中获取的RemoteHostInfoFactory为空");
-                var result = new List<RemoteHostInfoManager>();
+                var result = new List<RemoteHostInfoProvider>();
                 foreach (var remoteHost in remoteHosts)
                 {
-                    var dockerContainerManager = new RemoteHostInfoMangerDockerContainer(remoteHost, remoteHostInfoFactory);
+                    var dockerContainerManager = new RemoteHostInfoProviderDockerContainer(remoteHost, remoteHostInfoFactory);
                     result.Add(dockerContainerManager);
                 }
                 return result;

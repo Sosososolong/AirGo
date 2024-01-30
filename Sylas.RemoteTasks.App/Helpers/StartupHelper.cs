@@ -1,6 +1,5 @@
 ﻿using Sylas.RemoteTasks.App.Database;
 using Sylas.RemoteTasks.App.RemoteHostModule;
-using Sylas.RemoteTasks.App.RequestProcessor;
 using Sylas.RemoteTasks.Database;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils;
@@ -11,11 +10,10 @@ namespace Sylas.RemoteTasks.App.Helpers
     {
         public static void AddRemoteHostManager(this IServiceCollection services, IConfiguration configuration)
         {
-            var remoteHosts = configuration.GetSection("Hosts").Get<List<RemoteHost>>() ?? new List<RemoteHost>();
+            var remoteHosts = configuration.GetSection("Hosts").Get<List<RemoteHost>>() ?? [];
 
             services.AddSingleton(remoteHosts);
 
-            // TODO: 没有配置的给默认的值
             services.Configure<List<RemoteHostInfoCommandSettings>>(configuration.GetSection("RemoteHostInfoCommandSettings"));
 
             services.AddSingleton<RemoteHostInfoFactory>();
@@ -23,11 +21,11 @@ namespace Sylas.RemoteTasks.App.Helpers
             services.AddSingleton(serviceProvider =>
             {
                 var remoteHostInfoFactory = serviceProvider.GetService<RemoteHostInfoFactory>() ?? throw new Exception("DI容器中获取的RemoteHostInfoFactory为空");
-                var result = new List<RemoteHostInfoManager>();
+                var result = new List<RemoteHostInfoProvider>();
                 foreach (var remoteHost in remoteHosts)
                 {
-                    var dockerContainerManager = new RemoteHostInfoMangerDockerContainer(remoteHost, remoteHostInfoFactory);
-                    result.Add(dockerContainerManager);
+                    var dockerContainerProvider = new RemoteHostInfoProviderDockerContainer(remoteHost, remoteHostInfoFactory);
+                    result.Add(dockerContainerProvider);
                 }
                 return result;
             });

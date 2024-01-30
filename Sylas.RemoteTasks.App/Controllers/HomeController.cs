@@ -32,15 +32,15 @@ namespace Sylas.RemoteTasks.App.Controllers
         private static List<Tuple<string, JObject>> _allOperationTypes = new List<Tuple<string, JObject>>();
 
         // 当前操作方案 - settings[_currentOperationType]
-        private static dynamic _settingsObj;
+        private static dynamic _settingsObj = string.Empty;
 
         // 当前操作方案的所有操作的细节参数配置
-        private static dynamic _operationsInfo;
+        private static dynamic _operationsInfo = string.Empty;
 
         // 数据库连接字符串
-        private static string _connectionString;
+        private static string _connectionString = string.Empty;
 
-        private static string _customDbContextFile;
+        private static string _customDbContextFile = string.Empty;
         private readonly IWebHostEnvironment _webHostEnv;
         private readonly IConfiguration _configuration;
         private readonly ILogger<HomeController> _logger;
@@ -73,11 +73,11 @@ namespace Sylas.RemoteTasks.App.Controllers
                             ";
             if (Request.Method.ToLower() == "post" && !string.IsNullOrEmpty(Request.Form["sql"]))
             {
-                sql = Request.Form["sql"];
+                sql = Request.Form["sql"].ToString();
             }
             if (Request.Method.ToLower() == "post" && !string.IsNullOrEmpty(Request.Form["connectionString"]))
             {
-                _db.ConnectionString = Request.Form["connectionString"];
+                _db.ConnectionString = Request.Form["connectionString"].ToString();
             }
 
             if (Request.Method.ToLower() == "post" && sql.IndexOf("@pageIndex") == 0 || sql.IndexOf("@pageSize") == 0)
@@ -685,25 +685,25 @@ namespace Sylas.RemoteTasks.App.Controllers
 
             string settingsStringContent = System.IO.File.ReadAllText(settingsFile);
             // JObject 实现了IEnumerable<KeyValuePair<string, JToken?>>, 可以进行遍历
-            JObject settings = FileHelper.SettingsRead(settingsFile);
+            JObject settings = FileHelper.SettingsRead(settingsFile) ?? throw new Exception("配置异常");
 
             // 处理配置文件中的模板变量
-            settings = ReplaceSettingsTemplateVariable(settingsStringContent, settings);
+            settings = ReplaceSettingsTemplateVariable(settingsStringContent, settings ?? throw new Exception("配置异常"));
 
             // 所有的操作方案
             _allOperationTypes.RemoveAll(s => true); // 重新赋值的时候, 需要先清空
             foreach (var item in settings)
             {
-                _allOperationTypes.Add(Tuple.Create(item.Key, item.Value as JObject));
+                _allOperationTypes.Add(Tuple.Create(item.Key, item.Value as JObject ?? throw new Exception("配置异常")));
             }
 
-            _settingsObj = settings[_currentOperationType];
+            _settingsObj = settings[_currentOperationType] ?? throw new Exception("_currentOperationType异常");
 
             // 数组是JArray, 对象是JObject(实现了IDictionary, 可以按此类型遍历)   
             _operationsInfo = _settingsObj["Operations"];
 
             string dbContextDirectory = _settingsObj["Operations"]["InitializeCustomDbContext"]["MyDbContextDirectory"]["Path"];
-            _customDbContextFile = FileHelper.FindFilesRecursive(dbContextDirectory, f => f.Contains("DbContext"), files => files.Count > 0, null).FirstOrDefault();
+            _customDbContextFile = FileHelper.FindFilesRecursive(dbContextDirectory, f => f.Contains("DbContext"), files => files.Count > 0, null).FirstOrDefault() ?? "";
         }
 
         private void SetDataForFronted()
@@ -718,20 +718,19 @@ namespace Sylas.RemoteTasks.App.Controllers
 
         private static JObject ReplaceSettingsTemplateVariable(string allSettingsString, JObject allSettingsObj)
         {
-            JObject currentProjectPathInfo = allSettingsObj[_currentOperationType]["Paths"][_currentOperationPath] as JObject;
+            JObject currentProjectPathInfo = allSettingsObj[_currentOperationType]?["Paths"]?[_currentOperationPath] as JObject ?? throw new Exception("配置异常");
             foreach (var item in currentProjectPathInfo)
             {
                 if (item.Key == "ConnectionStrings")
                 {
-                    _connectionString = item.Value.ToString();
+                    _connectionString = item.Value?.ToString() ?? "";
                 }
                 string template = $@"{{{item.Key}}}";
-                string value = item.Value.ToString();
+                string value = item.Value?.ToString() ?? "";
 
-                Regex regex = new Regex(template);
-                allSettingsString = regex.Replace(allSettingsString, value);
+                allSettingsString = Regex.Replace(allSettingsString, template, value);
             }
-            return JsonConvert.DeserializeObject(allSettingsString) as JObject;
+            return JsonConvert.DeserializeObject(allSettingsString) as JObject ?? throw new Exception("配置异常");
         }
         // 读取配置文件完成后, 查看数据库连接字符串信息, 如果是本地数据库文件, 将数据库文件设置为绝对路径
         private void SetDbConnectionString()
@@ -755,16 +754,16 @@ namespace Sylas.RemoteTasks.App.Controllers
         // 切换项目
         public IActionResult ChangingProject()
         {
-            string target = Request.Form["target"];
-            string value = Request.Form["value"];
+            string target = Request.Form["target"].ToString();
+            string value = Request.Form["value"].ToString();
             if (target == "type") // 对项目类型进行切换
             {
                 _currentOperationPath = "Path001"; // 将项目目录切换到Path001, 因为当前的项目类型的项目路径可能只有Path001
-                _currentOperationType = value;
+                _currentOperationType = value ?? "";
             }
             else if (target == "path") // 同项目类型切换项目
             {
-                _currentOperationPath = value;
+                _currentOperationPath = value ?? "";
             }
             Init();
             return Content($@"{{""code"": 1, ""msg"": """", ""data"": {JsonConvert.SerializeObject(_settingsObj["Paths"])}}}");
@@ -780,7 +779,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             {
                 Directory.CreateDirectory(myDbContextDir);
             }
-            _customDbContextFile = FileHelper.FindFilesRecursive(myDbContextDir, f => f.Contains("DbContext.cs")).FirstOrDefault();
+            _customDbContextFile = FileHelper.FindFilesRecursive(myDbContextDir, f => f.Contains("DbContext.cs")).FirstOrDefault() ?? "";
             // 找到所有的实体/Entity
             var allEntities = FileHelper.FindFilesRecursive(entitiesDir, f => !f.Contains("Entity.cs"), null, null).Select(f => f.Replace(entitiesDir, string.Empty).Replace(".cs", string.Empty));
             // 如果已经存在自定义MyDbContext类, 操作按钮信息为modify, 并且需要过滤掉已经在MyDbContext中注册的实体集的对应的实体
@@ -811,7 +810,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             {
                 dbContextFileName = Request.Form["myDbContextName"] + ".cs";
             }
-            string type = Request.Form["type"]; // create modify            
+            string type = Request.Form["type"].ToString(); // create modify            
             List<string> entityNamesParams = Request.Form.Where(p => p.Key.StartsWith("entity-")).Select(p => p.Key.Replace("entity-", string.Empty)).ToList();
             if (entityNamesParams.Count <= 0)
             {
@@ -833,7 +832,7 @@ namespace Sylas.RemoteTasks.App.Controllers
                 await FileHelper.WriteAsync(dbContextFilePath, myDbContextContent, false);
 
                 // 2. Startup中将自定义DbCotext注册到容器中
-                string dbType = Request.Form["dbType"];
+                string dbType = Request.Form["dbType"].ToString();
                 string useMethodName = string.Empty;
                 switch (dbType)
                 {
@@ -872,10 +871,10 @@ namespace Sylas.RemoteTasks.App.Controllers
 
         public IActionResult GetEntityProperties()
         {
-            string entity = Request.Form["entityNameOfForeignKeyTable"];
+            string entity = Request.Form["entityNameOfForeignKeyTable"].ToString();
             // 找到对应实体
             string entitiesDir = _settingsObj["EntitiesDirectory"]["Path"];
-            string choosedEntity = FileHelper.FindFilesRecursive(entitiesDir, f => f.Contains($"/{entity}.cs") || f.Contains($"\\{entity}.cs"), null, null).FirstOrDefault();
+            string choosedEntity = FileHelper.FindFilesRecursive(entitiesDir, f => f.Contains($"/{entity}.cs") || f.Contains($"\\{entity}.cs"), null, null).FirstOrDefault() ?? "";
             List<string> entityProps = FileHelper.GetProperties(choosedEntity);
             return Json(new { code = 0, msg = entity, data = entityProps });
         }
@@ -886,10 +885,10 @@ namespace Sylas.RemoteTasks.App.Controllers
         public IActionResult DbContextBuildRelationship()
         {
             // "0"一对一, "1"一对多
-            string relationshipType = Request.Form["relationshipType"];
+            string relationshipType = Request.Form["relationshipType"].ToString();
             List<string> relationshipingEntities = Request.Form.Where(p => p.Key.StartsWith("rel-entity-")).Select(p => p.Key.Replace("rel-entity-", string.Empty)).ToList();
-            string foreignKeyTable = Request.Form["foreignKeyTable"];
-            string foreignKey = Request.Form["foreignKey"];
+            string foreignKeyTable = Request.Form["foreignKeyTable"].ToString();
+            string foreignKey = Request.Form["foreignKey"].ToString();
             if (!relationshipingEntities.Contains(foreignKeyTable))
             {
                 return Json(new { code = 0, msg = "外键表不是要建立关系的两个表之一" });
@@ -904,7 +903,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             }
             relationshipingEntities.Remove(foreignKeyTable);
 
-            string twoTablesRelationshipCode = _coreOperations.GetTwoTablesRelationshipCode(relationshipType, foreignKeyTable, relationshipingEntities[0], foreignKey);
+            string twoTablesRelationshipCode = _coreOperations.GetTwoTablesRelationshipCode(relationshipType ?? "", foreignKeyTable, relationshipingEntities[0], foreignKey);
             if (string.IsNullOrEmpty(twoTablesRelationshipCode))
             {
                 return Json(new { code = 0, msg = $"两表关系类型为: {relationshipType}, 生成的代码为空!" });

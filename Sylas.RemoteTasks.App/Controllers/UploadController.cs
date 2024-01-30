@@ -1,5 +1,4 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using System.Net.Http;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {
@@ -30,11 +29,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             // 3. JsonContent: body中的内容是{"name":"zhangsan","age":24}
             #endregion
 
-            var dir = _configuration["Upload:ClientDir"];
-            if (dir is null)
-            {
-                throw new Exception("没有配置要上传的目录 Upload:ClientDir");
-            }
+            var dir = _configuration["Upload:ClientDir"] ?? throw new Exception("没有配置要上传的目录 Upload:ClientDir");
             var files = Directory.GetFiles(dir);
             foreach (var file in files)
             {
@@ -44,10 +39,10 @@ namespace Sylas.RemoteTasks.App.Controllers
 
                 // 向MultipartFormDataContent插入准备好的文件表单域值， 注意MultipartFormDataContent是一个集合类型
                 // "files"就是接口UploadReceive的参数名, 要一致才能对应上才能接收到参数
-                var slashIndex = file.LastIndexOf('/');
-                var backSlashIndex = file.LastIndexOf('\\');
-                var index = slashIndex > backSlashIndex ? slashIndex : backSlashIndex;
-                var fileName = file[(index + 1)..];
+                var lastSlashIndex = file.LastIndexOf('/');
+                var lastBackSlashIndex = file.LastIndexOf('\\');
+                var slashIndex = lastSlashIndex > lastBackSlashIndex ? lastSlashIndex : lastBackSlashIndex;
+                var fileName = file[(slashIndex + 1)..];
                 requestContent.Add(byteArrayContent, "files", fileName);
             }
             var httpClient = httpClientFactory.CreateClient(_uploadClient);
@@ -67,11 +62,7 @@ namespace Sylas.RemoteTasks.App.Controllers
                 file.CopyTo(memoryStream);
                 var bytes = memoryStream.ToArray();
 
-                var serverSaveDir = _configuration["Upload:SaveDir"];
-                if (serverSaveDir is null)
-                {
-                    throw new Exception("服务端没有配置保存文件的位置 Upload:SaveDir");
-                }
+                var serverSaveDir = _configuration["Upload:SaveDir"] ?? throw new Exception("服务端没有配置保存文件的位置 Upload:SaveDir");
                 //创建本地文件写入流
                 var filePath = Path.Combine(serverSaveDir, file.FileName);
                 using FileStream fileStream = new(filePath, FileMode.Create);

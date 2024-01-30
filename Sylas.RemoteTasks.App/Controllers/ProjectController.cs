@@ -59,11 +59,11 @@ namespace Sylas.RemoteTasks.App.Controllers
             var connectionInfos = connectionInfosPage.Data;
             var regex = databaseType switch
             {
-                DatabaseType.MySql => RegexConst.ConnectionStringMySql(),
-                DatabaseType.SqlServer => RegexConst.ConnectionStringSqlServer(),
-                DatabaseType.Oracle => RegexConst.ConnectionStringOracle(),
-                DatabaseType.Sqlite => RegexConst.ConnectionStringSqlite(),
-                DatabaseType.Dm => RegexConst.ConnectionStringDm(),
+                DatabaseType.MySql => RegexConst.ConnectionStringMySql,
+                DatabaseType.SqlServer => RegexConst.ConnectionStringSqlServer,
+                DatabaseType.Oracle => RegexConst.ConnectionStringOracle,
+                DatabaseType.Sqlite => RegexConst.ConnectionStringSqlite,
+                DatabaseType.Dm => RegexConst.ConnectionStringDm,
                 _ => null,
             };
             if (regex is null)
@@ -81,7 +81,7 @@ namespace Sylas.RemoteTasks.App.Controllers
                 #region 获取所有的数据库连接字符串
                 foreach (var regexGetter in RegexConst.AllConnectionStringPatterns)
                 {
-                    var connectionStringLineRegex = new Regex($"(?<=\\n)(?<indent>\\s*)\"(?<connectionStringName>\\w+)\":\\s*\"(?<connectionString>{regexGetter()})\".*", RegexOptions.IgnoreCase);
+                    var connectionStringLineRegex = new Regex($"(?<=\\n)(?<indent>\\s*)\"(?<connectionStringName>\\w+)\":\\s*\"(?<connectionString>{regexGetter})\".*", RegexOptions.IgnoreCase);
                     var matches = connectionStringLineRegex.Matches(appsettingsContent);
                     foreach (Match match in matches.Cast<Match>())
                     {
@@ -91,7 +91,7 @@ namespace Sylas.RemoteTasks.App.Controllers
                             var matchedConnectionStringLine = match.Value; // .TrimEnd('\r', '\n', ',', '"')
 
                             // 根据数据库找到对应要切换的数据库
-                            var dbName = RegexConst.ConnectionStringDbName().Match(matchedConnectionStringLine).Groups["database"].Value;
+                            var dbName = RegexConst.ConnectionStringDbName.Match(matchedConnectionStringLine).Groups["database"].Value;
                             var newConnInfo = connectionInfos.FirstOrDefault(x => x.ConnectionString.Contains(dbName, StringComparison.OrdinalIgnoreCase) || x.Alias.Contains(dbName, StringComparison.OrdinalIgnoreCase));
                             if (newConnInfo is not null)
                             {

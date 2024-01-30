@@ -304,8 +304,8 @@ namespace Sylas.RemoteTasks.App.Infrastructure
             string dto = dtoName;
             string entity = entityName;
 
-            string dtoFile = FileHelper.FindFilesRecursive(dtoProjectDir, f => f.EndsWith($"{dto}.cs"), ls => ls.Count > 0).FirstOrDefault();
-            string entityFile = FileHelper.FindFilesRecursive(entityProjectDir, f => f.EndsWith($"{entity}.cs"), ls => ls.Count > 0).FirstOrDefault();
+            string dtoFile = FileHelper.FindFilesRecursive(dtoProjectDir, f => f.EndsWith($"{dto}.cs"), ls => ls.Count > 0).FirstOrDefault() ?? "";
+            string entityFile = FileHelper.FindFilesRecursive(entityProjectDir, f => f.EndsWith($"{entity}.cs"), ls => ls.Count > 0).FirstOrDefault() ?? "";
             if (string.IsNullOrWhiteSpace(dtoFile))
             {
                 return $"error:没有在文件夹{dtoProjectDir}中找到文件{dto}.cs";
@@ -317,7 +317,7 @@ namespace Sylas.RemoteTasks.App.Infrastructure
 
             List<string> dtoProperties = FileHelper.GetProperties(dtoFile);
             List<string> entityProperties = FileHelper.GetProperties(entityFile);
-            StringBuilder codeSb = new StringBuilder();
+            StringBuilder codeSb = new();
             bool f = false;
             foreach (string dtoProp in dtoProperties)
             {
@@ -344,7 +344,7 @@ namespace Sylas.RemoteTasks.App.Infrastructure
                     string propertyMappingsValueStr = string.Empty;
                     while (true)
                     {
-                        propertyMappingsValueStr = Console.ReadLine();
+                        propertyMappingsValueStr = Console.ReadLine() ?? throw new Exception("输入异常");
                         string[] inputs = propertyMappingsValueStr.Split(',');
                         bool isInputAllRight = true;
                         foreach (var item in inputs)
@@ -362,7 +362,7 @@ namespace Sylas.RemoteTasks.App.Infrastructure
                         }
                     }
                     Console.WriteLine("排序升降是否需要反转? y/n");
-                    string isRevert = Console.ReadLine();
+                    string isRevert = Console.ReadLine() ?? throw new Exception("输入异常");
                     if (string.IsNullOrWhiteSpace(isRevert))
                     {
                         isRevert = "n";

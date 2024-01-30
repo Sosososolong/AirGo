@@ -6,9 +6,9 @@
     public class RemoteHostInfoManagerFactory
     {
 
-        public RemoteHostInfoManager CreateDockerContainerInfo(RemoteHost remoteHost, RemoteHostInfoFactory remoteHostInfoFactory)
+        public RemoteHostInfoProvider CreateDockerContainerInfo(RemoteHost remoteHost, RemoteHostInfoFactory remoteHostInfoFactory)
         {
-            return new RemoteHostInfoMangerDockerContainer(remoteHost, remoteHostInfoFactory);
+            return new RemoteHostInfoProviderDockerContainer(remoteHost, remoteHostInfoFactory);
         }
     }
 }

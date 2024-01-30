@@ -6,7 +6,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MySql.Data.MySqlClient;
-using MySqlX.XDevAPI.Relational;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Oracle.ManagedDataAccess.Client;
@@ -136,9 +135,36 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 _ => throw new Exception($"不支持的数据库连接字符串: {connectionString}"),
             };
         }
-        private static IDbConnection GetOracleConnection(string host, string port, string instanceName, string username, string password) => new OracleConnection($"Data Source={host}:{port}/{instanceName};User ID={username};Password={password};PERSIST SECURITY INFO=True;Pooling = True;Max Pool Size = 100;Min Pool Size = 1;");
-        private static IDbConnection GetMySqlConnection(string host, string port, string db, string username, string password) => new MySqlConnection($"Server={host};Port={port};Stmt=;Database={db};Uid={username};Pwd={password};Allow User Variables=true;");
-        private static IDbConnection GetSqlServerConnection(string host, string port, string db, string username, string password) => new SqlConnection($"User ID={username};Password={password};Initial Catalog={db};Data Source={host},{(string.IsNullOrWhiteSpace(port) ? "1433" : port)}");
+        /// <summary>
+        /// 获取Oracle连接字符串
+        /// </summary>
+        /// <param name="host"></param>
+        /// <param name="port"></param>
+        /// <param name="instanceName"></param>
+        /// <param name="username"></param>
+        /// <param name="password"></param>
+        /// <returns></returns>
+        public static IDbConnection GetOracleConnection(string host, string port, string instanceName, string username, string password) => new OracleConnection($"Data Source={host}:{port}/{instanceName};User ID={username};Password={password};PERSIST SECURITY INFO=True;Pooling = True;Max Pool Size = 100;Min Pool Size = 1;");
+        /// <summary>
+        /// 获取MySql连接字符串
+        /// </summary>
+        /// <param name="host"></param>
+        /// <param name="port"></param>
+        /// <param name="db"></param>
+        /// <param name="username"></param>
+        /// <param name="password"></param>
+        /// <returns></returns>
+        public static IDbConnection GetMySqlConnection(string host, string port, string db, string username, string password) => new MySqlConnection($"Server={host};Port={port};Stmt=;Database={db};Uid={username};Pwd={password};Allow User Variables=true;");
+        /// <summary>
+        /// 获取SqlServer连接字符串
+        /// </summary>
+        /// <param name="host"></param>
+        /// <param name="port"></param>
+        /// <param name="db"></param>
+        /// <param name="username"></param>
+        /// <param name="password"></param>
+        /// <returns></returns>
+        public static IDbConnection GetSqlServerConnection(string host, string port, string db, string username, string password) => new SqlConnection($"User ID={username};Password={password};Initial Catalog={db};Data Source={host},{(string.IsNullOrWhiteSpace(port) ? "1433" : port)}");
         /// <summary>
         /// 解析数据库连接字符串, 获取数据库详细信息
         /// </summary>
@@ -256,12 +282,12 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             string sql = GetPagedSql(conn.Database, table, dbType, pageIndex, pageSize, orderField, isAsc, filters, out string condition, out Dictionary<string, object> parameters);
 
             string allCountSqlTxt = $"select count(*) from {table} where 1=1 {condition}";
-            
+
             var allCount = await conn.ExecuteScalarAsync<int>(allCountSqlTxt, parameters);
 
             var data = await conn.QueryAsync<T>(sql, parameters);
 
-            return new PagedData<T>  { Data = data, Count = allCount, TotalPages = (allCount + pageSize - 1) / pageSize };
+            return new PagedData<T> { Data = data, Count = allCount, TotalPages = (allCount + pageSize - 1) / pageSize };
 
         }
         /// <summary>
@@ -308,7 +334,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 trans.Rollback();
                 throw;
             }
-            
+
             trans.Commit();
             conn.Close();
             return res;
@@ -438,6 +464,10 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         public static async Task SyncDatabaseByConnectionStringsAsync(string sourceConnectionString, string targetConnectionString, string sourceSyncedDb = "", string sourceSyncedTable = "", bool ignoreException = false)
         {
             using var sourceConn = GetDbConnection(sourceConnectionString);
+            if (!string.IsNullOrWhiteSpace(sourceSyncedDb))
+            {
+                sourceConn.ChangeDatabase(sourceSyncedDb);
+            }
             // 数据源-数据库
             var res = await GetAllTablesAsync(sourceConn, sourceSyncedDb);
 
@@ -502,7 +532,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="sourceIdField"></param>
         /// <param name="targetIdField"></param>
         /// <returns></returns>
-        public async Task SyncDatabaseWithTargetConnectionStringAsync(string table, IEnumerable<JToken> sourceRecords, string[] ignoreFields, string sourceIdField = "", string targetIdField = "", string connectionString = "")
+        public async Task SyncDataToDbWithTargetConnectionStringAsync(string table, IEnumerable<JToken> sourceRecords, string[] ignoreFields, string sourceIdField = "", string targetIdField = "", string connectionString = "")
         {
             if (!string.IsNullOrWhiteSpace(connectionString))
             {
@@ -520,7 +550,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="sourceIdField"></param>
         /// <param name="targetIdField"></param>
         /// <returns></returns>
-        public async Task SyncDatabaseWithTargetDbAsync(string table, IEnumerable<JToken> sourceRecords, string[] ignoreFields, string sourceIdField = "", string targetIdField = "", string db = "")
+        public async Task SyncDataToDbAsync(string table, IEnumerable<JToken> sourceRecords, string[] ignoreFields, string sourceIdField = "", string targetIdField = "", string db = "")
         {
             await SyncDatabaseAsync(table, sourceRecords, ignoreFields: ignoreFields, sourceIdField: sourceIdField, targetIdField: targetIdField, db);
         }
@@ -529,7 +559,12 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// </summary>
         /// <param name="table"></param>
         /// <param name="sourceRecords"></param>
+        /// <param name="ignoreFields"></param>
+        /// <param name="sourceIdField"></param>
+        /// <param name="targetIdField"></param>
+        /// <param name="db"></param>
         /// <returns></returns>
+        /// <exception cref="Exception"></exception>
         private async Task SyncDatabaseAsync(string table, IEnumerable<JToken> sourceRecords, string[] ignoreFields, string sourceIdField = "", string targetIdField = "", string db = "")
         {
             //conn.ConnectionString: "server=127.0.0.1;port=3306;database=engine;user id=root;allowuservariables=True"
@@ -541,7 +576,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 ChangeDatabase(conn, db);
             }
             var varFlag = GetDbParameterFlag(_connectionString);
-            
+
             // 先获取数据
             var dbRecords = await conn.QueryAsync($"select * from {conn.Database}.{table}") ?? throw new Exception($"获取{table}数据失败");
 
@@ -627,7 +662,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             }
             #endregion
         }
-        
+
         static async Task DeleteExistRecordsAsync(IDbConnection conn, DataComparedResult compareResult, string targetTable, string varFlag, string targetIdField, ILogger? logger = null)
         {
             if (!compareResult.Changed.Any())
@@ -641,7 +676,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             foreach (var item in compareResult.Changed)
             {
                 var itemProps = item.TargetRecord.Properties();
-                
+
                 if (targetIdField.Contains(','))
                 {
                     var targetPrimaryKeys = GetPrimaryKeys(compareResult.Changed.FirstOrDefault()?.TargetRecord, targetIdField);
@@ -676,8 +711,8 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                     deleteSqlsBuilder.Append($"{varFlag}id{index},");
                     parameters.Add($"id{index}", targetIdVal.ToObject<dynamic>());
                 }
-                
-                
+
+
                 index++;
 
                 if (index > 0 && index % 100 == 0 || index >= compareResult.Changed.Count)
@@ -759,7 +794,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
 
             // 1. 获取字段部分
             var insertFieldsStatement = GetFieldsStatement(firstRecordJObj);
-            
+
             var insertValuesStatement = "";
             int recordIndex = 0;
             //var parameters = new DynamicParameters();
@@ -992,7 +1027,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             #endregion
 
             string baseSqlTxt = $"select * from {table} where 1=1 {queryCondition}";
-            
+
             #region 不同数据库对应的SQL语句
             string sql = dbType switch
             {
@@ -1128,7 +1163,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                     pVal = DateTime.Now;
                 }
             }
-            
+
             // BOOKMARK: ※※※※ 转为dynamic就不需要转换为具体的类型了 ※※※※
             pVal ??= p.Value.ToObject<dynamic>();
 
@@ -1344,7 +1379,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                     }
                     var paramName = $"{p.Name}{random}";
                     insertValuesStatement += $"{dbVarFlag}{paramName},";
-                    
+
                     var col = colInfos.FirstOrDefault(x => string.Equals(x.ColumnCode, p.Name, StringComparison.OrdinalIgnoreCase));
                     dynamic? pVal = GetColumnValue(p, col);
                     parameters.Add(paramName, pVal);
@@ -1370,7 +1405,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             string currentDataRowInsertStatement = $"({valuesStatement}),{Environment.NewLine}";
             return currentDataRowInsertStatement;
         }
-        
+
         /// <summary>生成创建表的SQL语句</summary>
         public static string GenerateCreateTableSql(string tableName, DatabaseType dbType, IEnumerable<ColumnInfo> colInfos, object? tableRecords = null)
         {
@@ -1653,7 +1688,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             {
                 throw new Exception($"提供Source的主键字段{sourceIdField}与Target的主键字段{targetIdField}无法一一对应");
             }
-            
+
             if (sourceArray is null)
             {
                 throw new Exception("对比数据源数据集为空");
@@ -1691,7 +1726,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             #endregion
 
             #region 调用CPU密集型任务帮助类进行多线程分批对比数据
-            await BatchesSchedule.CpuTasksExecuteAsync(targetArray, CompareBatchData);
+            await BatchesScheme.CpuTasksExecuteAsync(targetArray, CompareBatchData);
             #endregion
 
             #region 构建数据对比结果并返回
@@ -1742,7 +1777,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                             var sourcePkValue = sourceRecord.Properties().FirstOrDefault(x => string.Equals(sourcePrimaryKey, x.Name, StringComparison.OrdinalIgnoreCase))?.Value?.ToString() ?? throw new Exception($"查找ID失败");
                             sourceIdValues.Add(sourcePrimaryKey, sourcePkValue);
                         }
-                        
+
                         // 比较是否所有主键字段值都相同
                         bool allPksHasSameValue = true;
                         foreach (var sourceIdValue in sourceIdValues)
@@ -2155,7 +2190,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             conn.Open();
             using var connUpdate = GetDbConnection(connectionString);
             connUpdate.Open();
-            
+
             var cols = await GetTableColumnsInfoAsync(conn, table);
             var idField = cols.FirstOrDefault(x => x.IsPK == 1);
             var idFieldName = idField is null ? "id" : idField.ColumnCode;
@@ -2191,7 +2226,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                                     var hiddenIndex = (int)Math.Ceiling(val.Length / 2.0);
                                     newVal = val.StartsWith("***") ? val : "***" + val[hiddenIndex..];
                                 }
-                                
+
                                 parameters.Add(col.ColumnCode, newVal);
                                 updateBuiler.Append($"{col.ColumnCode}={varFlag}{col.ColumnCode},");
                             }

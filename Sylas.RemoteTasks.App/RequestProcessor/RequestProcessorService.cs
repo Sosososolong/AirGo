@@ -5,25 +5,12 @@ using Sylas.RemoteTasks.Utils;
 
 namespace Sylas.RemoteTasks.App.RequestProcessor
 {
-    public class RequestProcessorService
+    public class RequestProcessorService(ILogger<RequestProcessorService> logger, IServiceProvider serviceProvider, HttpRequestProcessorRepository repository)
     {
-        private readonly IConfiguration _configuration;
-        private readonly ILogger<RequestProcessorService> _logger;
-        private readonly IServiceProvider _serviceProvider;
-        private readonly HttpRequestProcessorRepository _repository;
-
-        public RequestProcessorService(IConfiguration configuration, ILogger<RequestProcessorService> logger, IServiceProvider serviceProvider, HttpRequestProcessorRepository repository)
-        {
-            _configuration = configuration;
-            _logger = logger;
-            _serviceProvider = serviceProvider;
-            _repository = repository;
-        }
-
         public async Task<OperationResult> ExecuteFromDatabaseAsync(int[] ids, int stepId = 0)
         {
             var idsString = string.Join(',', ids);
-            var httpRequestProcessors = await _repository.GetPageAsync(1, 1000, "id", true, new DataFilter() { FilterItems = new List<FilterItem> { new FilterItem { CompareType = "in", FieldName = "id", Value = idsString } } });
+            var httpRequestProcessors = await repository.GetPageAsync(1, 1000, "id", true, new DataFilter() { FilterItems = new List<FilterItem> { new FilterItem { CompareType = "in", FieldName = "id", Value = idsString } } });
             Dictionary<string, object>? dataContext = null;
 
             if (httpRequestProcessors.Data is null || !httpRequestProcessors.Data.Any())
@@ -34,11 +21,11 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
             foreach (var httpRequestProcessor in httpRequestProcessors.Data)
             {
                 var requestProcessorName = httpRequestProcessor.Name ?? throw new Exception("[HttpRequestProcessor.Name] is missing"); //$"The provided \"{pipelineItem.Key}\" configuration is invalid"
-                _logger.LogInformation($"{new string('*', 30)} A New RequestProcessor {requestProcessorName} {new string('*', 30)}");
+                logger.LogInformation($"{new string('*', 30)} A New RequestProcessor {requestProcessorName} {new string('*', 30)}");
                 var requestProcessorUrl = httpRequestProcessor.Url ?? throw new Exception("[HttpRequestProcessor.Url] is missing");
                 var requestProcessorType = ReflectionHelper.GetTypeByClassName(requestProcessorName);
                 // BOOKMARK: HttpRequestProcessor - 10. DI容器中获取对应的实例对象
-                var requestProcessorInstance = _serviceProvider.GetService(requestProcessorType) ?? throw new Exception($"未能获取RequestProcessor实例: {requestProcessorName}");
+                var requestProcessorInstance = serviceProvider.GetService(requestProcessorType) ?? throw new Exception($"未能获取RequestProcessor实例: {requestProcessorName}");
                 if (dataContext is not null)
                 {
                     // 第一次迭代肯定为null, 但是第二次之后基本就不为null了
@@ -70,7 +57,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                 // BOOKMARK: 持久化当前步骤结束时候的上下文数据 2.持久化到数据库, 以便下一次可以直接执行它的下一步
                 foreach (var step in httpRequestProcessor.Steps.Where(x => x.Id == stepId || stepId == 0))
                 {
-                    await _repository.UpdateStepAsync(step);
+                    await repository.UpdateStepAsync(step);
                 }
 
                 if (stepId > 0)

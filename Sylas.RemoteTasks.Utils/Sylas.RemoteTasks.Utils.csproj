@@ -6,7 +6,7 @@
 	<LangVersion>Latest</LangVersion>
 
 	<!--版本号-->
-	<Version>1.0.0</Version>
+	<Version>1.0.1</Version>
 	<!--添加该配置, 在编译时进行打包-->
 	<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 	<!--添加该配置才会生成注释文件, 默认无注释-->
@@ -19,6 +19,7 @@
     <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+	<PackageReference Include="SSH.NET" Version="2023.0.1" />
   </ItemGroup>
 
 </Project>

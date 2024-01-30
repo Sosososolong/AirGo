@@ -1,20 +1,13 @@
-﻿using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Options;
 using Sylas.RemoteTasks.App.RegexExp;
-using System.ComponentModel;
-using System.Text.RegularExpressions;
 
 namespace Sylas.RemoteTasks.App.RemoteHostModule
 {
-    public partial class RemoteHostInfoFactory
+    public partial class RemoteHostInfoFactory(IOptions<List<RemoteHostInfoCommandSettings>> tmplSettings)
     {
-        private readonly List<RemoteHostInfoCommandSettings> _tmplSettings;
+        private readonly List<RemoteHostInfoCommandSettings> _tmplSettings = tmplSettings.Value;
 
-        public RemoteHostInfoFactory(IOptions<List<RemoteHostInfoCommandSettings>> tmplSettings)
-        {
-            _tmplSettings = tmplSettings.Value;
-        }
-        public RemoteHostInfo CreateDockerContainer(string containerId, string image,string command, string created, string status, string ports, string names, string host)
+        public RemoteHostInfo CreateDockerContainer(string containerId, string image, string command, string created, string status, string ports, string names, string host)
         {
             #region 创建DockerContainerInfo
             var dockerContainerInfo = new RemoteHostInfoDockerContainer
@@ -36,7 +29,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
             {
                 foreach (var commandTmpl in currentHostTmplSetting.RemoteHostInfoCommands)
                 {
-                    commandTmpl.Command = RegexConst.CurrentObjPropTmpl().Replace(commandTmpl.Command, match =>
+                    commandTmpl.CommandTxt = RegexConst.CurrentObjPropTmpl.Replace(commandTmpl.CommandTxt, match =>
                     {
                         var propName = match.Groups["propName"].Value;
                         var propValue = dockerContainerProperties.FirstOrDefault(p => p.Name == propName)?.GetValue(dockerContainerInfo)?.ToString();
@@ -45,8 +38,8 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
                 }
             }
 
-            dockerContainerInfo.Commands = currentHostTmplSetting?.RemoteHostInfoCommands ?? new List<CommandInfo>();
-            
+            dockerContainerInfo.Commands = currentHostTmplSetting?.RemoteHostInfoCommands ?? [];
+
             return dockerContainerInfo;
             #endregion
         }

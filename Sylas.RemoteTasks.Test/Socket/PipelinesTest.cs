@@ -10,10 +10,5 @@ namespace Sylas.RemoteTasks.Test.Socket
         {
             _outputHelper = outputHelper;
         }
-        [Fact]
-        public async Task LinesServerWithSocketTest()
-        {
-            await Utils.SocketHelper.MyProcessLinesAsync();
-        }
     }
 }

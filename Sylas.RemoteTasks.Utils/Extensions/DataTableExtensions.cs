@@ -3,10 +3,20 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 
-namespace Sylas.RemoteTasks.Utils
+namespace Sylas.RemoteTasks.Utils.Extensions
 {
+    /// <summary>
+    /// DataTable操作助手
+    /// </summary>
     public static class DataTableExtensions
     {
+        /// <summary>
+        /// 将DataTable中的数据转换为JObject集合
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="source"></param>
+        /// <returns></returns>
+        /// <exception cref="ArgumentNullException"></exception>
         public static IEnumerable<T> ToObjectList<T>(this DataTable source) where T : new()
         {
             if (source == null) throw new ArgumentNullException(nameof(source));
@@ -14,7 +24,7 @@ namespace Sylas.RemoteTasks.Utils
             if (typeof(T).Name == "JObject")
             {
                 var rows = source.AsEnumerable().Select(row => JObject.FromObject(row));
-                return rows.Select(x => x.ToObject<T>());
+                return rows.Select(x => x.ToObject<T>() ?? throw new Exception("对象转换失败"));
             }
             else if (typeof(T).Name == "object")
             {

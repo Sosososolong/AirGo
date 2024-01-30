@@ -7,133 +7,500 @@ using System.Threading.Tasks;
 
 namespace Sylas.RemoteTasks.Utils
 {
+    /// <summary>
+    /// 系统接口
+    /// </summary>
     public static class SystemHelper
     {
         #region 键盘代码
+
+        /// <summary>
+        /// 修饰键ALT
+        /// </summary>
         public const int MOD_ALT = 1;
+        /// <summary>
+        /// 修饰键CONTROL
+        /// </summary>
         public const int MOD_CONTROL = 2;
+        /// <summary>
+        /// 修饰键SHIFT
+        /// </summary>
         public const int MOD_SHIFT = 4;
+        /// <summary>
+        /// 修饰键WIN
+        /// </summary>
         public const int MOD_WIN = 8;
 
+        /// <summary>
+        /// 键盘 - BACK键
+        /// </summary>
         public const uint VK_BACK = 8;
+        /// <summary>
+        /// 键盘 - TAB键
+        /// </summary>
         public const uint VK_TAB = 9;
+        /// <summary>
+        /// 键盘 - CLEAR键
+        /// </summary>
         public const uint VK_CLEAR = 12;
+        /// <summary>
+        /// 键盘 - RETURN键
+        /// </summary>
         public const uint VK_RETURN = 13;
+        /// <summary>
+        /// 键盘 - SHIFT键
+        /// </summary>
         public const uint VK_SHIFT = 16;
+        /// <summary>
+        /// 键盘 - CONTROL键
+        /// </summary>
         public const uint VK_CONTROL = 17;
+        /// <summary>
+        /// 键盘 - MENU键
+        /// </summary>
         public const uint VK_MENU = 18;
+        /// <summary>
+        /// 键盘 - PAUSE键
+        /// </summary>
         public const uint VK_PAUSE = 19;
+        /// <summary>
+        /// 键盘 - CAPITAL键
+        /// </summary>
         public const uint VK_CAPITAL = 20;
+        /// <summary>
+        /// 键盘 - KANA键
+        /// </summary>
         public const uint VK_KANA = 0x15;
+        /// <summary>
+        /// 键盘 - HANGEUL键
+        /// </summary>
         public const uint VK_HANGEUL = 0x15;
+        /// <summary>
+        /// 键盘 - HANGUL键
+        /// </summary>
         public const uint VK_HANGUL = 0x15;
+        /// <summary>
+        /// 键盘 - JUNJA键
+        /// </summary>
         public const uint VK_JUNJA = 0x17;
+        /// <summary>
+        /// 键盘 - FINAL键
+        /// </summary>
         public const uint VK_FINAL = 0x18;
+        /// <summary>
+        /// 键盘 - HANJA键
+        /// </summary>
         public const uint VK_HANJA = 0x19;
+        /// <summary>
+        /// 键盘 - KANJI键
+        /// </summary>
         public const uint VK_KANJI = 0x19;
+        /// <summary>
+        /// 键盘 - ESCAPE键
+        /// </summary>
         public const uint VK_ESCAPE = 0x1B;
+        /// <summary>
+        /// 键盘 - CONVERT键
+        /// </summary>
         public const uint VK_CONVERT = 0x1C;
+        /// <summary>
+        /// 键盘 - NONCONVERT键
+        /// </summary>
         public const uint VK_NONCONVERT = 0x1D;
+        /// <summary>
+        /// 键盘 - ACCEPT键
+        /// </summary>
         public const uint VK_ACCEPT = 0x1E;
+        /// <summary>
+        /// 键盘 - MODECHANGE键
+        /// </summary>
         public const uint VK_MODECHANGE = 0x1F;
+        /// <summary>
+        /// 键盘 - SPACE键
+        /// </summary>
         public const uint VK_SPACE = 32;
+        /// <summary>
+        /// 键盘 - PRIOR键
+        /// </summary>
         public const uint VK_PRIOR = 33;
+        /// <summary>
+        /// 键盘 - NEXT键
+        /// </summary>
         public const uint VK_NEXT = 34;
+        /// <summary>
+        /// 键盘 - END键
+        /// </summary>
         public const uint VK_END = 35;
+        /// <summary>
+        /// 键盘 - HOME键
+        /// </summary>
         public const uint VK_HOME = 36;
+        /// <summary>
+        /// 键盘 - LEFT键
+        /// </summary>
         public const uint VK_LEFT = 37;
+        /// <summary>
+        /// 键盘 - UP键
+        /// </summary>
         public const uint VK_UP = 38;
+        /// <summary>
+        /// 键盘 - RIGHT键
+        /// </summary>
         public const uint VK_RIGHT = 39;
+        /// <summary>
+        /// 键盘 - DOWN键
+        /// </summary>
         public const uint VK_DOWN = 40;
+        /// <summary>
+        /// 键盘 - SELECT键
+        /// </summary>
         public const uint VK_SELECT = 41;
+        /// <summary>
+        /// 键盘 - PRINT键
+        /// </summary>
         public const uint VK_PRINT = 42;
+        /// <summary>
+        /// 键盘 - EXECUTE键
+        /// </summary>
         public const uint VK_EXECUTE = 43;
+        /// <summary>
+        /// 键盘 - SNAPSHOT键
+        /// </summary>
         public const uint VK_SNAPSHOT = 44;
+        /// <summary>
+        /// 键盘 - INSERT键
+        /// </summary>
         public const uint VK_INSERT = 45;
+        /// <summary>
+        /// 键盘 - DELETE键
+        /// </summary>
         public const uint VK_DELETE = 46;
+        /// <summary>
+        /// 键盘 - HELP键
+        /// </summary>
         public const uint VK_HELP = 47;
+        /// <summary>
+        /// 键盘 - LWIN键
+        /// </summary>
         public const uint VK_LWIN = 0x5B;
+        /// <summary>
+        /// 键盘 - RWIN键
+        /// </summary>
         public const uint VK_RWIN = 0x5C;
+        /// <summary>
+        /// 键盘 - APPS键
+        /// </summary>
         public const uint VK_APPS = 0x5D;
+        /// <summary>
+        /// 键盘 - SLEEP键
+        /// </summary>
         public const uint VK_SLEEP = 0x5F;
+        /// <summary>
+        /// 键盘 - NUMPAD0键
+        /// </summary>
         public const uint VK_NUMPAD0 = 0x60;
+        /// <summary>
+        /// 键盘 - NUMPAD1键
+        /// </summary>
         public const uint VK_NUMPAD1 = 0x61;
+        /// <summary>
+        /// 键盘 - NUMPAD2键
+        /// </summary>
         public const uint VK_NUMPAD2 = 0x62;
+        /// <summary>
+        /// 键盘 - NUMPAD3键
+        /// </summary>
         public const uint VK_NUMPAD3 = 0x63;
+        /// <summary>
+        /// 键盘 - NUMPAD4键
+        /// </summary>
         public const uint VK_NUMPAD4 = 0x64;
+        /// <summary>
+        /// 键盘 - NUMPAD5键
+        /// </summary>
         public const uint VK_NUMPAD5 = 0x65;
+        /// <summary>
+        /// 键盘 - NUMPAD6键
+        /// </summary>
         public const uint VK_NUMPAD6 = 0x66;
+        /// <summary>
+        /// 键盘 - NUMPAD7键
+        /// </summary>
         public const uint VK_NUMPAD7 = 0x67;
+        /// <summary>
+        /// 键盘 - NUMPAD8键
+        /// </summary>
         public const uint VK_NUMPAD8 = 0x68;
+        /// <summary>
+        /// 键盘 - NUMPAD9键
+        /// </summary>
         public const uint VK_NUMPAD9 = 0x69;
+        /// <summary>
+        /// 键盘 - MULTIPLY键
+        /// </summary>
         public const uint VK_MULTIPLY = 0x6A;
+        /// <summary>
+        /// 键盘 - ADD键
+        /// </summary>
         public const uint VK_ADD = 0x6B;
+        /// <summary>
+        /// 键盘 - SEPARATOR键
+        /// </summary>
         public const uint VK_SEPARATOR = 0x6C;
+        /// <summary>
+        /// 键盘 - SUBTRACT键
+        /// </summary>
         public const uint VK_SUBTRACT = 0x6D;
+        /// <summary>
+        /// 键盘 - DECIMAL键
+        /// </summary>
         public const uint VK_DECIMAL = 0x6E;
+        /// <summary>
+        /// 键盘 - DIVIDE键
+        /// </summary>
         public const uint VK_DIVIDE = 0x6F;
+        /// <summary>
+        /// 键盘 - F1键
+        /// </summary>
         public const uint VK_F1 = 0x70;
+        /// <summary>
+        /// 键盘 - F2键
+        /// </summary>
         public const uint VK_F2 = 0x71;
+        /// <summary>
+        /// 键盘 - F3键
+        /// </summary>
         public const uint VK_F3 = 0x72;
+        /// <summary>
+        /// 键盘 - F4键
+        /// </summary>
         public const uint VK_F4 = 0x73;
+        /// <summary>
+        /// 键盘 - F5键
+        /// </summary>
         public const uint VK_F5 = 0x74;
+        /// <summary>
+        /// 键盘 - F6键
+        /// </summary>
         public const uint VK_F6 = 0x75;
+        /// <summary>
+        /// 键盘 - F7键
+        /// </summary>
         public const uint VK_F7 = 0x76;
+        /// <summary>
+        /// 键盘 - F8键
+        /// </summary>
         public const uint VK_F8 = 0x77;
+        /// <summary>
+        /// 键盘 - F9键
+        /// </summary>
         public const uint VK_F9 = 0x78;
+        /// <summary>
+        /// 键盘 - F10键
+        /// </summary>
         public const uint VK_F10 = 0x79;
+        /// <summary>
+        /// 键盘 - F11键
+        /// </summary>
         public const uint VK_F11 = 0x7A;
+        /// <summary>
+        /// 键盘 - F12键
+        /// </summary>
         public const uint VK_F12 = 0x7B;
+        /// <summary>
+        /// 键盘 - F13键
+        /// </summary>
         public const uint VK_F13 = 0x7C;
+        /// <summary>
+        /// 键盘 - F14键
+        /// </summary>
         public const uint VK_F14 = 0x7D;
+        /// <summary>
+        /// 键盘 - F15键
+        /// </summary>
         public const uint VK_F15 = 0x7E;
+        /// <summary>
+        /// 键盘 - F16键
+        /// </summary>
         public const uint VK_F16 = 0x7F;
+        /// <summary>
+        /// 键盘 - F17键
+        /// </summary>
         public const uint VK_F17 = 0x80;
+        /// <summary>
+        /// 键盘 - F18键
+        /// </summary>
         public const uint VK_F18 = 0x81;
+        /// <summary>
+        /// 键盘 - F19键
+        /// </summary>
         public const uint VK_F19 = 0x82;
+        /// <summary>
+        /// 键盘 - F20键
+        /// </summary>
         public const uint VK_F20 = 0x83;
+        /// <summary>
+        /// 键盘 - F21键
+        /// </summary>
         public const uint VK_F21 = 0x84;
+        /// <summary>
+        /// 键盘 - F22键
+        /// </summary>
         public const uint VK_F22 = 0x85;
+        /// <summary>
+        /// 键盘 - F23键
+        /// </summary>
         public const uint VK_F23 = 0x86;
+        /// <summary>
+        /// 键盘 - F24键
+        /// </summary>
         public const uint VK_F24 = 0x87;
+        /// <summary>
+        /// 键盘 - NUMLOCK键
+        /// </summary>
         public const uint VK_NUMLOCK = 0x90;
+        /// <summary>
+        /// 键盘 - SCROLL键
+        /// </summary>
         public const uint VK_SCROLL = 0x91;
+        /// <summary>
+        /// 键盘 - LSHIFT键
+        /// </summary>
         public const uint VK_LSHIFT = 0xA0;
+        /// <summary>
+        /// 键盘 - RSHIFT键
+        /// </summary>
         public const uint VK_RSHIFT = 0xA1;
+        /// <summary>
+        /// 键盘 - LCONTROL键
+        /// </summary>
         public const uint VK_LCONTROL = 0xA2;
+        /// <summary>
+        /// 键盘 - RCONTROL键
+        /// </summary>
         public const uint VK_RCONTROL = 0xA3;
+        /// <summary>
+        /// 键盘 - LMENU键
+        /// </summary>
         public const uint VK_LMENU = 0xA4;
+        /// <summary>
+        /// 键盘 - RMENU键
+        /// </summary>
         public const uint VK_RMENU = 0xA5;
 
+        /// <summary>
+        /// 键盘 - OEM_1键
+        /// </summary>
         public const uint VK_OEM_1 = 0xBA;
+        /// <summary>
+        /// 键盘 - OEM_2键
+        /// </summary>
         public const uint VK_OEM_2 = 0xBF;
+        /// <summary>
+        /// 键盘 - OEM_3键
+        /// </summary>
         public const uint VK_OEM_3 = 0xC0;
+        /// <summary>
+        /// 键盘 - OEM_4键
+        /// </summary>
         public const uint VK_OEM_4 = 0xDB;
+        /// <summary>
+        /// 键盘 - OEM_5键
+        /// </summary>
         public const uint VK_OEM_5 = 0xDC;
+        /// <summary>
+        /// 键盘 - OEM_6键
+        /// </summary>
         public const uint VK_OEM_6 = 0xDD;
+        /// <summary>
+        /// 键盘 - OEM_7键
+        /// </summary>
         public const uint VK_OEM_7 = 0xDE;
+        /// <summary>
+        /// 键盘 - OEM_8键
+        /// </summary>
         public const uint VK_OEM_8 = 0xDF;
 
+        /// <summary>
+        /// 键盘 - PROCESSKEY键
+        /// </summary>
         public const uint VK_PROCESSKEY = 0xE5;
 
+        /// <summary>
+        /// 键盘 - ATTN键
+        /// </summary>
         public const uint VK_ATTN = 0xF6;
+        /// <summary>
+        /// 键盘 - CRSEL键
+        /// </summary>
         public const uint VK_CRSEL = 0xF7;
+        /// <summary>
+        /// 键盘 - EXSEL键
+        /// </summary>
         public const uint VK_EXSEL = 0xF8;
+        /// <summary>
+        /// 键盘 - EREOF键
+        /// </summary>
         public const uint VK_EREOF = 0xF9;
+        /// <summary>
+        /// 键盘 - PLAY键
+        /// </summary>
         public const uint VK_PLAY = 0xFA;
+        /// <summary>
+        /// 键盘 - ZOOM键
+        /// </summary>
         public const uint VK_ZOOM = 0xFB;
+        /// <summary>
+        /// 键盘 - NONAME键
+        /// </summary>
         public const uint VK_NONAME = 0xFC;
+        /// <summary>
+        /// 键盘 - PA1键
+        /// </summary>
         public const uint VK_PA1 = 0xFD;
+        /// <summary>
+        /// 键盘 - OEM_CLEAR键
+        /// </summary>
         public const uint VK_OEM_CLEAR = 0xFE;
+        /// <summary>
+        /// TME_HOVER
+        /// </summary>
         public const int TME_HOVER = 1;
+        /// <summary>
+        /// TME_LEAVE
+        /// </summary>
         public const int TME_LEAVE = 2;
+        /// <summary>
+        /// TME_QUERY
+        /// </summary>
         public const int TME_QUERY = 0x40000000;
+        /// <summary>
+        /// TME_CANCEL
+        /// </summary>
         public const uint TME_CANCEL = 0x80000000;
+        /// <summary>
+        /// HOVER_DEFAULT
+        /// </summary>
         public const uint HOVER_DEFAULT = 0xFFFFFFFF;
+        /// <summary>
+        /// MK_LBUTTON
+        /// </summary>
         public const int MK_LBUTTON = 1;
+        /// <summary>
+        /// MK_RBUTTON
+        /// </summary>
         public const int MK_RBUTTON = 2;
+        /// <summary>
+        /// MK_SHIFT
+        /// </summary>
         public const int MK_SHIFT = 4;
+        /// <summary>
+        /// MK_CONTROL
+        /// </summary>
         public const int MK_CONTROL = 8;
+        /// <summary>
+        /// MK_MBUTTON
+        /// </summary>
         public const int MK_MBUTTON = 16;
         #endregion
 
@@ -238,6 +605,11 @@ namespace Sylas.RemoteTasks.Utils
         static extern IntPtr GetForegroundWindow();
         [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         static extern int GetWindowTextLength(IntPtr hWnd);
+        /// <summary>
+        /// 将窗体前置
+        /// </summary>
+        /// <param name="hWnd"></param>
+        /// <returns></returns>
         [DllImport("user32.dll")]
         public static extern bool SetForegroundWindow(IntPtr hWnd);
         [DllImport("user32.dll", CharSet = CharSet.Unicode)]
@@ -314,13 +686,28 @@ namespace Sylas.RemoteTasks.Utils
         #endregion
 
         #region 消息代码
+        /// <summary>
+        /// 表示有热键被触发
+        /// </summary>
         public const int WM_HOTKEY = 0x0312;
+        /// <summary>
+        /// 销毁消息
+        /// </summary>
         public const int WM_DESTROY = 0x0002;
         #endregion
 
         #region 封装操作系统操作窗体相关接口
+        /// <summary>
+        /// 销毁窗体
+        /// </summary>
+        /// <param name="hWnd"></param>
+        /// <returns></returns>
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
         public static extern int DestroyWindow(IntPtr hWnd);
+        /// <summary>
+        /// 获取所有可见的有标题的窗体
+        /// </summary>
+        /// <returns></returns>
         public static List<WindowInfo> GetAllWindows()
         {
             static bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam)
@@ -419,24 +806,49 @@ namespace Sylas.RemoteTasks.Utils
             var hWnd = FindWindowByTitle(title);
             return GetWindowStatus(hWnd);
         }
+        /// <summary>
+        /// 根据窗体句柄显示窗体
+        /// </summary>
+        /// <param name="hwnd"></param>
+        /// <returns></returns>
         public static bool ShowWindow(IntPtr hwnd)
         {
             return ShowWindow(hwnd, SW_SHOWDEFAULT);
         }
+        /// <summary>
+        /// 根据窗体标题显示窗体
+        /// </summary>
+        /// <param name="title"></param>
+        /// <returns></returns>
         public static bool ShowWindow(string title)
         {
             var hwnd = FindWindowByTitle(title);
             return ShowWindow(hwnd, SW_SHOWDEFAULT);
         }
+        /// <summary>
+        /// 异步方式根据窗体句柄显示窗体
+        /// </summary>
+        /// <param name="hwnd"></param>
+        /// <returns></returns>
         public static bool ShowWindowAsync(IntPtr hwnd)
         {
             return ShowWindowAsync(hwnd, SW_RESTORE);
         }
+        /// <summary>
+        /// 异步方式根据窗体标题显示窗体
+        /// </summary>
+        /// <param name="title"></param>
+        /// <returns></returns>
         public static bool ShowWindowAsync(string title)
         {
             var hwnd = FindWindowByTitle(title);
             return ShowWindowAsync(hwnd, SW_RESTORE);
         }
+        /// <summary>
+        /// 从托盘显示窗体
+        /// </summary>
+        /// <param name="handle"></param>
+        /// <returns></returns>
         public static bool RestoreWindowFromTray(IntPtr handle)
         {
             var r1 = SendMessage(handle, WM_LBUTTONDOWN, IntPtr.Zero, IntPtr.Zero);
@@ -533,7 +945,14 @@ namespace Sylas.RemoteTasks.Utils
 
             return IntPtr.Zero;
         }
+        /// <summary>
+        /// 全局热键
+        /// </summary>
         public static List<GlobalHotKey> _globalHotKeys = new();
+        /// <summary>
+        /// 注册全局热键
+        /// </summary>
+        /// <param name="globalHotKeys"></param>
         public static void RegisterGlobalHotKey(List<GlobalHotKey> globalHotKeys)
         {
             Task.Run(() =>
@@ -613,60 +1032,144 @@ namespace Sylas.RemoteTasks.Utils
     }
 
     #region 窗体信息类
+    /// <summary>
+    /// 描述一个Windows窗体
+    /// </summary>
     public class WindowInfo
     {
+        /// <summary>
+        /// 窗体句柄
+        /// </summary>
         public IntPtr Handle { get; set; }
+        /// <summary>
+        /// 窗体标题
+        /// </summary>
         public string Title { get; set; } = string.Empty;
+        /// <summary>
+        /// 窗体ClassName
+        /// </summary>
         public string ClassName { get; set; } = string.Empty;
+        /// <summary>
+        /// 形状
+        /// </summary>
         public RECT Rect { get; set; }
+        /// <summary>
+        /// 位置
+        /// </summary>
         public WINDOWPLACEMENT Placement { get; set; }
+        /// <summary>
+        /// 是否可见
+        /// </summary>
         public bool IsVisiable { get; set; }
+        /// <summary>
+        /// 
+        /// </summary>
         public int ProcessId { get; set; }
+        /// <summary>
+        /// 是否托盘中
+        /// </summary>
         public bool IsIconic { get; set; }
+        /// <summary>
+        /// 重写ToString
+        /// </summary>
+        /// <returns></returns>
         public override string ToString() => $"Title: {Title}; IsIconic: {IsIconic}; Handle: {Handle}; Visiable: {IsVisiable}; React: {Rect}; Placement: {Placement}; ClassName: {ClassName}; ProcessId: {ProcessId};";
     }
     #endregion
 
     #region 定义系统API相关的结构体
+    /// <summary>
+    /// 描述窗体位置的矩形结构
+    /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct RECT
     {
+        /// <summary>
+        /// Left
+        /// </summary>
         public int Left;
+        /// <summary>
+        /// Top
+        /// </summary>
         public int Top;
+        /// <summary>
+        /// Right
+        /// </summary>
         public int Right;
+        /// <summary>
+        /// Bottom
+        /// </summary>
         public int Bottom;
-        public override string ToString()
+        /// <summary>
+        /// 重写ToString
+        /// </summary>
+        /// <returns></returns>
+        public override readonly string ToString()
         {
             return $"{Left} {Top} {Right} {Bottom}";
         }
     }
 
+    /// <summary>
+    /// 窗体位置
+    /// </summary>
     [Serializable]
     [StructLayout(LayoutKind.Sequential)]
     public struct WINDOWPLACEMENT
     {
+        /// <summary>
+        /// 
+        /// </summary>
         public int length;
+        /// <summary>
+        /// 
+        /// </summary>
         public int flags;
         /// <summary>
         /// 对应SW_HIDE, SW_SHOWNORMAL, ...
         /// </summary>
         public int showCmd;
+        /// <summary>
+        /// 
+        /// </summary>
         public POINT minPosition;
+        /// <summary>
+        /// 
+        /// </summary>
         public POINT maxPosition;
+        /// <summary>
+        /// 
+        /// </summary>
         public RECT normalPosition;
-        public override string ToString()
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public override readonly string ToString()
         {
             return $"length:{length},flags:{flags},showCmd:{showCmd},minPosition:{minPosition},maxPosition:{maxPosition},normalPosition:{normalPosition}";
         }
     }
-
+    /// <summary>
+    /// 描述点的数据结构
+    /// </summary>
     [Serializable]
     [StructLayout(LayoutKind.Sequential)]
     public struct POINT
     {
+        /// <summary>
+        /// 横坐标
+        /// </summary>
         public int X;
+        /// <summary>
+        /// 纵坐标
+        /// </summary>
         public int Y;
-        public override string ToString() => $"[{X}, {Y}]";
+        /// <summary>
+        /// 重新ToString
+        /// </summary>
+        /// <returns></returns>
+        public override readonly string ToString() => $"[{X}, {Y}]";
     }
 
     /// <summary>
@@ -674,25 +1177,58 @@ namespace Sylas.RemoteTasks.Utils
     /// </summary>
     public struct MSG
     {
+        /// <summary>
+        /// 资源句柄
+        /// </summary>
         public IntPtr hwnd;
+        /// <summary>
+        /// 消息代码
+        /// </summary>
         public uint message;
+        /// <summary>
+        /// 
+        /// </summary>
         public IntPtr wParam;
+        /// <summary>
+        /// 
+        /// </summary>
         public IntPtr lParam;
+        /// <summary>
+        /// 
+        /// </summary>
         public uint time;
+        /// <summary>
+        /// 
+        /// </summary>
         public POINT pt;
     }
-
-    public class GlobalHotKey
+    /// <summary>
+    /// 描述一个全局热键
+    /// </summary>
+    /// <remarks>
+    /// 初始化id, 修饰键, 其他键
+    /// </remarks>
+    /// <param name="id"></param>
+    /// <param name="modifiers"></param>
+    /// <param name="vmKey"></param>
+    public class GlobalHotKey(int id, List<string> modifiers, string vmKey)
     {
-        public GlobalHotKey(int id, List<string> modifiers, string vmKey)
-        {
-            Id = id;
-            Modifiers = modifiers;
-            VmKey = vmKey;
-        }
-        public int Id { get; set; }
-        public List<string> Modifiers { get; set; } = new List<string>();
-        public string VmKey { get; set; } = string.Empty;
+        /// <summary>
+        /// 
+        /// </summary>
+        public int Id { get; set; } = id;
+        /// <summary>
+        /// 修饰键
+        /// </summary>
+        public List<string> Modifiers { get; set; } = modifiers;
+        /// <summary>
+        /// 
+        /// </summary>
+        public string VmKey { get; set; } = vmKey;
+        /// <summary>
+        /// 重写ToString
+        /// </summary>
+        /// <returns></returns>
         public override string ToString() => $"{string.Join('+', Modifiers)}+{VmKey}";
     }
     #endregion

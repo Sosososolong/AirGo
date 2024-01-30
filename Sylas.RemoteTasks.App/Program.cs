@@ -27,6 +27,7 @@ builder.Services.AddHttpContextAccessor();
 
 // 添加远程主机服务对象
 builder.Services.AddRemoteHostManager(builder.Configuration);
+
 // 添加"网络请求任务"工厂
 builder.Services.AddSingleton<RequestProcessorBase>();
 

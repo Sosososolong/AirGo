@@ -79,8 +79,8 @@
                         { name: 'remark', title: '备注', width: 100, showPart: 8 },
                         { name: 'presetDataContext', title: '预设数据上下文', showPart: 8 },
                         { name: 'endDataContext', title: '执行完成后的数据上下文', showPart: 8 },
-                        //{ name: 'previous', title: '上一个步骤', type: `dataSource|dataSourceApi=Sync/GetHttpRequestProcessorSteps|displayField=remark|body={"filterItems":[{"fieldName":"processorId","compareType": "=","value":"${processorId}"}],"keywords": {"fields": [],"value": ""}}|defaultValue=0` },
-                        { name: 'processorId', title: 'HTTP处理器', type: 'dataSource|dataSourceApi=Sync/GetHttpRequestProcessors?pageIndex=1&pageSize=1000|displayField=title' },
+                        //{ name: 'previous', title: '上一个步骤', type: `dataSource|dataSourceApi=/Sync/GetHttpRequestProcessorSteps|displayField=remark|body={"filterItems":[{"fieldName":"processorId","compareType": "=","value":"${processorId}"}],"keywords": {"fields": [],"value": ""}}|defaultValue=0` },
+                        { name: 'processorId', title: 'HTTP处理器', type: 'dataSource|dataSourceApi=/Sync/GetHttpRequestProcessors?pageIndex=1&pageSize=1000|displayField=title' },
                         { name: '', title: '操作', type: 'button', tmpl: `<button type="button" class="btn btn-primary btn-sm mt-1" data-bs-toggle="collapse" href="#collapse${tableStepsId}{{id}}" role="button" aria-expanded="true" aria-controls="collapse${tableStepsId}{{id}}">数据处理器</button>
                                 <button type="button" class="btn btn-primary btn-sm mt-1" data-table-id="${tableStepsId}" data-id="{{id}}" data-fetch-url="/Sync/GetHttpRequestProcessorSteps" data-update-url="/Sync/UpdateHttpRequestProcessorStep" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
                                 <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableStepsId}" data-content="&quot;{{id}}&quot;" data-execute-url="/Sync/CloneStep" data-method="POST" onclick="execute(this)">克隆</button>

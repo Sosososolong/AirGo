@@ -1,9 +1,7 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.App.DataHandlers;
 using Sylas.RemoteTasks.App.Models.HttpRequestProcessor;
-using Sylas.RemoteTasks.App.Repositories;
 using Sylas.RemoteTasks.Utils;
 using Sylas.RemoteTasks.Utils.Template;
 using System.Reflection;
@@ -63,14 +61,14 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
         {
             if (!string.IsNullOrWhiteSpace(queryJson))
             {
-                var resolvedQueryJson = TmplHelper.ResolveStringWithTmpl(dataContextDictionary, queryJson);
-                var queryParams = JsonConvert.DeserializeObject<Dictionary<string, object>>(resolvedQueryJson);
+                object resolvedQueryJson = TmplHelper.ResolveExpressionValue(queryJson, dataContextDictionary);
+                var queryParams = JsonConvert.DeserializeObject<Dictionary<string, object>>(resolvedQueryJson?.ToString() ?? "");
                 _requestConfig.QueryDictionary = queryParams;
             }
             if (!string.IsNullOrWhiteSpace(bodyJson) && _requestConfig.RequestMethod.Equals("post", StringComparison.CurrentCultureIgnoreCase))
             {
-                var resolvedBodyJson = TmplHelper.ResolveStringWithTmpl(dataContextDictionary, bodyJson);
-                var bodyParams = JsonConvert.DeserializeObject<JToken>(resolvedBodyJson);
+                var resolvedBodyJson = TmplHelper.ResolveExpressionValue(bodyJson, dataContextDictionary);
+                var bodyParams = JsonConvert.DeserializeObject<JToken>(resolvedBodyJson.ToString() ?? "");
                 _requestConfig.BodyDictionary = bodyParams;
             }
             return new List<RequestConfig>() { CloneReqeustConfig() };
@@ -85,11 +83,6 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
         /// <exception cref="Exception"></exception>
         public async Task<RequestProcessorBase> ExecuteStepsFromDbAsync(HttpRequestProcessor processor, int stepId)
         {
-            //if (startDataContext is not null && startDataContext.Any())
-            //{
-            //    DataContext = startDataContext;
-            //}
-
             if (!string.IsNullOrWhiteSpace(processor.Headers) && processor.Headers.Length > 2)
             {
                 var headers = JsonConvert.DeserializeObject<Dictionary<string, string>>(processor.Headers);
@@ -261,47 +254,13 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
         }
         async Task ExecuteDataHandlersAsync(IEnumerable<HttpRequestProcessorStepDataHandler> dataHandlers)
         {
-            //var previous = 0;
-            //HttpRequestProcessorStepDataHandler? dataHandler = null;
-            //int loopCount = 0;
-            //while (true)
-            //{
-            //    dataHandler = dataHandlers.FirstOrDefault(x => x.Previous == previous);
-            //    if (dataHandler is null)
-            //    {
-            //        break;
-            //    }
-            //    var handler = dataHandler.DataHandler;
-
-            //    _logger.LogInformation($"执行数据处理器: {handler}; {dataHandler.Remark}");
-
-            //    var handlerParameters = JsonConvert.DeserializeObject<List<string>>(dataHandler.ParametersInput) ?? new List<string>();
-            //    var opParameters = handlerParameters.Select(x => TmplHelper.ResolveVariableValue(DataContext, x)).ToArray();
-
-            //    Type dataHandlerType = ReflectionHelper.GetTypeByClassName(handler);
-            //    MethodInfo handlerStartMethod = dataHandlerType.GetMethod("StartAsync") ?? throw new Exception($"DataHandler {handler} 没有实现Operation方法");
-            //    var opInstance = _serviceProvider.GetService(dataHandlerType);
-
-            //    // BOOKMARK: DataHandler 调用StartAsync()方法
-            //    var invokeResult = handlerStartMethod.Invoke(opInstance, new object[] { opParameters });
-            //    if (handlerStartMethod.ReturnType == typeof(Task) || handlerStartMethod.ReturnType.IsGenericType && handlerStartMethod.ReturnType.GetGenericTypeDefinition() == typeof(Task<>))
-            //    {
-            //        await (invokeResult as Task ?? throw new Exception($"{handler}.Start()结果为NULL, 而非Task"));
-            //    }
-            //    previous = dataHandler.Id;
-            //    loopCount++;
-            //    if (loopCount > 10)
-            //    {
-            //        throw new Exception($"已经执行超过10个数据处理器");
-            //    }
-            //}
             dataHandlers = dataHandlers.OrderBy(x => x.OrderNo).ToList();
             foreach (var dataHandler in dataHandlers)
             {
 
                 var handler = dataHandler.DataHandler;
-                var handlerParameters = JsonConvert.DeserializeObject<List<string>>(dataHandler.ParametersInput) ?? new List<string>();
-                var opParameters = handlerParameters.Select(x => TmplHelper.ResolveVariableValue(DataContext, x)).ToArray();
+                var handlerParameters = JsonConvert.DeserializeObject<List<string>>(dataHandler.ParametersInput) ?? [];
+                var opParameters = handlerParameters.Select(x => TmplHelper.ResolveExpressionValue(x, DataContext)).ToArray();
 
                 Type dataHandlerType = ReflectionHelper.GetTypeByClassName(handler);
                 MethodInfo handlerStartMethod = dataHandlerType.GetMethod("StartAsync") ?? throw new Exception($"DataHandler {handler} 没有实现Operation方法");

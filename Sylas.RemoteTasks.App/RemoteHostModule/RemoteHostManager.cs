@@ -1,8 +1,8 @@
 ﻿namespace Sylas.RemoteTasks.App.RemoteHostModule
 {
-    public abstract class RemoteHostInfoManager
+    public abstract class RemoteHostInfoProvider
     {
-        protected RemoteHostInfoManager(RemoteHost remoteHost, RemoteHostInfoFactory remoteHostInfoFactory)
+        protected RemoteHostInfoProvider(RemoteHost remoteHost, RemoteHostInfoFactory remoteHostInfoFactory)
         {
             RemoteHost = remoteHost ?? throw new ArgumentNullException(nameof(remoteHost));
             RemoteHostInfoFactory = remoteHostInfoFactory ?? throw new ArgumentNullException(nameof(remoteHostInfoFactory));

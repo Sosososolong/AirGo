@@ -5,8 +5,18 @@ using System.Text.RegularExpressions;
 
 namespace Sylas.RemoteTasks.Utils
 {
+    /// <summary>
+    /// JToken操作助手
+    /// </summary>
     public static class JTokenHelper
     {
+        /// <summary>
+        /// 获取指定token
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="expression"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
         public static JToken GetMyToken(this JToken source, string expression)
         {
             var expressionMatch = Regex.Match(expression, @"(\[(?<index>\d+)\]){0,1}(?<props>\.\w+)*$");

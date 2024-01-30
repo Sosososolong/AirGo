@@ -6,8 +6,15 @@ using System.Threading.Tasks;
 
 namespace Sylas.RemoteTasks.Utils
 {
+    /// <summary>
+    /// 系统终端命令助手
+    /// </summary>
     public class SystemCmd
     {
+        /// <summary>
+        /// 终端命令
+        /// </summary>
+        /// <param name="projectInfo"></param>
         public SystemCmd(ProjectInfo projectInfo)
         {
             SolutionName = projectInfo.SolutionName;
@@ -19,30 +26,74 @@ namespace Sylas.RemoteTasks.Utils
             CoreProjFile = projectInfo.CoreProjFile;
             InfrastructureProjFile = projectInfo.InfrastructureProjFile;
         }
+        /// <summary>
+        /// 
+        /// </summary>
         public string SolutionName { get; set; }
-        // MVC层的名字，"BlogDemo.API"
+        /// <summary>
+        /// MVC层的名字，"BlogDemo.API"
+        /// </summary>
         public string UIProjName { get; set; }
-        // Core层名字, BlogDemo.Core
+        /// <summary>
+        /// Core层名字, BlogDemo.Core
+        /// </summary>
         public string CoreProjName { get; set; }
         // Infrastructure层的名字, BlogDemo.Infrastructure
+        /// <summary>
+        /// 
+        /// </summary>
         public string InfrastructureProjName { get; set; }
-
+        /// <summary>
+        /// 
+        /// </summary>
         public string SolutionFile { get; }
+        /// <summary>
+        /// 
+        /// </summary>
         public string UIProjFile { get; }
+        /// <summary>
+        /// 
+        /// </summary>
         public string CoreProjFile { get; }
+        /// <summary>
+        /// 
+        /// </summary>
         public string InfrastructureProjFile { get; }
-
-        // "dotnet cli" - 创建项目
+        /// <summary>
+        /// "dotnet cli" - 创建项目
+        /// </summary>
         public string CreateSlnStatement { get { return "dotnet new sln -o " + SolutionName + "; cd " + SolutionName; } }
+        /// <summary>
+        /// 
+        /// </summary>
         public string CreateWebEmptyStatement { get { return "dotnet new web -o " + UIProjName; } }
+        /// <summary>
+        /// 
+        /// </summary>
         public string CreateLibCoreStatement { get { return "dotnet new classlib -o " + CoreProjName; } }
+        /// <summary>
+        /// 
+        /// </summary>
         public string CreateLibInfrastructureStatement { get { return "dotnet new classlib -o " + InfrastructureProjName; } }
-        // "dotnet cli" - 将项目添加到解决方案中
+        /// <summary>
+        /// "dotnet cli" - 将项目添加到解决方案中
+        /// </summary>
         public string AddinSlnAPI => $"dotnet sln {SolutionFile} add ./{UIProjName}/{UIProjFile}";  // dotnet sln BlogDemo.sln add .\BlogDemo.API\BlogDemo.API.csproj
+        /// <summary>
+        /// 添加解决方案
+        /// </summary>
         public string AddinSlnCore => $"dotnet sln {SolutionFile} add ./{CoreProjName}/{CoreProjFile}";
+        /// <summary>
+        /// 添加解决方案
+        /// </summary>
         public string AddinSlnInfrastructure => $"dotnet sln {SolutionFile} add ./{InfrastructureProjName}/{InfrastructureProjFile}";
 
-
+        /// <summary>
+        /// 执行
+        /// </summary>
+        /// <param name="commands"></param>
+        /// <param name="workingDir"></param>
+        /// <returns></returns>
         public async Task<string> ExecuteAsync(List<string> commands, string workingDir)
         {
             //此时写入到控制台的内容也会重定向到p对象的StandardOutPut中
