@@ -35,7 +35,7 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
         /// <exception cref="Exception"></exception>
         public static ParseResult ResolveCollectionSelectTmpl(string key, string prop, string recursively, Dictionary<string, object> dataContext)
         {
-            var keyVal = dataContext.FirstOrDefault(x => string.Equals(x.Key, key, StringComparison.OrdinalIgnoreCase)).Value;
+            var keyVal = dataContext.FirstOrDefault(x => string.Equals(x.Key.TrimStart('$'), key, StringComparison.OrdinalIgnoreCase)).Value;
             var keyValJArray = JArray.FromObject(keyVal) ?? throw new Exception($"上下文数据{key}对应的值不是JArray类型, 无法执行Select操作");
             if (string.Equals(prop, "SELF", StringComparison.OrdinalIgnoreCase))
             {

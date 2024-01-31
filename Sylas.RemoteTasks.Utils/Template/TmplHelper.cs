@@ -267,6 +267,7 @@ namespace Sylas.RemoteTasks.Utils.Template
         /// 解析模板上下文后面的变量也可能会引用前面的变量, 这里依次解析出所有的值
         /// </summary>
         /// <param name="dataContext"></param>
+        /// <returns></returns>
         public static void ResolveSelfTmplValues(this Dictionary<string, object> dataContext)
         {
             foreach (var item in dataContext)
@@ -315,7 +316,7 @@ namespace Sylas.RemoteTasks.Utils.Template
                 {
                     string tmpl = stringTmplGroups["name"].Value;
                     var tmplValue = ResolveFromDictionary(tmpl, dataContextDictionary);
-                    if (tmplValue is IEnumerable<object> arrayValue)
+                    if (tmplValue is not string && tmplValue is not JValue && tmplValue is IEnumerable<object> arrayValue)
                     {
                         List<string> newResults = [];
                         foreach (var arrayItem in arrayValue)
@@ -381,52 +382,6 @@ namespace Sylas.RemoteTasks.Utils.Template
 
                 throw new Exception($"TmplParser解析成功, 但是未返回解析模板中的数据源的Key {nameof(parseResult.DataSourceKeys)}");
             }
-        }
-        /// <summary>
-        /// test
-        /// </summary>
-        /// <param name="dataContext"></param>
-        /// <param name="tmplExpression"></param>
-        /// <returns></returns>
-        /// <exception cref="Exception"></exception>
-        public static object ResolveExpressionValue2(string tmplExpression, Dictionary<string, object> dataContext)
-        {
-            #region 如果没有可用的上下文直接返回
-            tmplExpression = tmplExpression.Trim();
-            if (!dataContext.Any())
-            {
-                return tmplExpression;
-            }
-            #endregion
-
-            #region 处理模板中的可能出现的变量标识符
-            string[] splitedTmpls;
-            string startExpression;
-
-            tmplExpression = tmplExpression.TrimStart('{', '$').TrimEnd('}');
-            splitedTmpls = tmplExpression.Split('.', StringSplitOptions.RemoveEmptyEntries);
-            startExpression = splitedTmpls[0];
-            #endregion
-
-            #region 依次解析表达式并返回最终得到的解析结果
-            object? data = dataContext; //.FirstOrDefault(x => string.Equals(x.Key.TrimStart('$'), startExpression, StringComparison.OrdinalIgnoreCase)).Value ?? throw new Exception($"数据上下文中未找到索引: {splitedTmpls[0]}");
-            for (var i = 0; i < splitedTmpls.Length; i++)
-            {
-                if (data is Dictionary<string, object> dataContextDictionary)
-                {
-                    data = dataContextDictionary.FirstOrDefault(x => string.Equals(x.Key.Trim('$'), splitedTmpls[i], StringComparison.OrdinalIgnoreCase)).Value ?? throw new Exception($"数据上下文中未找到索引: {splitedTmpls[i]}");
-                }
-                else
-                {
-                    if (data is not JObject dataContextJObj)
-                    {
-                        dataContextJObj = JObject.FromObject(data);
-                    }
-                    data = dataContextJObj.Properties().FirstOrDefault(x => string.Equals(x.Name, splitedTmpls[i], StringComparison.OrdinalIgnoreCase))?.Value ?? throw new Exception($"数据上下文中未找到索引: {splitedTmpls[i]}");
-                }
-            }
-            return data;
-            #endregion
         }
 
         /// <summary>
