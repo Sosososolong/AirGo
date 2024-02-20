@@ -37,8 +37,6 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
             _logger = logger;
             _serviceProvider = serviceProvider;
             DataContext = [];
-            // TODO: 添加初始化配置
-            //DataContext["$dataModelCodes"] = new JArray("yct_xkzygs");
 
             _logger.LogCritical("Processor Initialized");
         }

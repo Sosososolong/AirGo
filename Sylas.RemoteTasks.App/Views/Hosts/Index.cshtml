@@ -68,17 +68,16 @@
                 .then(response => {
                     if (response.ok) {
                         var rspJson = response.json();
-                        console.log("Command executed successfully: " + rspJson);
                         return rspJson;
                     } else {
                         console.error("Failed to execute command: " + response.json());
                     }
                 })
                 .then(rspJson => {
-                    alert('操作成功: ' + rspJson.msg)
+                    showMsgBox(rspJson.msg)
                 })
                 .catch(error => {
-                    console.error("Error:", error);
+                    showErrorBox(error);
                 });
         }
 

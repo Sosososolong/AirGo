@@ -1,4 +1,5 @@
-﻿using Sylas.RemoteTasks.App.Database;
+﻿using Microsoft.Extensions.Options;
+using Sylas.RemoteTasks.App.Database;
 using Sylas.RemoteTasks.App.RemoteHostModule;
 using Sylas.RemoteTasks.Database;
 using Sylas.RemoteTasks.Database.SyncBase;
@@ -14,17 +15,12 @@ namespace Sylas.RemoteTasks.App.Helpers
 
             services.AddSingleton(remoteHosts);
 
-            services.Configure<List<RemoteHostInfoCommandSettings>>(configuration.GetSection("RemoteHostInfoCommandSettings"));
-
-            services.AddSingleton<ContainerFactory>();
-
             services.AddSingleton(serviceProvider =>
             {
-                var remoteHostInfoFactory = serviceProvider.GetService<ContainerFactory>() ?? throw new Exception("DI容器中获取的RemoteHostInfoFactory为空");
                 var result = new List<RemoteHostInfoProvider>();
                 foreach (var remoteHost in remoteHosts)
                 {
-                    var dockerContainerProvider = new RemoteHostInfoProviderDockerContainer(remoteHost, remoteHostInfoFactory);
+                    var dockerContainerProvider = new DockerContainerProvider(remoteHost);
                     result.Add(dockerContainerProvider);
                 }
                 return result;

@@ -17,6 +17,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
         public string Pwd { get; set; } = "123456";
 
         public List<CommandInfo> Commands { get; set; } = [];
+        public virtual List<CommandInfo> HostInfoCommands { get; set; } = [];
 
         private SshHelper? _sshConnection;
         public SshHelper SshConnection

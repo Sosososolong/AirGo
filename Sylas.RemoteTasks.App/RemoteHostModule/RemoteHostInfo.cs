@@ -6,5 +6,6 @@
         public abstract string Name { get; }
         public abstract List<Tuple<string, string>> Labels { get; }
         public virtual List<CommandInfo> Commands { get; set; } = [];
+        public virtual List<CommandInfo> HostInfoCommands { get; set; } = [];
     }
 }

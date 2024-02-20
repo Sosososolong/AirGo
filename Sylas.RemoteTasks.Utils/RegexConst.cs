@@ -138,12 +138,6 @@ namespace Sylas.RemoteTasks.App.RegexExp
         /// <returns></returns>
         public static readonly Regex PatternGroup = new ("\\(\\?<(\\w+)>.+?\\)");
 
-        /// <summary>
-        /// 字符串模板 - 获取当前对象的属性值
-        /// </summary>
-        /// <returns></returns>
-        public static readonly Regex CurrentObjPropTmpl = new ("\\$RemoteHostInfo[\\.](?<propName>\\w+)");
-
 
 #pragma warning disable CS1570 // XML 注释出现 XML 格式错误
         /// <summary>

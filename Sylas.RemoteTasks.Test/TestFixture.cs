@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Sylas.RemoteTasks.App.RemoteHostModule;
 using Sylas.RemoteTasks.App.Repositories;
 using Sylas.RemoteTasks.Database;
@@ -41,28 +42,20 @@ namespace Sylas.RemoteTasks.Test
             services.AddSingleton<IConfiguration>(_configuration);
 
             #region Host
-            var remoteHosts = _configuration.GetSection("Hosts").Get<List<RemoteHost>>() ?? new List<RemoteHost>();
+            var remoteHosts = _configuration.GetSection("Hosts").Get<List<RemoteHost>>() ?? [];
 
             services.AddSingleton(remoteHosts);
 
-            // TODO: 没有配置的给默认的值
-            services.Configure<List<RemoteHostInfoCommandSettings>>(_configuration.GetSection("RemoteHostInfoCommandSettings"));
-            //var commandTmplSettings = configuration.GetSection("RemoteHostInfoCommandSettings").Get<List<RemoteHostInfoCommandSettings>>() ?? new List<RemoteHostInfoCommandSettings>();
-            //services.AddSingleton(commandTmplSettings);
-
-            services.AddSingleton<ContainerFactory>();
-
-            services.AddSingleton(serviceProvider =>
-            {
-                var remoteHostInfoFactory = serviceProvider.GetService<ContainerFactory>() ?? throw new Exception("DI容器中获取的RemoteHostInfoFactory为空");
-                var result = new List<RemoteHostInfoProvider>();
-                foreach (var remoteHost in remoteHosts)
-                {
-                    var dockerContainerManager = new RemoteHostInfoProviderDockerContainer(remoteHost, remoteHostInfoFactory);
-                    result.Add(dockerContainerManager);
-                }
-                return result;
-            });
+            //services.AddSingleton(serviceProvider =>
+            //{
+            //    var result = new List<RemoteHostInfoProvider>();
+            //    foreach (var remoteHost in remoteHosts)
+            //    {
+            //        var dockerContainerManager = new DockerContainerProvider(remoteHost);
+            //        result.Add(dockerContainerManager);
+            //    }
+            //    return result;
+            //});
             #endregion
 
             #region 仓储

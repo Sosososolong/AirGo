@@ -1,6 +1,6 @@
 ﻿namespace Sylas.RemoteTasks.App.RemoteHostModule
 {
-    public class RemoteHostInfoDockerContainer : RemoteHostInfo
+    public class DockerContainer : RemoteHostInfo
     {
         public string ContainerId { get; set; } = string.Empty;
         public string Image { get; set; } = string.Empty;
@@ -24,13 +24,13 @@
             {
                 var result = new List<Tuple<string, string>>
                 {
-                    new Tuple<string, string>("ContainerId", ContainerId),
-                    new Tuple<string, string>("Image", Image),
-                    new Tuple<string, string>("Command", Command),
-                    new Tuple<string, string>("Created", Created),
-                    new Tuple<string, string>("Status", Status),
-                    new Tuple<string, string>("Ports", Ports),
-                    new Tuple<string, string>("Names", Names)
+                    new("ContainerId", ContainerId),
+                    new("Image", Image),
+                    new("Command", Command),
+                    new("Created", Created),
+                    new("Status", Status),
+                    new("Ports", Ports),
+                    new("Names", Names)
                 };
                 return result;
             }
