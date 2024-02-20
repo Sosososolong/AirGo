@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Sylas.RemoteTasks.App.RemoteHostModule;
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
+using Sylas.RemoteTasks.Utils.CommandExecutor;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {
@@ -26,9 +27,24 @@ namespace Sylas.RemoteTasks.App.Controllers
             return Json(_hostService.Execute(executeDto));
         }
 
-        public IActionResult Test()
+        /// <summary>
+        /// 显示所有命令
+        /// </summary>
+        /// <returns></returns>
+        public IActionResult AnythingInfos()
         {
-            return Ok(AnythingInfo.Test());
+            return View(AnythingInfo.AnythingInfos);
+        }
+        /// <summary>
+        /// 对指定对象anything执行指定的命令command
+        /// </summary>
+        /// <param name="anything"></param>
+        /// <param name="command"></param>
+        /// <returns></returns>
+        public async Task<IActionResult> ExecuteCommandAsync([FromBody] CommandInfoInDto commandInfoInDto)
+        {
+            var commandResult = await AnythingInfo.ExecuteAsync(commandInfoInDto);
+            return Ok(commandResult);
         }
     }
 }

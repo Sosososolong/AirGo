@@ -130,7 +130,7 @@ namespace Sylas.RemoteTasks.App.RegexExp
         /// 字符串模板, 如: "ID为{id}, 姓名为{name}"
         /// </summary>
         /// <returns></returns>
-        public static readonly Regex StringTmpl = new ("(?<name>\\{{2}\\s*.+\\}{2})|(?<name>\\$.+)|(?<name>\\$\\{.+\\})");
+        public static readonly Regex StringTmpl = new ("(?<name>\\{{2}\\s*.+\\}{2})|(?<name>\\$[^\\{]+)|(?<name>\\$\\{.+?\\})");
 
         /// <summary>
         /// 匹配正则表达式中的分组

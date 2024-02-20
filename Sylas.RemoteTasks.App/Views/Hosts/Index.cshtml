@@ -16,7 +16,7 @@
                 <div class="dropdown-divider"></div>
                 @foreach (var remoteHostCmd in manager.RemoteHost.Commands)
                 {
-                    <a class="dropdown-item" data-value="@remoteHostCmd.Name" href="#" onclick="executeCommand('@(manager.RemoteHost.Ip)', '@(manager.RemoteHost.Name)', '@(remoteHostCmd.Name)', '@(remoteHostCmd.Command)')">@remoteHostCmd.Name</a>
+                    <a class="dropdown-item" data-value="@remoteHostCmd.Name" href="#" onclick="executeCommand('@(manager.RemoteHost.Ip)', '@(manager.RemoteHost.Name)', '@(remoteHostCmd.Name)', '@(remoteHostCmd.CommandTxt)')">@remoteHostCmd.Name</a>
                 }
             </div>
             <div class="row">
@@ -42,7 +42,7 @@
                                     <p class="card-text">
                                         @foreach (var infoCmd in info.Commands)
                                         {
-                                            <button class="btn default" onclick="executeCommand('@manager.RemoteHost.Ip', '@info.Name', '@infoCmd.Name', '@infoCmd.Command')">@infoCmd.Name - @(infoCmd.Command.Length > 20 ? infoCmd.Command.Substring(0, 20) + "..." : infoCmd.Command)</button>
+                                            <button class="btn default" onclick="executeCommand('@manager.RemoteHost.Ip', '@info.Name', '@infoCmd.Name', '@infoCmd.CommandTxt')">@infoCmd.Name - @(infoCmd.CommandTxt.Length > 20 ? infoCmd.CommandTxt.Substring(0, 20) + "..." : infoCmd.CommandTxt)</button>
                                         }
                                     </p>
                                 </div>

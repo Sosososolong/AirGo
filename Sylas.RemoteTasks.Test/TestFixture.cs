@@ -50,11 +50,11 @@ namespace Sylas.RemoteTasks.Test
             //var commandTmplSettings = configuration.GetSection("RemoteHostInfoCommandSettings").Get<List<RemoteHostInfoCommandSettings>>() ?? new List<RemoteHostInfoCommandSettings>();
             //services.AddSingleton(commandTmplSettings);
 
-            services.AddSingleton<RemoteHostInfoFactory>();
+            services.AddSingleton<ContainerFactory>();
 
             services.AddSingleton(serviceProvider =>
             {
-                var remoteHostInfoFactory = serviceProvider.GetService<RemoteHostInfoFactory>() ?? throw new Exception("DI容器中获取的RemoteHostInfoFactory为空");
+                var remoteHostInfoFactory = serviceProvider.GetService<ContainerFactory>() ?? throw new Exception("DI容器中获取的RemoteHostInfoFactory为空");
                 var result = new List<RemoteHostInfoProvider>();
                 foreach (var remoteHost in remoteHosts)
                 {

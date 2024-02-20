@@ -16,11 +16,11 @@ namespace Sylas.RemoteTasks.App.Helpers
 
             services.Configure<List<RemoteHostInfoCommandSettings>>(configuration.GetSection("RemoteHostInfoCommandSettings"));
 
-            services.AddSingleton<RemoteHostInfoFactory>();
+            services.AddSingleton<ContainerFactory>();
 
             services.AddSingleton(serviceProvider =>
             {
-                var remoteHostInfoFactory = serviceProvider.GetService<RemoteHostInfoFactory>() ?? throw new Exception("DI容器中获取的RemoteHostInfoFactory为空");
+                var remoteHostInfoFactory = serviceProvider.GetService<ContainerFactory>() ?? throw new Exception("DI容器中获取的RemoteHostInfoFactory为空");
                 var result = new List<RemoteHostInfoProvider>();
                 foreach (var remoteHost in remoteHosts)
                 {

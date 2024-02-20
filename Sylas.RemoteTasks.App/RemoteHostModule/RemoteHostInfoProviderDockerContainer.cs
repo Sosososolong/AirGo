@@ -2,7 +2,7 @@
 {
     public class RemoteHostInfoProviderDockerContainer : RemoteHostInfoProvider
     {
-        public RemoteHostInfoProviderDockerContainer(RemoteHost remoteHost, RemoteHostInfoFactory remoteHostInfoFactory)
+        public RemoteHostInfoProviderDockerContainer(RemoteHost remoteHost, ContainerFactory remoteHostInfoFactory)
             : base(remoteHost ?? throw new Exception("DockerContainerManger注入RemoteHost为空"),
                   remoteHostInfoFactory ?? throw new Exception("DockerContainerManger注入RemoteHostInfoFactory为空"))
         {
@@ -32,9 +32,9 @@
             {
                 foreach (var line in lines)
                 {
-                    var parts = line.Split(';');
-                    var container = RemoteHostInfoFactory.CreateDockerContainer(parts[0], parts[1], parts[2], parts[3], parts[4], parts[5], parts[6], RemoteHost.Ip);
-                    result.Add(container);
+                    var parts = line.Split("&&", StringSplitOptions.TrimEntries);
+                    var hostInfo = RemoteHostInfoFactory.GetHostDockerContainer(parts[0], parts[1], parts[2], parts[3], parts[4], parts[5], parts[6], RemoteHost.Ip);
+                    result.Add(hostInfo);
                 }
             }
             return result;

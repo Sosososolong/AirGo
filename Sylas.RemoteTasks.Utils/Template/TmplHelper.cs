@@ -307,8 +307,10 @@ namespace Sylas.RemoteTasks.Utils.Template
             {
                 dataContextDictionary = JObject.FromObject(dataContextObject).ToObject<Dictionary<string, object>>() ?? throw new Exception("无法将模板的数据上下文转换为字典");
             }
+            const string doubleFlag = "DOUBLEFLAGlsjflajflajf238024***%666666^^^^-+Oo)ukj(";
+            tmplWithParser = tmplWithParser.Replace("$$", doubleFlag);
             var stringTmplMatches = RegexConst.StringTmpl.Matches(tmplWithParser);
-            List<string> results = [tmplWithParser];
+            List<object> results = [tmplWithParser];
             foreach (var stringTmplMatch in stringTmplMatches.Cast<Match>())
             {
                 var stringTmplGroups = stringTmplMatch.Groups;
@@ -318,14 +320,14 @@ namespace Sylas.RemoteTasks.Utils.Template
                     var tmplValue = ResolveFromDictionary(tmpl, dataContextDictionary);
                     if (tmplValue is not string && tmplValue is not JValue && tmplValue is IEnumerable<object> arrayValue)
                     {
-                        List<string> newResults = [];
+                        List<object> newResults = [];
                         foreach (var arrayItem in arrayValue)
                         {
                             List<string> cpResults = [];
                             foreach (var resultItem in results)
                             {
                                 var expValue = arrayItem.ToString();
-                                cpResults.Add(resultItem.Replace(tmpl, expValue));
+                                cpResults.Add(resultItem.ToString().Replace(tmpl, expValue));
                             }
                             newResults.AddRange(cpResults);
                         }
@@ -335,12 +337,12 @@ namespace Sylas.RemoteTasks.Utils.Template
                     {
                         for (int i = 0; i < results.Count; i++)
                         {
-                            results[i] = results[i].Replace(tmpl, tmplValue.ToString());
+                            results[i] = results[i].ToString() == tmpl ? tmplValue : results[i].ToString().Replace(tmpl, tmplValue.ToString()).Replace(doubleFlag, "$");
                         }
                     }
                 }
             }
-            return results.Count == 1 ? results.First().ToString() : results;
+            return results.Count == 1 ? results.First() : results;
 
             object ResolveFromDictionary(string tmplExpressionWithParser, Dictionary<string, object> dataContext)
             {

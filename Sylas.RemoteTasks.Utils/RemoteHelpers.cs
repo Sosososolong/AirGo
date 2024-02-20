@@ -50,7 +50,7 @@ namespace Sylas.RemoteTasks.Utils
 
             ValidateHelper.ValidateArgumentIsNull(
                 requestConfig,
-                [ 
+                [
                     nameof(requestConfig.FailMsg),
                     nameof(requestConfig.Token),
                     nameof(requestConfig.Data),
@@ -111,7 +111,7 @@ namespace Sylas.RemoteTasks.Utils
                 {
                     config.Data = records;
                 }
-                
+
                 if (config.Details is not null && config.Details.Any())
                 {
                     foreach (var record in records)

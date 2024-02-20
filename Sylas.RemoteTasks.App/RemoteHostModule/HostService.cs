@@ -1,4 +1,6 @@
-﻿namespace Sylas.RemoteTasks.App.RemoteHostModule
+﻿using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
+
+namespace Sylas.RemoteTasks.App.RemoteHostModule
 {
     public class HostService(IConfiguration configuration,
                        ILoggerFactory loggerFactory,
@@ -46,6 +48,11 @@
                 return new { code = 1, msg = exeCmd?.Result, error = exeCmd?.Error };
             }
             return new { code = -1, msg = "未找到对应的远程主机信息" };
+        }
+
+        public List<AnythingInfoOutDto> GetAnythingInfos()
+        {
+            return AnythingInfo.AnythingInfos;
         }
     }
 }

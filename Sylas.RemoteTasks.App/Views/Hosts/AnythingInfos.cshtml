@@ -1,0 +1,63 @@
+﻿@{
+    ViewData["Title"] = "Remote Hosts Manager ...";
+}
+<div class="container my-4">
+    <div class="row">
+        @foreach (var anything in Model)
+        {
+            <h3 class="my-3 text-center dropdown-toggle" id="dropdownAnythingInfos" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                @(anything.Name)
+            </h3>
+            <div class="dropdown-menu" aria-labelledby="dropdownAnythingInfos">
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control" id="searchDropdown@(anything.Name.Replace(".", string.Empty))" value="" placeholder="Search..." aria-label="Search" onkeyup="onHostInfosSearched(this)" />
+                </div>
+                <div class="dropdown-divider"></div>
+                @foreach (var anythingCommand in anything.Commands)
+                {
+                    <a class="dropdown-item" data-value="@anythingCommand" href="#" onclick="executeCommand('@(anything.Name)', '@(anythingCommand)')">@anythingCommand</a>
+                }
+            </div>
+            
+        }
+    </div>
+</div>
+
+@section Scripts{
+    <script>
+        function executeCommand(anything, command) {
+            fetch('/Hosts/ExecuteCommand', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ anything, command })
+            }).then(response => {
+                if (response.ok) {
+                    var rspJson = response.json();
+                    return rspJson;
+                } else {
+                    showErrorBox("Failed to execute command: " + response.json());
+                }
+            }).then(rspJson => {
+                showMsgBox(rspJson.message)
+            }).catch(error => {
+                showErrorBox(error);
+            });
+        }
+
+        function onHostInfosSearched(searchDropdown) {
+            // Get reference to dropdown items
+            var dropdownItems = searchDropdown.parentNode.parentNode.querySelectorAll(".dropdown-item");
+
+            var value = searchDropdown.value.toLowerCase();
+            dropdownItems.forEach(function (item) {
+                if (item.textContent.toLowerCase().indexOf(value) > -1) {
+                    item.style.display = "block";
+                } else {
+                    item.style.display = "none";
+                }
+            });
+        }
+    </script>
+}

@@ -366,7 +366,7 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
     }
 
     // 搜索表单提交事件
-    $('#search-form').submit(function (event) {
+    $('#search-form').on('submit', function (event) {
         event.preventDefault();
         targetTable.dataFilter.keywords.value = $('#search-input').val().trim();
         targetTable.pageIndex = 1;

@@ -3,11 +3,11 @@ using Sylas.RemoteTasks.App.RegexExp;
 
 namespace Sylas.RemoteTasks.App.RemoteHostModule
 {
-    public partial class RemoteHostInfoFactory(IOptions<List<RemoteHostInfoCommandSettings>> tmplSettings)
+    public class ContainerFactory(IOptions<List<RemoteHostInfoCommandSettings>> tmplSettings)
     {
         private readonly List<RemoteHostInfoCommandSettings> _tmplSettings = tmplSettings.Value;
 
-        public RemoteHostInfo CreateDockerContainer(string containerId, string image, string command, string created, string status, string ports, string names, string host)
+        public RemoteHostInfo GetHostDockerContainer(string containerId, string image, string command, string created, string status, string ports, string names, string host)
         {
             #region 创建DockerContainerInfo
             var dockerContainerInfo = new RemoteHostInfoDockerContainer

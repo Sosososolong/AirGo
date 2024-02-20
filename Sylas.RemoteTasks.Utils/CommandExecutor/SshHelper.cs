@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace Sylas.RemoteTasks.Utils.CommandExecutor
 {
@@ -404,12 +405,13 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         /// 使用ssh连接主机执行命令
         /// </summary>
         /// <param name="command"></param>
-        public CommandResult ExecuteCommand(string command)
+        public async Task<CommandResult> ExecuteAsync(string command)
         {
             var conn = GetConnection();
 
             var cmd = conn.CreateCommand(command);
-            _ = cmd.Execute();
+            //_ = cmd.Execute();
+            await Task.Run(() => cmd.Execute());
             var output = cmd.Result;
             var error = cmd.Error;
 
