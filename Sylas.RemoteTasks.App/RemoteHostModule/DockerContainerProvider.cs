@@ -1,11 +1,15 @@
-﻿using Microsoft.Extensions.Options;
-using Sylas.RemoteTasks.App.RegexExp;
-using Sylas.RemoteTasks.Utils.Template;
-
-namespace Sylas.RemoteTasks.App.RemoteHostModule
+﻿namespace Sylas.RemoteTasks.App.RemoteHostModule
 {
+    /// <summary>
+    /// docker容器信息提供者
+    /// </summary>
     public class DockerContainerProvider : RemoteHostInfoProvider
     {
+        /// <summary>
+        /// 初始化
+        /// </summary>
+        /// <param name="remoteHost"></param>
+        /// <exception cref="Exception"></exception>
         public DockerContainerProvider(RemoteHost remoteHost)
             : base(remoteHost ?? throw new Exception("DockerContainerManger注入RemoteHost为空"))
         {
@@ -13,21 +17,17 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
         }
 
         /// <summary>
-        /// 多次调用会多次查询
+        /// 重写获取服务器信息的获取: 获取docker容器信息
         /// </summary>
-        public override List<RemoteHostInfo> RemoteHostInfos()
+        /// <returns></returns>
+        public override IEnumerable<RemoteHostInfo> BuildRemoteHostInfos()
         {
             Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} Invoke the RemoteHostInfos() method, query remote host's INFOS in real-time.");
-            if (RemoteHost is null)
-            {
-                throw new Exception($"DockerContainerManger.RemoteHost没有初始化");
-            }
-            var result = new List<RemoteHostInfo>();
             var ssh = RemoteHost.SshConnection;
             var dockerPs = ssh.RunCommand("docker ps --format \"{{.ID}} && {{.Image}} && {{.Command}} && {{.CreatedAt}} && {{.Status}} && {{.Ports}} && {{.Names}}\"");
             if (!string.IsNullOrWhiteSpace(dockerPs?.Error))
             {
-                return [];
+                yield break;
             }
 
             var lines = dockerPs?.Result.Split('\n', StringSplitOptions.RemoveEmptyEntries);
@@ -36,63 +36,22 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
                 foreach (var line in lines)
                 {
                     var parts = line.Split("&&", StringSplitOptions.TrimEntries);
-                    var hostInfo = BuildHostInfoWithCommands(parts[0], parts[1], parts[2], parts[3], parts[4], parts[5], parts[6], RemoteHost.Ip);
-                    result.Add(hostInfo);
+                    #region 创建DockerContainerInfo
+                    var dockerContainerInfo = new DockerContainer
+                    {
+                        ContainerId = parts[0],
+                        Image = parts[1],
+                        Command = parts[2],
+                        Created = parts[3],
+                        Status = parts[4],
+                        Ports = parts[5],
+                        Names = parts[6]
+                    };
+                    #endregion
+                    yield return dockerContainerInfo;
                 }
             }
-            return result;
-        }
-
-        public RemoteHostInfo BuildHostInfoWithCommands(params object[] args)
-        {
-            if (args.Length != 8)
-            {
-                throw new Exception("DockerContainerFactory获取容器信息提供的参数异常");
-            }
-            string containerId = args[0].ToString() ?? "";
-            string image = args[1].ToString() ?? "";
-            string command = args[2].ToString() ?? "";
-            string created = args[3].ToString() ?? "";
-            string status = args[4].ToString() ?? "";
-            string ports = args[5].ToString() ?? "";
-            string names = args[6].ToString() ?? "";
-            string host = args[7].ToString() ?? "";
-
-            #region 创建DockerContainerInfo
-            var dockerContainerInfo = new DockerContainer
-            {
-                ContainerId = containerId,
-                Image = image,
-                Command = command,
-                Created = created,
-                Status = status,
-                Ports = ports,
-                Names = names
-            };
-            #endregion
-
-            #region 根据模板配置解析DockerContainerInfo的命令集
-            var dataContext = new Dictionary<string, object>()
-            {
-                { "Name", dockerContainerInfo.Name },
-                { "Description", dockerContainerInfo.Description },
-                { "ContainerId", containerId },
-                { "Image", image },
-                { "Command", command },
-                { "Created", created },
-                { "Status", status },
-                { "Ports", ports },
-                { "Names", names },
-            };
-            foreach (var commandTmpl in RemoteHost.HostInfoCommands)
-            {
-                commandTmpl.CommandTxt = TmplHelper.ResolveExpressionValue(commandTmpl.CommandTxt, dataContext)?.ToString() ?? throw new Exception($"失败");
-            }
-
-            dockerContainerInfo.Commands = RemoteHost.HostInfoCommands;
-
-            return dockerContainerInfo;
-            #endregion
+            yield break;
         }
     }
 }

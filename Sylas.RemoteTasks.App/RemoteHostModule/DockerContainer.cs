@@ -12,6 +12,19 @@
         /// 用容器名称表示
         /// </summary>
         public string Names { get; set; } = string.Empty;
+        public override string ShortName => ShortNameMapDictionary.TryGetValue(Name, out string? shortName) ? shortName : Name;
+        public override Dictionary<string, string> ShortNameMapDictionary => new()
+            {
+                { "iduo.ids4", "ids4" },
+                { "iduo.ids4.admin", "4admin" },
+                { "iduo.ids4.api", "4api" },
+                { "iduo.form.api", "fapi" },
+                { "iduo.portal.api", "papi" },
+                { "iduo.site.api", "sapi" },
+                { "iduo.application", "app" },
+                { "iduo.engine", "engine" },
+                { "iduo.bpmclient", "bpm" },
+            };
         public override string Description { get => $"Container: {Names} [{ContainerId}] created from Image: {Image} at {Created}"; }
         /// <summary>
         /// 用容器名称表示

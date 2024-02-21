@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Sylas.RemoteTasks.App.RemoteHostModule;
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
-using Sylas.RemoteTasks.Utils.CommandExecutor;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {
@@ -13,8 +12,8 @@ namespace Sylas.RemoteTasks.App.Controllers
 
         public IActionResult Index()
         {
-            var _hostsManager = _hostService.GetHostsManagers();
-            return View(_hostsManager);
+            var hostProviders = _hostService.GetRemoteHosts();
+            return View(hostProviders);
         }
 
         /// <summary>

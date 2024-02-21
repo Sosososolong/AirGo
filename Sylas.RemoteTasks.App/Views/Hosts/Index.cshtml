@@ -3,46 +3,59 @@
 }
 <div class="container my-4">
     <div class="row">
-        @foreach (var manager in Model)
+        @foreach (var remoteHostInfoProvider in Model)
         {
-            var remoteHostInfos = manager.RemoteHostInfos();
-            <h3 class="my-3 text-center dropdown-toggle" id="dropdownHostCommandInfos" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                @(manager.RemoteHost.Ip) (@remoteHostInfos.Count)
+            @* 服务器标题 start *@
+            var ip = remoteHostInfoProvider.RemoteHost.Ip;
+            var ipNumber = ip.Replace(".", string.Empty);
+            var remoteHostInfos = remoteHostInfoProvider.GetRemoteHostInfos();
+            <h3 class="my-3 text-center dropdown-toggle" id="dropdownHostCommandInfos@(ipNumber)" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                @(ip) (@remoteHostInfos.Count)
             </h3>
-            <div class="dropdown-menu" aria-labelledby="dropdownHostCommandInfos">
+            <div class="dropdown-menu" aria-labelledby="dropdownHostCommandInfos@(ipNumber)">
                 <div class="input-group mb-3">
-                    <input type="text" class="form-control" id="searchDropdown@(manager.RemoteHost.Ip.Replace(".", string.Empty))" value="" placeholder="Search..." aria-label="Search" onkeyup="onHostInfosSearched(this)" />
+                    <input type="text" class="form-control" id="searchDropdown@(ipNumber)" value="" placeholder="Search..." aria-label="Search" onkeyup="onHostInfosSearched(this)" />
                 </div>
                 <div class="dropdown-divider"></div>
-                @foreach (var remoteHostCmd in manager.RemoteHost.Commands)
+                @foreach (var remoteHostCmd in remoteHostInfoProvider.RemoteHost.Commands)
                 {
-                    <a class="dropdown-item" data-value="@remoteHostCmd.Name" href="#" onclick="executeCommand('@(manager.RemoteHost.Ip)', '@(manager.RemoteHost.Name)', '@(remoteHostCmd.Name)', '@(remoteHostCmd.CommandTxt)')">@remoteHostCmd.Name</a>
+                    <a class="dropdown-item" data-value="@remoteHostCmd.Name" href="#" onclick="executeCommand('@(ip)', '@(remoteHostInfoProvider.RemoteHost.Name)', '@(remoteHostCmd.Name)', '@(remoteHostCmd.CommandTxt)')">@remoteHostCmd.Name</a>
                 }
             </div>
+            @* 服务器标题 end *@
+
             <div class="row">
                 @foreach (var info in remoteHostInfos)
                 {
-                    <div class="col-md-4 mb-4">
+                    var hostInfoName = $"{ipNumber}{info.Name.Replace(".", "-")}";
+                    <div class="col-md-6 mb-4">
                         <div class="card">
-                            <div class="card-header" id="heading-@(info.Name.Replace(".", "-"))">
+                            <div class="card-header" id="heading-@(hostInfoName)">
                                 <h5 class="card-title mb-0">
-                                    <button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#collapse@(info.Name.Replace(".", "-"))" aria-expanded="false" aria-controls="collapse@(info.Name.Replace(".", "-"))">
+                                    <button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#collapse@(hostInfoName)" aria-expanded="false" aria-controls="collapse@(hostInfoName)">
                                         @info.Name
                                     </button>
                                 </h5>
                             </div>
-                            <div id="collapse@(info.Name.Replace(".", "-"))" class="collapse" aria-labelledby="heading-@(info.Name.Replace(".", "-"))" data-bs-parent="#accordion">
+                            <div id="collapse@(hostInfoName)" class="collapse" aria-labelledby="heading-@(hostInfoName)" data-bs-parent="#accordion">
                                 <div class="card-body">
                                     <p class="card-text">
                                         @foreach (var label in info.Labels)
                                         {
-                                            @label.Item1 <b>: </b> @label.Item2 <br>
+                                            <span style="display: inline-block; width: 100px;">
+                                                @(label.Item1)
+                                            </span>
+                                            <span>:</span>
+                                            <span style="margin-bottom: 10px; color:darkgray;">
+                                                @(label.Item2)
+                                            </span>
+                                            <br>
                                         }
                                     </p>
                                     <p class="card-text">
                                         @foreach (var infoCmd in info.Commands)
                                         {
-                                            <button class="btn default" onclick="executeCommand('@manager.RemoteHost.Ip', '@info.Name', '@infoCmd.Name', '@infoCmd.CommandTxt')">@infoCmd.Name - @(infoCmd.CommandTxt.Length > 20 ? infoCmd.CommandTxt.Substring(0, 20) + "..." : infoCmd.CommandTxt)</button>
+                                            <button class="btn default" onclick="executeCommand('@ip', '@info.Name', '@infoCmd.Name', '@infoCmd.CommandTxt')">@infoCmd.Name - @(infoCmd.CommandTxt)</button>
                                         }
                                     </p>
                                 </div>

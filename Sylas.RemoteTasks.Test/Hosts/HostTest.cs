@@ -12,10 +12,10 @@ namespace Sylas.RemoteTasks.Test.Hosts
         [Fact]
         public void GetHostInfoListTest()
         {
-            var remoteHostManagers = _hostService.GetHostsManagers();
+            var remoteHostManagers = _hostService.GetRemoteHosts();
             for (int i = 0; i < remoteHostManagers.Count; i++)
             {
-                var infos = remoteHostManagers[i].RemoteHostInfos();
+                var infos = remoteHostManagers[i].GetRemoteHostInfos();
                 foreach (var info in infos)
                 {
                     outputHelper.WriteLine(info.Description);
