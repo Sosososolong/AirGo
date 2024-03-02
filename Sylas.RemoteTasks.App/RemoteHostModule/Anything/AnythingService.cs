@@ -141,7 +141,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             #endregion
 
             #region 解析Executor对象和构造函数参数
-            AnythingExecutor anythingExecutor;
+            AnythingExecutor? anythingExecutor = null;
             
             if (anything.Executor == 0)
             {
@@ -149,7 +149,13 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             }
             else
             {
-                anythingExecutor = await executorRepository.GetByIdAsync(anything.Executor) ?? throw new Exception($"无效的AnythingExecutor: {anything.Executor}");
+                string cacheKey = $"CacheKeyExecutor";
+                if (!memoryCache.TryGetValue(cacheKey, out anythingExecutor) || anythingExecutor is null)
+                {
+                    anythingExecutor = await executorRepository.GetByIdAsync(anything.Executor) ?? throw new Exception($"无效的AnythingExecutor: {anything.Executor}");
+                    var cacheEntryOptions = new MemoryCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromMinutes(1));
+                    memoryCache.Set(cacheKey, anythingExecutor, cacheEntryOptions);
+                }
             }
             var executorName = anythingExecutor.Name;
             var argTmpls = string.IsNullOrWhiteSpace(anythingExecutor.Arguments)
