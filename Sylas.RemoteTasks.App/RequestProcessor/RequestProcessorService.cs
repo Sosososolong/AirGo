@@ -1,7 +1,7 @@
-﻿using Sylas.RemoteTasks.Database.SyncBase;
-using Sylas.RemoteTasks.App.Infrastructure;
-using Sylas.RemoteTasks.App.Repositories;
+﻿using Sylas.RemoteTasks.App.Repositories;
+using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils;
+using Sylas.RemoteTasks.Utils.Dto;
 
 namespace Sylas.RemoteTasks.App.RequestProcessor
 {

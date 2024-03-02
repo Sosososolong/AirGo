@@ -54,10 +54,5 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
             }
             return new { code = -1, msg = "未找到对应的远程主机信息" };
         }
-
-        public List<AnythingInfoOutDto> GetAnythingInfos()
-        {
-            return AnythingInfo.AnythingInfos;
-        }
     }
 }

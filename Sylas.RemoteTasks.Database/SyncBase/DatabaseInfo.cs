@@ -93,7 +93,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             {
                 conn.Open();
             }
-            if (conn.Database != db)
+            if (!string.IsNullOrWhiteSpace(db) && conn.Database != db)
             {
                 conn.ChangeDatabase(db);
             }
@@ -440,11 +440,40 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         public async Task CreateTableIfNotExistAsync(string db, string tableName, IEnumerable<ColumnInfo> colInfos, object? tableRecords = null)
         {
             using var conn = GetDbConnection(_connectionString);
-            conn.Open();
             ChangeDatabase(conn, db);
+
             try
             {
-                var targetDataTable = await QueryAsync(conn, $"select * from {tableName}", new Dictionary<string, object>(), null);
+                var targetDataTable = await QueryAsync(conn, $"select 1 from {tableName} where 1=2", new Dictionary<string, object>(), null); //select count(*) from {tableName}
+            }
+            catch (Exception ex)
+            {
+                if (ex.Message.ToLower().Contains("doesn't exist"))
+                {
+                    // 表不存在创建表
+                    var createSql = GenerateCreateTableSql(tableName, _dbType, colInfos, tableRecords);
+                    _logger.LogInformation($"数据表{tableName}不存在, 将创建数据表:{Environment.NewLine}{createSql}");
+                    _ = await conn.ExecuteAsync(createSql);
+                }
+            }
+        }
+        /// <summary>
+        /// 如果表不存在则创建表
+        /// </summary>
+        /// <param name="sourceConnectionString"></param>
+        /// <param name="db"></param>
+        /// <param name="tableName"></param>
+        /// <param name="tableRecords"></param>
+        /// <returns></returns>
+        public async Task CreateTableIfNotExistAsync(string sourceConnectionString, string db, string tableName, object? tableRecords = null)
+        {
+            IEnumerable<ColumnInfo> colInfos = await GetTableColumnsInfoAsync(GetDbConnection(sourceConnectionString), tableName);
+            using var conn = GetDbConnection(_connectionString);
+            ChangeDatabase(conn, db);
+
+            try
+            {
+                var targetDataTable = await QueryAsync(conn, $"select 1 from {tableName} where 1=2", new Dictionary<string, object>(), null); //select count(*) from {tableName}
             }
             catch (Exception ex)
             {
@@ -461,22 +490,22 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// 同步数据库
         /// </summary>
         /// <exception cref="Exception"></exception>
-        public static async Task SyncDatabaseByConnectionStringsAsync(string sourceConnectionString, string targetConnectionString, string sourceSyncedDb = "", string sourceSyncedTable = "", bool ignoreException = false)
+        public static async Task SyncDatabaseByConnectionStringsAsync(string sourceConnectionString, string targetConnectionString, string syncedDb = "", string syncedTable = "", bool ignoreException = false)
         {
             using var sourceConn = GetDbConnection(sourceConnectionString);
-            if (!string.IsNullOrWhiteSpace(sourceSyncedDb))
+            if (!string.IsNullOrWhiteSpace(syncedDb))
             {
-                sourceConn.ChangeDatabase(sourceSyncedDb);
+                sourceConn.ChangeDatabase(syncedDb);
             }
             // 数据源-数据库
-            var res = await GetAllTablesAsync(sourceConn, sourceSyncedDb);
+            var res = await GetAllTablesAsync(sourceConn, syncedDb);
 
             // TODO: 1 同步指定的表 2 不指定要同步的数据库sourceSyncedDb, 从数据库连接字符串sourceConnectionString中解析数据库名称
             using var targetConn = GetDbConnection(targetConnectionString);
             targetConn.Open();
             foreach (var table in res)
             {
-                if (!string.IsNullOrWhiteSpace(sourceSyncedTable) && !table.Equals(sourceSyncedTable, StringComparison.OrdinalIgnoreCase))
+                if (!string.IsNullOrWhiteSpace(syncedTable) && !table.Equals(syncedTable, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -569,20 +598,59 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         {
             //conn.ConnectionString: "server=127.0.0.1;port=3306;database=engine;user id=root;allowuservariables=True"
             //conn.ConnectionTimeout: 15
-            //conn.Database: "db_engine_hznu"
+            //conn.Database: "my_engine"
             using var conn = GetDbConnection(_connectionString);
             if (!string.IsNullOrWhiteSpace(db))
             {
                 ChangeDatabase(conn, db);
             }
-            var varFlag = GetDbParameterFlag(_connectionString);
+            await SyncDatabaseAsync(conn, table, sourceRecords, ignoreFields, sourceIdField, targetIdField, _logger);
+        }
 
+        /// <summary>
+        /// 把数据同步到指定数据表
+        /// </summary>
+        /// <param name="connectionString"></param>
+        /// <param name="table"></param>
+        /// <param name="sourceRecords"></param>
+        /// <param name="ignoreFields"></param>
+        /// <param name="sourceIdField"></param>
+        /// <param name="targetIdField"></param>
+        /// <param name="db"></param>
+        /// <param name="logger"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        public static async Task SyncDatabaseAsync(string connectionString, string table, IEnumerable<JToken> sourceRecords, string[] ignoreFields, string sourceIdField = "", string targetIdField = "", string db = "", ILogger? logger = null)
+        {
+            using var conn = GetDbConnection(connectionString);
+            if (!string.IsNullOrWhiteSpace(db) && conn.Database != db)
+            {
+                conn.ChangeDatabase(db);
+            }
+
+            await SyncDatabaseAsync(conn, table, sourceRecords, ignoreFields, sourceIdField, targetIdField, logger);
+        }
+        /// <summary>
+        /// 把数据同步到指定数据表
+        /// </summary>
+        /// <param name="conn"></param>
+        /// <param name="table"></param>
+        /// <param name="sourceRecords"></param>
+        /// <param name="ignoreFields"></param>
+        /// <param name="sourceIdField"></param>
+        /// <param name="targetIdField"></param>
+        /// <param name="logger"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        public static async Task SyncDatabaseAsync(IDbConnection conn, string table, IEnumerable<JToken> sourceRecords, string[] ignoreFields, string sourceIdField = "", string targetIdField = "", ILogger? logger = null)
+        {
+            var varFlag = GetDbParameterFlag(conn.ConnectionString);
             // 先获取数据
             var dbRecords = await conn.QueryAsync($"select * from {conn.Database}.{table}") ?? throw new Exception($"获取{table}数据失败");
 
             var compareResult = await CompareRecordsAsync(sourceRecords, dbRecords, ignoreFields, sourceIdField, targetIdField);
             // 然后删除已存在并且发生了变化的数据
-            await DeleteExistRecordsAsync(conn, compareResult, table, varFlag, targetIdField, _logger);
+            await DeleteExistRecordsAsync(conn, compareResult, table, varFlag, targetIdField, logger);
 
             var inserts = compareResult.ExistInSourceOnly;
             if (compareResult.Changed.Any())
@@ -601,13 +669,22 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 }
                 catch (Exception)
                 {
-                    _logger.LogError(sqlInfo.Sql);
-                    _logger.LogError(JsonConvert.SerializeObject(sqlInfo.Parameters));
+                    if (logger is null)
+                    {
+                        Console.WriteLine(sqlInfo.Sql);
+                        Console.WriteLine(JsonConvert.SerializeObject(sqlInfo.Parameters));
+                    }
+                    else
+                    {
+                        logger.LogError(sqlInfo.Sql);
+                        logger.LogError(JsonConvert.SerializeObject(sqlInfo.Parameters));
+                    }
+
                     throw;
                 }
 
                 #region 记录数据日志
-                LogData(_logger, table, inserted, sqlInfo);
+                LogData(logger, table, inserted, sqlInfo);
                 #endregion
             }
         }
@@ -1564,10 +1641,6 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                 if (insertSqlBuilder.Length == 0)
                 {
                     Console.WriteLine($"{sourceTable}已经拥有所有记录");
-                    //yield return new TableSqlsInfo
-                    //{
-                    //    TableName = sourceTable,
-                    //};
                     yield break;
                 }
                 // 最终的insert语句
@@ -1605,7 +1678,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             var sourceRecordsDynamic = await conn.QueryAsync($"select * from {table}");
             var sourceRecords = sourceRecordsDynamic.Select(x => JObject.FromObject(x) ?? throw new Exception("数据库数据异常, 数据转换失败")).ToList();
             var targetRecords = FileHelper.GetRecords(targetJsonInfo.FilePath, targetJsonInfo.DataFields);
-            return await CompareRecordsAsync(sourceRecords, targetRecords, Array.Empty<string>(), sourceIdentityField, targetIdentityField);
+            return await CompareRecordsAsync(sourceRecords, targetRecords, [], sourceIdentityField, targetIdentityField);
         }
 
         /// <summary>
@@ -1836,7 +1909,6 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                     }
                 }
                 var end = DateTime.Now;
-                //File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs/DataCompare.txt"), $"已经处理了{batchData.Count()}; 耗时: {(end - start).TotalSeconds}/s{Environment.NewLine}");
                 Console.WriteLine($"已经处理了{batchData.Count()}; 耗时: {(end - start).TotalSeconds}/s{Environment.NewLine}");
             }
             #endregion

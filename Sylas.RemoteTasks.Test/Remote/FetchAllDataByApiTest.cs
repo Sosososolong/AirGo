@@ -75,16 +75,6 @@ namespace Sylas.RemoteTasks.Test.Remote
         }
 
         /// <summary>
-        /// 从文本文件中提取出需要的数据
-        /// </summary>
-        /// <returns></returns>
-        [Fact]
-        public async Task SearchTxtTestAsync()
-        {
-            await FileHelper.SearchTxt("D:/.NET/iduo/routine/txt/log-json.log", @"GetUsersByJobAndUserId:\s*jobId:\s*(?<jobId>.+),\s*userId:\s*(?<userId>.+?)(?=\\n"")");
-        }
-
-        /// <summary>
         /// 用大批量的参数测试一个Api, 结果写入到文件中, 从索引为1000的参数开始, 执行2000个参数
         /// </summary>
         /// <returns></returns>

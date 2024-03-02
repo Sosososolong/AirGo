@@ -4,6 +4,7 @@ using Sylas.RemoteTasks.App.Database;
 using Sylas.RemoteTasks.App.DataHandlers;
 using Sylas.RemoteTasks.App.Helpers;
 using Sylas.RemoteTasks.App.RemoteHostModule;
+using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
 using Sylas.RemoteTasks.App.Repositories;
 using Sylas.RemoteTasks.App.RequestProcessor;
 
@@ -48,6 +49,7 @@ builder.Services.AddDatabaseUtils();
 
 // 添加服务
 builder.Services.AddTransient<HostService>();
+builder.Services.AddTransient<AnythingService>();
 builder.Services.AddTransient<RequestProcessorService>();
 
 // 后台任务

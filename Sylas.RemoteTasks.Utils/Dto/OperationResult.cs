@@ -1,4 +1,6 @@
-﻿namespace Sylas.RemoteTasks.App.Infrastructure
+﻿using System.Collections.Generic;
+
+namespace Sylas.RemoteTasks.Utils.Dto
 {
     public class OperationResult
     {

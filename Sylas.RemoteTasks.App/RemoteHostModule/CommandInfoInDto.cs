@@ -3,12 +3,12 @@
     public class CommandInfoInDto
     {
         /// <summary>
-        /// 命令所属AnythingInfo对象的名称
+        /// AnythingSetting的Id
         /// </summary>
-        public string Anything { get; set; } = string.Empty;
+        public int SettingId { get; set; }
         /// <summary>
         /// 命令的名称
         /// </summary>
-        public string Command { get; set; } = string.Empty;
+        public string CommandName { get; set; } = string.Empty;
     }
 }

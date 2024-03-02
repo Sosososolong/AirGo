@@ -1,14 +1,11 @@
-﻿using Sylas.RemoteTasks.Utils;
-using Sylas.RemoteTasks.Utils.CommandExecutor;
-using Sylas.RemoteTasks.Utils.Template;
-using System.Text.RegularExpressions;
+﻿using Sylas.RemoteTasks.App.Database;
 
 namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
 {
     /// <summary>
-    /// 用来描述任何需要操作的对象
+    /// AnythingInfo的本文配置
     /// </summary>
-    public class AnythingInfo
+    public class AnythingSetting : EntityBase<int>
     {
         /// <summary>
         /// 标识, 使用模板从属性中获取
@@ -23,14 +20,13 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         /// <summary>
         /// 可执行命令
         /// </summary>
-        public List<CommandInfo> Commands { get; set; } = [];
+        public string Commands { get; set; } = string.Empty;
 
         /// <summary>
         /// 给当前对象自定义属性
         /// </summary>
-        public Dictionary<string, object> Properties { get; set; } = [];
-        public int SettingId { get; set; }
+        public string Properties { get; set; } = string.Empty;
 
-        public ICommandExecutor? CommandExecutor { get; set; }
+        public int Executor { get; set; }
     }
 }

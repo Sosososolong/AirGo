@@ -25,7 +25,5 @@ namespace Sylas.RemoteTasks.App.Snippets
         public string Content { get; set; } = string.Empty;
         public string TmplVariables { get; set; } = string.Empty;
         public int TypeId { get; set; }
-        public DateTime CreateTime { get; set; }
-        public DateTime UpdateTime { get; set; }
     }
 }

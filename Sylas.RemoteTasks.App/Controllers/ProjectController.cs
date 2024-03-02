@@ -6,6 +6,7 @@ using Sylas.RemoteTasks.App.RegexExp;
 using Sylas.RemoteTasks.App.Repositories;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils;
+using Sylas.RemoteTasks.Utils.Dto;
 using System.Text.RegularExpressions;
 
 namespace Sylas.RemoteTasks.App.Controllers

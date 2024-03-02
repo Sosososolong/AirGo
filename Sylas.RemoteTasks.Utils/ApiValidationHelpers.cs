@@ -46,7 +46,7 @@ namespace Sylas.RemoteTasks.Utils
                 throw new Exception($"文件{parametersFile}中的参数不正确");
             }
 
-            // D:\\.NET\\iduo\\routine\\txt\\validatioinrange0-9920230206145503.log
+            // D:\\.NET\\sylas\\routine\\txt\\validatioinrange0-9920230206145503.log
             var rangeInfo = $"range{firstIndex}-{firstIndex + count - 1}";
             var logFile = Path.Combine(Path.GetDirectoryName(parametersFile) ?? throw new Exception("获取参数文件的目录失败"), $"validatioin{rangeInfo}{DateTime.Now:yyyyMMddHHmmss}.log");
 

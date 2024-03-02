@@ -152,6 +152,11 @@ namespace Sylas.RemoteTasks.App.RegexExp
         /// </summary>
         /// <returns></returns>
         public static readonly Regex AssignmentRulesTmpl = new ("\\$primary(?<targetProp>\\.\\w+){1,}=\\$records(\\[\"(?<filterProp>\\w+)\"={1,2}(?<filterValue>[^\\]]+)){0,1}\\]\\.(?<dataProp>\\w+)");
+
+        /// <summary>
+        /// 匹配一个方法的方法名和参数部分
+        /// </summary>
+        public static readonly Regex CodeMethodAndParams = new(@"(?<ExecutorName>\w+)\((?<Args>.*)\)");
     }
 
 }

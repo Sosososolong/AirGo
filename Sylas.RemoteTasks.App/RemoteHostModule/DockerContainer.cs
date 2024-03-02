@@ -34,25 +34,6 @@
         /// </summary>
         public string Names { get; set; } = string.Empty;
         /// <summary>
-        /// 别名
-        /// </summary>
-        public override string ShortName => ShortNameMapDictionary.TryGetValue(Name, out string? shortName) ? shortName : Name;
-        /// <summary>
-        /// 容器名与别名的映射关系
-        /// </summary>
-        public override Dictionary<string, string> ShortNameMapDictionary => new()
-            {
-                { "iduo.ids4", "ids4" },
-                { "iduo.ids4.admin", "4admin" },
-                { "iduo.ids4.api", "4api" },
-                { "iduo.form.api", "fapi" },
-                { "iduo.portal.api", "papi" },
-                { "iduo.site.api", "sapi" },
-                { "iduo.application", "app" },
-                { "iduo.engine", "engine" },
-                { "iduo.bpmclient", "bpm" },
-            };
-        /// <summary>
         /// 描述
         /// </summary>
         public override string Description { get => $"Container: {Names} [{ContainerId}] created from Image: {Image} at {Created}"; }
