@@ -125,6 +125,18 @@
             msgBox.show();
         }
 
+        function showConfirmBox(confirmMsg, callback) {
+            if (!callback) {
+                window.callback = () => { };
+            }
+            $('#msgBox .modal-title').text('确认');
+            $('#msgBox .modal-body').text(confirmMsg);
+            $('#msgBox .modal-footer').html(`<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button><button type="button" class="btn btn-danger" id="confirm" data-bs-dismiss="modal">确定</button>`);
+            $('#msgBox button[id="confirm"]').click(callback);
+
+            msgBox.show();
+        }
+
         function showSpinner(target) {
             if (target) {
                 let originHtml = target.innerHTML;

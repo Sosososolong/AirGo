@@ -69,7 +69,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                 var bodyParams = JsonConvert.DeserializeObject<JToken>(resolvedBodyJson.ToString() ?? "");
                 _requestConfig.BodyDictionary = bodyParams;
             }
-            return new List<RequestConfig>() { CloneReqeustConfig() };
+            return new List<RequestConfig>() { CloneRequestConfig() };
         }
 
         /// <summary>
@@ -208,7 +208,11 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
 
             return this;
         }
-        public RequestConfig CloneReqeustConfig()
+        /// <summary>
+        /// 克隆一个RequestConfig对象(Http请求参数)
+        /// </summary>
+        /// <returns></returns>
+        public RequestConfig CloneRequestConfig()
         {
             _requestConfig.QueryDictionary ??= new Dictionary<string, object>();
             var copied = MapHelper<RequestConfig, RequestConfig>.Map(_requestConfig);
@@ -230,7 +234,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
         /// <exception cref="Exception"></exception>
         async Task<Dictionary<string, object?>> RequestAndBuildDataContextAsync(List<string> dataContextTmpls, ILogger<RequestProcessorBase> logger)
         {
-            logger?.LogDebug($"call {nameof(RequestAndBuildDataContextAsync)}, 应用参数, 准备发送请求: {_requestConfig.Url}{Environment.NewLine}Query:{JsonConvert.SerializeObject(_requestConfig.QueryDictionary)}{Environment.NewLine}Body:{JsonConvert.SerializeObject(_requestConfig.BodyDictionary)}");
+            logger?.LogDebug($"{nameof(RequestAndBuildDataContextAsync)}, 应用参数, 准备发送请求: {_requestConfig.Url}{Environment.NewLine}Query:{JsonConvert.SerializeObject(_requestConfig.QueryDictionary)}{Environment.NewLine}Body:{JsonConvert.SerializeObject(_requestConfig.BodyDictionary)}");
             IEnumerable<JToken>? data = null;
             try
             {
@@ -245,7 +249,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
             // TODO: 去掉RequerstConfig的Data属性
             _requestConfig.Data = null;
 
-            logger?.LogDebug($"call {nameof(RequestAndBuildDataContextAsync)}, 请求结束, 获取data: {data.Count()}, 构建数据上下文");
+            logger?.LogDebug($"{nameof(RequestAndBuildDataContextAsync)}, 请求结束, 获取data: {data.Count()}, 构建数据上下文");
 
             var buildDetail = DataContext.BuildDataContextBySource(data, dataContextTmpls, logger);
             return buildDetail;
