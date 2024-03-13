@@ -43,13 +43,13 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
                     return new { code = -1, msg = "位置的命令" };
                 }
                 Console.WriteLine($"从主机信息(容器)执行命令: {infoCmd.CommandTxt}");
-                var exeCmd = hostInfoProvider.RemoteHost.SshConnection.RunCommand(infoCmd.CommandTxt);
+                var exeCmd = hostInfoProvider.RemoteHost.SshConnection.RunCommandAsync(infoCmd.CommandTxt).GetAwaiter().GetResult();
                 return new { code = 1, msg = exeCmd?.Result, error = exeCmd?.Error };
             }
             var remoteHostCmd = hostInfoProvider.RemoteHost.Commands.FirstOrDefault(x => x.Name == executeDto.CommandName);
             if (remoteHostCmd is not null)
             {
-                var exeCmd = hostInfoProvider.RemoteHost.SshConnection.RunCommand(remoteHostCmd.CommandTxt);
+                var exeCmd = hostInfoProvider.RemoteHost.SshConnection.RunCommandAsync(remoteHostCmd.CommandTxt).GetAwaiter().GetResult();
                 return new { code = 1, msg = exeCmd?.Result, error = exeCmd?.Error };
             }
             return new { code = -1, msg = "未找到对应的远程主机信息" };

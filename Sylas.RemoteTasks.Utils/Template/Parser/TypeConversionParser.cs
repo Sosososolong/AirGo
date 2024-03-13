@@ -2,6 +2,7 @@
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace Sylas.RemoteTasks.Utils.Template.Parser
@@ -26,7 +27,8 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
             if (expression.Success)
             {
                 var key = expression.Groups["key"].Value;
-                var keyVal = dataContext[key];
+                var dataContextKey = dataContext.Keys.FirstOrDefault(x => x.TrimStart('$').Equals(key, StringComparison.OrdinalIgnoreCase)) ?? throw new Exception($"{nameof(TypeConversionParser)} 数据上下中未发现数据{key}"); ;
+                var keyVal = dataContext[dataContextKey];
                 var type = expression.Groups["type"].Value;
                 if (string.Equals(type, "List<JObject>", StringComparison.OrdinalIgnoreCase) && JToken.FromObject(keyVal).Type == JTokenType.String)
                 {

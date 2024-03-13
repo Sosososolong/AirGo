@@ -228,7 +228,7 @@ namespace Sylas.RemoteTasks.Utils.Template
                 #region 解析数据
                 variableValueResolved = ResolveExpressionValue(expressionWithParser, dataContext);
                 dataContextBuildDetail[dataContextNewKey] = variableValueResolved;
-                logger?.LogDebug($"call {nameof(BuildDataContextBySource)}, key={dataContextNewKey}: {(variableValueResolved?.ToString()?.Length > 50 ? variableValueResolved?.ToString()?[..50] : variableValueResolved?.ToString())}");
+                logger?.LogDebug($"{nameof(BuildDataContextBySource)}, key={dataContextNewKey}: {(variableValueResolved?.ToString()?.Length > 50 ? variableValueResolved?.ToString()?[..50] : variableValueResolved?.ToString())}");
                 #endregion
 
                 #region 处理解析好的数据
@@ -323,11 +323,19 @@ namespace Sylas.RemoteTasks.Utils.Template
                         List<object> newResults = [];
                         foreach (var arrayItem in arrayValue)
                         {
-                            List<string> cpResults = [];
+                            List<object> cpResults = [];
                             foreach (var resultItem in results)
                             {
-                                var expValue = arrayItem.ToString();
-                                cpResults.Add(resultItem.ToString().Replace(tmpl, expValue));
+                                if (arrayItem is JObject)
+                                {
+                                    // BOOKMARK: Tmpl-JToken http请求获取数据源的时候, 默认使用JToken(JObject)处理; 后续DataHandler中也会默认数据源为IEnumerable<JToken>类型进行进一步的处理
+                                    cpResults.Add(arrayItem);
+                                }
+                                else
+                                {
+                                    var expValue = arrayItem.ToString();
+                                    cpResults.Add(resultItem.ToString().Replace(tmpl, expValue));
+                                }
                             }
                             newResults.AddRange(cpResults);
                         }

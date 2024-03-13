@@ -749,7 +749,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
 
             StringBuilder deleteSqlsBuilder = new();
             var index = 0;
-            Dictionary<string, dynamic> parameters = new();
+            Dictionary<string, dynamic> parameters = [];
             foreach (var item in compareResult.Changed)
             {
                 var itemProps = item.TargetRecord.Properties();
@@ -872,7 +872,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             // 1. 获取字段部分
             var insertFieldsStatement = GetFieldsStatement(firstRecordJObj);
 
-            var insertValuesStatement = "";
+            var insertValuesStatementBuilder = new StringBuilder();
             int recordIndex = 0;
             //var parameters = new DynamicParameters();
             var parameters = new Dictionary<string, object>();
@@ -880,25 +880,28 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             foreach (JObject insert in inserts.Cast<JObject>())
             {
                 #region 2. 为每条数据生成Values部分(@v1,@v2,...),\n
-                insertValuesStatement += "(";
-                insertValuesStatement += GenerateRecordValuesStatement(insert, tableCols, parameters, varFlag, recordIndex);
-                insertValuesStatement = insertValuesStatement.TrimEnd(',') + $"),{Environment.NewLine}";
+                insertValuesStatementBuilder.Append("(");
+                insertValuesStatementBuilder.Append(GenerateRecordValuesStatement(insert, tableCols, parameters, varFlag, recordIndex));
+                insertValuesStatementBuilder.Append($"),{Environment.NewLine}");
                 #endregion
 
                 // 3. 生成一条批量语句: 每100条数据生成一个批量语句, 然后重置语句拼接
                 if (recordIndex > 0 && (recordIndex + 1) % 100 == 0)
                 {
-                    batchInsertSql = GetBatchInsertSql(table, insertFieldsStatement, insertValuesStatement, conn.Database); // insertSql.TrimEnd(',') + ";"
+                    batchInsertSql = GetBatchInsertSql(table, insertFieldsStatement, insertValuesStatementBuilder.ToString(), conn.Database);
                     insertSqls.Add(new SqlInfo(batchInsertSql, parameters));
-                    insertValuesStatement = "";
+                    insertValuesStatementBuilder.Clear();
                     parameters = [];
                 }
                 recordIndex++;
             }
 
             // 4. 生成一条批量语句: 生成最后一条批量语句
-            batchInsertSql = GetBatchInsertSql(table, insertFieldsStatement, insertValuesStatement, conn.Database);
-            insertSqls.Add(new SqlInfo(batchInsertSql, parameters));
+            if (parameters.Count > 0) // 有可能正好100条数据已经全部处理, parameters处于清空状态
+            {
+                batchInsertSql = GetBatchInsertSql(table, insertFieldsStatement, insertValuesStatementBuilder.ToString(), conn.Database);
+                insertSqls.Add(new SqlInfo(batchInsertSql, parameters));
+            }
 
             return insertSqls;
         }
@@ -1422,10 +1425,10 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// <exception cref="Exception"></exception>
         public static string GenerateRecordValuesStatement(object record, IEnumerable<ColumnInfo> colInfos, Dictionary<string, object> parameters, string dbVarFlag, int random = 0)
         {
+            var valueBuilder = new StringBuilder();
             if (record is DataRow dataItem)
             {
                 // 处理一条数据
-                var valueBuilder = new StringBuilder();
                 foreach (var colInfo in colInfos)
                 {
                     var columnName = colInfo.ColumnName;
@@ -1441,13 +1444,10 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
 
                     parameters.Add(parameterName, GetColumnValue(columnValue, columnType));
                 }
-
-                return valueBuilder.ToString().TrimEnd(',');
             }
             else
             {
                 IEnumerable<JProperty> properties = record is JObject recordJObj ? recordJObj.Properties() : JObject.FromObject(record).Properties() ?? throw new Exception($"record不是DataRow或者记录对应的对象类型");
-                var insertValuesStatement = "";
                 foreach (var p in properties)
                 {
                     if (p.Name == "NO")
@@ -1455,14 +1455,14 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                         continue;
                     }
                     var paramName = $"{p.Name}{random}";
-                    insertValuesStatement += $"{dbVarFlag}{paramName},";
+                    valueBuilder.Append($"{dbVarFlag}{paramName},");
 
                     var col = colInfos.FirstOrDefault(x => string.Equals(x.ColumnCode, p.Name, StringComparison.OrdinalIgnoreCase));
                     dynamic? pVal = GetColumnValue(p, col);
                     parameters.Add(paramName, pVal);
                 }
-                return insertValuesStatement;
             }
+            return valueBuilder.ToString().TrimEnd(',');
         }
 
         /// <summary>
@@ -1909,7 +1909,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                     }
                 }
                 var end = DateTime.Now;
-                Console.WriteLine($"已经处理了{batchData.Count()}; 耗时: {(end - start).TotalSeconds}/s{Environment.NewLine}");
+                Console.WriteLine($"数据对比: 已经处理了{batchData.Count()}; 耗时: {(end - start).TotalSeconds}/s{Environment.NewLine}");
             }
             #endregion
         }

@@ -24,7 +24,7 @@
         {
             Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} Invoke the RemoteHostInfos() method, query remote host's INFOS in real-time.");
             var ssh = RemoteHost.SshConnection;
-            var dockerPs = ssh.RunCommand("docker ps --format \"{{.ID}} && {{.Image}} && {{.Command}} && {{.CreatedAt}} && {{.Status}} && {{.Ports}} && {{.Names}}\"");
+            var dockerPs = ssh.RunCommandAsync("docker ps --format \"{{.ID}} && {{.Image}} && {{.Command}} && {{.CreatedAt}} && {{.Status}} && {{.Ports}} && {{.Names}}\"").GetAwaiter().GetResult();
             if (!string.IsNullOrWhiteSpace(dockerPs?.Error))
             {
                 yield break;

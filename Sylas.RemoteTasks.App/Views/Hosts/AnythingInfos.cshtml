@@ -56,7 +56,7 @@
                     showErrorBox("Failed to execute command: " + response.json());
                 }
             }).then(rspJson => {
-                showMsgBox(rspJson.message)
+                showMsgBox(rspJson.message ? rspJson.message : "操作成功")
             }).catch(error => {
                 showErrorBox(error);
             }).finally(() => {

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace Sylas.RemoteTasks.Utils.Template.Parser
@@ -23,7 +24,8 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
             if (expression.Success)
             {
                 var key = expression.Groups["key"].Value;
-                var keyValue = dataContext[key]?.ToString() ?? throw new Exception($"DataContext获取{key}对应的值失败");
+                string dataContextKey = dataContext.Keys.FirstOrDefault(x => x.TrimStart('$').Equals(key, StringComparison.OrdinalIgnoreCase)) ?? throw new Exception($"{nameof(RegexSubStringParser)} 数据上下中未发现数据{key}");
+                var keyValue = dataContext[dataContextKey]?.ToString() ?? throw new Exception($"DataContext获取{key}对应的值失败");
                 var regexPattern = expression.Groups["regex"].Value;
                 var group = expression.Groups["groupname"].Value;
 

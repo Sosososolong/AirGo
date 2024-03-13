@@ -176,7 +176,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         /// <param name="command"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public SshCommand? RunCommand(string command)
+        public async Task<SshCommand?> RunCommandAsync(string command)
 #pragma warning restore CS1570 // XML 注释出现 XML 格式错误
         {
             var cmdMatch = RegexConst.CommandRegex.Match(command);
@@ -188,147 +188,20 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
             var excludes = cmdMatch.Groups["exclude"].Value.Replace('\\', '/')?.Split(',', StringSplitOptions.RemoveEmptyEntries);
             if (action.ToLower() == "upload")
             {
-                var conn = GetSftpConnection();
                 if (string.IsNullOrWhiteSpace(local) && string.IsNullOrWhiteSpace(remote))
                 {
                     throw new Exception("上传文件格式错误: " + command);
                 }
-
-                var localFiles = new List<string>();
-                // 上传目录
-                if (Directory.Exists(local))
-                {
-                    #region 上传目录
-                    // 统一目录格式
-                    local = local.TrimEnd('.');
-                    remote = remote.TrimEnd('.');
-                    local = local.EndsWith('/') ? local : $"{local}/";
-                    remote = remote.EndsWith('/') ? remote : $"{remote}/";
-
-                    EnsureDirectoryExist(remote, conn);
-                    localFiles = FileHelper.FindFilesRecursive(local, f => includes == null || !includes.Any() || includes.Any(part => Path.GetFileName(f).Contains(part)) && (excludes == null || !excludes.Any(part => Path.GetFileName(f).Contains(part))), null, null);
-                    foreach (var localFile in localFiles)
-                    {
-                        var localFileRelativePath = localFile.Replace(local, "");
-                        var targetFilePath = Path.Combine(remote, localFileRelativePath);
-                        using var fs = File.OpenRead(localFile);
-
-                        var targetDirectory = Path.GetDirectoryName(targetFilePath)?.Replace('\\', '/');
-                        if (string.IsNullOrWhiteSpace(targetDirectory))
-                        {
-                            Console.WriteLine($"上传文件, 获取服务器文件的目录失败[{targetFilePath}]");
-                            continue;
-                        }
-                        EnsureDirectoryExist(targetDirectory, conn);
-
-                        try
-                        {
-                            conn.UploadFile(fs, targetFilePath);
-                            Console.WriteLine($"文件已上传: {targetFilePath}");
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"上传文件[{localFile}] -> [{targetFilePath}]异常: {ex.Message}");
-                            throw;
-                        }
-                    }
-                    #endregion
-                }
-                else if (File.Exists(local))
-                {
-                    #region 上传文件
-                    using var fs = File.OpenRead(local);
-                    if (conn.Exists(remote))
-                    {
-                        var remoteAttributes = conn.GetAttributes(remote);
-                        if (remoteAttributes.IsDirectory)
-                        {
-                            remote = Path.Combine(remote, local.Split('/').Last()).Replace('\\', '/');
-                        }
-                    }
-                    else
-                    {
-                        var ssh = GetConnection();
-                        ssh.RunCommand($"mkdir -p {remote}");
-                        ReturnConnection(ssh);
-                        remote = Path.Combine(remote, local.Split('/').Last()).Replace('\\', '/');
-                    }
-                    conn.UploadFile(fs, remote);
-                    localFiles.Add(local);
-                    #endregion
-                }
-                else
-                {
-                    throw new Exception("上传文件格式错误: " + command);
-                }
-                ReturnConnection(conn);
+                await Task.Run(() => Upload(local, remote, includes, excludes));
                 return null;
             }
             else if (action.ToLower() == "download")
             {
-                var conn = GetSftpConnection();
                 if (string.IsNullOrWhiteSpace(local) && string.IsNullOrWhiteSpace(remote))
                 {
                     throw new Exception("上传文件格式错误: " + command);
                 }
-                if (!conn.Exists(remote))
-                {
-                    throw new Exception($"远程下载: [{remote}]不存在");
-                }
-
-                var remoteAttributes = conn.GetAttributes(remote);
-                if (remoteAttributes.IsDirectory)
-                {
-                    #region 下载目录
-                    Console.WriteLine($"下载目录: {remote}");
-                    // 下载目录
-                    // 统一目录格式
-                    local = local.TrimEnd('.');
-                    remote = remote.TrimEnd('.');
-                    local = local.EndsWith('/') ? local : $"{local}/";
-                    remote = remote.EndsWith('/') ? remote : $"{remote}/";
-
-                    // 获取远程目录下所有文件
-                    var remoteFiles = GetRemoteFiles(remote, includes, excludes);
-
-                    // 一个文件一个文件地下载
-                    foreach (var remoteFile in remoteFiles)
-                    {
-                        var filename = Path.GetFileName(remoteFile);
-                        var relativePath = remoteFile.Replace(remote, string.Empty); // "www/index.html"
-                        var localfile = Path.Combine(local, relativePath).Replace('\\', '/');
-
-                        // 校验本地目录
-                        var localfileDir = Path.GetDirectoryName(localfile)?.Replace('\\', '/');
-                        if (!string.IsNullOrWhiteSpace(localfileDir) && !Directory.Exists(localfileDir))
-                        {
-                            Directory.CreateDirectory(localfileDir);
-                        }
-
-                        using var localFile = File.OpenWrite(localfile);
-                        conn.DownloadFile(remoteFile, localFile);
-                    }
-                    #endregion
-                }
-                else
-                {
-                    // 下载文件
-                    Console.WriteLine($"下载文件: {local}");
-                    var fileDir = Path.GetDirectoryName(local);
-                    var file = local;
-                    if (local.EndsWith('/'))
-                    {
-                        fileDir = local;
-                        file = Path.Combine(local, Path.GetFileName(remote));
-                    }
-                    if (!Directory.Exists(fileDir) && !string.IsNullOrWhiteSpace(fileDir))
-                    {
-                        Directory.CreateDirectory(fileDir);
-                    }
-                    using var localFile = File.OpenWrite(local);
-                    conn.DownloadFile(remote, localFile);
-                }
-                ReturnConnection(conn);
+                await Task.Run(() => Download(local, remote, includes, excludes));
                 return null;
             }
             else
@@ -338,6 +211,141 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                 ReturnConnection(conn);
                 return sshCommand;
             }
+        }
+        private void Upload(string local, string remote, string[]? includes, string[]? excludes)
+        {
+            var conn = GetSftpConnection();
+
+            var localFiles = new List<string>();
+            // 上传目录
+            if (Directory.Exists(local))
+            {
+                #region 上传目录
+                // 统一目录格式
+                local = local.TrimEnd('.');
+                remote = remote.TrimEnd('.');
+                local = local.EndsWith('/') ? local : $"{local}/";
+                remote = remote.EndsWith('/') ? remote : $"{remote}/";
+
+                EnsureDirectoryExist(remote, conn);
+                localFiles = FileHelper.FindFilesRecursive(local, f => includes == null || !includes.Any() || includes.Any(part => Path.GetFileName(f).Contains(part)) && (excludes == null || excludes.All(part => f.IndexOf(part) == -1)), null, null);
+                foreach (var localFile in localFiles)
+                {
+                    var localFileRelativePath = localFile.Replace(local, "");
+                    var targetFilePath = Path.Combine(remote, localFileRelativePath);
+                    using var fs = File.OpenRead(localFile);
+
+                    var targetDirectory = Path.GetDirectoryName(targetFilePath)?.Replace('\\', '/');
+                    if (string.IsNullOrWhiteSpace(targetDirectory))
+                    {
+                        Console.WriteLine($"上传文件, 获取服务器文件的目录失败[{targetFilePath}]");
+                        continue;
+                    }
+                    EnsureDirectoryExist(targetDirectory, conn);
+
+                    try
+                    {
+                        conn.UploadFile(fs, targetFilePath);
+                        Console.WriteLine($"文件已上传: {targetFilePath}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"上传文件[{localFile}] -> [{targetFilePath}]异常: {ex.Message}");
+                        throw;
+                    }
+                }
+                #endregion
+            }
+            else if (File.Exists(local))
+            {
+                #region 上传文件
+                using var fs = File.OpenRead(local);
+                if (conn.Exists(remote))
+                {
+                    var remoteAttributes = conn.GetAttributes(remote);
+                    if (remoteAttributes.IsDirectory)
+                    {
+                        remote = Path.Combine(remote, local.Split('/').Last()).Replace('\\', '/');
+                    }
+                }
+                else
+                {
+                    var ssh = GetConnection();
+                    ssh.RunCommand($"mkdir -p {remote}");
+                    ReturnConnection(ssh);
+                    remote = Path.Combine(remote, local.Split('/').Last()).Replace('\\', '/');
+                }
+                conn.UploadFile(fs, remote);
+                localFiles.Add(local);
+                #endregion
+            }
+            else
+            {
+                throw new Exception($"本地路径:{local}不存在, 无法上传");
+            }
+            ReturnConnection(conn);
+        }
+
+        private void Download(string local, string remote, string[]? includes, string[]? excludes)
+        {
+            var conn = GetSftpConnection();
+            if (!conn.Exists(remote))
+            {
+                throw new Exception($"远程下载: [{remote}]不存在");
+            }
+            var remoteAttributes = conn.GetAttributes(remote);
+            if (remoteAttributes.IsDirectory)
+            {
+                #region 下载目录
+                Console.WriteLine($"下载目录: {remote}");
+                // 下载目录
+                // 统一目录格式
+                local = local.TrimEnd('.');
+                remote = remote.TrimEnd('.');
+                local = local.EndsWith('/') ? local : $"{local}/";
+                remote = remote.EndsWith('/') ? remote : $"{remote}/";
+
+                // 获取远程目录下所有文件
+                var remoteFiles = GetRemoteFiles(remote, includes, excludes);
+
+                // 一个文件一个文件地下载
+                foreach (var remoteFile in remoteFiles)
+                {
+                    var filename = Path.GetFileName(remoteFile);
+                    var relativePath = remoteFile.Replace(remote, string.Empty); // "www/index.html"
+                    var localfile = Path.Combine(local, relativePath).Replace('\\', '/');
+
+                    // 校验本地目录
+                    var localfileDir = Path.GetDirectoryName(localfile)?.Replace('\\', '/');
+                    if (!string.IsNullOrWhiteSpace(localfileDir) && !Directory.Exists(localfileDir))
+                    {
+                        Directory.CreateDirectory(localfileDir);
+                    }
+
+                    using var localFile = File.OpenWrite(localfile);
+                    conn.DownloadFile(remoteFile, localFile);
+                }
+                #endregion
+            }
+            else
+            {
+                // 下载文件
+                Console.WriteLine($"下载文件: {local}");
+                var fileDir = Path.GetDirectoryName(local);
+                var file = local;
+                if (local.EndsWith('/'))
+                {
+                    fileDir = local;
+                    file = Path.Combine(local, Path.GetFileName(remote));
+                }
+                if (!Directory.Exists(fileDir) && !string.IsNullOrWhiteSpace(fileDir))
+                {
+                    Directory.CreateDirectory(fileDir);
+                }
+                using var localFile = File.OpenWrite(local);
+                conn.DownloadFile(remote, localFile);
+            }
+            ReturnConnection(conn);
         }
         private void EnsureDirectoryExist(string remoteDirectory, SftpClient? conn)
         {
@@ -407,15 +415,14 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         /// <param name="command"></param>
         public async Task<CommandResult> ExecuteAsync(string command)
         {
-            var conn = GetConnection();
-
-            var cmd = conn.CreateCommand(command);
+            //var conn = GetConnection();
+            //var cmd = conn.CreateCommand(command);
             //_ = cmd.Execute();
-            await Task.Run(() => cmd.Execute());
-            var output = cmd.Result;
-            var error = cmd.Error;
+            //await Task.Run(() => cmd.Execute());
 
-            ReturnConnection(conn);
+            var cmd = await RunCommandAsync(command);
+            var output = cmd?.Result ?? "";
+            var error = cmd?.Error ?? "";
 
             if (string.IsNullOrWhiteSpace(error))
             {

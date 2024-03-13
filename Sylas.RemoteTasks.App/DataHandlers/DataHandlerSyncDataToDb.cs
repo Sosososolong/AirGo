@@ -33,7 +33,20 @@ namespace Sylas.RemoteTasks.App.DataHandlers
                 idField = "id";
             }
 
-            IEnumerable<JToken> data = dataSource is IEnumerable<JToken> enumerableData ? enumerableData : new List<JToken>() { JToken.FromObject(dataSource) };
+            // BOOKMARK: Tmpl-JToken 获取数据源的时候(Http请求获取数据), 默认使用JToken(JObject)接收数据
+            IEnumerable<JToken> data; // = dataSource is IEnumerable<JToken> enumerableData ? enumerableData : new List<JToken>() { JToken.FromObject(dataSource) };
+            if (dataSource is IEnumerable<object> enumerableData)
+            {
+                if (!enumerableData.Any())
+                {
+                    return;
+                }
+                data = enumerableData.Select(x => x as JToken ?? throw new Exception("DataHandler 数据源项无法转换为JToken"));
+            }
+            else
+            {
+                data = new List<JToken>() { JToken.FromObject(dataSource) };
+            }
 
             // 数据库连接字符串中, sqlserver, oracle, sqite包含"Data Source=xxx"; mysql, mslocaldb包含"Server=xxx"
             if (_connectionStringSubStrings.Any(x => targetDb.Contains(x, StringComparison.OrdinalIgnoreCase)))

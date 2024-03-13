@@ -29,15 +29,11 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
 
             if (!specifiedRecordFieldValueExpression.Success)
             {
-                throw new Exception($"表达式\"{tmpl}\"解析对象属性值失败");
+                throw new Exception($"{nameof(DataPropertyParser)} 表达式\"{tmpl}\"解析对象属性值失败");
             }
 
             var key = specifiedRecordFieldValueExpression.Groups["key"].Value;
-            var currentKey = dataContext.Keys.FirstOrDefault(x => x.TrimStart('$').Equals(key, StringComparison.OrdinalIgnoreCase));
-            if (string.IsNullOrWhiteSpace(currentKey))
-            {
-                throw new Exception($"上下文中未找到键{key}");
-            }
+            var currentKey = dataContext.Keys.FirstOrDefault(x => x.TrimStart('$').Equals(key, StringComparison.OrdinalIgnoreCase)) ?? throw new Exception($"{nameof(DataPropertyParser)} 数据上下中未发现数据{key}");
             var currentData = dataContext[currentKey];
 
             // 有index说明currentData是数组

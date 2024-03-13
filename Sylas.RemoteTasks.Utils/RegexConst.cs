@@ -130,7 +130,7 @@ namespace Sylas.RemoteTasks.App.RegexExp
         /// 字符串模板, 如: "ID为{id}, 姓名为{name}"
         /// </summary>
         /// <returns></returns>
-        public static readonly Regex StringTmpl = new ("(?<name>\\{{2}\\s*.+\\}{2})|(?<name>\\$[^\\{]+)|(?<name>\\$\\{.+?\\})");
+        public static readonly Regex StringTmpl = new ("(?<name>\\{{2}\\s*.+\\}{2})|(?<name>\\$[^\\{]+)|(?<name>\\$\\{.+?\\})|(?<name>(?<parser>\\w+Parser)\\[\\${0,1}\\{{0,1}\\w+(\\[\\d+\\])*(\\.\\w+)*.*\\}{0,1}\\])");
 
         /// <summary>
         /// 匹配正则表达式中的分组
@@ -144,7 +144,7 @@ namespace Sylas.RemoteTasks.App.RegexExp
         /// 上传 upload   (?<local>[^\s]+) (?<remote>[^\s]+) -include=(?<include>[^\s+]) -exclude=(?<exclude>[^\s]+)
         /// </summary>
         /// <returns></returns>
-        public static readonly Regex CommandRegex = new ("(?<action>(upload|download))\\s+(\"|')(?<local>[^\"]+)(\"|')\\s*(\"|')(?<remote>[^\"]+)(\"|')\\s*(-include=(?<include>[^\\s+])){0,1}\\s*(-exclude=(?<exclude>[^\\s]+)){0,1}");
+        public static readonly Regex CommandRegex = new ("(?<action>(upload|download))\\s+(\"|'){0,1}(?<local>[^\"]+)(\"|'){0,1}\\s+(\"|'){0,1}(?<remote>[^\"]+)(\"|'){0,1}\\s+(-include=(?<include>[^\\s]+)){0,1}\\s*(-exclude=(?<exclude>[^\\s]+)){0,1}");
 #pragma warning restore CS1570 // XML 注释出现 XML 格式错误
         /// <summary>
         /// 匹配字符串模板, 模板规定了如何将dataSource(JObject或JArray)中的符合条件的一条或多条数据的某个属性赋值给target的某个属性, 每条数据赋值一次都产生一个target副本
