@@ -26,20 +26,35 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
             {
                 var left = specifiedRecordFieldValueExpression.Groups["left"].Value;
                 var right = specifiedRecordFieldValueExpression.Groups["right"].Value;
-                var currentDataLeft = dataContext[left] ?? throw new Exception($"PlusOperatorParser异常, DataContext中未找到左边表达式{left}");
-                var currentDataRight = dataContext[right] ?? throw new Exception($"PlusOperatorParser异常, DataContext中未找到右边表达式{right}");
+                if (!dataContext.TryGetValue(left, out object currentDataLeft) && !dataContext.TryGetValue($"${left}", out currentDataLeft))
+                {
+                    throw new Exception($"PlusOperatorParser异常, DataContext中未找到左边表达式{left}");
+                }
+                if (!dataContext.TryGetValue(right, out object currentDataRight) && !dataContext.TryGetValue($"${right}", out currentDataRight))
+                {
+                    throw new Exception($"PlusOperatorParser异常, DataContext中未找到右边表达式{right}");
+                }
 
                 if (currentDataLeft is JArray)
                 {
                     Console.WriteLine("is jarray");
                 }
-                var currentDataLeftJarray = JArray.FromObject(currentDataLeft) ?? throw new Exception("PlusOperatorParser异常, 左边表达式不是集合类型");
+                JArray currentDataLeftJarray;
+                if (currentDataLeft is not IEnumerable<object>)
+                {
+                    currentDataLeftJarray = [];
+                    currentDataLeftJarray.Add(currentDataLeft);
+                }
+                else
+                {
+                    currentDataLeftJarray = JArray.FromObject(currentDataLeft) ?? throw new Exception("PlusOperatorParser异常, 左边表达式不是集合类型");
+                }
                 var currentDataRightJarray = JArray.FromObject(currentDataRight) ?? throw new Exception("PlusOperatorParser异常, 右边表达式不是集合类型");
                 foreach ( var item in currentDataLeftJarray)
                 {
                     currentDataRightJarray.Add(item);
                 }
-                return new ParseResult(true, new string[] { left, right }, currentDataRightJarray);
+                return new ParseResult(true, [left, right], currentDataRightJarray);
             }
             return new ParseResult(false);
         }

@@ -318,7 +318,7 @@ namespace Sylas.RemoteTasks.Utils.Template
                 {
                     string tmpl = stringTmplGroups["name"].Value;
                     var tmplValue = ResolveFromDictionary(tmpl, dataContextDictionary);
-                    if (tmplValue is not string && tmplValue is not JValue && tmplValue is IEnumerable<object> arrayValue)
+                    if (tmplValue is not string && tmplValue is not JValue && tmplValue is not JObject && tmplValue is IEnumerable<object> arrayValue)
                     {
                         List<object> newResults = [];
                         foreach (var arrayItem in arrayValue)
