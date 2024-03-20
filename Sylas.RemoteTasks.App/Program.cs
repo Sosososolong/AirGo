@@ -1,12 +1,16 @@
 using IdentityServer4.AccessTokenValidation;
+using Microsoft.AspNetCore.Diagnostics;
 using Sylas.RemoteTasks.App.BackgroundServices;
 using Sylas.RemoteTasks.App.Database;
 using Sylas.RemoteTasks.App.DataHandlers;
+using Sylas.RemoteTasks.App.ExceptionHandlers;
 using Sylas.RemoteTasks.App.Helpers;
 using Sylas.RemoteTasks.App.RemoteHostModule;
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
 using Sylas.RemoteTasks.App.Repositories;
 using Sylas.RemoteTasks.App.RequestProcessor;
+using Sylas.RemoteTasks.Utils.Dto;
+using static System.Net.Mime.MediaTypeNames;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -97,10 +101,11 @@ var app = builder.Build();
 // 2. 全局的唯一对象是一种不够安全的设计, 经常会带来线程安全问题(虽然这里它是一个只读对象)
 //ServiceLocator.Instance = app.Services;
 
+app.UseExceptionHandler(LambdaHandler.ReturnOperationResultAction);
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
-    app.UseExceptionHandler("/Home/Error");
+    //app.UseExceptionHandler("/Home/Error");
     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }

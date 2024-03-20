@@ -2,10 +2,22 @@
 
 namespace Sylas.RemoteTasks.Utils.Dto
 {
+    /// <summary>
+    /// 存储操作结果的相关信息
+    /// </summary>
     public class OperationResult
     {
+        /// <summary>
+        /// 操作是否成功
+        /// </summary>
         public bool IsSuccess { get; set; }
+        /// <summary>
+        /// 错误信息
+        /// </summary>
         public string ErrMsg { get; set; } = string.Empty;
+        /// <summary>
+        /// 查询的数据
+        /// </summary>
         public IEnumerable<string>? Data { get; set; }
         /// <summary>
         /// 是否成功

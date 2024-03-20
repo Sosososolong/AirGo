@@ -100,7 +100,7 @@ namespace Sylas.RemoteTasks.Test.Remote
         {
             string dir1 = "D:/.NET/Id/Id.SiteManagement/Id.sitemanagement.core/Entities";
             string dir2 = "D:/.NET/Id/Id.portal.api/Id.portal.core/Entities";
-            string[] dirs = new string[] { dir1, dir2 };
+            string[] dirs = [dir1, dir2];
             StringBuilder fileContentBuilder = new();
             foreach (var dir in dirs)
             {
@@ -136,7 +136,7 @@ namespace Sylas.RemoteTasks.Test.Remote
         public async Task SyncFromDBToDBSingleTable()
         {
             var syncFromDbToDbOptions = _configuration.GetSection(SyncFromDbToDbOptions.Key).Get<SyncFromDbToDbOptions>() ?? throw new Exception($"请在配置文件中添加同步的数据库配置");
-
+            
             await DatabaseInfo.SyncDatabaseByConnectionStringsAsync(syncFromDbToDbOptions.SourceConnectionString, syncFromDbToDbOptions.TargetConnectionString, syncFromDbToDbOptions.SourceDb, syncFromDbToDbOptions.SourceTable);
         }
 

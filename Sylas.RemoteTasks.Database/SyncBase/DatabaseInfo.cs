@@ -923,7 +923,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             }
             var tables = dbtype switch
             {
-                DatabaseType.MySql => await conn.QueryAsync("select TABLE_NAME from information_schema.`TABLES` WHERE table_schema='{dbName}'"),
+                DatabaseType.MySql => await conn.QueryAsync($"select TABLE_NAME from information_schema.`TABLES` WHERE table_schema='{dbName}'"),
                 DatabaseType.SqlServer => await conn.QueryAsync("SELECT name AS TABLE_NAME FROM sys.tables;"),
                 DatabaseType.Oracle => await conn.QueryAsync($"SELECT TABLE_NAME FROM user_tables"),
                 DatabaseType.Sqlite => await conn.QueryAsync($"SELECT name as TABLE_NAME FROM sqlite_master WHERE type='table';"),
@@ -1201,7 +1201,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                     {
                         return DateTime.Now;
                     }
-                    if (lowerType.Contains("int"))
+                    if (lowerType.Contains("int") || lowerType.Contains("number"))
                     {
                         return 0;
                     }

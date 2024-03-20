@@ -13,12 +13,12 @@ using Sylas.RemoteTasks.Utils.Extensions;
 namespace Sylas.RemoteTasks.App.Database;
 
 /// <summary>
-/// 
+/// 数据库操作
 /// </summary>
 public class DatabaseProvider : IDatabaseProvider
 {
     /// <summary>
-    /// 
+    /// 构造函数中依赖注入的方式初始化字段
     /// </summary>
     /// <param name="configuration"></param>
     public DatabaseProvider(IConfiguration configuration)

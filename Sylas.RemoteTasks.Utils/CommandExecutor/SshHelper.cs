@@ -238,7 +238,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                     var targetDirectory = Path.GetDirectoryName(targetFilePath)?.Replace('\\', '/');
                     if (string.IsNullOrWhiteSpace(targetDirectory))
                     {
-                        Console.WriteLine($"上传文件, 获取服务器文件的目录失败[{targetFilePath}]");
+                        Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 上传文件, 获取服务器文件的目录失败[{targetFilePath}]");
                         continue;
                     }
                     EnsureDirectoryExist(targetDirectory, conn);
@@ -246,11 +246,11 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                     try
                     {
                         conn.UploadFile(fs, targetFilePath);
-                        Console.WriteLine($"文件已上传: {targetFilePath}");
+                        Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 文件已上传: {targetFilePath}");
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"上传文件[{localFile}] -> [{targetFilePath}]异常: {ex.Message}");
+                        Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 上传文件[{localFile}] -> [{targetFilePath}]异常: {ex.Message}");
                         throw;
                     }
                 }
@@ -297,7 +297,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
             if (remoteAttributes.IsDirectory)
             {
                 #region 下载目录
-                Console.WriteLine($"下载目录: {remote}");
+                Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 下载目录: {remote}");
                 // 下载目录
                 // 统一目录格式
                 local = local.TrimEnd('.');
@@ -324,13 +324,14 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
 
                     using var localFile = File.OpenWrite(localfile);
                     conn.DownloadFile(remoteFile, localFile);
+                    Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 文件已下载: {relativePath} -> {localfile}");
                 }
                 #endregion
             }
             else
             {
                 // 下载文件
-                Console.WriteLine($"下载文件: {local}");
+                Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 下载文件: {local}");
                 var fileDir = Path.GetDirectoryName(local);
                 var file = local;
                 if (local.EndsWith('/'))
