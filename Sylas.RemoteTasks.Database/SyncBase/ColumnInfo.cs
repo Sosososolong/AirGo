@@ -8,11 +8,11 @@
         /// <summary>
         /// 字段代码
         /// </summary>
-        public string? ColumnCode { get; set; }
+        public string ColumnCode { get; set; } = string.Empty;
         /// <summary>
         /// 字段名
         /// </summary>
-        public string? ColumnName { get; set; }
+        public string ColumnName { get; set; } = string.Empty;
         /// <summary>
         /// 字段类型
         /// </summary>

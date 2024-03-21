@@ -25,5 +25,13 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             Sql = sql;
             Parameters = parameters;
         }
+        /// <summary>
+        /// 无参构造函数给属性默认值
+        /// </summary>
+        public SqlInfo()
+        {
+            Sql = string.Empty;
+            Parameters = [];
+        }
     }
 }

@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MySql.Data.MySqlClient;
+using MySqlX.XDevAPI.Relational;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Oracle.ManagedDataAccess.Client;
@@ -16,6 +17,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -510,7 +512,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                     continue;
                 }
                 // 1.生成所有表的insert语句; 异步迭代器(每个子对象包含一个批量插入数据的SQL语句)
-                IAsyncEnumerable<TableSqlsInfo> tableSqlsInfoCollection = GetTableSqlsInfoCollectionAsync(table, sourceConn, null, targetConn, null);
+                IAsyncEnumerable<TableSqlInfos> tableSqlsInfoCollection = GetTableSqlsInfoCollectionAsync(table, sourceConn, null, targetConn, null);
 
                 // 2. 执行每个表的insert语句
                 var dbTransaction = targetConn.BeginTransaction();
@@ -524,27 +526,32 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                             _ = await targetConn.ExecuteAsync(tableSqlsInfo.BatchInsertSqlInfo.CreateTableSql, transaction: dbTransaction);
                         }
 
-                        if (string.IsNullOrEmpty(tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql))
+                        if (string.IsNullOrEmpty(tableSqlsInfo.BatchInsertSqlInfo.Sql))
                         {
                             // $"表{tableSqlsInfo.TableName}没有数据无需处理"
                             continue;
                         }
 
-                        var affectedRowsCount = await targetConn.ExecuteAsync(tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql, tableSqlsInfo.BatchInsertSqlInfo.Parameters, transaction: dbTransaction);
+                        if (!string.IsNullOrWhiteSpace(tableSqlsInfo.DeleteExistSqlInfo.Sql))
+                        {
+                            int deletedRows = await targetConn.ExecuteAsync(tableSqlsInfo.DeleteExistSqlInfo.Sql, tableSqlsInfo.DeleteExistSqlInfo.Parameters, transaction: dbTransaction);
+                            Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {table}删除已存在的数据: {deletedRows}");
+                        }
+                        var affectedRowsCount = await targetConn.ExecuteAsync(tableSqlsInfo.BatchInsertSqlInfo.Sql, tableSqlsInfo.BatchInsertSqlInfo.Parameters, transaction: dbTransaction);
+                        Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {table}添加数据: {affectedRowsCount}");
                         // $"{tableSqlsInfo.TableName}: {affectedRowsCount}条数据"
                     }
                     catch (Exception ex)
                     {
-                        // 批量插入SQL语句: tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql
+                        Console.WriteLine(ex);
+                        Console.WriteLine($"tableSqlsInfo.BatchInsertSqlInfo.CreateTableSql: {tableSqlsInfo.BatchInsertSqlInfo.CreateTableSql}");
+                        Console.WriteLine($"tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql: {tableSqlsInfo.BatchInsertSqlInfo.Sql}");
+                        Console.WriteLine($"tableSqlsInfo.BatchInsertSqlInfo.DeleteExistSqlInfo: {tableSqlsInfo.DeleteExistSqlInfo.Sql}");
                         if (!ignoreException)
                         {
                             dbTransaction.Rollback();
                             throw;
                         }
-
-                        Console.WriteLine(ex);
-                        Console.WriteLine($"tableSqlsInfo.BatchInsertSqlInfo.CreateTableSql: {tableSqlsInfo.BatchInsertSqlInfo.CreateTableSql}");
-                        Console.WriteLine($"tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql: {tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql}");
                         dbTransaction.Commit();
                     }
                 }
@@ -1262,6 +1269,28 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             string dbStatement = string.IsNullOrWhiteSpace(database) ? string.Empty : $"{database}.";
             return $"SET foreign_key_checks=0;{Environment.NewLine}insert into {dbStatement}{table}({columnsStatement}) values{Environment.NewLine}{valuesStatement.TrimEnd(',', '\r', '\n', ';')};";
         }
+        /// <summary>
+        /// 获取批量删除的SQL语句
+        /// </summary>
+        /// <param name="table"></param>
+        /// <param name="statement"></param>
+        /// <param name="pks"></param>
+        /// <returns></returns>
+        public static string GetBatchDeleteSql(string table, string statement, string[] pks)
+        {
+            if (string.IsNullOrWhiteSpace(statement))
+            {
+                return string.Empty;
+            }
+            if (pks.Length > 1)
+            {
+                return $"SET foreign_key_checks=0;{Environment.NewLine}{statement}{Environment.NewLine}SET foreign_key_checks=1;";
+            }
+            else
+            {
+                return $"SET foreign_key_checks=0;{Environment.NewLine}delete from {table} where {pks.First()} in({statement.Trim(',', '\r', '\n', ';')});{Environment.NewLine}SET foreign_key_checks=1;";
+            }
+        }
 
         /// <summary>
         /// 获取创建表的字段声明部分
@@ -1502,6 +1531,48 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
 		    ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;";
             return createSql;
         }
+        /// <summary>
+        /// 生成删除已存在的数据的SQL语句信息
+        /// </summary>
+        /// <param name="dataItem"></param>
+        /// <param name="table"></param>
+        /// <param name="primaryKeys"></param>
+        /// <param name="targetPkValues"></param>
+        /// <param name="parameters"></param>
+        /// <param name="dbVarFlag"></param>
+        /// <param name="random"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        public static string GenerateDeleteExistSql(DataRow dataItem, string table, string[] primaryKeys, string[] targetPkValues, Dictionary<string, object> parameters, string dbVarFlag, int random = 0)
+        {
+            if (primaryKeys.Length == 0)
+            {
+                throw new Exception("主键不能为空");
+            }
+            if (primaryKeys.Length == 1)
+            {
+                string pk = primaryKeys.First();
+                string pkValue = targetPkValues.First();
+                string parameterName = $"{pk}{random}";
+                parameters.Add(parameterName, pkValue);
+                return $",{dbVarFlag}{parameterName}";
+            }
+            else
+            {
+                List<string> deleteConditions = [];
+                for (int i = 0; i < primaryKeys.Length; i++)
+                {
+                    string pk = primaryKeys[i];
+                    string pkValue = targetPkValues[i];
+                    string parameterName = $"{pk}{random}";
+                    parameters.Add(parameterName, pkValue);
+                    deleteConditions.Add($"{pk}={dbVarFlag}{parameterName}");
+                }
+                string conditions = string.Join(" and ", deleteConditions);
+                return $"delete from {table} where {conditions};{Environment.NewLine}";
+            }
+        }
+
 
         /// <summary>
         /// 根据数据库连接字符串判断数据库类型
@@ -1540,7 +1611,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// <param name="targetConn"></param>
         /// <param name="filter"></param>
         /// <returns></returns>
-        public static async IAsyncEnumerable<TableSqlsInfo> GetTableSqlsInfoCollectionAsync(string sourceTable, IDbConnection sourceConn, IDbTransaction? trans, IDbConnection targetConn, DataFilter? filter)
+        public static async IAsyncEnumerable<TableSqlInfos> GetTableSqlsInfoCollectionAsync(string sourceTable, IDbConnection sourceConn, IDbTransaction? trans, IDbConnection targetConn, DataFilter? filter)
         {
             sourceTable = GetTableFullName(targetConn.ConnectionString, sourceTable);
             var tableName = sourceTable.Split('.').Last();
@@ -1552,23 +1623,63 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             // 1. 获取源表的所有字段信息
             #region 获取源表的所有字段信息
             IEnumerable<ColumnInfo> colInfos = await GetTableColumnsInfoAsync(sourceConn, tableName);
-            var sourcePrimaryKey = colInfos.FirstOrDefault(x => x.IsPK == 1)?.ColumnCode ?? colInfos.FirstOrDefault()?.ColumnCode ?? "";
+            string[] primaryKeys = colInfos.Where(x => x.IsPK == 1 && !string.IsNullOrWhiteSpace(x.ColumnName)).Select(x => x.ColumnName).ToArray();
+            if (primaryKeys.Length == 0)
+            {
+                primaryKeys = [colInfos.First().ColumnCode];
+            }
+            var primaryKeyStr = string.Join(',', primaryKeys);
             #endregion
 
-            // 2. 获取目标表的主键
-            var targetPrimaryKey = colInfos.FirstOrDefault(x => x.IsPK == 1)?.ColumnName ?? "";
-
-            // 3. 获取源表所有数据
+            // 2. 获取源表所有数据
             int pageIndex = 1;
             DataTable sourceDataTable = new(tableName);
-            //while (sourceDataTable.Rows.Count > 0)
+
+            // 3. 获取目标表(不存在则生成创建表的语句)的所有数据(只要主键字段)
+            #region 获取目标表的数据
+            //var targetDataTable = new DataTable();
+            string createSql = string.Empty;
+            var targetDbType = GetDbType(targetConn.ConnectionString);
+            string tableNameStatement = targetDbType == DatabaseType.MySql ? $"`{tableName}`" : tableName;
+
+            List<string> targetPkValues = [];
+            try
+            {
+                using var reader = await targetConn.ExecuteReaderAsync($"select * from {tableNameStatement}", param: new Dictionary<string, object>(), transaction: trans);
+                while (reader.Read())
+                {
+                    string pkValue = string.Join(',', primaryKeys.Select(x => reader[x]));
+                    targetPkValues.Add(pkValue);
+                }
+
+                //targetDataTable = await QueryAsync(targetConn, $"select * from {tableNameStatement}", new Dictionary<string, object>(), trans);
+            }
+            catch (Exception ex)
+            {
+                if (ex.Message.Contains("doesn't exist", StringComparison.CurrentCultureIgnoreCase))
+                {
+                    // 表不存在, 生成创建表的语句
+                    createSql = GenerateCreateTableSql(tableName, targetDbType, colInfos);
+                    // 表不存在在则创建表
+                    //await targetConn.ExecuteAsync(createSql);
+                }
+            }
+            
+            // : @
+            var dbVarFlag = GetDbParameterFlag(targetConn.ConnectionString);
+            var database = targetConn.Database;
+            
+            // columnsStatement =           "Name, Age"
+            string columnsStatement = GetFieldsStatement(colInfos);
+            #endregion
+
             while (true)
             {
-                #region 获取源表所有数据
+                #region 获取源表数据
                 try
                 {
                     sourceDataTable.Clear();
-                    var srouceTableDataReader = (await GetPagedDataAsync(sourceTable, pageIndex, 3000, sourcePrimaryKey, true, sourceConn, filter)).DataReader ?? throw new Exception($"表{sourceTable}的数据读取器为空");
+                    var srouceTableDataReader = (await GetPagedDataAsync(sourceTable, pageIndex, 3000, primaryKeyStr, true, sourceConn, filter)).DataReader ?? throw new Exception($"表{sourceTable}的数据读取器为空");
                     sourceDataTable.Load(srouceTableDataReader);
                 }
                 catch (Exception ex)
@@ -1578,58 +1689,32 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                 }
                 if (sourceDataTable.Rows.Count == 0)
                 {
-                    //yield return new TableSqlsInfo
-                    //{
-                    //    TableName = sourceTable
-                    //};
                     yield break;
                 }
                 #endregion
 
-                // 4. 获取目标表的数据, 没有则创建
-                #region 获取目标表的数据
-                var targetDataTable = new DataTable();
-                string createSql = string.Empty;
-                var targetDbType = GetDbType(targetConn.ConnectionString);
-                string tableNameStatement = targetDbType == DatabaseType.MySql ? $"`{tableName}`" : tableName;
-                try
-                {
-                    targetDataTable = await QueryAsync(targetConn, $"select * from {tableNameStatement}", new Dictionary<string, object>(), trans);
-                }
-                catch (Exception ex)
-                {
-                    if (ex.Message.Contains("doesn't exist", StringComparison.CurrentCultureIgnoreCase))
-                    {
-                        // 表不存在创建表
-                        createSql = GenerateCreateTableSql(tableName, targetDbType, colInfos);
-                        //await targetConn.ExecuteAsync(createSql);
-                    }
-                }
-                #endregion
-
-                // 5. 对比原表和目标表数据, 目标表没有的数据就创建对应的insert语句
+                // 4. 对比原表和目标表数据, 目标表没有的数据就创建对应的insert语句
                 #region 对比原表和目标表数据, 目标表没有的数据就创建对应的insert语句
-                // TODO: 数据库类型 作为公共属性
-                var dbVarFlag = GetDbParameterFlag(targetConn.ConnectionString);
-                var database = targetConn.Database;
                 var insertSqlBuilder = new StringBuilder();
-                // insert语句参数
-                var parameters = new Dictionary<string, object>();
+                var deleteExistSqlBuilder = new StringBuilder();
+                // sql语句参数
+                Dictionary<string, object> parameters = [];
+                Dictionary<string, object> deleteExistParameters = [];
+                
                 // 参数名后缀(第一条数据的Name字段, 参数名为Name1, 第二条为Name2, ...)
                 var random = 1;
-
-                // columnsStatement =           "Name, Age"
-                string columnsStatement = GetFieldsStatement(colInfos);
-
-                var comparedResult = await CompareRecordsAsync(sourceDataTable.Rows.Cast<DataRow>(), targetDataTable.Rows.Cast<DataRow>(), [], sourcePrimaryKey, targetPrimaryKey);
-
+                
                 // 为数据源中的每一条数据生成对应的insert语句的部分
                 foreach (DataRow dataItem in sourceDataTable.Rows)
                 {
+                    var dataItemPkValues = primaryKeys.Select(x => dataItem[x].ToString()).ToArray();
+                    string dataItemPkValue = string.Join(',', dataItemPkValues);
                     // 重复的数据不做处理
-                    if (targetDataTable.Rows.Count > 0 && AlreadyExistInTarget(targetDataTable.Rows, dataItem))
+                    if (targetPkValues.Count > 0 && targetPkValues.Contains(dataItemPkValue))
                     {
-                        continue;
+                        // ,@Id1
+                        string deleteSqlCurrentRecordPart = GenerateDeleteExistSql(dataItem, tableNameStatement, primaryKeys, dataItemPkValues, deleteExistParameters, dbVarFlag, random);
+                        deleteExistSqlBuilder.Append(deleteSqlCurrentRecordPart);
                     }
 
                     // (@Name1, @Age1),
@@ -1637,26 +1722,26 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                     insertSqlBuilder.Append($"{currentRecordSql}");
                     random++;
                 }
-                // 如果表中已经存在所有数据, 那么insertSqlBuilder为空的
-                if (insertSqlBuilder.Length == 0)
-                {
-                    Console.WriteLine($"{sourceTable}已经拥有所有记录");
-                    yield break;
-                }
+
                 // 最终的insert语句
-                // var targetTableAllDataInsertSql = $"insert into {sourceTable}({columnsStatement}) values{Environment.NewLine}{insertSqlBuilder.ToString().TrimEnd(',', '\r', '\n')};";
                 var targetTableAllDataInsertSql = GetBatchInsertSql(sourceTable, columnsStatement, insertSqlBuilder.ToString(), database);
+                var targetTableDeleteExistSql = GetBatchDeleteSql(tableNameStatement, deleteExistSqlBuilder.ToString(), primaryKeys);
                 #endregion
-                yield return new TableSqlsInfo
+                yield return new TableSqlInfos
                 {
                     TableName = sourceTable,
 
                     BatchInsertSqlInfo = new BatchInsertSqlInfo()
                     {
                         CreateTableSql = createSql,
-                        // mysql 本次会话取消外键约束检查
-                        BatchInsertSql = targetTableAllDataInsertSql,
+                        Sql = targetTableAllDataInsertSql,
                         Parameters = parameters
+                    },
+
+                    DeleteExistSqlInfo = new SqlInfo()
+                    {
+                        Sql = targetTableDeleteExistSql,
+                        Parameters = deleteExistParameters
                     }
                 };
                 pageIndex++;
@@ -1781,7 +1866,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             }
             if (sourcePrimaryKeys.Count != targetPrimaryKeys.Count)
             {
-                throw new Exception($"解析后的主键字段无法一一对应, 请检查拼写");
+                throw new Exception($"解析后的主键字段无法一一对应");
             }
             #endregion
 
@@ -1822,9 +1907,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
 
             // 返回
             return compareResult;
-
             #endregion
-
 
             #region 本地方法, 数据对比逻辑
             void CompareBatchData(IEnumerable<object> batchData)
@@ -2122,13 +2205,30 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// </summary>
         /// <param name="rows"></param>
         /// <param name="sourceRow"></param>
+        /// <param name="primaryKeys"></param>
         /// <returns></returns>
-        public static bool AlreadyExistInTarget(DataRowCollection rows, DataRow sourceRow)
+        public static bool AlreadyExistInTarget(DataRowCollection rows, DataRow sourceRow, string?[] primaryKeys)
         {
             foreach (DataRow row in rows)
             {
-                // 比较第一列的值(Id)
-                if (row[0].ToString() == sourceRow[0].ToString())
+                if (primaryKeys is not null && primaryKeys.Any())
+                {
+                    var exist = true;
+                    foreach (var pk in primaryKeys)
+                    {
+                        if (string.IsNullOrWhiteSpace(pk) || row[pk].ToString() != sourceRow[pk].ToString())
+                        {
+                            exist = false;
+                            break;
+                        }
+                    }
+                    if (exist)
+                    {
+                        return true;
+                    }
+                }
+                // 比较第一列(Id)的值
+                else if (row[0].ToString() == sourceRow[0].ToString())
                 {
                     return true;
                 }
