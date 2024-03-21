@@ -1659,7 +1659,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                 try
                 {
                     sourceDataTable.Clear();
-                    var srouceTableDataReader = (await GetPagedDataAsync(tableName, pageIndex, 3000, string.Join(',', primaryKeys), true, sourceConn, filter)).DataReader ?? throw new Exception($"源表{tableName}的数据读取器为空");
+                    var srouceTableDataReader = (await GetPagedDataAsync(tableNameStatement, pageIndex, 3000, string.Join(',', primaryKeys), true, sourceConn, filter)).DataReader ?? throw new Exception($"源表{tableName}的数据读取器为空");
                     sourceDataTable.Load(srouceTableDataReader);
                 }
                 catch (Exception ex)
