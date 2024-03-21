@@ -17,6 +17,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -511,8 +512,35 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 {
                     continue;
                 }
+
+                #region 表名信息
+                string tableName = table.Split('.').Last();
+                DatabaseType targetDbType = GetDbType(targetConn.ConnectionString);
+                string tableNameStatement = targetDbType == DatabaseType.MySql ? $"`{tableName}`" : tableName;
+                #endregion
+
+                #region 获取源表的所有字段信息
+                IEnumerable<ColumnInfo> colInfos = await GetTableColumnsInfoAsync(sourceConn, tableName);
+                string[] primaryKeys = colInfos.Where(x => x.IsPK == 1 && !string.IsNullOrWhiteSpace(x.ColumnName)).Select(x => x.ColumnName).ToArray();
+                if (primaryKeys.Length == 0)
+                {
+                    primaryKeys = [colInfos.First().ColumnCode];
+                }
+                var primaryKeyStr = string.Join(',', primaryKeys);
+                #endregion
+
+                #region 获取表在目标库中的所有数据的主键值集合
+                string createSql = string.Empty;
+                List<string> targetPkValues = await GetTableAllPkValuesAsync(targetConn, tableNameStatement, primaryKeys, null);
+                if (targetPkValues.Count == 1 && targetPkValues.First() == "-1")
+                {
+                    // 表不存在, 生成创建表的语句
+                    createSql = GenerateCreateTableSql(tableName, targetDbType, colInfos);
+                }
+                #endregion
+
                 // 1.生成所有表的insert语句; 异步迭代器(每个子对象包含一个批量插入数据的SQL语句)
-                IAsyncEnumerable<TableSqlInfos> tableSqlsInfoCollection = GetTableSqlsInfoCollectionAsync(table, sourceConn, null, targetConn, null);
+                IAsyncEnumerable<TableSqlInfo> tableSqlsInfoCollection = GetTableSqlInfosAsync(table, sourceConn, colInfos, primaryKeys, null, targetConn, targetDbType, targetPkValues, tableNameStatement, null);
 
                 // 2. 执行每个表的insert语句
                 var dbTransaction = targetConn.BeginTransaction();
@@ -520,10 +548,10 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 {
                     try
                     {
-                        if (!string.IsNullOrWhiteSpace(tableSqlsInfo.BatchInsertSqlInfo.CreateTableSql))
+                        if (!string.IsNullOrWhiteSpace(createSql))
                         {
                             // 创建表(或者修改字段)不会回滚
-                            _ = await targetConn.ExecuteAsync(tableSqlsInfo.BatchInsertSqlInfo.CreateTableSql, transaction: dbTransaction);
+                            _ = await targetConn.ExecuteAsync(createSql, transaction: dbTransaction);
                         }
 
                         if (string.IsNullOrEmpty(tableSqlsInfo.BatchInsertSqlInfo.Sql))
@@ -544,7 +572,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                     catch (Exception ex)
                     {
                         Console.WriteLine(ex);
-                        Console.WriteLine($"tableSqlsInfo.BatchInsertSqlInfo.CreateTableSql: {tableSqlsInfo.BatchInsertSqlInfo.CreateTableSql}");
+                        Console.WriteLine($"createSql: {createSql}");
                         Console.WriteLine($"tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql: {tableSqlsInfo.BatchInsertSqlInfo.Sql}");
                         Console.WriteLine($"tableSqlsInfo.BatchInsertSqlInfo.DeleteExistSqlInfo: {tableSqlsInfo.DeleteExistSqlInfo.Sql}");
                         if (!ignoreException)
@@ -979,19 +1007,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             var tableCount = await conn.ExecuteScalarAsync<int>(checkSql);
             return tableCount > 0;
         }
-        /// <summary>
-        /// 获取"数据库[.dbo].数据表"形式的数据表名
-        /// </summary>
-        /// <param name="connectionString"></param>
-        /// <param name="table"></param>
-        /// <returns></returns>
-        public static string GetTableFullName(string connectionString, string table)
-        {
-            //var databaseType = GetDbType(connectionString);
-            //var dbname = databaseType == DatabaseType.MySql ? tableDynamic.TABLE_SCHEMA : tableDynamic.TABLESPACE_NAME;
-            //return $"{dbname}.{tableDynamic.TABLE_NAME}";
-            return table;
-        }
+        
         private static void ValideParameter(string parameter)
         {
             if (parameter.Contains('-') || parameter.Contains('\''))
@@ -1605,65 +1621,29 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// <summary>
         /// 获取数据源中一个表的数据的insert语句, 表不存在则生成创建表语句
         /// </summary>
-        /// <param name="sourceTable"></param>
+        /// <param name="tableName"></param>
         /// <param name="sourceConn"></param>
+        /// <param name="colInfos"></param>
+        /// <param name="primaryKeys"></param>
         /// <param name="trans"></param>
         /// <param name="targetConn"></param>
+        /// <param name="targetDbType"></param>
+        /// <param name="targetPkValues">目标表所有数据的主键值集合</param>
+        /// <param name="tableNameStatement"></param>
         /// <param name="filter"></param>
         /// <returns></returns>
-        public static async IAsyncEnumerable<TableSqlInfos> GetTableSqlsInfoCollectionAsync(string sourceTable, IDbConnection sourceConn, IDbTransaction? trans, IDbConnection targetConn, DataFilter? filter)
+        public static async IAsyncEnumerable<TableSqlInfo> GetTableSqlInfosAsync(string tableName, IDbConnection sourceConn, IEnumerable<ColumnInfo> colInfos, string[] primaryKeys, IDbTransaction? trans, IDbConnection targetConn, DatabaseType targetDbType, List<string> targetPkValues, string tableNameStatement, DataFilter? filter)
         {
-            sourceTable = GetTableFullName(targetConn.ConnectionString, sourceTable);
-            var tableName = sourceTable.Split('.').Last();
             if (tableName.StartsWith('_'))
             {
                 yield break;
             }
 
-            // 1. 获取源表的所有字段信息
-            #region 获取源表的所有字段信息
-            IEnumerable<ColumnInfo> colInfos = await GetTableColumnsInfoAsync(sourceConn, tableName);
-            string[] primaryKeys = colInfos.Where(x => x.IsPK == 1 && !string.IsNullOrWhiteSpace(x.ColumnName)).Select(x => x.ColumnName).ToArray();
-            if (primaryKeys.Length == 0)
-            {
-                primaryKeys = [colInfos.First().ColumnCode];
-            }
-            var primaryKeyStr = string.Join(',', primaryKeys);
-            #endregion
-
-            // 2. 获取源表所有数据
             int pageIndex = 1;
             DataTable sourceDataTable = new(tableName);
 
-            // 3. 获取目标表(不存在则生成创建表的语句)的所有数据(只要主键字段)
+            
             #region 获取目标表的数据
-            //var targetDataTable = new DataTable();
-            string createSql = string.Empty;
-            var targetDbType = GetDbType(targetConn.ConnectionString);
-            string tableNameStatement = targetDbType == DatabaseType.MySql ? $"`{tableName}`" : tableName;
-
-            List<string> targetPkValues = [];
-            try
-            {
-                using var reader = await targetConn.ExecuteReaderAsync($"select * from {tableNameStatement}", param: new Dictionary<string, object>(), transaction: trans);
-                while (reader.Read())
-                {
-                    string pkValue = string.Join(',', primaryKeys.Select(x => reader[x]));
-                    targetPkValues.Add(pkValue);
-                }
-
-                //targetDataTable = await QueryAsync(targetConn, $"select * from {tableNameStatement}", new Dictionary<string, object>(), trans);
-            }
-            catch (Exception ex)
-            {
-                if (ex.Message.Contains("doesn't exist", StringComparison.CurrentCultureIgnoreCase))
-                {
-                    // 表不存在, 生成创建表的语句
-                    createSql = GenerateCreateTableSql(tableName, targetDbType, colInfos);
-                    // 表不存在在则创建表
-                    //await targetConn.ExecuteAsync(createSql);
-                }
-            }
             
             // : @
             var dbVarFlag = GetDbParameterFlag(targetConn.ConnectionString);
@@ -1679,12 +1659,12 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                 try
                 {
                     sourceDataTable.Clear();
-                    var srouceTableDataReader = (await GetPagedDataAsync(sourceTable, pageIndex, 3000, primaryKeyStr, true, sourceConn, filter)).DataReader ?? throw new Exception($"表{sourceTable}的数据读取器为空");
+                    var srouceTableDataReader = (await GetPagedDataAsync(tableName, pageIndex, 3000, string.Join(',', primaryKeys), true, sourceConn, filter)).DataReader ?? throw new Exception($"源表{tableName}的数据读取器为空");
                     sourceDataTable.Load(srouceTableDataReader);
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"查询数据出错sourceTable: {sourceTable}");
+                    Console.WriteLine($"查询数据出错sourceTable: {tableName}");
                     Console.WriteLine(ex.ToString());
                 }
                 if (sourceDataTable.Rows.Count == 0)
@@ -1693,7 +1673,6 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                 }
                 #endregion
 
-                // 4. 对比原表和目标表数据, 目标表没有的数据就创建对应的insert语句
                 #region 对比原表和目标表数据, 目标表没有的数据就创建对应的insert语句
                 var insertSqlBuilder = new StringBuilder();
                 var deleteExistSqlBuilder = new StringBuilder();
@@ -1724,16 +1703,15 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                 }
 
                 // 最终的insert语句
-                var targetTableAllDataInsertSql = GetBatchInsertSql(sourceTable, columnsStatement, insertSqlBuilder.ToString(), database);
+                var targetTableAllDataInsertSql = GetBatchInsertSql(tableName, columnsStatement, insertSqlBuilder.ToString(), database);
                 var targetTableDeleteExistSql = GetBatchDeleteSql(tableNameStatement, deleteExistSqlBuilder.ToString(), primaryKeys);
                 #endregion
-                yield return new TableSqlInfos
+                yield return new TableSqlInfo
                 {
-                    TableName = sourceTable,
+                    TableName = tableName,
 
-                    BatchInsertSqlInfo = new BatchInsertSqlInfo()
+                    BatchInsertSqlInfo = new SqlInfo()
                     {
-                        CreateTableSql = createSql,
                         Sql = targetTableAllDataInsertSql,
                         Parameters = parameters
                     },
@@ -1746,6 +1724,36 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                 };
                 pageIndex++;
             }
+        }
+        /// <summary>
+        /// 获取表所有数据的主键值集合
+        /// </summary>
+        /// <param name="targetConn"></param>
+        /// <param name="targetTable"></param>
+        /// <param name="primaryKeys"></param>
+        /// <param name="trans"></param>
+        /// <returns></returns>
+        public static async Task<List<string>> GetTableAllPkValuesAsync(IDbConnection targetConn, string targetTable, string[] primaryKeys, IDbTransaction? trans)
+        {
+            List<string> targetPkValues = [];
+            try
+            {
+                using var reader = await targetConn.ExecuteReaderAsync($"select * from {targetTable}", param: new Dictionary<string, object>(), transaction: trans);
+                while (reader.Read())
+                {
+                    string pkValue = string.Join(',', primaryKeys.Select(x => reader[x]));
+                    targetPkValues.Add(pkValue);
+                }
+            }
+            catch (Exception ex)
+            {
+                if (ex.Message.Contains("doesn't exist", StringComparison.CurrentCultureIgnoreCase))
+                {
+                    // 表不存在, 生成创建表的语句
+                    targetPkValues = ["-1"];
+                }
+            }
+            return targetPkValues;
         }
 
         /// <summary>
