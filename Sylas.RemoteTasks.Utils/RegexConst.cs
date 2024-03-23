@@ -116,12 +116,6 @@ namespace Sylas.RemoteTasks.App.RegexExp
         public static readonly Regex ColumnTypeInt = new ("(number)|(int)");
 
         /// <summary>
-        /// 匹配字段类型Clob或者Blob
-        /// </summary>
-        /// <returns></returns>
-        public static readonly Regex ColumnTypeBlob = new ("(byte\\[\\])|(lob)|(varbinary)");
-
-        /// <summary>
         /// 被引用的主键字段
         /// </summary>
         public static readonly Regex RefedPrimaryField = new ("\\{\\{\\$primary\\.(\\w+)\\}\\}");

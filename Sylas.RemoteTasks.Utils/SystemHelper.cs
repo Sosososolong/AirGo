@@ -752,7 +752,7 @@ namespace Sylas.RemoteTasks.Utils
                         ClassName = className,
                         Rect = windowRect,
                         Placement = placement,
-                        IsVisiable = isVisible,
+                        IsVisible = isVisible,
                         ProcessId = processId,
                         IsIconic = isIconic
                     };
@@ -919,6 +919,7 @@ namespace Sylas.RemoteTasks.Utils
 
         static IntPtr WindowProc(IntPtr hwnd, uint uMsg, IntPtr wParam, IntPtr lParam)
         {
+            // {537,7} {70,0} {36,0} {71,0} {3,0} {50075,0} {49317,2123440951936} {126,32} {21,0} {26,0} {30,0} {26,47}
             Console.WriteLine($"WindowProc uMsg: {uMsg}; wParam(HotKeyId): {wParam}");
             switch (uMsg)
             {
@@ -1013,6 +1014,7 @@ namespace Sylas.RemoteTasks.Utils
                 // 消息循环
                 while ((bRet = GetMessage(out MSG msg, IntPtr.Zero, 0, 0)) != 0)
                 {
+                    // {bRet,msg.Message}: {1,30} {1,50075} {1,49317}
                     Console.WriteLine($"接收到消息: {bRet}; msg: {msg.message}");
                     if (bRet == -1)
                     {
@@ -1060,7 +1062,7 @@ namespace Sylas.RemoteTasks.Utils
         /// <summary>
         /// 是否可见
         /// </summary>
-        public bool IsVisiable { get; set; }
+        public bool IsVisible { get; set; }
         /// <summary>
         /// 
         /// </summary>
@@ -1073,7 +1075,7 @@ namespace Sylas.RemoteTasks.Utils
         /// 重写ToString
         /// </summary>
         /// <returns></returns>
-        public override string ToString() => $"Title: {Title}; IsIconic: {IsIconic}; Handle: {Handle}; Visiable: {IsVisiable}; React: {Rect}; Placement: {Placement}; ClassName: {ClassName}; ProcessId: {ProcessId};";
+        public override string ToString() => $"Title: {Title}; IsIconic: {IsIconic}; Handle: {Handle}; Visiable: {IsVisible}; React: {Rect}; Placement: {Placement}; ClassName: {ClassName}; ProcessId: {ProcessId};";
     }
     #endregion
 

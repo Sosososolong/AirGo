@@ -110,6 +110,23 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             return anythingInfos;
         }
         /// <summary>
+        /// 根据settingId和commandName获取对应的AnythingInfo
+        /// </summary>
+        /// <param name="settingId"></param>
+        /// <param name="commandName"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        public async Task<AnythingInfo> GetAnythingInfoBySettingAndCommandAsync(int settingId, string commandName)
+        {
+            if (memoryCache.TryGetValue(_cacheKeyAllAnythingInfos, out List<AnythingInfo>? anythingInfos) && anythingInfos is not null)
+            {
+                return anythingInfos.FirstOrDefault(x => x.SettingId == settingId && x.Name == commandName) ?? throw new Exception("无效的Anything");
+            }
+            var anythingSetting = (await GetAnythingSettingByIdAsync(settingId)) ?? throw new Exception($"无效的AnythingSetting");
+            var anythingInfo = await BuildAnythingInfoAsync(anythingSetting);
+            return anythingInfo;
+        }
+        /// <summary>
         /// 执行命令
         /// </summary>
         /// <param name="dto"></param>
@@ -117,8 +134,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         /// <exception cref="Exception"></exception>
         public async Task<CommandResult> ExecuteAsync(CommandInfoInDto dto)
         {
-            var anythingSetting = (await GetAnythingSettingByIdAsync(dto.SettingId)) ?? throw new Exception($"无效的AnythingSetting");
-            var anythingInfo = await BuildAnythingInfoAsync(anythingSetting);
+            var anythingInfo = await GetAnythingInfoBySettingAndCommandAsync(dto.SettingId, dto.CommandName);
             var commandInfo = anythingInfo.Commands.FirstOrDefault(x => x.Name == dto.CommandName) ?? throw new Exception($"未知的命令{dto.CommandName}");
             if (anythingInfo.CommandExecutor is null)
             {
@@ -130,29 +146,30 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         /// <summary>
         /// 从AnythingSetting解析一个AnythingInfo对象
         /// </summary>
-        /// <param name="anything"></param>
+        /// <param name="anythingSetting"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        async Task<AnythingInfo> BuildAnythingInfoAsync(AnythingSetting anything)
+        async Task<AnythingInfo> BuildAnythingInfoAsync(AnythingSetting anythingSetting)
         {
             #region 解析Properties
-            var properties = JsonConvert.DeserializeObject<Dictionary<string, object>>(anything.Properties) ?? [];
+            var properties = JsonConvert.DeserializeObject<Dictionary<string, object>>(anythingSetting.Properties) ?? [];
             properties.ResolveSelfTmplValues();
             #endregion
 
             #region 解析Executor对象和构造函数参数
             AnythingExecutor? anythingExecutor = null;
             
-            if (anything.Executor == 0)
+            if (anythingSetting.Executor == 0)
             {
-                anythingExecutor = new AnythingExecutor { Name = "SystemCmd()" };
+                anythingExecutor = new AnythingExecutor { Name = "SystemCmd" };
             }
             else
             {
+                // 在查询Anything列表时, 多个AnythingInfo都可能对应一个Executor, 所以此查询在一瞬间可能很频繁, 所以添加了缓存
                 string cacheKey = $"CacheKeyExecutor";
                 if (!memoryCache.TryGetValue(cacheKey, out anythingExecutor) || anythingExecutor is null)
                 {
-                    anythingExecutor = await executorRepository.GetByIdAsync(anything.Executor) ?? throw new Exception($"无效的AnythingExecutor: {anything.Executor}");
+                    anythingExecutor = await executorRepository.GetByIdAsync(anythingSetting.Executor) ?? throw new Exception($"无效的AnythingExecutor: {anythingSetting.Executor}");
                     var cacheEntryOptions = new MemoryCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromMinutes(1));
                     memoryCache.Set(cacheKey, anythingExecutor, cacheEntryOptions);
                 }
@@ -190,11 +207,11 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
 
             #region 解析出AnythingInfo
             // 根据Properties解析其他模板
-            anything.Name = TmplHelper.ResolveExpressionValue(anything.Name, properties)?.ToString() ?? throw new Exception($"Name {anything.Name} 解析失败");
-            anything.Title = TmplHelper.ResolveExpressionValue(anything.Title, properties)?.ToString() ?? throw new Exception($"Title {anything.Title} 解析失败");
+            anythingSetting.Name = TmplHelper.ResolveExpressionValue(anythingSetting.Name, properties)?.ToString() ?? throw new Exception($"Name {anythingSetting.Name} 解析失败");
+            anythingSetting.Title = TmplHelper.ResolveExpressionValue(anythingSetting.Title, properties)?.ToString() ?? throw new Exception($"Title {anythingSetting.Title} 解析失败");
 
             // 解析CommandTxt中的模板
-            var commands = JsonConvert.DeserializeObject<List<CommandInfo>>(anything.Commands) ?? [];
+            var commands = JsonConvert.DeserializeObject<List<CommandInfo>>(anythingSetting.Commands) ?? [];
             foreach (var anythingCommand in commands)
             {
                 anythingCommand.CommandTxt = TmplHelper.ResolveExpressionValue(anythingCommand.CommandTxt, properties)?.ToString() ?? throw new Exception($"解析命令\"{anythingCommand.CommandTxt}\"异常");
@@ -202,10 +219,10 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
 
             var anythingInfo = new AnythingInfo()
             {
-                SettingId = anything.Id,
+                SettingId = anythingSetting.Id,
                 CommandExecutor = anythingCommandExecutor,
-                Name = anything.Name,
-                Title = anything.Title,
+                Name = anythingSetting.Name,
+                Title = anythingSetting.Title,
                 Properties = properties,
                 Commands = commands
             };

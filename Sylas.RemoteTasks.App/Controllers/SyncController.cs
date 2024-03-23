@@ -366,6 +366,7 @@ namespace Sylas.RemoteTasks.App.Controllers
 
         public async Task<IActionResult> SyncDbs(string sourceConnectionString, string sourceDatabase, string sourceTable, string targetConnectionString)
         {
+            sourceTable ??= "";
             if (!string.IsNullOrWhiteSpace($"{sourceConnectionString}{sourceDatabase}{sourceTable}{targetConnectionString}"))
             {
                 if (string.IsNullOrWhiteSpace(sourceConnectionString) || string.IsNullOrWhiteSpace(targetConnectionString))
@@ -374,7 +375,10 @@ namespace Sylas.RemoteTasks.App.Controllers
                 }
                 else
                 {
-                    await DatabaseInfo.SyncDatabaseByConnectionStringsAsync(sourceConnectionString, targetConnectionString, sourceDatabase, sourceTable);
+                    foreach (var t in sourceTable.Split(','))
+                    {
+                        await DatabaseInfo.SyncDatabaseByConnectionStringsAsync(sourceConnectionString, targetConnectionString, sourceDatabase, t);
+                    }
                     ViewBag.Message = "同步成功";
                 }
             }
