@@ -350,7 +350,7 @@ namespace Sylas.RemoteTasks.Utils.Template
                     }
                 }
             }
-            return results.Count == 1 ? results.First() : results;
+            return results.Count == 1 && results.First().GetType().Name == "String" ? results.First() : results;
 
             object ResolveFromDictionary(string tmplExpressionWithParser, Dictionary<string, object> dataContext)
             {

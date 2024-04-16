@@ -28,7 +28,8 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
                 var splitor = joinExpression.Groups["splitor"].Value;
 
                 var dataContextKey = dataContext.Keys.FirstOrDefault(x => x.TrimStart('$').Equals(key, StringComparison.OrdinalIgnoreCase)) ?? throw new Exception($"{nameof(CollectionJoinParser)} 数据上下中未发现数据{key}");
-                var joinValue = string.Join(splitor, (JArray.FromObject(dataContext[dataContextKey]) ?? throw new Exception("JoinParser不支持非集合对象")).Select(x => x.ToString()).ToArray());
+                var target = dataContext[dataContextKey];
+                var joinValue = target.GetType().Name != "String" ? string.Join(splitor, JArray.FromObject(target).Select(x => x.ToString()).ToArray()) : target.ToString();
                 return new ParseResult(true, [key], joinValue);
             }
             return new ParseResult(false);

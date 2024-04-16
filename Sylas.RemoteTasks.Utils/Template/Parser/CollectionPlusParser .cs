@@ -49,7 +49,7 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
                 {
                     currentDataLeftJarray = JArray.FromObject(currentDataLeft) ?? throw new Exception("PlusOperatorParser异常, 左边表达式不是集合类型");
                 }
-                var currentDataRightJarray = JArray.FromObject(currentDataRight) ?? throw new Exception("PlusOperatorParser异常, 右边表达式不是集合类型");
+                var currentDataRightJarray = currentDataRight.GetType().Name == "String" ? new() { currentDataRight } : JArray.FromObject(currentDataRight) ?? throw new Exception("PlusOperatorParser异常, 右边表达式不是集合类型");
                 foreach ( var item in currentDataLeftJarray)
                 {
                     currentDataRightJarray.Add(item);

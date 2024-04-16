@@ -79,19 +79,19 @@ builder.Services.AddAuthentication(options =>
     options.CacheDuration = TimeSpan.FromMinutes(builder.Configuration.GetValue<int>("IdentityServerConfiguration:CacheDuration"));
 });
 
-builder.Services.AddAuthorization(config =>
-{
-    config.AddPolicy("sfapi.2", policyBuilder =>
-    {
-        //policyBuilder.RequireScope("sfapi2");
-        policyBuilder.RequireAssertion(context => context.User.Claims.Any(c => c.Type == "scope" && c.Value == "sfapi2"));
-    });
-    config.AddPolicy("sfapi.3", policyBuilder =>
-    {
-        //policyBuilder.RequireScope("sfapi3");
-        policyBuilder.RequireAssertion(context => context.User.Claims.Any(c => c.Type == "scope" && c.Value == "sfapi3"));
-    });
-});
+//builder.Services.AddAuthorization(config =>
+//{
+//    config.AddPolicy("sfapi.2", policyBuilder =>
+//    {
+//        //policyBuilder.RequireScope("sfapi2");
+//        policyBuilder.RequireAssertion(context => context.User.Claims.Any(c => c.Type == "scope" && c.Value == "sfapi2"));
+//    });
+//    config.AddPolicy("sfapi.3", policyBuilder =>
+//    {
+//        //policyBuilder.RequireScope("sfapi3");
+//        policyBuilder.RequireAssertion(context => context.User.Claims.Any(c => c.Type == "scope" && c.Value == "sfapi3"));
+//    });
+//});
 
 var app = builder.Build();
 

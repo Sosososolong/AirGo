@@ -71,7 +71,7 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
                 {
                     if (record is not JObject pObj)
                     {
-                        pObj = JObject.FromObject(record);
+                        pObj = record is IEnumerable<object> records ? JObject.FromObject(records.FirstOrDefault()) : JObject.FromObject(record);
                     }
                     record = pObj.Properties().FirstOrDefault(x => string.Equals(x.Name, p, StringComparison.OrdinalIgnoreCase))?.Value ?? throw new Exception($"无法找到属性{p}");
                 }

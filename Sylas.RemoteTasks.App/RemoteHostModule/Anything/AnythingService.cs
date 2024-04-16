@@ -105,26 +105,9 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
                     anythingInfos.Add(anythingInfo);
                 }
             }
-            var cacheEntryOptions = new MemoryCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromMinutes(1));
+            var cacheEntryOptions = new MemoryCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromMinutes(60 * 8));
             memoryCache.Set(_cacheKeyAllAnythingInfos, anythingInfos, cacheEntryOptions);
             return anythingInfos;
-        }
-        /// <summary>
-        /// 根据settingId和commandName获取对应的AnythingInfo
-        /// </summary>
-        /// <param name="settingId"></param>
-        /// <param name="commandName"></param>
-        /// <returns></returns>
-        /// <exception cref="Exception"></exception>
-        public async Task<AnythingInfo> GetAnythingInfoBySettingAndCommandAsync(int settingId, string commandName)
-        {
-            if (memoryCache.TryGetValue(_cacheKeyAllAnythingInfos, out List<AnythingInfo>? anythingInfos) && anythingInfos is not null)
-            {
-                return anythingInfos.FirstOrDefault(x => x.SettingId == settingId && x.Name == commandName) ?? throw new Exception("无效的Anything");
-            }
-            var anythingSetting = (await GetAnythingSettingByIdAsync(settingId)) ?? throw new Exception($"无效的AnythingSetting");
-            var anythingInfo = await BuildAnythingInfoAsync(anythingSetting);
-            return anythingInfo;
         }
         /// <summary>
         /// 执行命令
@@ -134,7 +117,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         /// <exception cref="Exception"></exception>
         public async Task<CommandResult> ExecuteAsync(CommandInfoInDto dto)
         {
-            var anythingInfo = await GetAnythingInfoBySettingAndCommandAsync(dto.SettingId, dto.CommandName);
+            var anythingInfo = await GetAnythingInfoBySettingAndCommandAsync(dto.SettingId);
             var commandInfo = anythingInfo.Commands.FirstOrDefault(x => x.Name == dto.CommandName) ?? throw new Exception($"未知的命令{dto.CommandName}");
             if (anythingInfo.CommandExecutor is null)
             {
@@ -142,6 +125,24 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             }
             CommandResult cr = await anythingInfo.CommandExecutor.ExecuteAsync(commandInfo.CommandTxt);
             return cr;
+        }
+        /// <summary>
+        /// 根据settingId和commandName获取对应的AnythingInfo
+        /// </summary>
+        /// <param name="settingId"></param>
+        /// <param name="commandName"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        public async Task<AnythingInfo> GetAnythingInfoBySettingAndCommandAsync(int settingId)
+        {
+            if (memoryCache.TryGetValue(_cacheKeyAllAnythingInfos, out List<AnythingInfo>? anythingInfos) && anythingInfos is not null)
+            {
+                var anything = anythingInfos.FirstOrDefault(x => x.SettingId == settingId);
+                return anything ?? throw new Exception("无效的Anything");
+            }
+            var anythingSetting = (await GetAnythingSettingByIdAsync(settingId)) ?? throw new Exception($"无效的AnythingSetting");
+            var anythingInfo = await BuildAnythingInfoAsync(anythingSetting);
+            return anythingInfo;
         }
         /// <summary>
         /// 从AnythingSetting解析一个AnythingInfo对象
@@ -166,7 +167,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             else
             {
                 // 在查询Anything列表时, 多个AnythingInfo都可能对应一个Executor, 所以此查询在一瞬间可能很频繁, 所以添加了缓存
-                string cacheKey = $"CacheKeyExecutor";
+                string cacheKey = $"CacheKeyExecutor_{anythingSetting.Executor}";
                 if (!memoryCache.TryGetValue(cacheKey, out anythingExecutor) || anythingExecutor is null)
                 {
                     anythingExecutor = await executorRepository.GetByIdAsync(anythingSetting.Executor) ?? throw new Exception($"无效的AnythingExecutor: {anythingSetting.Executor}");
@@ -174,6 +175,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
                     memoryCache.Set(cacheKey, anythingExecutor, cacheEntryOptions);
                 }
             }
+
             var executorName = anythingExecutor.Name;
             var argTmpls = string.IsNullOrWhiteSpace(anythingExecutor.Arguments)
                 ? []
@@ -201,7 +203,6 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             }
             var t = ReflectionHelper.GetTypeByClassName(executorName);
             var instance = ReflectionHelper.CreateInstance(t, args);
-            var executeCommandMethod = t.GetMethod("ExecuteCommand");
             var anythingCommandExecutor = instance as ICommandExecutor ?? throw new Exception("从模板生成ICommandExecutor失败");
             #endregion
 

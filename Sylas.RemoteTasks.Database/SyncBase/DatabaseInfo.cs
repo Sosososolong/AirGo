@@ -503,6 +503,9 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             // 数据源-数据库
             var res = await GetAllTablesAsync(sourceConn, syncedDb);
 
+            DatabaseType targetDbType = GetDbType(targetConnectionString);
+            DatabaseType sourceDbType = GetDbType(sourceConnectionString);
+
             using var targetConn = GetDbConnection(targetConnectionString);
             targetConn.Open();
             foreach (var table in res)
@@ -514,8 +517,9 @@ namespace Sylas.RemoteTasks.Database.SyncBase
 
                 #region 表名信息
                 string tableName = table.Split('.').Last();
-                DatabaseType targetDbType = GetDbType(targetConn.ConnectionString);
+                
                 string tableNameStatement = GetTableStatement(tableName, targetDbType);
+                string sourceTableStatement = GetTableStatement(tableName, sourceDbType);
                 if (targetDbType == DatabaseType.SqlServer)
                 {
                     tableNameStatement = $"[dbo].{tableNameStatement}";
@@ -555,6 +559,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                     catch (Exception ex)
                     {
                         LoggerHelper.LogError($"创建表出错: {ex.Message}{Environment.NewLine}{createSql}");
+                        throw;
                     }
                 }
                 #endregion
@@ -566,38 +571,42 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 using var dbTransaction = targetConn.BeginTransaction();
                 await foreach (var tableSqlsInfo in tableSqlsInfoCollection)
                 {
-                    try
+                    if (!string.IsNullOrWhiteSpace(tableSqlsInfo.DeleteExistSqlInfo.Sql))
                     {
-                        if (string.IsNullOrEmpty(tableSqlsInfo.BatchInsertSqlInfo.Sql))
-                        {
-                            // $"表{tableSqlsInfo.TableName}没有数据无需处理"
-                            continue;
-                        }
-
-                        if (!string.IsNullOrWhiteSpace(tableSqlsInfo.DeleteExistSqlInfo.Sql))
-                        {
-                            int deletedRows = await targetConn.ExecuteAsync(tableSqlsInfo.DeleteExistSqlInfo.Sql, tableSqlsInfo.DeleteExistSqlInfo.Parameters, transaction: dbTransaction);
-                            LoggerHelper.LogInformation($"{table}删除已存在的数据: {deletedRows}");
-                        }
-                        var affectedRowsCount = await targetConn.ExecuteAsync(tableSqlsInfo.BatchInsertSqlInfo.Sql, tableSqlsInfo.BatchInsertSqlInfo.Parameters, transaction: dbTransaction);
-                        if (targetDbType == DatabaseType.Oracle && affectedRowsCount == -1)
-                        {
-                            affectedRowsCount = Regex.Matches(tableSqlsInfo.BatchInsertSqlInfo.Sql, @"insert", RegexOptions.IgnoreCase).Count;
-                        }
-                        LoggerHelper.LogInformation($"{table}添加数据: {affectedRowsCount}");
+                        int deletedRows = await targetConn.ExecuteAsync(tableSqlsInfo.DeleteExistSqlInfo.Sql, tableSqlsInfo.DeleteExistSqlInfo.Parameters, transaction: dbTransaction);
+                        LoggerHelper.LogInformation($"{table}删除已存在的数据: {deletedRows}");
                     }
-                    catch (Exception ex)
+                    if (!string.IsNullOrEmpty(tableSqlsInfo.BatchInsertSqlInfo.Sql))
                     {
-                        LoggerHelper.LogInformation(ex.ToString());
-                        LoggerHelper.LogInformation($"createSql: {createSql}");
-                        LoggerHelper.LogInformation($"tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql: {tableSqlsInfo.BatchInsertSqlInfo.Sql}");
-                        LoggerHelper.LogInformation($"tableSqlsInfo.BatchInsertSqlInfo.DeleteExistSqlInfo: {tableSqlsInfo.DeleteExistSqlInfo.Sql}");
-                        if (!ignoreException)
+                        try
                         {
-                            dbTransaction.Rollback();
-                            throw;
+                            var affectedRowsCount = await targetConn.ExecuteAsync(tableSqlsInfo.BatchInsertSqlInfo.Sql, tableSqlsInfo.BatchInsertSqlInfo.Parameters, transaction: dbTransaction);
+                            if (targetDbType == DatabaseType.Oracle && affectedRowsCount == -1)
+                            {
+                                affectedRowsCount = Regex.Matches(tableSqlsInfo.BatchInsertSqlInfo.Sql, @"insert", RegexOptions.IgnoreCase).Count;
+                            }
+                            LoggerHelper.LogInformation($"{table}添加数据: {affectedRowsCount}");
                         }
-                        dbTransaction.Commit();
+                        catch (Exception ex)
+                        {
+                            // MySQL偶现了一次表情包无法插入的问题(表和字段字符集都是utf8mb4); 后面测试又都正常了
+                            if (Regex.IsMatch(ex.Message, @"Incorrect string value:") && targetDbType == DatabaseType.MySql)
+                            {
+                                var affectedRowsCount = await targetConn.ExecuteAsync($"SET NAMES utf8mb4;{tableSqlsInfo.BatchInsertSqlInfo.Sql}", tableSqlsInfo.BatchInsertSqlInfo.Parameters, transaction: dbTransaction);
+                                LoggerHelper.LogInformation($"{table}添加数据: {affectedRowsCount}");
+                            }
+                            else
+                            {
+                                LoggerHelper.LogInformation(ex.ToString());
+                                LoggerHelper.LogInformation($"tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql: {tableSqlsInfo.BatchInsertSqlInfo.Sql}");
+                                if (!ignoreException)
+                                {
+                                    dbTransaction.Rollback();
+                                    throw;
+                                }
+                                dbTransaction.Commit();
+                            }
+                        }
                     }
                 }
                 dbTransaction.Commit();
@@ -1314,7 +1323,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             return dbType switch
             {
                 var type when type == DatabaseType.Oracle || type == DatabaseType.Dm => $"BEGIN{Environment.NewLine}{Regex.Replace(Regex.Replace(valuesStatement, @"\(:", m => $"insert into {tableStatement}({columnsStatement}) values{m.Value}"), @"\),", m => $"{m.Value.TrimEnd(',')};")};{Environment.NewLine}END;",
-                DatabaseType.MySql => $"SET foreign_key_checks=0;{Environment.NewLine}insert into {tableStatement}({columnsStatement}) values{Environment.NewLine}{valuesStatement};",
+                DatabaseType.MySql => $"SET foreign_key_checks=0;{Environment.NewLine}insert into {tableStatement}({columnsStatement}) values{Environment.NewLine}{valuesStatement};{Environment.NewLine}SET foreign_key_checks=1;",
                 _ => $"insert into {tableStatement}({columnsStatement}) values{Environment.NewLine}{valuesStatement};"
             };
         }
@@ -1360,7 +1369,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// <param name="tableRecords"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static string GetColumnsAssignment(IEnumerable<ColumnInfo> colInfos, DatabaseType dbType, object? tableRecords = null)
+        public static string GetColumnDefinitions(IEnumerable<ColumnInfo> colInfos, DatabaseType dbType, object? tableRecords = null)
         {
             // 处理一条数据
             StringBuilder columnBuilder = new();
@@ -1421,7 +1430,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                         DatabaseType.SqlServer => "varbinary(max)",
                         _ => $"text{Environment.NewLine}"
                     },
-                    var type when type.ToLower().Contains("varchar") && Convert.ToInt32(colInfo.ColumnLength) > 0 => dbType switch
+                    var type when type.ToLower().Contains("varchar") && !string.IsNullOrWhiteSpace(colInfo.ColumnLength) && Convert.ToInt32(colInfo.ColumnLength.TrimStart('-')) > 0 => dbType switch
                     {
                         DatabaseType.Oracle => $"nvarchar2({GetStringColumnLengthBySourceData(colInfo.ColumnLength, colInfo.ColumnCode, tableRecords)}){Environment.NewLine}",
                         DatabaseType.MySql => $"varchar({GetStringColumnLengthBySourceData(colInfo.ColumnLength, colInfo.ColumnCode, tableRecords)}){Environment.NewLine}",
@@ -1437,12 +1446,11 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                         _ => $"varchar({colInfo.ColumnLength}){Environment.NewLine}"
                     }
                 };
-                var columnStatement = $"{columnName} {columnTypeAndLength},";
-                if (colInfo.IsPK == 1)
+                if (colInfo.IsPK == 1 && dbType == DatabaseType.SqlServer)
                 {
-                    columnStatement = $"{columnName} {columnTypeAndLength} NOT NULL PRIMARY KEY,";
+                    columnTypeAndLength = $"columnTypeAndLength.TrimEnd('\r', '\n') NOT NULL PRIMARY KEY,{Environment.NewLine}";
                 }
-                columnBuilder.Append(columnStatement);
+                columnBuilder.Append($"{columnName} {columnTypeAndLength},");
             }
 
             var columnsAssignment = columnBuilder.ToString().TrimEnd(',');
@@ -1492,6 +1500,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             {
                 columnLength = "0";
             }
+            columnLength = columnLength.TrimStart('-');
             if (tableRecords is null)
             {
                 return Convert.ToInt32(columnLength);
@@ -1589,28 +1598,10 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             return valueBuilder.ToString().TrimEnd(',');
         }
 
-        /// <summary>
-        /// 生成一条insert语句 - mysql, 不同于Oracle,这里不需要参数: string targetTable, string columnsStatement,
-        /// </summary>
-        /// <param name="dataItem"></param>
-        /// <param name="colInfos"></param>
-        /// <param name="parameters"></param>
-        /// <param name="dbVarFlag"></param>
-        /// <param name="random"></param>
-        /// <returns></returns>
-        public static string GenerateInsertSql(DataRow dataItem, IEnumerable<ColumnInfo> colInfos, Dictionary<string, object?> parameters, string dbVarFlag, int random = 0)
-        {
-            // "@Name1, :Age1"
-            string valuesStatement = GenerateRecordValuesStatement(dataItem, colInfos, parameters, dbVarFlag, random);
-            // ("@Name1, :Age1"),
-            string currentDataRowInsertStatement = $"({valuesStatement}),{Environment.NewLine}";
-            return currentDataRowInsertStatement;
-        }
-
         /// <summary>生成创建表的SQL语句</summary>
         public static string GenerateCreateTableSql(string tableName, DatabaseType dbType, IEnumerable<ColumnInfo> colInfos, object? tableRecords = null)
         {
-            var columnsAssignment = GetColumnsAssignment(colInfos, dbType, tableRecords);
+            var columnsAssignment = GetColumnDefinitions(colInfos, dbType, tableRecords);
 
             var tableStatement = GetTableStatement(tableName, dbType);
             if (dbType == DatabaseType.SqlServer)
@@ -1635,7 +1626,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
 
                     DatabaseType.MySql => $", PRIMARY KEY ({pksStatement}) USING BTREE",
 
-                    // sqlserver
+                    // sqlserver直接在字段声明语句后面指定了主键
                     _ => ""
                 };
             }
@@ -1794,7 +1785,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                 {
                     var dataItemPkValues = primaryKeys.Select(x => dataItem[x].ToString()).ToArray();
                     string dataItemPkValue = string.Join(',', dataItemPkValues);
-                    // 重复的数据不做处理
+                    // 重复的数据先删除老的再插入新的达到更新的目的
                     if (targetPkValues.Count > 0 && targetPkValues.Contains(dataItemPkValue))
                     {
                         // ,@Id1
@@ -1802,8 +1793,11 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                         deleteExistSqlBuilder.Append(deleteSqlCurrentRecordPart);
                     }
 
-                    // (@Name1, @Age1),
-                    string currentRecordSql = GenerateInsertSql(dataItem, colInfos, parameters, dbVarFlag, random);
+                    // "@Name1, :Age1"
+                    string valuesStatement = GenerateRecordValuesStatement(dataItem, colInfos, parameters, dbVarFlag, random);
+                    // ("@Name1, :Age1"),
+                    string currentRecordSql = $"({valuesStatement}),{Environment.NewLine}";
+
                     insertSqlBuilder.Append($"{currentRecordSql}");
                     random++;
                 }
