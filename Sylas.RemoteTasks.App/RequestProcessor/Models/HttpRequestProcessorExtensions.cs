@@ -1,8 +1,8 @@
 ﻿using Sylas.RemoteTasks.App.DataHandlers;
-using Sylas.RemoteTasks.App.Models.HttpRequestProcessor.Dtos;
+using Sylas.RemoteTasks.App.RequestProcessor.Models.Dtos;
 using System.Diagnostics;
 
-namespace Sylas.RemoteTasks.App.Models.HttpRequestProcessor
+namespace Sylas.RemoteTasks.App.RequestProcessor.Models
 {
     public static class HttpRequestProcessorExtensions
     {
@@ -18,7 +18,7 @@ namespace Sylas.RemoteTasks.App.Models.HttpRequestProcessor
                 Remark = source.Remark
             };
         }
-        
+
         public static HttpRequestProcessorStepDataHandlerCreateDto ToCreateDto(this HttpRequestProcessorStepDataHandler source)
         {
             return new HttpRequestProcessorStepDataHandlerCreateDto
@@ -31,10 +31,11 @@ namespace Sylas.RemoteTasks.App.Models.HttpRequestProcessor
                 Remark = source.Remark
             };
         }
-        
+
         public static HttpRequestProcessorCreateDto ToCreateDto(this HttpRequestProcessor source)
         {
-            return new HttpRequestProcessorCreateDto {
+            return new HttpRequestProcessorCreateDto
+            {
                 Headers = source.Headers,
                 Name = source.Name,
                 Title = source.Title,

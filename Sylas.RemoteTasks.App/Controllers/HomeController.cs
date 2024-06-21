@@ -6,6 +6,7 @@ using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.Models;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils;
+using Sylas.RemoteTasks.Utils.Constants;
 using System.Data;
 using System.Diagnostics;
 using System.Text;
@@ -13,10 +14,10 @@ using System.Text.RegularExpressions;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {
-    public class HomeController : Controller
+    public class HomeController(ILogger<HomeController> logger, IWebHostEnvironment webHostEnvironment, IConfiguration configuration, DatabaseProvider databaseProvider) : Controller
     {
         private readonly DotNETOperation _coreOperations = new();
-        private readonly DatabaseProvider _db;
+        private readonly DatabaseProvider _db = databaseProvider;
         private const char _space = ' ';
         private readonly string _oneTabSpace = new(_space, 4);
         private readonly string _twoTabsSpace = new(_space, 8);
@@ -29,7 +30,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         private static string _currentOperationPath = "Path001"; // 表示不同的项目, 相同类型的项目可能会有好几个, 解决方案目录和项目根目录相关信息
 
         // 所有的操作方案
-        private static List<Tuple<string, JObject>> _allOperationTypes = new List<Tuple<string, JObject>>();
+        private static List<Tuple<string, JObject>> _allOperationTypes = [];
 
         // 当前操作方案 - settings[_currentOperationType]
         private static dynamic _settingsObj = string.Empty;
@@ -41,20 +42,30 @@ namespace Sylas.RemoteTasks.App.Controllers
         private static string _connectionString = string.Empty;
 
         private static string _customDbContextFile = string.Empty;
-        private readonly IWebHostEnvironment _webHostEnv;
-        private readonly IConfiguration _configuration;
-        private readonly ILogger<HomeController> _logger;
-
-        public HomeController(ILogger<HomeController> logger, IWebHostEnvironment webHostEnvironment, IConfiguration configuration, DatabaseProvider databaseProvider)
-        {
-            _logger = logger;
-            _webHostEnv = webHostEnvironment;
-            _configuration = configuration;
-            _db = databaseProvider;
-        }
+        private readonly IWebHostEnvironment _webHostEnv = webHostEnvironment;
+        private readonly IConfiguration _configuration = configuration;
+        private readonly ILogger<HomeController> _logger = logger;
 
         public async Task<IActionResult> Index()
         {
+            if (Request.Query.TryGetValue("ip", out _))
+            {
+                StringBuilder ipInfoBuilder = new();
+                string? directIp = HttpContext.Connection.RemoteIpAddress?.MapToIPv4()?.ToString();
+                if (!string.IsNullOrWhiteSpace(directIp))
+                {
+                    ipInfoBuilder.AppendLine($"Direct Ip: {directIp}");
+                }
+                if (Request.Headers.TryGetValue(HeaderConstants.RealIp, out Microsoft.Extensions.Primitives.StringValues value))
+                {
+                    ipInfoBuilder.AppendLine($"{HeaderConstants.RealIp}：{value}");
+                }
+                if (Request.Headers.TryGetValue(HeaderConstants.ForwardedFor, out Microsoft.Extensions.Primitives.StringValues forwardFor))
+                {
+                    ipInfoBuilder.AppendLine($"{HeaderConstants.ForwardedFor}：{forwardFor}");
+                }
+                return Content(ipInfoBuilder.ToString());
+            }
             //准备所需要的数据
             string sql = $@"select
 	                            top (@pageSize) *
@@ -71,16 +82,16 @@ namespace Sylas.RemoteTasks.App.Controllers
 	                            COUNT(*)
                             from {_configuration["FirstTable"]} as users
                             ";
-            if (Request.Method.ToLower() == "post" && !string.IsNullOrEmpty(Request.Form["sql"]))
+            if (Request.Method.Equals("post", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(Request.Form["sql"]))
             {
                 sql = Request.Form["sql"].ToString();
             }
-            if (Request.Method.ToLower() == "post" && !string.IsNullOrEmpty(Request.Form["connectionString"]))
+            if (Request.Method.Equals("post", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(Request.Form["connectionString"]))
             {
                 _db.ConnectionString = Request.Form["connectionString"].ToString();
             }
 
-            if (Request.Method.ToLower() == "post" && sql.IndexOf("@pageIndex") == 0 || sql.IndexOf("@pageSize") == 0)
+            if (Request.Method.Equals("post", StringComparison.OrdinalIgnoreCase) && sql.StartsWith("@pageIndex") || sql.StartsWith("@pageSize"))
             {
                 return Content($"sql语句: {sql}中, 没有@pageIndex和@pageSize参数");
             }

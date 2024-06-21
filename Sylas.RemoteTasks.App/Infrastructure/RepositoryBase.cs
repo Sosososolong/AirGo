@@ -2,7 +2,7 @@
 using Sylas.RemoteTasks.Database;
 using Sylas.RemoteTasks.Database.SyncBase;
 
-namespace Sylas.RemoteTasks.App.Repositories
+namespace Sylas.RemoteTasks.App.Infrastructure
 {
     public class RepositoryBase<T>(IDatabaseProvider databaseProvider) where T : EntityBase<int>, new()
     {

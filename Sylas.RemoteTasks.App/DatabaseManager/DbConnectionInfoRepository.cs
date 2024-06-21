@@ -1,19 +1,15 @@
-﻿using Sylas.RemoteTasks.App.Models.DbConnectionStrings;
-using Sylas.RemoteTasks.App.Models.DbConnectionStrings.Dtos;
+﻿using Sylas.RemoteTasks.App.DatabaseManager.Models;
+using Sylas.RemoteTasks.App.DatabaseManager.Models.Dtos;
 using Sylas.RemoteTasks.Database;
 using Sylas.RemoteTasks.Database.SyncBase;
+using Sylas.RemoteTasks.Utils;
 using System.Text;
 
-namespace Sylas.RemoteTasks.App.Repositories
+namespace Sylas.RemoteTasks.App.DatabaseManager
 {
-    public class DbConnectionInfoRepository
+    public class DbConnectionInfoRepository(IDatabaseProvider databaseProvider)
     {
-        private readonly IDatabaseProvider _db;
-
-        public DbConnectionInfoRepository(IDatabaseProvider databaseProvider)
-        {
-            _db = databaseProvider;
-        }
+        private readonly IDatabaseProvider _db = databaseProvider;
 
         #region DbConnectionString
         /// <summary>
@@ -37,7 +33,7 @@ namespace Sylas.RemoteTasks.App.Repositories
         /// <returns></returns>
         public async Task<DbConnectionInfo?> GetByIdAsync(int id)
         {
-            var pages = await _db.QueryPagedDataAsync<DbConnectionInfo>(DbConnectionInfo.TableName, 1, 1, "id", true, new DataFilter { FilterItems = new List<FilterItem> { new FilterItem { CompareType = "=", FieldName = "id", Value = id.ToString() } } });
+            var pages = await _db.QueryPagedDataAsync<DbConnectionInfo>(DbConnectionInfo.TableName, 1, 1, "id", true, new DataFilter { FilterItems = [new() { CompareType = "=", FieldName = "id", Value = id.ToString() }] });
             var connectionString = pages.Data.FirstOrDefault();
             if (connectionString is null)
             {
@@ -50,12 +46,17 @@ namespace Sylas.RemoteTasks.App.Repositories
         /// </summary>
         /// <param name="dbConnectionString"></param>
         /// <returns></returns>
-        public async Task<int> AddAsync(DbConnectionStringInDto dbConnectionString)
+        public async Task<int> AddAsync(DbConnectionInfoInDto dbConnectionString)
         {
+            if (!dbConnectionString.ConnectionString.IsDbConnectionString())
+            {
+                throw new Exception("数据库连接字符串格式异常");
+            }
             if (dbConnectionString.OrderNo == 0)
             {
                 dbConnectionString.OrderNo = 100;
             }
+            dbConnectionString.ConnectionString = SecurityHelper.AesEncrypt(dbConnectionString.ConnectionString);
             string sql = $"insert into {DbConnectionInfo.TableName} (Name, Alias, ConnectionString, Remark, OrderNo, CreateTime, UpdateTime) values(@name, @alias, @connectionString, @remark, @orderNo, @createTime, @updateTime)";
             var parameters = new Dictionary<string, object>
             {
@@ -77,6 +78,11 @@ namespace Sylas.RemoteTasks.App.Repositories
         /// <exception cref="Exception"></exception>
         public async Task<int> UpdateAsync(DbConnectionInfo dbConnectionString)
         {
+            if (!dbConnectionString.ConnectionString.IsDbConnectionString())
+            {
+                throw new Exception("数据库连接字符串格式异常");
+            }
+            dbConnectionString.ConnectionString = SecurityHelper.AesEncrypt(dbConnectionString.ConnectionString);
             var parameters = new Dictionary<string, object> { { "id", dbConnectionString.Id } };
 
             var recordCount = await _db.ExecuteSqlAsync($"select count(*) from {DbConnectionInfo.TableName} where id=@id", parameters);
@@ -112,7 +118,7 @@ namespace Sylas.RemoteTasks.App.Repositories
                 parameters.Add("orderNo", dbConnectionString.OrderNo);
             }
             setStatement.Append($"updateTime=@updateTime,");
-            parameters.Add("update", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+            parameters.Add("updateTime", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
 
             string sql = $"update {DbConnectionInfo.TableName} set {setStatement.ToString().TrimEnd(',')} where id=@id";
             return await _db.ExecuteSqlAsync(sql, parameters);

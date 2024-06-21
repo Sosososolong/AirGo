@@ -1,4 +1,4 @@
-﻿namespace Sylas.RemoteTasks.App.Models.DbConnectionStrings
+﻿namespace Sylas.RemoteTasks.App.DatabaseManager.Models
 {
     public class DbConnectionInfo
     {

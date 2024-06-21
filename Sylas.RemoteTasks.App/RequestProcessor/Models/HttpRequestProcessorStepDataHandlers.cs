@@ -1,4 +1,4 @@
-﻿namespace Sylas.RemoteTasks.App.Models.HttpRequestProcessor
+﻿namespace Sylas.RemoteTasks.App.RequestProcessor.Models
 {
     public class HttpRequestProcessorStepDataHandler
     {

@@ -1,7 +1,7 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Sylas.RemoteTasks.App.DataHandlers;
-using Sylas.RemoteTasks.App.Models.HttpRequestProcessor;
+using Sylas.RemoteTasks.App.RequestProcessor.Models;
 using Sylas.RemoteTasks.Utils;
 using Sylas.RemoteTasks.Utils.Template;
 using System.Reflection;

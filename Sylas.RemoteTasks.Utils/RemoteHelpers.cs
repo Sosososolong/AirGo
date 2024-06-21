@@ -242,7 +242,7 @@ namespace Sylas.RemoteTasks.Utils
             // 如果请求方式是application/json, 那么body中的参数就是一个json字符串: { "name": "zhangsan", "age": 24 }, 
             if (bodyDictionary.Any())
             {
-                if (mediaType == MediaType.FormuUrlencoded)
+                if (mediaType == MediaType.FormuUrlEncoded)
                 {
                     if (bodyDictionary is JObject bodyObj)
                     {
@@ -452,7 +452,7 @@ namespace Sylas.RemoteTasks.Utils
         /// <summary>
         /// 媒体类型 - form-urlencoded
         /// </summary>
-        public const string FormuUrlencoded = "application/x-www-form-urlencoded";
+        public const string FormuUrlEncoded = "application/x-www-form-urlencoded";
         /// <summary>
         /// 媒体类型 - json
         /// </summary>

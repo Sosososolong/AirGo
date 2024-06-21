@@ -164,8 +164,8 @@ namespace Sylas.RemoteTasks.Test.Remote
         [Fact]
         public async Task SyncJsonData()
         {
-            string dataDir = "D:/.NET/iduo/routine/db/数据库结构同步数据迁移/org datasource json";
-            string connectionString = "Server=192.168.1.40;Port=3306;Stmt=;Database=iduo_ids4_xtie;Uid=root;Pwd=123456;Allow User Variables=true;sslMode=None";
+            string dataDir = "D:/.NET/Id/routine/db/数据库结构同步数据迁移/org datasource json";
+            string connectionString = "Server=127.0.0.1;Port=3306;Stmt=;Database=id_org_xtie;Uid=root;Pwd=123456;Allow User Variables=true;sslMode=None";
             var files = Directory.GetFiles(dataDir);
             foreach (var file in files)
             {

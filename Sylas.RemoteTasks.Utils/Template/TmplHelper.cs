@@ -350,7 +350,8 @@ namespace Sylas.RemoteTasks.Utils.Template
                     }
                 }
             }
-            return results.Count == 1 && results.First().GetType().Name == "String" ? results.First() : results;
+            string[] baseTypes = ["String", "Int", "Double", "Float", "Decimal", "DateTime"];
+            return results.Count == 1 && baseTypes.Any(x => results.First().GetType().Name.StartsWith(x)) ? results.First() : results;
 
             object ResolveFromDictionary(string tmplExpressionWithParser, Dictionary<string, object> dataContext)
             {

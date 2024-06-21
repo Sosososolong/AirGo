@@ -1,4 +1,4 @@
-﻿namespace Sylas.RemoteTasks.App.Models.HttpRequestProcessor.Dtos
+﻿namespace Sylas.RemoteTasks.App.RequestProcessor.Models.Dtos
 {
     public class HttpRequestProcessorCreateDto
     {

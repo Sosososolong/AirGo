@@ -39,6 +39,7 @@
 
   <ItemGroup>
     <Folder Include="RegExp\" />
+    <Folder Include="Repositories\" />
   </ItemGroup>
 
 </Project>

@@ -1,9 +1,9 @@
 ﻿using IdentityServer4.AccessTokenValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Sylas.RemoteTasks.App.DatabaseManager;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.RegexExp;
-using Sylas.RemoteTasks.App.Repositories;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils;
 using Sylas.RemoteTasks.Utils.Dto;

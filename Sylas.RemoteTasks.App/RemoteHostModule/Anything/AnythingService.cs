@@ -1,6 +1,6 @@
 ﻿using Microsoft.Extensions.Caching.Memory;
 using Newtonsoft.Json;
-using Sylas.RemoteTasks.App.Repositories;
+using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils;
 using Sylas.RemoteTasks.Utils.CommandExecutor;

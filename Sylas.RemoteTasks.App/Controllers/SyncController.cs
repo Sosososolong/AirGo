@@ -1,8 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Sylas.RemoteTasks.App.Models.HttpRequestProcessor;
-using Sylas.RemoteTasks.App.Models.HttpRequestProcessor.Dtos;
-using Sylas.RemoteTasks.App.Repositories;
 using Sylas.RemoteTasks.App.RequestProcessor;
+using Sylas.RemoteTasks.App.RequestProcessor.Models;
+using Sylas.RemoteTasks.App.RequestProcessor.Models.Dtos;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils.Dto;
 
@@ -35,7 +34,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             {
                 return Ok(new OperationResult(false, "参数不能为空"));
             }
-            await service.ExecuteFromDatabaseAsync(dto.ProcessorIds, dto.StepId);
+            await service.ExecuteHttpRequestProcessorsAsync(dto.ProcessorIds, dto.StepId);
             return Ok(new OperationResult(true));
         }
 

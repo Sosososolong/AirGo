@@ -719,6 +719,18 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 compareResult.Changed.ForEach(x => inserts.Add(x.SourceRecord));
             }
 
+            await InsertDataAsync(inserts, table, conn);
+        }
+
+        /// <summary>
+        /// 将数据添加到表中
+        /// </summary>
+        /// <param name="inserts"></param>
+        /// <param name="table"></param>
+        /// <param name="conn"></param>
+        /// <returns></returns>
+        public static async Task InsertDataAsync(JArray inserts, string table, IDbConnection conn)
+        {
             // TODO: 尝试将GetInsertSqlInfosAsync的分批批量插入语句逻辑移植到GetTableSqlsInfoAsync, 然后这里替换为GetTableSqlsInfoAsync, 好处是表不存在可以创建表
             var insertSqlInfos = await GetInsertSqlInfosAsync(inserts, table, conn);
             foreach (var sqlInfo in insertSqlInfos)
@@ -730,22 +742,13 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 }
                 catch (Exception)
                 {
-                    if (logger is null)
-                    {
-                        LoggerHelper.LogInformation(sqlInfo.Sql);
-                        LoggerHelper.LogInformation(JsonConvert.SerializeObject(sqlInfo.Parameters));
-                    }
-                    else
-                    {
-                        logger.LogError(sqlInfo.Sql);
-                        logger.LogError(JsonConvert.SerializeObject(sqlInfo.Parameters));
-                    }
-
+                    LoggerHelper.LogInformation(sqlInfo.Sql);
+                    LoggerHelper.LogInformation(JsonConvert.SerializeObject(sqlInfo.Parameters));
                     throw;
                 }
 
                 #region 记录数据日志
-                LogData(logger, table, inserted, sqlInfo);
+                LogData(null, table, inserted, sqlInfo);
                 #endregion
             }
         }
@@ -879,7 +882,15 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         }
         static void LogData(ILogger? logger, string table, int inserted, SqlInfo sqlInfo)
         {
-            logger?.LogInformation($"数据表{table}新增{inserted}条数据数据");
+            string info = $"数据表{table}新增{inserted}条数据数据";
+            if (logger is null)
+            {
+                LoggerHelper.LogInformation(info);
+            }
+            else
+            {
+                logger?.LogInformation(info);
+            }
 
             //var fieldsMatch = Regex.Match(sqlInfo.Sql, @"insert\s+into\s+\w+\s*\(`{0,1}\w+`{0,1}(?<otherFields>(,\s*`{0,1}\w+`{0,1}\s*)*)\)", RegexOptions.IgnoreCase);
             //var fieldsCount = fieldsMatch.Groups["otherFields"].Value.Count(x => x == ',') + 1;
@@ -2526,6 +2537,53 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             conn.Close();
             connUpdate.Close();
             return affectedRows;
+        }
+
+        /// <summary>
+        /// 将表和字段名改为大写
+        /// </summary>
+        /// <param name="connStr"></param>
+        /// <param name="database"></param>
+        /// <param name="table"></param>
+        /// <returns></returns>
+        public static async Task<string> UpperTableAndColumnNames(string connStr, string database, string table)
+        {
+            string sql = $"""
+                DECLARE  
+                  v_table_name VARCHAR2(100) := '{table}'; -- 替换为你的表名  
+                  v_owner      VARCHAR2(100) := '{database}'; -- 替换为你的模式名  
+                  v_new_table_name VARCHAR2(100); 
+                BEGIN
+                  -- 检查表名是否是小写并转换为大写
+                  SELECT DECODE(UPPER(table_name), table_name, NULL, UPPER(table_name))
+                  INTO v_new_table_name  
+                  FROM all_tables  
+                  WHERE table_name = v_table_name AND owner = v_owner AND table_name <> UPPER(table_name);
+
+
+                  IF v_new_table_name IS NOT NULL THEN  
+                    -- DBMS_OUTPUT.PUT_LINE('ALTER TABLE ' || v_owner || '.' || v_table_name || ' RENAME TO ' || v_new_table_name);
+                    EXECUTE IMMEDIATE 'ALTER TABLE ' || v_owner || '.' || '"' || v_table_name || '"' || ' RENAME TO ' || v_new_table_name;  
+                    DBMS_OUTPUT.PUT_LINE('Renamed table ' || v_owner || '.' || v_table_name || ' to ' || v_new_table_name);  
+                    v_table_name := v_new_table_name; -- 更新表名为新的大写名称
+                  ELSE
+                    DBMS_OUTPUT.PUT_LINE('Table ' || v_owner || '.' || v_table_name || ' is already uppercase or not created with quotes.');  
+                  END IF; 
+
+                  FOR col IN (SELECT column_name, table_name, owner FROM all_tab_columns WHERE table_name = v_table_name AND owner = v_owner) LOOP  
+                    -- 检查字段名是否已经是大写（精确匹配）  
+                    IF col.column_name <> upper(col.column_name) THEN  
+                      EXECUTE IMMEDIATE 'ALTER TABLE ' || col.owner || '.' || col.table_name || ' RENAME COLUMN "' || col.column_name || '" TO ' || '"' || upper(col.column_name) || '"';  
+                      DBMS_OUTPUT.PUT_LINE('Renamed column ' || col.owner || '.' || col.table_name || '.' || col.column_name || ' to ' || upper(col.column_name));  
+                    ELSE  
+                      DBMS_OUTPUT.PUT_LINE('Column ' || col.owner || '.' || col.table_name || '.' || col.column_name || ' is already uppercase.');  
+                    END IF;  
+                  END LOOP;  
+                END;
+                """;
+            var conn = GetDbConnection(connStr);
+            var res = await conn.ExecuteAsync(sql);
+            return res.ToString();
         }
     }
 

@@ -1,19 +1,14 @@
-﻿using Sylas.RemoteTasks.App.Models.HttpRequestProcessor;
-using Sylas.RemoteTasks.App.Models.HttpRequestProcessor.Dtos;
+﻿using Sylas.RemoteTasks.App.RequestProcessor.Models;
+using Sylas.RemoteTasks.App.RequestProcessor.Models.Dtos;
 using Sylas.RemoteTasks.Database;
 using Sylas.RemoteTasks.Database.SyncBase;
 using System.Text;
 
-namespace Sylas.RemoteTasks.App.Repositories
+namespace Sylas.RemoteTasks.App.RequestProcessor
 {
-    public class HttpRequestProcessorRepository
+    public class HttpRequestProcessorRepository(IDatabaseProvider databaseProvider)
     {
-        private readonly IDatabaseProvider _db;
-
-        public HttpRequestProcessorRepository(IDatabaseProvider databaseProvider)
-        {
-            _db = databaseProvider;
-        }
+        private readonly IDatabaseProvider _db = databaseProvider;
 
         #region HttpRequestProcessors
         /// <summary>
@@ -32,7 +27,7 @@ namespace Sylas.RemoteTasks.App.Repositories
             {
                 var stepsFilters = new List<FilterItem>
                 {
-                    new FilterItem { FieldName = "processorId", CompareType = "=", Value = processor.Id.ToString() }
+                    new() { FieldName = "processorId", CompareType = "=", Value = processor.Id.ToString() }
                 };
                 var steps = (await GetStepsPageAsync(1, 1000, "id", true, new DataFilter { FilterItems = stepsFilters })).Data;
                 processor.Steps = steps;
@@ -53,7 +48,7 @@ namespace Sylas.RemoteTasks.App.Repositories
         /// <returns></returns>
         public async Task<HttpRequestProcessor?> GetByIdAsync(int id)
         {
-            var pages = await _db.QueryPagedDataAsync<HttpRequestProcessor>(HttpRequestProcessor.TableName, 1, 1, "id", true, new DataFilter { FilterItems = new List<FilterItem> { new FilterItem { CompareType = "=", FieldName = "id", Value = id.ToString() } } });
+            var pages = await _db.QueryPagedDataAsync<HttpRequestProcessor>(HttpRequestProcessor.TableName, 1, 1, "id", true, new DataFilter { FilterItems = [new FilterItem { CompareType = "=", FieldName = "id", Value = id.ToString() }] });
             var processor = pages.Data.FirstOrDefault();
             if (processor is null)
             {

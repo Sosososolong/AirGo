@@ -32,7 +32,7 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
             formItemIds: [], // `${this.tableId}FormInput_${th.name}`
             formItemIdsForAddPannel: [], // 比formItems少一个Id字段的表单项dom的id
             formItemIdsMapper: {},
-            modalSettings: modalSettings,
+            modalSettings: modalSettings, // 添加数据面板
             ths: ths,
             dataSourceField: {
                 xxFieldName: [
@@ -74,8 +74,11 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
                     tr.append(`<td>${buttonHtml}</td>`);
                 }
                 if (th.name) {
-                    // 单元格只显示部分值
                     var tdValue = row[th.name];
+                    if (th.title.indexOf('时间') > -1) {
+                        tdValue = tdValue.replace('T', ' ');
+                    }
+
                     if (th.type && th.type.indexOf('dataSource') === 0) {
                         if (!this.dataSourceField || !this.dataSourceField[th.name]) {
                             await this.resolveDataSourceField(th);
@@ -89,6 +92,7 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
                         }
                     }
 
+                    // 单元格只显示部分值
                     if (th.showPart && tdValue && tdValue.length > 12) {
                         tdValue = tdValue.substring(0, th.showPart) + '...'
                     }
@@ -120,7 +124,7 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
         return `${apiUrl}?pageIndex=${this.pageIndex}&pageSize=${this.pageSize}&orderField=${this.orderField}&isAsc=${this.isAsc}`;
     }
 
-    targetTable.loadData = async function() {
+    targetTable.loadData = async function () {
         // 分页条
         var pagination = $(`#page-${this.tableId}`);
 
@@ -579,6 +583,7 @@ async function deleteData(eventTrigger) {
     }
 
     if (response && response.isSuccess) {
+        window.table = table;
         showMsgBox('操作成功', () => table.loadData());
     } else {
         showErrorBox(response.errMsg, '错误提示', [{ class: 'error', content: '关闭' }]);

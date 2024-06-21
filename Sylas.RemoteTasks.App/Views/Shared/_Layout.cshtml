@@ -57,6 +57,21 @@
             </div>
         </div>
     </div>
+    <!--消息提示框 confirmBox-->
+    <div class="modal fade" tabindex="-1" id="confirmBox">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-sm">
+            <div class="modal-content">
+                <div class="modal-header" style="border:none;">
+                    <h5 class="modal-title"></h5>
+                    @*<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>*@
+                </div>
+                <div class="modal-body"></div>
+                <div class="modal-footer" style="border:none;">
+                    <button type="button" class="btn btn-" data-bs-dismiss="modal">关闭</button>
+                </div>
+            </div>
+        </div>
+    </div>
     <!--spinner class去掉了fade, 因为网络请求有时候只有3ms|4ms, 动画时间不止这么长时间, 也就是说此时执行关闭modal的时候modal仍然处于动画状态下还没有完全显示出来, 这样modal是不会关闭的-->
     <div class="modal" tabindex="-1" id="globalSpinner">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-sm">
@@ -77,6 +92,10 @@
     <script src="~/js/site.js" asp-append-version="true"></script>
     <script>
         const msgBox = new bootstrap.Modal('#msgBox', {
+            backdrop: 'static',
+            keyboard: false
+        });
+        const confirmBox = new bootstrap.Modal('#confirmBox', {
             backdrop: 'static',
             keyboard: false
         });
@@ -108,7 +127,7 @@
             $('#msgBox .modal-body').text(msg);
             $('#msgBox .modal-footer').html(`<button type="button" class="btn btn-success" data-bs-dismiss="modal" onclick="">确定</button>`);
             if (onClose && typeof onClose === 'function') {
-                let confirmBtn = document.querySelector('#msgBox button[data-bs-dismiss="modal"]')
+                let confirmBtn = document.querySelector('#msgBox button[data-bs-dismiss="modal"]');
                 function onCloseFunc() {
                     onClose();
                     confirmBtn.removeEventListener('click', onCloseFunc);
@@ -129,12 +148,12 @@
             if (!callback) {
                 window.callback = () => { };
             }
-            $('#msgBox .modal-title').text('确认');
-            $('#msgBox .modal-body').text(confirmMsg);
-            $('#msgBox .modal-footer').html(`<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button><button type="button" class="btn btn-danger" id="confirm" data-bs-dismiss="modal">确定</button>`);
-            $('#msgBox button[id="confirm"]').click(callback);
+            $('#confirmBox .modal-title').text('确认');
+            $('#confirmBox .modal-body').text(confirmMsg);
+            $('#confirmBox .modal-footer').html(`<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button><button type="button" class="btn btn-danger" id="confirm" data-bs-dismiss="modal">确定</button>`);
+            $('#confirmBox button[id="confirm"]').click(callback);
 
-            msgBox.show();
+            confirmBox.show();
         }
 
         function showSpinner(target) {

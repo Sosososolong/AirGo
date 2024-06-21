@@ -1,16 +1,14 @@
 using IdentityServer4.AccessTokenValidation;
-using Microsoft.AspNetCore.Diagnostics;
 using Sylas.RemoteTasks.App.BackgroundServices;
 using Sylas.RemoteTasks.App.Database;
+using Sylas.RemoteTasks.App.DatabaseManager;
 using Sylas.RemoteTasks.App.DataHandlers;
 using Sylas.RemoteTasks.App.ExceptionHandlers;
 using Sylas.RemoteTasks.App.Helpers;
+using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.RemoteHostModule;
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
-using Sylas.RemoteTasks.App.Repositories;
 using Sylas.RemoteTasks.App.RequestProcessor;
-using Sylas.RemoteTasks.Utils.Dto;
-using static System.Net.Mime.MediaTypeNames;
 
 var builder = WebApplication.CreateBuilder(args);
 
