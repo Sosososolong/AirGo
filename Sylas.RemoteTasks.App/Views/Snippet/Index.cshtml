@@ -2,19 +2,8 @@
     ViewData["Title"] = "Snippets";
 }
 
-<div class="container">
+<div>
     <h1>Snippets Manager</h1>
-    <div class="row">
-        <div class="col-md-6">
-            <form id="search-form">
-                <div class="mb-3">
-                    <label for="search-input" class="form-label">关键字</label>
-                    <input type="text" class="form-control" id="search-input">
-                </div>
-                <button type="submit" class="btn btn-primary">搜索</button>
-            </form>
-        </div>
-    </div>
     <div id="tableContainer"></div>
 </div>
 
@@ -28,9 +17,9 @@
             const tableParentSelector = "#tableContainer";
 
             const ths = [
-                { name: 'title', title: '标题' },
-                { name: 'description', title: '描述' },
-                { name: 'content', showPart: 12, title: '内容' },
+                { name: 'title', title: '标题', searchedByKeywords: true },
+                { name: 'description', title: '描述', searchedByKeywords: true },
+                { name: 'content', showPart: 12, title: '内容', searchedByKeywords: true },
                 { name: 'tmplVariables', title: '模板变量' },
                 { name: 'typeId', title: '类型', type: 'dataSource|dataSourceApi=Snippet/GetSnippetTypes|displayField=name' },
                 { name: 'createTime', title: '创建时间' },
@@ -38,7 +27,7 @@
                 // 操作栏
                 { name: '', title: '操作', type: 'button', tmpl: `
                             <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="{{id}}" data-fetch-url="/Snippet/GetSnippets" data-update-url="/Snippet/UpdateSnippet" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
-                            <button type="button" class="btn btn-primary btn-sm d-none" data-table-id="${tableId}" data-id="{{id}}" data-delete-url="/Snippet/DeleteSnippet" data-method="POST" onclick="deleteData(this)">删除</button>`
+                            <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-content="&quot;{{id}}&quot;" data-execute-url="/Snippet/DeleteSnippet" data-method="POST" onclick="showConfirmBox('确定删除? 此操作无法撤销!', () => execute(this))">删除</button>`
                 }
             ]
             const idFieldName = "id";
@@ -55,7 +44,6 @@
                 ths,                        // 数据表列配置
                 idFieldName,                // 数据的Id字段名
                 null,                       // 数据过滤条件集合 FilterItems
-                { fields: ['title', 'description', 'content'], value: '' }, // 数据过滤关键字集合 Keywords
                 null,                       // 初始化数据(有的话就渲染此数据, 不会请求接口)
                 onDataLoaded,               // 订阅数据渲染完成事件
                 '',                         // 对数据表添加父元素, 使用{{tableHtml}}变量代表整个数据表html

@@ -5,7 +5,7 @@
 
 const tables = {};
 
-function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, ths, idFieldName, filterItems = null, keywords = null, data = null, onDataLoaded = undefined, wrapper = '', modalSettings) {
+function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, ths, idFieldName, filterItems = null, data = null, onDataLoaded = undefined, wrapper = '', modalSettings) {
     if (!tables[tableId]) {
         tables[tableId] = {
             tableId: tableId,
@@ -56,9 +56,7 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
     if (filterItems) {
         targetTable.dataFilter.filterItems = filterItems;
     }
-    if (keywords) {
-        targetTable.dataFilter.keywords = keywords;
-    }
+    targetTable.dataFilter.keywords.fields = ths.filter(th => th.searchedByKeywords).map(th => th.name);
 
     targetTable.renderBody = async function (data) {
         var tbody = $(`#${this.tableId} tbody`);
@@ -246,7 +244,7 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
         </div>
         <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
-        <button type="button" class="btn btn-primary" data-btn-type="submit" data-form-type="add" onclick="handleData(tables['${this.tableId}'], this)">提交</button>
+        <button type="button" class="btn btn-primary" data-btn-type="submit" data-form-type="add" onclick="handleDataForm(tables['${this.tableId}'], this)">提交</button>
         </div>
     </div>
     </div>
@@ -303,6 +301,29 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
         return dataSourceOptions;
     }
 
+    targetTable.initSearchForm = function initSearchForm() {
+        let searchFormHtmlBase = `<form id="search-form">
+    <div class="row g-3">
+        <div class="col-sm-3">
+            <input type="text" placeholder="关键字" class="form-control" id="search-input" oninput="onSearching">
+        </div>
+        {{othersFormItems}}
+        <div class="col-sm">
+            <button type="submit" class="btn btn-primary">搜索</button>
+        </div>
+        {{others}}
+    </div>
+</form>`;
+        searchFormHtmlBase = searchFormHtmlBase.replace('{{othersFormItems}}', '');
+        if (this.modalSettings) {
+            searchFormHtmlBase = searchFormHtmlBase.replace('{{others}}', this.addOptions.button);
+        }
+        const searchForm = $(tableParentSelector).find("form");
+        if (searchForm.length === 0) {
+            $(tableParentSelector).prepend(searchFormHtmlBase);
+        }
+    }
+
     targetTable.initTableStruct = async function initTableStruct() {
         if ($(`#${this.tableId}`).length) {
             return;
@@ -312,8 +333,7 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
             await this.createModal();
         }
 
-        var tableHtml = `${this.addOptions.button}
-    <table class="table table-sm table-hover table-bordered mt-3" id="${tableId}">
+        var tableHtml = `<table class="table table-sm table-hover table-bordered mt-3" id="${tableId}">
         <thead>
             <tr>
             </tr>
@@ -336,7 +356,7 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
     </nav>
     ${this.addOptions.modalHtml}`;
         if (this.wrapper) {
-            tableHtml = $(tableParentSelector).append(this.wrapper.replace('{{tableHtml}}', tableHtml))
+            tableHtml = $(tableParentSelector).append(this.wrapper.replace('{{tableHtml}}', tableHtml));
         }
 
         // 初始化数据表格结构
@@ -363,6 +383,8 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
     }
 
     targetTable.render = async function render() {
+        // 初始化表格搜索栏表单
+        this.initSearchForm();
         // 初始化表格结构
         await this.initTableStruct();
         // 加载第一页数据
@@ -441,7 +463,7 @@ function showModal(table) {
     table.modal.show();
 }
 
-async function handleData(table, eventTrigger) {
+async function handleDataForm(table, eventTrigger) {
     let handleType = eventTrigger.getAttribute("data-form-type");
     let url = handleType === "add" ? table.modalSettings.url : eventTrigger.getAttribute("data-update-url");
     let method = handleType === "add" ? table.modalSettings.method : eventTrigger.getAttribute("data-update-method");

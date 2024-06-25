@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Sylas.RemoteTasks.App.DatabaseManager;
-using Sylas.RemoteTasks.App.DatabaseManager.Models;
 using Sylas.RemoteTasks.App.DatabaseManager.Models.Dtos;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils.Dto;
@@ -69,12 +68,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// <returns></returns>
         public async Task<IActionResult> CloneConnectionStringAsync([FromBody] int id)
         {
-            var connectionInfo = await repository.GetByIdAsync(id);
-            if (connectionInfo is null)
-            {
-                return Ok(new OperationResult(false, "数据库不存在"));
-            }
-            var affectedRows = await repository.AddAsync(new DbConnectionInfoInDto { Alias = connectionInfo.Alias, ConnectionString = connectionInfo.ConnectionString, Name = connectionInfo.Name, OrderNo = connectionInfo.OrderNo, Remark = connectionInfo.Remark });
+            var affectedRows = await repository.CloneAsync(id);
             return Ok(new OperationResult(affectedRows > 0));
         }
         /// <summary>

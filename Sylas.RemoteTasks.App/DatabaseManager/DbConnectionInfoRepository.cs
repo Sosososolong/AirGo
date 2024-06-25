@@ -2,6 +2,7 @@
 using Sylas.RemoteTasks.App.DatabaseManager.Models.Dtos;
 using Sylas.RemoteTasks.Database;
 using Sylas.RemoteTasks.Database.SyncBase;
+using Sylas.RemoteTasks.Utils.Extensions;
 using Sylas.RemoteTasks.Utils;
 using System.Text;
 
@@ -69,6 +70,25 @@ namespace Sylas.RemoteTasks.App.DatabaseManager
                 { "updateTime", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") }
             };
             return await _db.ExecuteSqlAsync(sql, parameters);
+        }
+        /// <summary>
+        /// 克隆
+        /// </summary>
+        /// <param name="dbInfo"></param>
+        /// <returns></returns>
+        public async Task<int> CloneAsync(int id)
+        {
+            var dbInfo = await GetByIdAsync(id) ?? throw new Exception("数据库不存在");
+
+            dbInfo.Name = dbInfo.Name.GetCopiedName();
+
+            var dto = new DbConnectionInfoInDto { Name = dbInfo.Name, Alias = dbInfo.Alias, ConnectionString = dbInfo.ConnectionString, OrderNo = dbInfo.OrderNo, Remark = dbInfo.Remark };
+            if (!dto.ConnectionString.IsDbConnectionString())
+            {
+                dto.ConnectionString = SecurityHelper.AesDecrypt(dto.ConnectionString);
+            }
+            var affectedRows = await AddAsync(dto);
+            return affectedRows;
         }
         /// <summary>
         /// 更新数据库连接字符串信息
