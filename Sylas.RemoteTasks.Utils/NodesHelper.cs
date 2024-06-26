@@ -341,5 +341,36 @@ namespace Sylas.RemoteTasks.Utils
                 }
             }
         }
+        /// <summary>
+        /// 扁平化获取所有子项
+        /// </summary>
+        /// <param name="list"></param>
+        /// <param name="childrenField">childrenField</param>
+        /// <returns></returns>
+        public static List<Dictionary<string, object>> GetAll(List<Dictionary<string, object>> list, string childrenField)
+        {
+            if (list is null || !list.Any())
+            {
+                return [];
+            }
+            var result = new List<Dictionary<string, object>>();
+            getAllChildren(list);
+            return result;
+
+            void getAllChildren(IEnumerable<Dictionary<string, object>> source)
+            {
+                foreach (var item in source)
+                {
+                    result.Add(item);
+                    var itemProperty = item.Keys.FirstOrDefault(x => string.Equals(x, childrenField, StringComparison.OrdinalIgnoreCase)) ?? throw new Exception($"子节点集合字段[{childrenField}]错误");
+                    var children = item[itemProperty];
+                    if (children is not null && children is List<object> childrenList)
+                    {
+                        var childrenDictionaryList = childrenList.Select(x => x is not Dictionary<string, object> itemDictionary ? throw new Exception("字典的子节点不是字典类型") : itemDictionary);
+                        getAllChildren(childrenDictionaryList);
+                    }
+                }
+            }
+        }
     }
 }

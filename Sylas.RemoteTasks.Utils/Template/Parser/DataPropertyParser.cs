@@ -38,19 +38,26 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
 
             // 有index说明currentData是数组
             var index = specifiedRecordFieldValueExpression.Groups["index"].Value;
-            object record;
+            object propertyValue;
             if (string.IsNullOrWhiteSpace(index))
             {
-                record = currentData;
+                propertyValue = currentData;
             }
             else
             {
-                var currentDataArray = JArray.FromObject(currentData).ToList();
-                if (!currentDataArray.Any())
+                short indexVal = Convert.ToInt16(index);
+                if (currentData is List<object> listData)
                 {
-                    return new ParseResult(false);
+                    propertyValue = listData[indexVal];
                 }
-                record = currentDataArray[Convert.ToInt16(index)];
+                else if(currentData is IEnumerable<object> ienumerableData)
+                {
+                    propertyValue = ienumerableData.ToList()[indexVal];
+                }
+                else
+                {
+                    propertyValue = JArray.FromObject(currentData)[indexVal];
+                } 
             }
 
             var propsValue = specifiedRecordFieldValueExpression.Groups["props"].Value;
@@ -58,25 +65,49 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
 
             foreach (var p in props)
             {
-                if (record is null || string.IsNullOrWhiteSpace(record.ToString()))
+                if (propertyValue is null || string.IsNullOrWhiteSpace(propertyValue.ToString()))
                 {
                     throw new Exception($"{nameof(DataPropertyParser)}无法根据模板[{tmpl}]找到属性{p}");
                 }
 
-                if (record is Dictionary<string, object> recordDictionary)
+                if (propertyValue is Dictionary<string, object> recordDictionary)
                 {
-                    record = recordDictionary[p];
+                    var kv = recordDictionary.Where(x => x.Key.Equals(p, StringComparison.OrdinalIgnoreCase));
+                    if (!kv.Any())
+                    {
+                        throw new Exception($"模板[{tmpl}]中无法找到属性: {p}");
+                    }
+                    propertyValue = kv.First().Value;
                 }
                 else
                 {
-                    if (record is not JObject pObj)
+                    if (propertyValue is not JObject pObj)
                     {
-                        pObj = record is IEnumerable<object> records ? JObject.FromObject(records.FirstOrDefault()) : JObject.FromObject(record);
+                        pObj = propertyValue is IEnumerable<object> records ? JObject.FromObject(records.FirstOrDefault()) : JObject.FromObject(propertyValue);
                     }
-                    record = pObj.Properties().FirstOrDefault(x => string.Equals(x.Name, p, StringComparison.OrdinalIgnoreCase))?.Value ?? throw new Exception($"无法找到属性{p}");
+                    var resolvedValue = pObj.Properties().FirstOrDefault(x => string.Equals(x.Name, p, StringComparison.OrdinalIgnoreCase))?.Value ?? throw new Exception($"无法找到属性{p}");
+                    if (resolvedValue.Type == JTokenType.String)
+                    {
+                        propertyValue = resolvedValue.ToString();
+                    }
+                    else if (resolvedValue.Type == JTokenType.Integer)
+                    {
+                        if (int.TryParse(propertyValue.ToString(), out int intProptyValue))
+                        {
+                            resolvedValue = intProptyValue;
+                        }
+                        else
+                        {
+                            resolvedValue = Convert.ToInt64(propertyValue);
+                        }
+                    }
+                    else
+                    {
+                        propertyValue = resolvedValue;
+                    }
                 }
             }
-            return new ParseResult(true, [key], record);
+            return new ParseResult(true, [key], propertyValue);
         }
     }
 }

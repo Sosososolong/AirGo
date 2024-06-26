@@ -8,12 +8,12 @@ using System.Text.RegularExpressions;
 namespace Sylas.RemoteTasks.Utils.Template.Parser
 {
     /// <summary>
-    /// 
+    /// 将字符串类型转换
     /// </summary>
     public class TypeConversionParser : ITmplParser
     {
         /// <summary>
-        /// 
+        /// 将字符串转换为其他类型
         /// </summary>
         /// <param name="tmpl"></param>
         /// <param name="dataContext"></param>
@@ -34,15 +34,25 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
                 {
                     keyVal = keyVals.FirstOrDefault();
                 }
-                if (string.Equals(type, "List<JObject>", StringComparison.OrdinalIgnoreCase) && JToken.FromObject(keyVal).Type == JTokenType.String)
+                if (keyVal is string keyValString)
                 {
-                    var val = JsonConvert.DeserializeObject<List<JObject>>(keyVal?.ToString() ?? throw new Exception($"上下文{key}的值无法转换为有效字符串"));
-                    return new ParseResult(true, [key], val);
-                    
+                    if (string.Equals(type, "List", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var val = JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(keyValString);
+                        return new ParseResult(true, [key], val);
+                    }
+                    else if (string.Equals(type, "Object", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var val = JsonConvert.DeserializeObject<Dictionary<string, object>>(keyValString);
+                    }
+                    else
+                    {
+                        throw new NotImplementedException("当前类型转换未实现");
+                    }
                 }
                 else
                 {
-                    throw new NotImplementedException("当前类型转换未实现");
+                    throw new Exception($"上下文{key}的值无法转换为有效字符串");
                 }
             }
             return new ParseResult(false);

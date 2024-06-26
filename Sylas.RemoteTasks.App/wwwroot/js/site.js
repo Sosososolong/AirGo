@@ -169,9 +169,6 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
         const tableDataModalId = `modelForTable${this.tableId}`;
         this.modalId = tableDataModalId;
 
-        // BOOKMARK: 前端/frontend封装site.js - 创建模态框 1."添加"按钮(弹出表单)
-        //data-bs-toggle="modal" data-bs-target="#${tableDataModalId}"
-        this.addOptions.button = `<button type="button" class="btn btn-primary btn-sm mt-3" onclick="showAddPannel(tables['${tableId}'])">添加</button>`;
         // BOOKMARK: 前端/frontend封装site.js - 创建模态框 2.表单项 除Id字段外的其他表单项
         for (var i = 0; i < ths.length; i++) {
             var th = ths[i]
@@ -309,13 +306,16 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
         </div>
         {{othersFormItems}}
         <div class="col-sm">
-            <button type="submit" class="btn btn-primary">搜索</button>
+            <button type="submit" class="btn btn-dark">搜索</button>
+            {{others}}
         </div>
-        {{others}}
     </div>
 </form>`;
         searchFormHtmlBase = searchFormHtmlBase.replace('{{othersFormItems}}', '');
         if (this.modalSettings) {
+            // BOOKMARK: 前端/frontend封装site.js - 创建模态框 1."添加"按钮(弹出表单)
+            //data-bs-toggle="modal" data-bs-target="#${tableDataModalId}"
+            this.addOptions.button = `<button type="button" class="btn btn-primary" onclick="showAddPannel(tables['${tableId}'])">添加</button>`;
             searchFormHtmlBase = searchFormHtmlBase.replace('{{others}}', this.addOptions.button);
         }
         const searchForm = $(tableParentSelector).find("form");

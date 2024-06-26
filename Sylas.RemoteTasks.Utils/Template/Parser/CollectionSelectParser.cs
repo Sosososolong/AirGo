@@ -17,7 +17,7 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
         public ParseResult Parse(string tmpl, Dictionary<string, object> dataContext)
         {
             tmpl = tmpl.Trim().TrimStart('$', '{').TrimEnd('}');
-            var selectExpression = Regex.Match(tmpl, @"(?<key>\${0,1}\w+) select (?<prop>[^\s]+)(?<recursively>\s+-r){0,1}$");
+            var selectExpression = Regex.Match(tmpl, @"(?<key>\${0,1}\w+) select (?<prop>[^\s]+)(?<recursively>\s+-\s*r){0,1}$");
             if (selectExpression.Success)
             {
                 var key = selectExpression.Groups["key"].Value;

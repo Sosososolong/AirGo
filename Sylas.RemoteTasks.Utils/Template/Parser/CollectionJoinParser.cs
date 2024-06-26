@@ -7,12 +7,12 @@ using System.Text.RegularExpressions;
 namespace Sylas.RemoteTasks.Utils.Template.Parser
 {
     /// <summary>
-    /// 解析模板表达式
+    /// 解析数组, 连接成字符串
     /// </summary>
     public class CollectionJoinParser : ITmplParser
     {
         /// <summary>
-        /// 解析模板表达式
+        /// 解析数组, 连接成字符串
         /// </summary>
         /// <param name="tmpl"></param>
         /// <param name="dataContext"></param>

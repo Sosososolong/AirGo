@@ -6,12 +6,12 @@ using System.Text.RegularExpressions;
 namespace Sylas.RemoteTasks.Utils.Template.Parser
 {
     /// <summary>
-    /// 
+    /// 正则截取部分字符串
     /// </summary>
     public class RegexSubStringParser : ITmplParser
     {
         /// <summary>
-        /// 
+        /// 正则使用匹配分组的方式获取子字符串
         /// </summary>
         /// <param name="tmpl"></param>
         /// <param name="dataContext"></param>

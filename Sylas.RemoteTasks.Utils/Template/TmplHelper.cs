@@ -200,24 +200,22 @@ namespace Sylas.RemoteTasks.Utils.Template
         ///   source以"$data"缓存到dataContext中
         ///   配置在使用时会产生或者获取一些数据; 数据产生并缓存一些变量供模板使用, 以达到动态配置的目的
         /// </summary>
-        /// <param name="logger"></param>
         /// <param name="source">数据源 - 就是将它($data)或者它的部分属性存储到dataContext中</param>
         /// <param name="dataContextBuilderTmpls">赋值语句模板, 即变量名=值; 变量名就是dataContext的键, 值通过模板获取source的属性值;支持各种自定义XxxParser, 用于解析获取结构复杂的source属性值</param>
         /// <param name="dataContext">包含原始的数据$data的数据上下文对象</param>
+        /// <param name="logger"></param>
         /// <returns></returns>
-        public static Dictionary<string, object?> BuildDataContextBySource(this Dictionary<string, object> dataContext, IEnumerable<JToken> source, List<string> dataContextBuilderTmpls, ILogger? logger = null)
+        public static Dictionary<string, object?> BuildDataContextBySource(this Dictionary<string, object> dataContext, object source, List<string> dataContextBuilderTmpls, ILogger? logger = null)
         {
             // key为要构建的dataContext的key, value为给key赋的值, 有可能会赋多次值
             Dictionary<string, object?> dataContextBuildDetail = [];
+            // 1. source不能确定是什么类型, 只能定位object;
+            // 2. 如设为JToken(或其他), 这里会给"$data"重新赋值(变为$data的JToken形式, 丢失了$data的原类型)
+            // 3. 我希望JToken类型只作为数据处理过程的工具(很多时候它都无需参与), 输入输出永远是系统的常见类型, 这样数据处理的每一环类型判断简单了一些(输出类型有可能只是处理链上的一环, 会作为下一环的输入...)
             dataContext["$data"] = source;
             // 解析DataContext
             foreach (var dataContextBuilderTmpl in dataContextBuilderTmpls)
             {
-                // dataContextBuilderTmpls示例:
-                // $datavar=data, $idpath=data[0].idpath, ...
-                //"$mainDataModels=DataPropertyParser[$data[0].formConfiguration.dataModels]"
-                //"$mainDataModelIds=CollectionSelectParser[$mainDataModels select Id]"
-
                 object? variableValueResolved = null;
                 string[]? sourceKeys = null;
                 var originResponseMatch = Regex.Match(dataContextBuilderTmpl, @"(?<dataContextNewKey>^\$\w+)=\$data$");
@@ -310,54 +308,119 @@ namespace Sylas.RemoteTasks.Utils.Template
             const string doubleFlag = "DOUBLEFLAGlsjflajflajf238024***%666666^^^^-+Oo)ukj(";
             tmplWithParser = tmplWithParser.Replace("$$", doubleFlag);
             var stringTmplMatches = RegexConst.StringTmpl.Matches(tmplWithParser);
-            List<object> results = [tmplWithParser];
+            #region refactor version
+            List<object> result = [];
             foreach (var stringTmplMatch in stringTmplMatches.Cast<Match>())
             {
                 var stringTmplGroups = stringTmplMatch.Groups;
                 if (stringTmplGroups.Count > 1)
                 {
-                    string tmpl = stringTmplGroups["name"].Value;
-                    var tmplValue = ResolveFromDictionary(tmpl, dataContextDictionary);
-                    if (tmplValue is not string && tmplValue is not JValue && tmplValue is not JObject && tmplValue is IEnumerable<object> arrayValue)
+                    string exp = stringTmplGroups["name"].Value;
+                    var tmplValue = ResolveFromDictionary(exp, dataContextDictionary);
+                    if (tmplValue is null)
+                    {
+                        continue;
+                    }
+                    if (tmplValue is IEnumerable<object> arrayValue)
                     {
                         List<object> newResults = [];
-                        foreach (var arrayItem in arrayValue)
+                        foreach (var valueItem in arrayValue)
                         {
-                            List<object> cpResults = [];
-                            foreach (var resultItem in results)
+                            if (valueItem is string)
                             {
-                                if (arrayItem is JObject)
-                                {
-                                    // BOOKMARK: Tmpl-JToken http请求获取数据源的时候, 默认使用JToken(JObject)处理; 后续DataHandler中也会默认数据源为IEnumerable<JToken>类型进行进一步的处理
-                                    cpResults.Add(arrayItem);
-                                }
-                                else
-                                {
-                                    var expValue = arrayItem.ToString();
-                                    cpResults.Add(resultItem.ToString().Replace(tmpl, expValue));
-                                }
+                                var expValue = valueItem.ToString();
+                                newResults.Add(tmplWithParser.ToString().Replace(exp, expValue));
                             }
-                            newResults.AddRange(cpResults);
+                            else
+                            {
+                                // BOOKMARK: Tmpl-JToken http请求获取数据源的时候, 默认使用JToken(JObject)处理; 后续DataHandler中也会默认数据源为IEnumerable<JToken>类型进行进一步的处理
+                                newResults.Add(valueItem);
+                            }
                         }
-                        results = newResults;
+                        result.AddRange(newResults);
+                    }
+                    else if (tmplValue is not string)
+                    {
+                        if (stringTmplMatches.Count == 1)
+                        {
+                            if (tmplWithParser != stringTmplMatch.Value)
+                            {
+                                // 如何源模板中除了表达式还有普通字符串, 那么直接将对象转为字符串替换表达式
+                                return tmplWithParser.Replace(stringTmplMatch.Value, tmplValue.ToString());
+                            }
+                            else
+                            {
+                                return tmplValue;
+                            }
+                        }
+                        else
+                        {
+                            result.Add(tmplValue);
+                        }
                     }
                     else
                     {
-                        for (int i = 0; i < results.Count; i++)
-                        {
-                            results[i] = results[i].ToString() == tmpl ? tmplValue : results[i].ToString().Replace(tmpl, tmplValue.ToString()).Replace(doubleFlag, "$");
-                        }
+                        tmplWithParser = tmplWithParser.Replace(exp, tmplValue.ToString()).Replace(doubleFlag, "$");
                     }
                 }
             }
-            string[] baseTypes = ["String", "Int", "Double", "Float", "Decimal", "DateTime"];
-            return results.Count == 1 && baseTypes.Any(x => results.First().GetType().Name.StartsWith(x)) ? results.First() : results;
+            return result.Count > 0 ? result : tmplWithParser;
+            #endregion
+
+            //List<object> results = [tmplWithParser];
+            //foreach (var stringTmplMatch in stringTmplMatches.Cast<Match>())
+            //{
+            //    var stringTmplGroups = stringTmplMatch.Groups;
+            //    if (stringTmplGroups.Count > 1)
+            //    {
+            //        string tmpl = stringTmplGroups["name"].Value;
+            //        var tmplValue = ResolveFromDictionary(tmpl, dataContextDictionary);
+            //        if (tmplValue is not string && tmplValue is not JValue && tmplValue is not JObject && tmplValue is IEnumerable<object> arrayValue)
+            //        {
+            //            List<object> newResults = [];
+            //            foreach (var arrayItem in arrayValue)
+            //            {
+            //                List<object> cpResults = [];
+            //                foreach (var resultItem in results)
+            //                {
+            //                    if (arrayItem is JObject)
+            //                    {
+            //                        // BOOKMARK: Tmpl-JToken http请求获取数据源的时候, 默认使用JToken(JObject)处理; 后续DataHandler中也会默认数据源为IEnumerable<JToken>类型进行进一步的处理
+            //                        cpResults.Add(arrayItem);
+            //                    }
+            //                    else
+            //                    {
+            //                        var expValue = arrayItem.ToString();
+            //                        cpResults.Add(resultItem.ToString().Replace(tmpl, expValue));
+            //                    }
+            //                }
+            //                newResults.AddRange(cpResults);
+            //            }
+            //            results = newResults;
+            //        }
+            //        else
+            //        {
+            //            for (int i = 0; i < results.Count; i++)
+            //            {
+            //                results[i] = results[i].ToString() == tmpl ? tmplValue : results[i].ToString().Replace(tmpl, tmplValue.ToString()).Replace(doubleFlag, "$");
+            //            }
+            //        }
+            //    }
+            //}
+            //string[] baseTypes = ["String", "Int", "Double", "Float", "Decimal", "DateTime"];
+            //return results.Count == 1 && baseTypes.Any(x => results.First().GetType().Name.StartsWith(x)) ? results.First() : results;
 
             object ResolveFromDictionary(string tmplExpressionWithParser, Dictionary<string, object> dataContext)
             {
                 tmplExpressionWithParser = tmplExpressionWithParser.TrimStart('$', '{').TrimEnd('}');
+                // menuIdsStr=CollectionJoinParser[$menuIds join ,]
                 #region 获取Parser名
-                var dataContextBuilderMatch = Regex.Match(tmplExpressionWithParser, @"((?<parser>\w+Parser)\[(?<expression>.+)\]$)|(?<expression>.+)");
+                var dataContextBuilderMatch = Regex.Match(tmplExpressionWithParser, @"(?<parser>\w+Parser)\[(?<expression>.+)\]");
+                if (!dataContextBuilderMatch.Success)
+                {
+                    // 匹配直接的表达式prop.items[1].propx: 默认的DataPropertyParser
+                    dataContextBuilderMatch = Regex.Match(tmplExpressionWithParser, @"(?<expression>.+)");
+                }
                 var parserName = dataContextBuilderMatch.Groups["parser"].Value;
                 var parserExpression = dataContextBuilderMatch.Groups["expression"].Value;
                 if (string.IsNullOrWhiteSpace(parserName))
