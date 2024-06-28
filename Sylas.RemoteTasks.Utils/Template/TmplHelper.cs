@@ -1,11 +1,16 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Microsoft.CodeAnalysis.Text;
+using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Sylas.RemoteTasks.App.RegexExp;
+using Sylas.RemoteTasks.Utils.Extensions.Text;
 using Sylas.RemoteTasks.Utils.Template.Parser;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Text.RegularExpressions;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace Sylas.RemoteTasks.Utils.Template
 {
@@ -281,10 +286,127 @@ namespace Sylas.RemoteTasks.Utils.Template
                 }
             }
         }
+        const string _doubleFlag = "DOUBLEFLAGlsjflajflajf238024***%666666^^^^-+Oo)ukj(";
+        const string _doubleFlagLeftBrace = $"LEFTBRACE_{_doubleFlag}";
+        const string _doubleFlagRigthBrace = $"RIGHTBRACE_{_doubleFlag}";
+        /// <summary>
+        /// 解析模板
+        /// </summary>
+        /// <param name="tmplContent"></param>
+        /// <param name="dataContextObject"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        public static string ResolveTemplate(string tmplContent, object dataContextObject)
+        {
+            Dictionary<string, object> dataContext;
+            if (dataContextObject is null)
+            {
+                dataContext = [];
+            }
+            else if (dataContextObject is Dictionary<string, object> dataContextDictionary)
+            {
+                dataContext = dataContextDictionary;
+            }
+            else
+            {
+                dataContext = JsonConvert.DeserializeObject<Dictionary<string, object>>(JsonConvert.SerializeObject(dataContextObject)) ?? [];
+            }
+
+            tmplContent = tmplContent.Replace("$$", _doubleFlag);
+            string[] tmplArray = tmplContent.Split('\n');
+            var resolvedInfo = tmplArray.GetAllBlocksAndAllLines("$for", $"$forend");
+            var blocks = resolvedInfo.SpecifiedBlocks;
+            var lineInfos = resolvedInfo.SequenceLineInfos;
+            List<string> resolvedList = [];
+
+            int nextResoledIndex = 0;
+            foreach (var block in blocks)
+            {
+                if (block.Any())
+                {
+                    var first = block.First();
+                    if (first.LineIndex > nextResoledIndex)
+                    {
+                        // 处理普通模板表达式
+                        for (int i = nextResoledIndex; i < first.LineIndex; i++)
+                        {
+                            resolvedList.Add(tmplArray[i]);
+                        }
+                    }
+                    else
+                    {
+                        // 处理for循环
+                        if (block.Count < 3)
+                        {
+                            throw new Exception("for循环不足三行");
+                        }
+                        string line = block[0].Content;
+                        var match = Regex.Match(line.Trim(), @"\$for\s+(<?itemKey>\w+)\s+in\s+(<?exp>\w+)");
+                        string exp = match.Groups["exp"].Value;
+                        string itemKey = match.Groups["itemKey"].Value;
+                        if (string.IsNullOrWhiteSpace(exp) || string.IsNullOrWhiteSpace(itemKey))
+                        {
+                            throw new Exception($"for循环脚本解析错误: {line}");
+                        }
+                        var expObj = ResolveExpressionValue(exp, dataContext);
+                        if (expObj is not IEnumerable<object> expList)
+                        {
+                            throw new Exception($"表达式\"{exp}\"的值无法迭代: {JsonConvert.SerializeObject(expObj)}");
+                        }
+
+                        Dictionary<string, object> tempDC = [];
+                        for (int i = 1; i < block.Count - 1; i++)
+                        {
+                            string lineExp = block[i].Content;
+                            foreach (var expItem in expList)
+                            {
+                                tempDC[itemKey] = expItem;
+                                string lineExpValue = ResolveExpressionValue(lineExp, tempDC).ToString();
+                            }
+                        }
+                    }
+                    nextResoledIndex = block.Last().LineIndex + 1;
+                }
+            }
+            
+            int allTmplLines = tmplArray.Length;
+
+            List<Tuple<int, int>> forBlocks;
+            for (int i = 0; i < allTmplLines; i++)
+            {
+                string line = tmplArray[i];
+                line = line.Replace("$$", _doubleFlag);
+                forBlocks = [];
+                // 如果是for循环模板
+                if (line.Trim().StartsWith("$for"))
+                {
+                    var forPartsMatch = Regex.Match(line, @"\$for\s+(?<item>\w+)\s+in\s+(<?expression>[\w\.\[\]]+)");
+                    string expression = forPartsMatch.Groups["expression"].Value;
+                    if (string.IsNullOrWhiteSpace(expression))
+                    {
+                        throw new Exception("for循环模板迭代对象解析异常");
+                    }
+
+                    object targetObj = ResolveExpressionValue(expression, dataContext);
+                    if (targetObj is not IEnumerable<object> targetCollection)
+                    {
+                        throw new Exception("for循环模板迭代对象不可迭代");
+                    }
+
+                    // TODO: 实现for循环脚本
+                }
+
+                // 如果是扩展数据上下文
+            }
+
+
+            return "";
+        }
 
         static readonly Dictionary<string, ITmplParser> _parserObjectMap = [];
+
         /// <summary>
-        /// dataContext的Key可能是"$expression"开头, 也可能被双花括号括起来"{{expression}}"
+        /// 解析模板表达式 dataContext的Key可能是"$expression"开头, 也可能被双花括号括起来"{{expression}}"
         /// dataContext: { "$ids": "[1,2,3]" }; tmpl: "$ids" => [1, 2, 3]
         /// </summary>
         /// <param name="tmplWithParser">字符串模板 $app/${app}/{{app}}</param>
@@ -305,10 +427,10 @@ namespace Sylas.RemoteTasks.Utils.Template
             {
                 dataContextDictionary = JObject.FromObject(dataContextObject).ToObject<Dictionary<string, object>>() ?? throw new Exception("无法将模板的数据上下文转换为字典");
             }
-            const string doubleFlag = "DOUBLEFLAGlsjflajflajf238024***%666666^^^^-+Oo)ukj(";
-            tmplWithParser = tmplWithParser.Replace("$$", doubleFlag);
+            
+            tmplWithParser = tmplWithParser.Replace("$$", _doubleFlag);
             var stringTmplMatches = RegexConst.StringTmpl.Matches(tmplWithParser);
-            #region refactor version
+
             List<object> result = [];
             foreach (var stringTmplMatch in stringTmplMatches.Cast<Match>())
             {
@@ -360,55 +482,11 @@ namespace Sylas.RemoteTasks.Utils.Template
                     }
                     else
                     {
-                        tmplWithParser = tmplWithParser.Replace(exp, tmplValue.ToString()).Replace(doubleFlag, "$");
+                        tmplWithParser = tmplWithParser.Replace(exp, tmplValue.ToString()).Replace(_doubleFlag, "$");
                     }
                 }
             }
             return result.Count > 0 ? result : tmplWithParser;
-            #endregion
-
-            //List<object> results = [tmplWithParser];
-            //foreach (var stringTmplMatch in stringTmplMatches.Cast<Match>())
-            //{
-            //    var stringTmplGroups = stringTmplMatch.Groups;
-            //    if (stringTmplGroups.Count > 1)
-            //    {
-            //        string tmpl = stringTmplGroups["name"].Value;
-            //        var tmplValue = ResolveFromDictionary(tmpl, dataContextDictionary);
-            //        if (tmplValue is not string && tmplValue is not JValue && tmplValue is not JObject && tmplValue is IEnumerable<object> arrayValue)
-            //        {
-            //            List<object> newResults = [];
-            //            foreach (var arrayItem in arrayValue)
-            //            {
-            //                List<object> cpResults = [];
-            //                foreach (var resultItem in results)
-            //                {
-            //                    if (arrayItem is JObject)
-            //                    {
-            //                        // BOOKMARK: Tmpl-JToken http请求获取数据源的时候, 默认使用JToken(JObject)处理; 后续DataHandler中也会默认数据源为IEnumerable<JToken>类型进行进一步的处理
-            //                        cpResults.Add(arrayItem);
-            //                    }
-            //                    else
-            //                    {
-            //                        var expValue = arrayItem.ToString();
-            //                        cpResults.Add(resultItem.ToString().Replace(tmpl, expValue));
-            //                    }
-            //                }
-            //                newResults.AddRange(cpResults);
-            //            }
-            //            results = newResults;
-            //        }
-            //        else
-            //        {
-            //            for (int i = 0; i < results.Count; i++)
-            //            {
-            //                results[i] = results[i].ToString() == tmpl ? tmplValue : results[i].ToString().Replace(tmpl, tmplValue.ToString()).Replace(doubleFlag, "$");
-            //            }
-            //        }
-            //    }
-            //}
-            //string[] baseTypes = ["String", "Int", "Double", "Float", "Decimal", "DateTime"];
-            //return results.Count == 1 && baseTypes.Any(x => results.First().GetType().Name.StartsWith(x)) ? results.First() : results;
 
             object ResolveFromDictionary(string tmplExpressionWithParser, Dictionary<string, object> dataContext)
             {

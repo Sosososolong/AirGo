@@ -153,7 +153,7 @@ public partial class FileHelper
     /// <param name="dirs">存放目录的容器, 递归调用时候传值用的</param>
     /// <param name="stopRecursionConditionOfDirs">dirs满足一定的条件则停止递归, 比如元素个数大于0的时候</param>
     /// <returns></returns>
-    public static List<string> GetDirectorysRecursive(string dir,
+    public static List<string> GetDirectoriesRecursive(string dir,
         Expression<Func<string, bool>>? filter = null,
         Func<List<string>, bool>? stopRecursionConditionOfDirs = null,
         List<string>? dirs = null
@@ -194,7 +194,7 @@ public partial class FileHelper
             {
                 continue;
             }
-            GetDirectorysRecursive(dirItem, filter, stopRecursionConditionOfDirs, dirs);
+            GetDirectoriesRecursive(dirItem, filter, stopRecursionConditionOfDirs, dirs);
         }
 
         return dirs;

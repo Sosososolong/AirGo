@@ -59,7 +59,7 @@ namespace Sylas.RemoteTasks.App.Infrastructure
         public List<string> GetAspNetCoreWebDirectory(string dir)
         {
             // 当前目录下面有Startup.cs文件和Program.cs文件, 说明此文件夹很可能是asp.net core Web程序
-            List<string> webAppDirsMaybe = FileHelper.GetDirectorysRecursive(FileHelper.GetSolutionDirectory(),
+            List<string> webAppDirsMaybe = FileHelper.GetDirectoriesRecursive(FileHelper.GetSolutionDirectory(),
                 d => Directory.GetFiles(d).AsQueryable().Where(f => f.EndsWith(@"\Startup.cs")).Count() > 0  // 如果当前目录下有Startup.cs文件则符合条件
                     && Directory.GetFiles(d).AsQueryable().Where(f => f.EndsWith(@"\Program.cs")).Count() > 0  // 如果当前目录下有Program.cs文件则符合条件
                 );
@@ -72,7 +72,7 @@ namespace Sylas.RemoteTasks.App.Infrastructure
             foreach (var dirItem in webAppDirsMaybe)
             {
                 // 在目录dirItem下找到"\Controllers"文件夹
-                List<string> controllerDir = FileHelper.GetDirectorysRecursive(dirItem, d => d.EndsWith(@"\Controllers") && Directory.GetFiles(d).AsQueryable().Where(f => f.EndsWith("Controller.cs")).Count() > 0);
+                List<string> controllerDir = FileHelper.GetDirectoriesRecursive(dirItem, d => d.EndsWith(@"\Controllers") && Directory.GetFiles(d).AsQueryable().Where(f => f.EndsWith("Controller.cs")).Count() > 0);
                 // 找到了说明dirItem是AspNetCore Web项目
                 if (controllerDir.Count > 0)
                 {

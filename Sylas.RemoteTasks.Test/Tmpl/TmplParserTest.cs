@@ -1,8 +1,10 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
+using Sylas.RemoteTasks.Utils.Extensions.Text;
 using Sylas.RemoteTasks.Utils.Template;
 using Xunit.Abstractions;
+using static System.Reflection.Metadata.BlobBuilder;
 
 namespace Sylas.RemoteTasks.Test.Tmpl
 {
@@ -79,13 +81,13 @@ namespace Sylas.RemoteTasks.Test.Tmpl
         }
 
         /// <summary>
-        /// 字符串中使用模板表达式 - "属性解析器" - 解析的值是数组, 生成多个字符串
+        /// 字符串中使用模板表达式 - "属性解析器" - 解析的值是"值数组", 生成多个字符串
         /// </summary>
         [Fact]
         public void DataPropertyParserWithStringAndCollectionTest()
         {
-            // 字符串中使用模板, 模板表达式的值是集合生成多个字符串
-            _dataContext.Add("names", _someNames);
+            // 数据上下文添加值数组
+            _dataContext["names"] = _someNames;
             // 生成"hello zhangsan", "hello lisi", "hello 王五"三个
             var parsedValue = TmplHelper.ResolveExpressionValue("hello ${names}", _dataContext);
             Assert.Equal($"hello {_someNames[0]}", (parsedValue as List<object>)?[0]?.ToString());
@@ -137,6 +139,58 @@ namespace Sylas.RemoteTasks.Test.Tmpl
             string parser = "$menuIdsStr=CollectionJoinParser[menuIds join ,]";
             var menuIdsStr = TmplHelper.ResolveExpressionValue(parser, _dataContext);
             Assert.Equal("ttnc1,M1,X1,L1", menuIdsStr);
+        }
+
+        string _text = $"111{Environment.NewLine} {Environment.NewLine} 222{Environment.NewLine}   $for  item in users   {Environment.NewLine} <span>${{item.name}}</span> <span>${{item.age}}</span> <span>$${{item.email}}</span>{Environment.NewLine} $for  item in imgs   {Environment.NewLine} <image href=\"${{item.url}}\" width=\"item.width\" />{Environment.NewLine} $forend{Environment.NewLine} $forend";
+        /// <summary>
+        /// 解析出for循环脚本块
+        /// </summary>
+        [Fact]
+        public void TextBlocksResolverTest()
+        {
+            var resolvedInfo = _text.GetBlocks("$for", "$forend");
+            var blocks = resolvedInfo.SpecifiedBlocks;
+            var lineInfos = resolvedInfo.SequenceLineInfos;
+            Assert.Single(blocks);
+            Assert.Equal(3, blocks.First().Count);
+            Assert.Equal("   $for  item in users   ", blocks.First()[0].Content);
+            Assert.Equal(" <span>${item.name}</span> <span>${item.age}</span> <span>$${item.email}</span>", blocks.First()[1].Content);
+            Assert.Equal(" $forend", blocks.First()[2].Content);
+            
+            Assert.Single(blocks.First().Children);
+            var firstChild = blocks.First().Children.First();
+            Assert.Equal(3, firstChild.Count);
+            Assert.Equal(" $for  item in imgs   ", firstChild[0].Content);
+            Assert.Equal(" <image href=\"${item.url}\" width=\"item.width\" />", firstChild[1].Content);
+            Assert.Equal(" $forend", firstChild[2].Content);
+
+            PrintBlocks(blocks);
+            void PrintBlocks(List<TextBlock> blocks)
+            {
+                foreach (var block in blocks)
+                {
+                    // 先判断有没有嵌套文本片段, 有的话先打印
+                    if (block.Children.Count > 0)
+                    {
+                        PrintBlocks(block.Children);
+                    }
+
+                    foreach (var line in block)
+                    {
+                        outputHelper.WriteLine($"{line.LineIndex}: {line.Content}");
+                    }
+                }
+            }
+
+            int i = 0;
+            foreach (var line in lineInfos)
+            {
+                // 0: xxx
+                // 1: 111
+                Assert.Equal(i, line.Line.LineIndex);
+                outputHelper.WriteLine($"{line.Line.LineIndex}: {line.Line.Content}");
+                i++;
+            }
         }
     }
 }
