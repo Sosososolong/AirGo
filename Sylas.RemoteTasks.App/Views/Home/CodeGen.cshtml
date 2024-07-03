@@ -1,30 +1,49 @@
-﻿@{
+﻿@using Sylas.RemoteTasks.App.Snippets
+@{
     ViewData["Title"] = "Code Gen";
 }
 
-<form method="get" action="CodeGen">
-    <label for="connectionString" class="form-label">数据库连接字符串</label>
-    <input type="text" id="connectionString" name="connectionString" class="form-control" aria-describedby="connectionStringHelpBlock">
-    <div id="connectionStringHelpBlock" class="form-text">
-        数据库的连接字符串.
-    </div>
+@if (Model is IEnumerable<Snippet> templates && templates.Any())
+{
+    <form method="get" action="CodeGen">
+        <label for="connectionString" class="form-label">数据库连接字符串</label>
+        <input type="text" id="connectionString" name="connectionString" class="form-control" aria-describedby="connectionStringHelpBlock">
+        <div id="connectionStringHelpBlock" class="form-text">
+            数据库的连接字符串.
+        </div>
 
-    <label for="tableFullName" class="form-label mt-3">表名</label>
-    <input type="text" id="tableFullName" name="tableFullName" class="form-control" aria-describedby="tableFullNameHelpBlock">
-    <div id="tableFullNameHelpBlock" class="form-text">
-        数据表表名.
-    </div>
-    
-    <label for="tableComment" class="form-label mt-3">表注释</label>
-    <input type="text" id="tableComment" name="tableComment" class="form-control" aria-describedby="tableCommentHelpBlock">
-    <div id="tableCommentHelpBlock" class="form-text">
-        数据表注释, 即中文名.
-    </div>
-    
-    <label for="serviceFieldInController" class="form-label mt-3">业务字段</label>
-    <input type="text" id="serviceFieldInController" name="serviceFieldInController" class="form-control" aria-describedby="serviceFieldInControllerHelpBlock">
-    <div id="serviceFieldInControllerHelpBlock" class="form-text">
-        控制器中管理目标表的业务字段, 可为空, 空表示创建新的服务类.
-    </div>
-    <button class="btn btn-primary mt-3" type="submit">提交</button>
-</form>
+        <label for="tableFullName" class="form-label mt-3">表名</label>
+        <input type="text" id="tableFullName" name="tableFullName" class="form-control" aria-describedby="tableFullNameHelpBlock">
+        <div id="tableFullNameHelpBlock" class="form-text">
+            数据表表名.
+        </div>
+
+        <label for="tableComment" class="form-label mt-3">表注释</label>
+        <input type="text" id="tableComment" name="tableComment" class="form-control" aria-describedby="tableCommentHelpBlock">
+        <div id="tableCommentHelpBlock" class="form-text">
+            数据表注释, 即中文名.
+        </div>
+
+        <label for="serviceFieldInController" class="form-label mt-3">业务字段</label>
+        <input type="text" id="serviceFieldInController" name="serviceFieldInController" class="form-control" aria-describedby="serviceFieldInControllerHelpBlock">
+        <div id="serviceFieldInControllerHelpBlock" class="form-text">
+            控制器中管理目标表的业务字段, 可为空, 空表示创建新的服务类.
+        </div>
+
+        <label for="codeTemplate" class="form-label mt-3">代码模板</label>
+        <select id="codeTemplate" name="templateId" class="form-control" aria-describedby="codeTemplateHelpBlock">
+            @foreach (var template in templates)
+            {
+                <option value="@template.Id">@template.Title</option>
+            }
+        </select>
+        <div id="codeTemplateHelpBlock" class="form-text">
+            代码生成器的模板, 针对不同框架(如mvc, vue前后端分离, 甚至php等其他语言框架...)配置不同的模板.
+        </div>
+        <button class="btn btn-primary mt-3" type="submit">提交</button>
+    </form>
+}
+else
+{
+    <p style="color:darkred">没有可用的代码生成器模板, 请先在Snippet中配置一个代码模板, TypeId选择2(表示当前Snippet的Content字段存储的是一个代码生成器的模板)</p>
+}

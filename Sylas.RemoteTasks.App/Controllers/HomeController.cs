@@ -1,9 +1,11 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using RazorEngine.Templating;
 using Sylas.RemoteTasks.App.Database;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.Models;
+using Sylas.RemoteTasks.App.Snippets;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils;
 using Sylas.RemoteTasks.Utils.Constants;
@@ -948,18 +950,21 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// <summary>
         /// 代码生成页面,Url地址如:http://localhost:5105/Home/CodeGen?tableFullName=Configs&tableComment=通用配置&connectionString=Server=127.0.0.1;Port=3306;Stmt=;Database=engine;Uid=root;Pwd=123456;Allow%20User%20Variables=true;&serviceFieldInController=
         /// </summary>
+        /// <param name="repositorySnippets"></param>
+        /// <param name="templateId"></param>
         /// <param name="database">从DI容器中获取的操作数据库的服务</param>
         /// <param name="tableFullName">表名</param>
         /// <param name="tableComment">表注释</param>
         /// <param name="connectionString">目标表所在的数据库的连接字符串</param>
         /// <param name="serviceFieldInController">控制器中负责业务的服务字段, 空表示创建新的服务类</param>
         /// <returns></returns>
-        public async Task<IActionResult> CodeGen([FromServices] DatabaseInfo database, string tableFullName, string tableComment, string connectionString, string serviceFieldInController)
+        public async Task<IActionResult> CodeGen([FromServices] DatabaseInfo database, [FromServices]RepositoryBase<Snippet> repositorySnippets, int templateId, string tableFullName, string tableComment, string connectionString, string serviceFieldInController)
         {
             #region 参数为空跳转到配置参数的页面
             if (string.IsNullOrWhiteSpace($"{tableFullName}") || string.IsNullOrWhiteSpace($"{tableComment}") || string.IsNullOrWhiteSpace($"{connectionString}"))
             {
-                return View();
+                var templates = await repositorySnippets.GetPageAsync(1, 100, filter: new DataFilter { FilterItems = [new FilterItem(nameof(Snippet.TypeId), "=", "2")] });
+                return View(templates.Data);
             }
             if (!string.IsNullOrWhiteSpace(connectionString))
             {
@@ -992,7 +997,19 @@ namespace Sylas.RemoteTasks.App.Controllers
             #endregion
 
             var columns = await database.GetTableColumnsInfoAsync(tableFullName);
-            ViewBag.Columns = columns;
+            var searchColumns = columns.Where(x => !string.IsNullOrWhiteSpace(x.ColumnCode) && (x.ColumnCode.Contains("name", StringComparison.OrdinalIgnoreCase) || x.ColumnCode.ToLower() == "id"));
+
+            var tmplRecord = await repositorySnippets.GetByIdAsync(templateId) ?? throw new Exception("模板不存在");
+            string currentTmpl = $"SnippetTmpl{tmplRecord.Id}";
+            var model = new { tableComment, tableFullName, tableSimpleName, tableFieldName, serviceFieldInController, columns, searchColumns };
+            if (!RazorEngine.Engine.Razor.IsTemplateCached(currentTmpl, null))
+            {
+                RazorEngine.Engine.Razor.AddTemplate(currentTmpl, tmplRecord.Content);
+                RazorEngine.Engine.Razor.Compile(currentTmpl);
+            }
+
+            var result = RazorEngine.Engine.Razor.Run(currentTmpl, modelType: null, model: model);
+            ViewBag.PageHtml = result;
             return View("CodeGenPreview");
         }
     }

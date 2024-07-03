@@ -146,7 +146,7 @@ namespace Sylas.RemoteTasks.Test.Tmpl
         /// 解析出for循环脚本块
         /// </summary>
         [Fact]
-        public void TextBlocksResolverTest()
+        public void TemplateForLoopTest()
         {
             var resolvedInfo = _text.GetBlocks("$for", "$forend");
             var blocks = resolvedInfo.SpecifiedBlocks;

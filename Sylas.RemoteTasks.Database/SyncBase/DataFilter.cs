@@ -9,6 +9,25 @@ namespace Sylas.RemoteTasks.Database.SyncBase
     public class FilterItem
     {
         /// <summary>
+        /// 默认值初始化实例
+        /// </summary>
+        public FilterItem()
+        {
+            
+        }
+        /// <summary>
+        /// 指定属性值初始化实例
+        /// </summary>
+        /// <param name="field"></param>
+        /// <param name="compareType"></param>
+        /// <param name="value"></param>
+        public FilterItem(string field, string compareType, string value)
+        {
+            FieldName = field;
+            CompareType = compareType;
+            Value = value;
+        }
+        /// <summary>
         /// 字段名称
         /// </summary>
         public string FieldName { get; set; } = string.Empty;
