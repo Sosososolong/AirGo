@@ -18,6 +18,10 @@
         /// </summary>
         Oracle,
         /// <summary>
+        /// postgresql
+        /// </summary>
+        Pg,
+        /// <summary>
         /// 达梦数据库
         /// </summary>
         Dm,

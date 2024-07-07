@@ -35,7 +35,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// </summary>
         /// <param name="dto"></param>
         /// <returns></returns>
-        public async Task<IActionResult> AddConnectionStringAsync(DbConnectionInfoInDto dto)
+        public async Task<IActionResult> AddConnectionStringAsync([FromBody] DbConnectionInfoInDto dto)
         {
             int affectedRows = await repository.AddAsync(dto);
             return Ok(new OperationResult(affectedRows > 0));

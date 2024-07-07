@@ -27,14 +27,14 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
             {
                 var stepsFilters = new List<FilterItem>
                 {
-                    new() { FieldName = "processorId", CompareType = "=", Value = processor.Id.ToString() }
+                    new("processorid", "=", processor.Id)
                 };
                 var steps = (await GetStepsPageAsync(1, 1000, "id", true, new DataFilter { FilterItems = stepsFilters })).Data;
                 processor.Steps = steps;
 
                 foreach (var step in steps)
                 {
-                    var filterCondition = new FilterItem { FieldName = "StepId", CompareType = "=", Value = step.Id.ToString() };
+                    var filterCondition = new FilterItem("stepid", "=", step.Id);
                     var dataHandlers = (await GetDataHandlersPageAsync(1, 1000, "id", true, new DataFilter { FilterItems = new List<FilterItem> { filterCondition } })).Data;
                     step.DataHandlers = dataHandlers;
                 }
@@ -48,23 +48,23 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
         /// <returns></returns>
         public async Task<HttpRequestProcessor?> GetByIdAsync(int id)
         {
-            var pages = await _db.QueryPagedDataAsync<HttpRequestProcessor>(HttpRequestProcessor.TableName, 1, 1, "id", true, new DataFilter { FilterItems = [new FilterItem { CompareType = "=", FieldName = "id", Value = id.ToString() }] });
+            var pages = await _db.QueryPagedDataAsync<HttpRequestProcessor>(HttpRequestProcessor.TableName, 1, 1, "id", true, new DataFilter { FilterItems = [new FilterItem("id", "=", id)] });
             var processor = pages.Data.FirstOrDefault();
             if (processor is null)
             {
                 return null;
             }
             var stepsFilters = new List<FilterItem>
-                {
-                    new FilterItem { FieldName = "processorId", CompareType = "=", Value = processor.Id.ToString() }
-                };
+            {
+                new("processorid", "=", processor.Id)
+            };
             var steps = (await GetStepsPageAsync(1, 1000, "id", true, new DataFilter { FilterItems = stepsFilters })).Data;
             processor.Steps = steps;
 
             foreach (var step in steps)
             {
-                var filterCondition = new FilterItem { FieldName = "StepId", CompareType = "=", Value = step.Id.ToString() };
-                var dataHandlers = (await GetDataHandlersPageAsync(1, 1000, "id", true, new DataFilter { FilterItems = new List<FilterItem> { filterCondition } })).Data;
+                var filterCondition = new FilterItem("stepid", "=", step.Id);
+                var dataHandlers = (await GetDataHandlersPageAsync(1, 1000, "id", true, new DataFilter { FilterItems = [ filterCondition ] })).Data;
                 step.DataHandlers = dataHandlers;
             }
             return processor;
@@ -207,7 +207,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
         }
         public async Task<HttpRequestProcessorStep?> GetStepByIdAsync(int id)
         {
-            var pages = await _db.QueryPagedDataAsync<HttpRequestProcessorStep>(HttpRequestProcessorStep.TableName, 1, 1, "id", true, new DataFilter { FilterItems = new List<FilterItem> { new FilterItem { CompareType = "=", FieldName = "id", Value = id.ToString() } } });
+            var pages = await _db.QueryPagedDataAsync<HttpRequestProcessorStep>(HttpRequestProcessorStep.TableName, 1, 1, "id", true, new DataFilter { FilterItems = [new("id", "=", id)] });
             var step = pages.Data.FirstOrDefault();
             if (step is null)
             {
@@ -215,7 +215,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
             }
             var dataHandlersFilters = new List<FilterItem>
                 {
-                    new FilterItem { FieldName = "stepId", CompareType = "=", Value = step.Id.ToString() }
+                    new("stepId", "=", step.Id)
                 };
             var dataHandlers = (await GetDataHandlersPageAsync(1, 1000, "id", true, new DataFilter { FilterItems = dataHandlersFilters })).Data;
             step.DataHandlers = dataHandlers;
@@ -325,7 +325,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
         /// <returns></returns>
         public async Task<HttpRequestProcessorStepDataHandler?> GetDataHandlerByIdAsync(int id)
         {
-            var pages = await _db.QueryPagedDataAsync<HttpRequestProcessorStepDataHandler>(HttpRequestProcessorStepDataHandler.TableName, 1, 1, "id", true, new DataFilter { FilterItems = new List<FilterItem> { new FilterItem { CompareType = "=", FieldName = "id", Value = id.ToString() } } });
+            var pages = await _db.QueryPagedDataAsync<HttpRequestProcessorStepDataHandler>(HttpRequestProcessorStepDataHandler.TableName, 1, 1, "id", true, new DataFilter { FilterItems = [new("id", "=", id)] });
             var dataHandler = pages.Data.FirstOrDefault();
             return dataHandler;
         }

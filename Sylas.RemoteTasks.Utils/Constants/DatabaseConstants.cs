@@ -8,6 +8,6 @@
         /// <summary>
         /// 数据库连接字符串中的关键字
         /// </summary>
-        public static readonly string[] ConnectionStringKeywords = ["Server", "Data Source"];
+        public static readonly string[] ConnectionStringKeywords = ["Server", "Data Source", "User ID"];
     }
 }

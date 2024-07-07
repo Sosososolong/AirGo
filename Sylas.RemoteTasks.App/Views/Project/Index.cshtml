@@ -16,7 +16,7 @@
         <label class="col-sm-2 col-form-label">Switching database</label>
         <div class="col-sm-10">
             <select class="form-control projects-select" id="database" target-type="type">
-                @foreach (DbConnectionDetial connectionDetail in ViewBag.ConnectionDetails)
+                @foreach (DbConnectionDetail connectionDetail in ViewBag.ConnectionDetails)
                 {
                     <option value="@($"{connectionDetail.Host}-{Convert.ToInt32(connectionDetail.DatabaseType)}")" data-toggle="tooltip" data-placement="right" title="title">@($"{connectionDetail.Host} - {connectionDetail.DatabaseType}")</option>
                 }

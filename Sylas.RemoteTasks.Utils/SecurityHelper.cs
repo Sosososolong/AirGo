@@ -9,7 +9,7 @@ namespace Sylas.RemoteTasks.Utils
     /// <summary>
     /// 数据安全,加密解密帮助类
     /// </summary>
-    public class SecurityHelper
+    public static class SecurityHelper
     {
         static byte[] GetBytesFromString(string key, int length = 32)
         {
@@ -57,6 +57,16 @@ namespace Sylas.RemoteTasks.Utils
             string roundtrip = DecryptStringFromBytes_Aes(encrypedBytes, myAes);
             return roundtrip;
 
+        }
+
+        /// <summary>
+        /// 移除无效的混淆字符
+        /// </summary>
+        /// <param name="source"></param>
+        /// <returns></returns>
+        public static string RemoveConfusedChars(this string source)
+        {
+            return source.Replace("^.s-", "s").Replace("^.-", "");
         }
 
         /// <summary>

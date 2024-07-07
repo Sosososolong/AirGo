@@ -9,6 +9,7 @@ using MySql.Data.MySqlClient;
 using MySqlX.XDevAPI.Relational;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Npgsql;
 using Oracle.ManagedDataAccess.Client;
 using Sylas.RemoteTasks.App.RegexExp;
 using Sylas.RemoteTasks.Utils;
@@ -21,6 +22,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
@@ -81,6 +83,10 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         public DatabaseInfo(ILogger<DatabaseInfo> logger, IConfiguration configuration)
         {
             _connectionString = configuration.GetConnectionString("Default") ?? throw new Exception("DatabaseInfo: 没有配置\"ConnectionStrings:Default\"数据库连接字符串");
+            if (! Regex.IsMatch(_connectionString, @"\s+"))
+            {
+                _connectionString = SecurityHelper.AesDecrypt(_connectionString).RemoveConfusedChars();
+            }
             _logger = logger;
             _dbType = GetDbType(_connectionString);
             _varFlag = GetDbParameterFlag(_dbType);
@@ -134,6 +140,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 DatabaseType.MySql => new MySqlConnection(connectionString),
                 DatabaseType.Oracle => new OracleConnection(connectionString),
                 DatabaseType.SqlServer => new SqlConnection(connectionString),
+                DatabaseType.Pg => new NpgsqlConnection(connectionString),
                 DatabaseType.Sqlite => new SqliteConnection(connectionString),
                 _ => throw new Exception($"不支持的数据库连接字符串: {connectionString}"),
             };
@@ -169,27 +176,37 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <returns></returns>
         public static IDbConnection GetSqlServerConnection(string host, string port, string db, string username, string password) => new SqlConnection($"User ID={username};Password={password};Initial Catalog={db};Data Source={host},{(string.IsNullOrWhiteSpace(port) ? "1433" : port)}");
         /// <summary>
+        /// 获取postgresql数据库连接对象
+        /// </summary>
+        /// <param name="host"></param>
+        /// <param name="port"></param>
+        /// <param name="db"></param>
+        /// <param name="username"></param>
+        /// <param name="password"></param>
+        /// <returns></returns>
+        public static IDbConnection GetPgConnection(string host, string port, string db, string username, string password) => new SqlConnection($"User ID={username};Password={password};Host={host};Port={(string.IsNullOrWhiteSpace(port) ? "5432" : port)};Database={db}");
+        /// <summary>
         /// 解析数据库连接字符串, 获取数据库详细信息
         /// </summary>
         /// <param name="connectionString"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static DbConnectionDetial GetDbConnectionDetial(string connectionString)
+        public static DbConnectionDetail GetDbConnectionDetail(string connectionString)
         {
             var match = RegexConst.ConnectionStringSqlite.Match(connectionString);
             if (match.Success)
             {
-                return new DbConnectionDetial(match.Groups["database"].Value, DatabaseType.Sqlite);
+                return new DbConnectionDetail(match.Groups["database"].Value, DatabaseType.Sqlite);
             }
-            match = RegexConst.ConnectionStringMslocaldb.Match(connectionString);
+            match = RegexConst.ConnectionStringMsLocalDb.Match(connectionString);
             if (match.Success)
             {
-                return new DbConnectionDetial(match.Groups["database"].Value, DatabaseType.MsSqlLocalDb);
+                return new DbConnectionDetail(match.Groups["database"].Value, DatabaseType.MsSqlLocalDb);
             }
             match = RegexConst.ConnectionStringOracle.Match(connectionString);
             if (match.Success)
             {
-                return new DbConnectionDetial
+                return new DbConnectionDetail
                 {
                     Host = match.Groups["host"].Value,
                     Port = Convert.ToInt32(match.Groups["port"].Value),
@@ -203,7 +220,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             match = RegexConst.ConnectionStringMySql.Match(connectionString);
             if (match.Success)
             {
-                return new DbConnectionDetial
+                return new DbConnectionDetail
                 {
                     Host = match.Groups["host"].Value,
                     Port = Convert.ToInt32(match.Groups["port"].Value),
@@ -224,7 +241,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                     host = hostArr[0];
                     port = Convert.ToInt32(hostArr[1]);
                 }
-                return new DbConnectionDetial
+                return new DbConnectionDetail
                 {
                     Host = host,
                     Port = port,
@@ -237,7 +254,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             match = RegexConst.ConnectionStringDm.Match(connectionString);
             if (match.Success)
             {
-                return new DbConnectionDetial
+                return new DbConnectionDetail
                 {
                     Host = match.Groups["host"].Value,
                     Port = Convert.ToInt32(match.Groups["port"].Value),
@@ -245,6 +262,19 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                     Password = match.Groups["password"].Value,
                     Database = match.Groups["username"].Value,
                     DatabaseType = DatabaseType.Dm
+                };
+            }
+            match = RegexConst.ConnectionStringPg.Match(connectionString);
+            if (match.Success)
+            {
+                return new DbConnectionDetail
+                {
+                    Host = match.Groups["host"].Value,
+                    Port = Convert.ToInt32(match.Groups["port"].Value),
+                    Account = match.Groups["username"].Value,
+                    Password = match.Groups["password"].Value,
+                    Database = match.Groups["database"].Value,
+                    DatabaseType = DatabaseType.Pg
                 };
             }
 
@@ -287,7 +317,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             string allCountSqlTxt = $"select count(*) from {table} where 1=1 {condition}";
 
             var allCount = await conn.ExecuteScalarAsync<int>(allCountSqlTxt, parameters);
-
+            await Console.Out.WriteLineAsync("执行SQL语句" + Environment.NewLine + sql);
             var data = await conn.QueryAsync<T>(sql, parameters);
 
             return new PagedData<T> { Data = data, Count = allCount, TotalPages = (allCount + pageSize - 1) / pageSize };
@@ -1107,7 +1137,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                             ValideParameter(key);
                             if (compareType == "in")
                             {
-                                var valList = val.Split(',');
+                                var valList = val.ToString().Split(',');
                                 queryCondition += $" and {key} in(";
                                 int valListIndex = 0;
                                 foreach (var valItem in valList)
@@ -1182,6 +1212,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                 DatabaseType.MySql => $@"{baseSqlTxt} {orderClause} limit {(pageIndex - 1) * pageSize},{pageSize}",
                 DatabaseType.SqlServer => $"{baseSqlTxt} {(string.IsNullOrEmpty(orderClause) ? "order by id desc" : orderClause)} OFFSET ({pageIndex}-1)*{pageSize} ROWS FETCH NEXT {pageSize} ROW ONLY",
                 DatabaseType.Sqlite => $@"{baseSqlTxt} {orderClause} limit {pageSize} offset {(pageIndex - 1) * pageSize}",
+                DatabaseType.Pg => $@"{baseSqlTxt} {orderClause} limit {pageSize} offset {(pageIndex - 1) * pageSize}",
                 _ => throw new Exception("未知的数据库类型")
 
             };
@@ -1395,6 +1426,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                     DatabaseType.Oracle => $"TIMESTAMP(6) WITH TIME ZONE{Environment.NewLine}",
                     DatabaseType.SqlServer => $"datetime2(7){Environment.NewLine}",
                     DatabaseType.Sqlite => $"TEXT default current_timestamp {Environment.NewLine}",
+                    DatabaseType.Pg => $"TIMESTAMP {Environment.NewLine}",
                     _ => $"datetime(6){Environment.NewLine}",
                 };
                 if (string.IsNullOrWhiteSpace(colInfo.ColumnType))
@@ -1410,12 +1442,14 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                     var type when RegexConst.ColumnTypeLong.IsMatch(type.ToLower()) => dbType switch
                     {
                         DatabaseType.Oracle => $"long{Environment.NewLine}",
+                        DatabaseType.Pg => $"int4{Environment.NewLine}",
                         _ => $"bigint{Environment.NewLine}"
                     },
                     // 整型字段
                     var type when RegexConst.ColumnTypeInt.IsMatch(type.ToLower()) => dbType switch
                     {
                         DatabaseType.Oracle => $"number",
+                        DatabaseType.Pg => $"int4",
                         _ => $"int{Environment.NewLine}"
                     },
                     // decimal字段
@@ -1439,6 +1473,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                         DatabaseType.MySql => "blob",
                         DatabaseType.Oracle => "blob",
                         DatabaseType.SqlServer => "varbinary(max)",
+                        DatabaseType.Pg => "bytea",
                         _ => $"text{Environment.NewLine}"
                     },
                     var type when type.ToLower().Contains("varchar") && !string.IsNullOrWhiteSpace(colInfo.ColumnLength) && Convert.ToInt32(colInfo.ColumnLength.TrimStart('-')) > 0 => dbType switch
@@ -1446,6 +1481,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                         DatabaseType.Oracle => $"nvarchar2({GetStringColumnLengthBySourceData(colInfo.ColumnLength, colInfo.ColumnCode, tableRecords)}){Environment.NewLine}",
                         DatabaseType.MySql => $"varchar({GetStringColumnLengthBySourceData(colInfo.ColumnLength, colInfo.ColumnCode, tableRecords)}){Environment.NewLine}",
                         DatabaseType.SqlServer => $"nvarchar({GetStringColumnLengthBySourceData(colInfo.ColumnLength, colInfo.ColumnCode, tableRecords)}){Environment.NewLine}",
+                        DatabaseType.Pg => $"varchar({GetStringColumnLengthBySourceData(colInfo.ColumnLength, colInfo.ColumnCode, tableRecords)}){Environment.NewLine}",
                         _ => $"TEXT{Environment.NewLine}"
                     },
                     // 普通字符串字段
@@ -1454,6 +1490,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                         DatabaseType.Oracle => $"nvarchar2({colInfo.ColumnLength})",
                         DatabaseType.MySql => $"nvarchar({colInfo.ColumnLength}){Environment.NewLine}",
                         DatabaseType.Sqlite => $"TEXT{Environment.NewLine}",
+                        DatabaseType.Pg => $"varchar({colInfo.ColumnLength}){Environment.NewLine}",
                         _ => $"varchar({colInfo.ColumnLength}){Environment.NewLine}"
                     }
                 };
@@ -1484,8 +1521,9 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             return dbType switch
             {
                 DatabaseType.MySql => $"`{name}`",
-                DatabaseType.Oracle => $"\"{name}\"".ToUpper(),
                 DatabaseType.SqlServer => $"[{name}]",
+                DatabaseType.Oracle => $"\"{name}\"".ToUpper(),
+                DatabaseType.Pg => $"\"{name}\"".ToLower(),
                 _ => name
             };
         }
@@ -1502,6 +1540,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                 DatabaseType.MySql => names.Select(name => $"`{name}`"),
                 DatabaseType.Oracle => names.Select(name => $"\"{name}\""),
                 DatabaseType.SqlServer => names.Select(name => $"[{name}]"),
+                DatabaseType.Pg => names.Select(name => $"\"{name}\""),
                 _ => names
             };
         }
@@ -1633,8 +1672,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                 var pksStatement = string.Join(',', pks);
                 primaryKeyAssignment = dbType switch
                 {
-                    var type when type == DatabaseType.Oracle || type == DatabaseType.Dm => $", PRIMARY KEY ({pksStatement})",
-
+                    var type when type == DatabaseType.Oracle || type == DatabaseType.Dm || type == DatabaseType.Pg => $", PRIMARY KEY ({pksStatement})",
                     DatabaseType.MySql => $", PRIMARY KEY ({pksStatement}) USING BTREE",
 
                     // sqlserver直接在字段声明语句后面指定了主键
@@ -1647,6 +1685,8 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                 DatabaseType.MySql => $@"CREATE TABLE {tableStatement} ({Environment.NewLine}{columnsAssignment}{Environment.NewLine}{primaryKeyAssignment}{Environment.NewLine}) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;",
                 
                 DatabaseType.Oracle => $@"CREATE TABLE {tableStatement} ({Environment.NewLine}{columnsAssignment}{Environment.NewLine}{primaryKeyAssignment})".ToUpper(),
+
+                DatabaseType.Pg => $@"CREATE TABLE {tableStatement} ({Environment.NewLine}{columnsAssignment}{Environment.NewLine}{primaryKeyAssignment})",
                 
                 // sqlserver
                 _ => $@"CREATE TABLE {tableStatement} ({Environment.NewLine}{columnsAssignment}{Environment.NewLine}){Environment.NewLine};{Environment.NewLine}{primaryKeyAssignment}"
@@ -1709,6 +1749,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             {
                 var connStr when connStr.Contains("initial catalog", StringComparison.OrdinalIgnoreCase) => DatabaseType.SqlServer,
                 var connStr when connStr.Contains("server", StringComparison.OrdinalIgnoreCase) => DatabaseType.MySql,
+                var connStr when connStr.Contains("host=", StringComparison.OrdinalIgnoreCase) => DatabaseType.Pg,
                 var connStr when RegexConst.ConnectionStringSqlite.IsMatch(connStr) => DatabaseType.Sqlite,
                 _ => DatabaseType.Oracle
             };

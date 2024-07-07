@@ -52,12 +52,17 @@ namespace Sylas.RemoteTasks.App.RegexExp
         /// 匹配数据库连接字符串 - mssqllocaldb
         /// </summary>
         /// <returns></returns>
-        public static readonly Regex ConnectionStringMslocaldb = new ("server\\s*=\\s*\\(localdb\\)\\\\\\\\mssqllocaldb;\\s*database=(?<database>\\w+);.+", RegexOptions.IgnoreCase);
+        public static readonly Regex ConnectionStringMsLocalDb = new ("server\\s*=\\s*\\(localdb\\)\\\\\\\\mssqllocaldb;\\s*database=(?<database>\\w+);.+", RegexOptions.IgnoreCase);
         /// <summary>
         /// 匹配数据库连接字符串 - sqlserver
         /// </summary>
         /// <returns></returns>
         public static readonly Regex ConnectionStringSqlServer = new ("data\\s+source\\s*=(?<host>.+);initial\\s+catalog\\s*=\\s*(?<database>\\w+);user\\s+id=(?<username>\\w+);\\s*password\\s*=\\s*(?<password>.+?).*", RegexOptions.IgnoreCase);
+        /// <summary>
+        /// 匹配数据库连接字符串 - postgresql
+        /// </summary>
+        /// <returns></returns>
+        public static readonly Regex ConnectionStringPg = new("User ID=(?<username>\\w+);Password=(?<password>.+?);Host=(?<host>.+);Port=(?<port>\\w+);Database=(?<database>\\w+)", RegexOptions.IgnoreCase);
         /// <summary>
         /// 匹配数据库连接字符串 - mysql
         /// </summary>
@@ -78,7 +83,7 @@ namespace Sylas.RemoteTasks.App.RegexExp
                 ConnectionStringOracle,
                 ConnectionStringDm,
                 ConnectionStringSqlite,
-                ConnectionStringMslocaldb,
+                ConnectionStringMsLocalDb,
         ];
 
         /// <summary>

@@ -19,10 +19,10 @@ namespace Sylas.RemoteTasks.App.Controllers
         public async Task<IActionResult> Index()
         {
             var connectionInfos = (await _dbConnectionInfoRepository.GetPageAsync(1, 10000, "Name", true, new DataFilter())).Data;
-            List<DbConnectionDetial> connectionDetails = [];
+            List<DbConnectionDetail> connectionDetails = [];
             foreach (var connectionInfo in connectionInfos)
             {
-                var connectionDetail = DatabaseInfo.GetDbConnectionDetial(connectionInfo.ConnectionString);
+                var connectionDetail = DatabaseInfo.GetDbConnectionDetail(connectionInfo.ConnectionString);
                 if (!connectionDetails.Any(x => x.Host == connectionDetail.Host && x.DatabaseType == connectionDetail.DatabaseType))
                 {
                     connectionDetails.Add(connectionDetail);

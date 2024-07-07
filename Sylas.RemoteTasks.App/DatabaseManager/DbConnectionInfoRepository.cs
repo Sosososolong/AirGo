@@ -34,7 +34,7 @@ namespace Sylas.RemoteTasks.App.DatabaseManager
         /// <returns></returns>
         public async Task<DbConnectionInfo?> GetByIdAsync(int id)
         {
-            var pages = await _db.QueryPagedDataAsync<DbConnectionInfo>(DbConnectionInfo.TableName, 1, 1, "id", true, new DataFilter { FilterItems = [new() { CompareType = "=", FieldName = "id", Value = id.ToString() }] });
+            var pages = await _db.QueryPagedDataAsync<DbConnectionInfo>(DbConnectionInfo.TableName, 1, 1, "id", true, new DataFilter { FilterItems = [new("id", "=", id)] });
             var connectionString = pages.Data.FirstOrDefault();
             if (connectionString is null)
             {

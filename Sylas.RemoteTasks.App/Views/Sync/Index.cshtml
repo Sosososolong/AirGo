@@ -9,7 +9,7 @@
 
 @section Scripts{
     <script>
-        $(function () {
+        $(async function () {
             const apiUrl = "/Sync/GetHttpRequestProcessors";
             
             const tableId = 'tableProcessors';
@@ -36,21 +36,21 @@
             /**
              * HttpRequestProcessors
              */
-            createTable(apiUrl, 1, 10, tableId, tableParentSelector, ths, idFieldName, null, null, onProcessorsDataLoaded, ''
+            await createTable(apiUrl, 1, 10, tableId, tableParentSelector, ths, idFieldName, null, null, onProcessorsDataLoaded, ''
                 , { modalType: 'add', url: 'Sync/AddHttpRequestProcessor', 'method': 'POST' }
             )
 
             /**
              * 创建表 - Steps (一张表中的所有数据对应一个Processor)
              */
-            function onProcessorsDataLoaded(row) {
+            async function onProcessorsDataLoaded(row) {
                 const processorId = row[idFieldName];
                 const tableStepsId = `tableStepsForProcessor${processorId}`;
                 let steps = row.steps;
                 if (!steps || !(steps.length) || $(`#${tableStepsId}`).length) {
                     return;
                 }
-                createTable(
+                await createTable(
                     "/Sync/GetHttpRequestProcessorSteps", 1, 1000,
                     tableStepsId,
                     tableParentSelector,
@@ -89,7 +89,7 @@
                 );
 
 
-                createTableDataHandlers(steps, tableStepsId);
+                await createTableDataHandlers(steps, tableStepsId);
             }
 
             /**
@@ -97,14 +97,14 @@
              * steps 某一条Processor记录对应的所有步骤, 这些steps将在一张表中展示
              * tableStepsId steps所在表的Id
              */
-            function createTableDataHandlers(steps, tableStepsId) {
+            async function createTableDataHandlers(steps, tableStepsId) {
                 for (let i = 0; i < steps.length; i++) {
                     const step = steps[i];
                     let loadingData = step.dataHandlers;
                     const stepId = step[idFieldName];
                     const tableDataHandlersId = `tableDataHandlersForStep${stepId}`;
                     if (loadingData && (loadingData.length) && !$(`#${tableDataHandlersId}`).length) {
-                        createTable(
+                        await createTable(
                             "/Sync/GetHttpRequestProcessorStepDataHandlers", 1, 1000,
                             tableDataHandlersId,
                             tableParentSelector,

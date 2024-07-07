@@ -4,8 +4,9 @@
 // Write your JavaScript code.
 
 const tables = {};
+const dataSources = {};
 
-function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, ths, idFieldName, filterItems = null, data = null, onDataLoaded = undefined, wrapper = '', modalSettings) {
+async function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, ths, idFieldName, filterItems = null, data = null, onDataLoaded = undefined, wrapper = '', modalSettings) {
     if (!tables[tableId]) {
         tables[tableId] = {
             tableId: tableId,
@@ -19,7 +20,7 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
                     {
                         fieldName: '',
                         compareType: '',
-                        value: ''
+                        value: null
                     }
                 ],
                 keywords: {
@@ -109,7 +110,7 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
             tbody.append(tr);
 
             if (this.onDataLoaded) {
-                this.onDataLoaded(row);
+                await this.onDataLoaded(row);
             }
         }
     }
@@ -280,21 +281,32 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
         let url = `${dataSourceApi}`;
         let dataSourceOptions = `<option value="${defaultValue}">请选择</option>`;
 
-        let response = await fetchData(url, 'POST', bodyDataFilter, null)
-        if (response) {
-            response.data.forEach(row => {
-                dataSourceOptions += `<option value="${row['id']}">${row[displayField]}</option>`
-
-                if (!this.dataSourceField) {
-                    this.dataSourceField = {};
-                }
-                if (!this.dataSourceField[thDataSource.name]) {
-                    this.dataSourceField[thDataSource.name] = []
-                }
-                // HttpRequestProcessor的id和title(id: 1, value: 同步应用和流程数据 - zcmu)
-                this.dataSourceField[thDataSource.name].push({ id: row['id'], value: row[displayField] })
-            })
+        // 获取数据源数据(缓存)
+        let dataSourceData = [];
+        const dataSourceKeys = Object.keys(dataSources);
+        const currentKey = thDataSource.type;
+        if (dataSourceKeys.indexOf(currentKey) > -1) {
+            dataSourceData = dataSources[currentKey]
+        } else {
+            let response = await fetchData(url, 'POST', bodyDataFilter, null)
+            if (response) {
+                dataSourceData = response.data;
+                dataSources[currentKey] = dataSourceData;
+            }
         }
+
+        dataSourceData.forEach(row => {
+            dataSourceOptions += `<option value="${row['id']}">${row[displayField]}</option>`
+
+            if (!this.dataSourceField) {
+                this.dataSourceField = {};
+            }
+            if (!this.dataSourceField[thDataSource.name]) {
+                this.dataSourceField[thDataSource.name] = []
+            }
+            // HttpRequestProcessor的id和title(id: 1, value: 同步应用和流程数据 - zcmu)
+            this.dataSourceField[thDataSource.name].push({ id: row['id'], value: row[displayField] })
+        });
         return dataSourceOptions;
     }
 
@@ -406,7 +418,7 @@ function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, 
         form.submit();
     }
 
-    targetTable.render();
+    await targetTable.render();
 }
 
 

@@ -3,12 +3,12 @@
     /// <summary>
     /// 描述数据库连接信息
     /// </summary>
-    public class DbConnectionDetial
+    public class DbConnectionDetail
     {
         /// <summary>
         /// 默认值初始化
         /// </summary>
-        public DbConnectionDetial()
+        public DbConnectionDetail()
         {
             
         }
@@ -17,7 +17,7 @@
         /// </summary>
         /// <param name="db"></param>
         /// <param name="databaseType"></param>
-        public DbConnectionDetial(string db, DatabaseType databaseType)
+        public DbConnectionDetail(string db, DatabaseType databaseType)
         {
             Database = db;
             DatabaseType = databaseType;

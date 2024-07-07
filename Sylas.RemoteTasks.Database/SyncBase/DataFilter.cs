@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Text.Json;
 
 namespace Sylas.RemoteTasks.Database.SyncBase
 {
@@ -21,7 +22,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="field"></param>
         /// <param name="compareType"></param>
         /// <param name="value"></param>
-        public FilterItem(string field, string compareType, string value)
+        public FilterItem(string field, string compareType, object value)
         {
             FieldName = field;
             CompareType = compareType;
@@ -35,10 +36,48 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// 比较类型 大于, 小于, =, 大于等于, 小于等于, !=, include
         /// </summary>
         public string CompareType { get; set; } = string.Empty;
+
+        object? _value = null;
         /// <summary>
         /// 比较的值
         /// </summary>
-        public string Value { get; set; } = string.Empty;
+        public object? Value
+        {
+            get
+            {
+                return _value;
+            }
+            set
+            {
+                if (value is JsonElement jeVal)
+                {
+                    if (jeVal.ValueKind == JsonValueKind.True)
+                    {
+                        _value = true;
+                    }
+                    else if (jeVal.ValueKind == JsonValueKind.False)
+                    {
+                        _value = false;
+                    }
+                    else if (jeVal.ValueKind == JsonValueKind.Number)
+                    {
+                        _value = FieldName.Equals("id", StringComparison.OrdinalIgnoreCase) ? jeVal.GetInt64() : jeVal.GetInt32();
+                    }
+                    else if (jeVal.ValueKind == JsonValueKind.Null || jeVal.ValueKind == JsonValueKind.Undefined)
+                    {
+                        _value = null;
+                    }
+                    else
+                    {
+                        _value = jeVal.GetString() ?? string.Empty;
+                    }
+                }
+                else
+                {
+                    _value = value;
+                }
+            }
+        }
     }
     /// <summary>
     /// 关键字
