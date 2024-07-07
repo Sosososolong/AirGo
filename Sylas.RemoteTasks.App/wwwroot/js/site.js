@@ -108,7 +108,9 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSele
                 }
             }
             tbody.append(tr);
-
+        }
+        for (var j = 0; j < data.length; j++) {
+            var row = data[j];
             if (this.onDataLoaded) {
                 await this.onDataLoaded(row);
             }

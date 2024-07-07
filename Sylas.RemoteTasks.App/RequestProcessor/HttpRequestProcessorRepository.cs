@@ -22,20 +22,28 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
         /// <returns></returns>
         public async Task<PagedData<HttpRequestProcessor>> GetPageAsync(int pageIndex, int pageSize, string orderField, bool isAsc, DataFilter filter)
         {
+            var start = DateTime.Now;
             var pages = await _db.QueryPagedDataAsync<HttpRequestProcessor>(HttpRequestProcessor.TableName, pageIndex, pageSize, orderField, isAsc, filter);
+            var pagesend = DateTime.Now;
+            await Console.Out.WriteLineAsync($"HttpRequestProcessorEnd: {(pagesend - start).TotalMilliseconds}/ms");
             foreach (var processor in pages.Data)
             {
                 var stepsFilters = new List<FilterItem>
                 {
                     new("processorid", "=", processor.Id)
                 };
+                var stepsStart = DateTime.Now;
                 var steps = (await GetStepsPageAsync(1, 1000, "id", true, new DataFilter { FilterItems = stepsFilters })).Data;
+                var stepsEnd = DateTime.Now;
+                await Console.Out.WriteLineAsync($"    GetSteps End: {(stepsEnd - stepsStart).TotalMilliseconds}/ms");
                 processor.Steps = steps;
 
                 foreach (var step in steps)
                 {
                     var filterCondition = new FilterItem("stepid", "=", step.Id);
-                    var dataHandlers = (await GetDataHandlersPageAsync(1, 1000, "id", true, new DataFilter { FilterItems = new List<FilterItem> { filterCondition } })).Data;
+                    var datahandlerStart = DateTime.Now;
+                    var dataHandlers = (await GetDataHandlersPageAsync(1, 1000, "id", true, new DataFilter { FilterItems = [filterCondition] })).Data;
+                    await Console.Out.WriteLineAsync($"        GetStepHandlers End: {(DateTime.Now - datahandlerStart).TotalMilliseconds}/ms");
                     step.DataHandlers = dataHandlers;
                 }
             }
