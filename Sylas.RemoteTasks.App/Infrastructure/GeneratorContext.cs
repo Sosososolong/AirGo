@@ -30,25 +30,20 @@ namespace Sylas.RemoteTasks.App.Infrastructure
             {
                 Directory.CreateDirectory(CurrentProject.BaseDir);
             }
-            string result = await CmdHandler.ExecuteAsync([
-                CmdHandler.CreateSlnStatement
-                ,
-                CmdHandler.CreateWebEmptyStatement
-                ,
-                CmdHandler.CreateLibCoreStatement
-                ,
-                CmdHandler.CreateLibInfrastructureStatement
-                ,
-                CmdHandler.AddinSlnAPI
-                ,
-                CmdHandler.AddinSlnCore
-                ,
-                CmdHandler.AddinSlnInfrastructure
-            ], CurrentProject.BaseDir);
+            List<string> result = await SystemCmd.ExecuteAsync([
+                $"cd {CurrentProject.BaseDir}"
+                ,CmdHandler.CreateSlnStatement
+                ,CmdHandler.CreateWebEmptyStatement
+                ,CmdHandler.CreateLibCoreStatement
+                ,CmdHandler.CreateLibInfrastructureStatement
+                ,CmdHandler.AddinSlnAPI
+                ,CmdHandler.AddinSlnCore
+                ,CmdHandler.AddinSlnInfrastructure
+            ]);
 
             FileHelper.DeleteFiles(CurrentProject.SolutionFiles.Where(f => f.EndsWith("Class1.cs")).Select(f => f).ToList());
 
-            return result;
+            return string.Join(Environment.NewLine, result);
         }
 
         /// <summary>

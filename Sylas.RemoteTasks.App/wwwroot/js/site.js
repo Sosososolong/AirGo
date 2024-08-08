@@ -192,11 +192,13 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSele
 <select class="form-control form-select-sm" aria-label="Default select" name="${th.name}" id="${formItemId}">${dataSourceOptions}</select>
 </div>`;
                     } else {
+                        const inputComponent = th.multiLines
+                            ? `<textarea class="form-control form-control-sm" placeholder="${th.title}" name="${th.name}" id="${formItemId}" ondblclick="textareaDbClicked(this)" aria-label=".form-control-sm example"></textarea>`
+                            : `<input class="form-control form-control-sm" type="text" placeholder="${th.title}" name="${th.name}" id="${formItemId}" aria-label=".form-control-sm example">`
                         // BOOKMARK: 前端/frontend封装site.js - 创建模态框 3.2表单项 除Id字段外的其他表单项 - 普通字段
                         this.tableForm.formHtml += `<div class="mb-3">
 <label for="${formItemId}" class="col-form-label">${th.title}:</label>
-<input class="form-control form-control-sm" type="text" placeholder="${th.title}" name="${th.name}" id="${formItemId}" aria-label=".form-control-sm example">
-<!--<textarea class="form-control form-control-sm" name="${th.name}" id="${formItemId}" aria-label=".form-control-sm example"></textarea>-->
+${inputComponent}
 </div>`;
                     }
 
@@ -547,7 +549,7 @@ function getFormData(formItemIds) {
 async function showUpdatePannel(eventTrigger) {
     let tableId = eventTrigger.getAttribute('data-table-id');
     let table = tables[tableId];
-    let dataId = eventTrigger.getAttribute('data-id');
+    let dataId = Number(eventTrigger.getAttribute('data-id'));
     let fetchUrl = eventTrigger.getAttribute('data-fetch-url');
     let updateUrl = eventTrigger.getAttribute('data-update-url');
     let method = eventTrigger.getAttribute('data-method');
@@ -597,7 +599,7 @@ async function showUpdatePannel(eventTrigger) {
 async function deleteData(eventTrigger) {
     let tableId = eventTrigger.getAttribute('data-table-id');
     let table = tables[tableId];
-    let dataId = eventTrigger.getAttribute('data-id');
+    let dataId = Number(eventTrigger.getAttribute('data-id'));
 
     let url = eventTrigger.getAttribute('data-delete-url');
     let method = eventTrigger.getAttribute('data-method');
@@ -656,3 +658,22 @@ async function execute(eventTrigger) {
         showErrorBox(response.errMsg, '错误提示', [{ class: 'error', content: '关闭' }]);
     }
 }
+
+//function textareaDbClicked(ele) {
+//    fetch("/Home/CodeEditor")
+//        .then(response => {
+//            // 确保请求成功
+//            if (!response.ok) {
+//                throw new Error('Network response was not ok');
+//            }
+//            return response.text(); // 将响应转换为文本
+//        })
+//        .then(html => {
+//            // 将获取到的HTML内容插入到页面的指定元素中
+//            document.getElementById('container').innerHTML = html;
+//        })
+//        .catch(error => {
+//            // 处理请求过程中可能出现的错误
+//            console.error('There was a problem with the fetch operation:', error);
+//        });
+//}

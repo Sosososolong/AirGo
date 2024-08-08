@@ -1015,7 +1015,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <returns></returns>
         /// <exception cref="NotImplementedException"></exception>
 
-        public static async Task<IEnumerable<string>> GetAllTablesAsync(IDbConnection conn, string dbName)
+        public static async Task<IEnumerable<string>> GetAllTablesAsync(IDbConnection conn, string dbName = "")
         {
             string connstr = conn.ConnectionString;
             var dbtype = GetDbType(connstr);
@@ -1039,7 +1039,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="connStr"></param>
         /// <param name="dbName"></param>
         /// <returns></returns>
-        public static async Task<IEnumerable<dynamic>> GetAllTablesAsync(string connStr, string dbName)
+        public static async Task<IEnumerable<dynamic>> GetAllTablesAsync(string connStr, string dbName = "")
         {
             var conn = GetDbConnection(connStr);
             return await GetAllTablesAsync(conn, dbName);

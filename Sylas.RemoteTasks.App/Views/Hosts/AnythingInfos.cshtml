@@ -1,4 +1,6 @@
-﻿@{
+﻿@using Sylas.RemoteTasks.App.RemoteHostModule.Anything
+@model List<AnythingInfo>;
+@{
     ViewData["Title"] = "Anything ...";
 }
 <div class="my-4">
@@ -23,7 +25,7 @@
                                 @foreach (var anythingCommand in anything.Commands)
                                 {
                                     <p class="card-text">
-                                        <button class="btn btn-primary" onclick="executeCommand('@(anything.SettingId)', '@(anythingCommand.Name)', this)">@(anythingCommand.Name)</button>
+                                        <button class="btn btn-primary"@(!string.IsNullOrWhiteSpace(anythingCommand.Disabled) ? " disabled" : "") onclick="executeCommand('@(anything.SettingId)', '@(anythingCommand.Name)', this)">@(anythingCommand.Name)</button>
                                     </p>
                                     <p class="card-text">
                                         @(anythingCommand.CommandTxt)

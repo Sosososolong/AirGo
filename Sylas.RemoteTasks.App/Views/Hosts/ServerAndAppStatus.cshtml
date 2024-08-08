@@ -1,0 +1,80 @@
+﻿@model Sylas.RemoteTasks.Utils.ServerInfo
+@using Newtonsoft.Json
+@{
+    ViewData["Title"] = "基本信息";
+}
+<h5>@ViewData["Title"]</h5>
+
+<table>
+    <tr><td>服务器名称:</td><td>@Model.MachineName</td></tr>
+    <tr><td>服务器IP:</td><td>@Model.IP</td></tr>
+    <tr><td>操作系统:</td><td>@Model.OSName</td></tr>
+    <tr><td>操作系统架构:</td><td>@Model.OSArchitecture</td></tr>
+    <tr><td>.NET版本:</td><td>@Model.DoNetName</td></tr>
+    <tr><td>CPU数量:</td><td>@Model.CpuCount</td></tr>
+    <tr><td>应用开始运行时间:</td><td>@Model.AppStartTime</td></tr>
+    <tr><td>应用总运行时间:</td><td>@Model.AppRunTime</td></tr>
+</table>
+
+<h5 style="margin-top:20px;">CPU内存信息</h5>
+<table>
+    <tr><td>CPU使用率:</td><td>@(Model.MemoryInfo.CpuRate)%</td></tr>
+    <tr><td>总内存:</td><td>@(Math.Round(Model.MemoryInfo.Total / 1024, 0))GB</td></tr>
+    <tr><td>已使用:</td><td>@(Math.Round(Model.MemoryInfo.Used / 1024, 0))GB</td></tr>
+    <tr><td>空闲:</td><td>@(Math.Round(Model.MemoryInfo.Free / 1024, 0))GB</td></tr>
+    <tr><td>内存使用率:</td><td>@Math.Round(100 * Model.MemoryInfo.Used / Model.MemoryInfo.Total, 2)%</td></tr>
+    <tr><td>应用占用内存:</td><td>@(Model.MemoryInfo.AppRam)MB / @(Model.MemoryInfo.AppRamRate)%</td></tr>
+</table>
+
+<h5 style="margin-top:20px;">磁盘信息</h5>
+<table>
+    @foreach(var item in Model.DiskInfos)
+    {
+        <tr>
+            <td>@(item.DiskName)(@item.TypeName):</td>
+            <td>@(100 * item.Used / item.TotalSize)%</td>
+        </tr>
+    }
+</table>
+
+@* <h1>服务器监控</h1>
+<div class="row">
+    <!-- 服务器信息卡片 -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                服务器信息
+            </div>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item"><span style="display:inline-block;width:150px;">服务器名称:</span> DESKTOP-CPTIQKF</li>
+                <li class="list-group-item"><span style="display:inline-block;width:150px;">服务器IP:</span> 2.0.0.1</li>
+                <li class="list-group-item"><span style="display:inline-block;width:150px;">系统名称:</span> Microsoft Windows 10.0.22000</li>
+                <li class="list-group-item"><span style="display:inline-block;width:150px;">系统架构:</span> X64</li>
+                <li class="list-group-item"><span style="display:inline-block;width:150px;">.Net版本:</span> .NET 7.0.20</li>
+                <li class="list-group-item"><span style="display:inline-block;width:150px;">CPU数量:</span> 6</li>
+                <li class="list-group-item"><span style="display:inline-block;width:150px;">服务开始运行时间:</span> 2024/7/31 10:52:43</li>
+                <li class="list-group-item"><span style="display:inline-block;width:150px;">服务运行时间:</span> 4.22:15:08.6262090</li>
+            </ul>
+        </div>
+    </div>
+    <!-- 资源使用情况卡片 -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                资源使用情况
+            </div>
+            <div class="card-body">
+                <div class="progress">
+                    <div class="progress-bar" role="progressbar" style="width: 10%;" aria-valuenow="10" aria-valuemin="0" aria-valuemax="100">CPU使用率: 10%</div>
+                </div>
+                <div class="progress">
+                    <div class="progress-bar" role="progressbar" style="width: 34%;" aria-valuenow="34" aria-valuemin="0" aria-valuemax="100">RAM使用率: 34%</div>
+                </div>
+                <div class="progress">
+                    <div class="progress-bar bg-info" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">应用RAM使用率: 0%</div>
+                </div>
+                <!-- 磁盘使用情况... -->
+            </div>
+        </div>
+    </div>
+</div> *@

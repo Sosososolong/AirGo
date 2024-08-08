@@ -1,8 +1,6 @@
 ﻿using IdentityModel.Client;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Sylas.RemoteTasks.Utils.Dto;
-using System.Security.Claims;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {

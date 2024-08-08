@@ -139,7 +139,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                 parameters.Add("remark", processor.Remark);
             }
             setStatement.Append($"stepCirleRunningWhenLastStepHasData=@stepCirleRunningWhenLastStepHasData,");
-            parameters.Add("stepCirleRunningWhenLastStepHasData", processor.StepCirleRunningWhenLastStepHasData);
+            parameters.Add("stepCirleRunningWhenLastStepHasData", processor.StepCirleRunningWhenLastStepHasData ? 1 : 0);
 
             string sql = $"update {HttpRequestProcessor.TableName} set {setStatement.ToString().TrimEnd(',')} where id=@id";
             return await _db.ExecuteSqlAsync(sql, parameters);

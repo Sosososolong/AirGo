@@ -1,0 +1,66 @@
+﻿@{
+    ViewData["Title"] = "Snippets";
+}
+
+<div>
+    <h1>Study</h1>
+    <div id="questions"></div>
+</div>
+@section Scripts{
+    <script>
+        const questions = [
+            { "question": "补证使用原证件", "expectedAnswer": "20-200" },
+            { "question": "虚假材料?元以下", "expectedAnswer": "500" },
+            { "question": "所有权转让后未转让登记", "expectedAnswer": "200" },
+            { "question": "逾期不参加审验", "expectedAnswer": "200-500" },
+            { "question": "超速20%-50%", "expectedAnswer": "3,6", "answerDetail": "普3高6" },
+            { "question": "普通路普通车超速50%", "expectedAnswer": "6" },
+            { "question": "超速50%-100%", "expectedAnswer": "9,6", "answerDetail": "7座以上9分 以下6分" },
+            { "question": "无证驾驶", "expectedAnswer": "6" },
+            { "question": "不按信号灯", "expectedAnswer": "6" },
+            { "question": "高速占道", "expectedAnswer": "6" },
+            { "question": "轻伤逃逸不构成犯罪", "expectedAnswer": "6" },
+            { "question": "超过总质量50%", "expectedAnswer": "6" },
+            { "question": "未悬挂警示标志", "expectedAnswer": "6" },
+            { "question": "遮挡车牌", "expectedAnswer": "9" },
+            { "question": "高速违法停车", "expectedAnswer": "9" },
+            { "question": "未年检", "expectedAnswer": "1,3", "answerDetail": "小车1分; 大车3分" },
+            { "question": "高速不按规定车道行驶", "expectedAnswer": "3" },
+            { "question": "打电话", "expectedAnswer": "3" },
+            { "question": "货车超质量30% 或违反载客", "expectedAnswer": "3" },
+            { "question": "普通道路逆行", "expectedAnswer": "3" },
+            { "question": "不按规定避让校车", "expectedAnswer": "3" },
+            { "question": "不按规定安装车牌", "expectedAnswer": "3" },
+            { "question": "满12分学习几天", "expectedAnswer": "7,30", "answerDetail": "小车7天, 大车30天" },
+            { "question": "多少天内转移登记", "expectedAnswer": "30" },
+            { "question": "多少天内审验", "expectedAnswer": "30" },
+            { "question": "多少天内补证", "expectedAnswer": "60" },
+            { "question": "多少天内换证", "expectedAnswer": "90" },
+            { "question": "轻型牵引挂车代码", "expectedAnswer": "C6" },
+        ]
+        let randomIndexes = [];
+        let random = 0;
+        while (questions.length > 0) {
+            const randomIndex = random ? randomNext(0, questions.length - 1) : 0;
+            const q = questions[randomIndex];
+            document.querySelector('#questions').innerHTML += (`<div class="question"><label style="width:180px" for="answer${randomIndex}">${q.question}</label> <input id="answer${randomIndex}" value="" onchange="checkAnswer(this)" ondblclick="dbclicked(this)" /><input hidden value="${q.expectedAnswer}" /><span>&nbsp;&nbsp;</span><span style="display:none;">&nbsp;&nbsp;${q.answerDetail ?? q.expectedAnswer}</span></div>`)
+            questions.splice(randomIndex, 1);
+        }
+        function checkAnswer(input) {
+            const value = input.value;
+            const expected = input.nextElementSibling.value;
+            if (value === expected) {
+                input.nextSibling.nextSibling.style = 'background-color: blue;margin-left: 5px;display: inline-block;';
+            } else {
+                input.nextSibling.nextSibling.style = 'background-color:brown;margin-left: 5px;display: inline-block;';
+            }
+        }
+        function randomNext(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        function dbclicked(input) {
+            input.parentElement.querySelectorAll('span')[1].style.display = 'inline-block';
+        }
+    </script>
+}

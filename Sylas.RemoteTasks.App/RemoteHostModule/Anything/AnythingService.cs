@@ -158,8 +158,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             #endregion
 
             #region 解析Executor对象和构造函数参数
-            AnythingExecutor? anythingExecutor = null;
-            
+            AnythingExecutor? anythingExecutor;
             if (anythingSetting.Executor == 0)
             {
                 anythingExecutor = new AnythingExecutor { Name = "SystemCmd" };
@@ -216,6 +215,13 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             foreach (var anythingCommand in commands)
             {
                 anythingCommand.CommandTxt = TmplHelper.ResolveExpressionValue(anythingCommand.CommandTxt, properties)?.ToString() ?? throw new Exception($"解析命令\"{anythingCommand.CommandTxt}\"异常");
+                if (!string.IsNullOrWhiteSpace(anythingCommand.Disabled))
+                {
+                    anythingCommand.Disabled = TmplHelper.ResolveExpressionValue(anythingCommand.Disabled, properties)?.ToString() ?? throw new Exception($"解析命令\"{anythingCommand.Disabled}\"异常");
+                    var start = DateTime.Now;
+                    anythingCommand.Disabled = (await anythingCommandExecutor.ExecuteAsync(anythingCommand.Disabled)).Message;
+                    Console.WriteLine($"检测命令是否可用: {(DateTime.Now - start).TotalMilliseconds}/ms");
+                }
             }
 
             var anythingInfo = new AnythingInfo()

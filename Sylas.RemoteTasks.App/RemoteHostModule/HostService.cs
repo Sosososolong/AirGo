@@ -1,6 +1,4 @@
-﻿using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
-
-namespace Sylas.RemoteTasks.App.RemoteHostModule
+﻿namespace Sylas.RemoteTasks.App.RemoteHostModule
 {
     public class HostService(IConfiguration configuration,
                        ILoggerFactory loggerFactory,

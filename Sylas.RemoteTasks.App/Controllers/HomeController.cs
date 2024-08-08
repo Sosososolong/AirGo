@@ -6,9 +6,11 @@ using Sylas.RemoteTasks.App.Database;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.Models;
 using Sylas.RemoteTasks.App.Snippets;
+using Sylas.RemoteTasks.Database.CodeGenerator;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils;
 using Sylas.RemoteTasks.Utils.Constants;
+using Sylas.RemoteTasks.Utils.Dto;
 using System.Data;
 using System.Diagnostics;
 using System.Text;
@@ -20,10 +22,6 @@ namespace Sylas.RemoteTasks.App.Controllers
     {
         private readonly DotNETOperation _coreOperations = new();
         private readonly DatabaseProvider _db = databaseProvider;
-        private const char _space = ' ';
-        private readonly string _oneTabSpace = new(_space, 4);
-        private readonly string _twoTabsSpace = new(_space, 8);
-        private readonly string _fourTabsSpace = new(_space, 16);
 
         // ASP.NET Core 项目
         // 配置文件
@@ -603,12 +601,12 @@ namespace Sylas.RemoteTasks.App.Controllers
                 {
                     orderByDirectionFields.Add($@"protected string orderBy{colName}Direction = ""desc"";");
                 }
-                sb.Append(_fourTabsSpace)
+                sb.Append(SpaceConstants.FourTabsSpaces)
                     .AppendFormat(@"<th width=""50"" align=""center"" {0}>", colName.ToLower().Contains("time", StringComparison.CurrentCulture) ? $@"orderfield=""{primaryKey}"" class=""<%= orderBy{colName}Direction %>"">" : "") // 按时间排序其实就是按主键排序
                     .Append(Environment.NewLine)
-                    .Append(_oneTabSpace + _fourTabsSpace)
+                    .Append(SpaceConstants.FiveTabsSpaces)
                     .Append(colName).Append(Environment.NewLine)
-                    .Append(_fourTabsSpace).Append("</th>")
+                    .Append(SpaceConstants.FourTabsSpaces).Append("</th>")
                     .Append(Environment.NewLine);
             }
 
@@ -627,9 +625,9 @@ namespace Sylas.RemoteTasks.App.Controllers
             sb.Clear(); // 清空sb内容,继续使用这个对象拼接字符串            
             foreach (string colName in columnNames)
             {
-                sb.Append(_twoTabsSpace + _fourTabsSpace)
+                sb.Append(SpaceConstants.SixTabsSpaces)
                     .Append("<td>").Append(Environment.NewLine)
-                    .Append(_oneTabSpace + _twoTabsSpace + _fourTabsSpace);
+                    .Append(SpaceConstants.SevenTabsSpaces);
                 if (columnNames.Contains("UserID") && (colName.IndexOf("GameID") != -1 || colName.IndexOf("Accounts") != -1 || colName.IndexOf("NickName") != -1))
                 {
                     sb.Append($@"<a class=""edit"" href ='/Module/AccountManager/UserInfo.aspx?relId=<%=relId %>&userid=<%#((DataRowView)Container.DataItem)[""UserID""]%>'
@@ -641,7 +639,7 @@ namespace Sylas.RemoteTasks.App.Controllers
                     sb.Append($@"<%# Eval(""{colName}"") %>");
                 }
                 sb.Append(Environment.NewLine)
-                    .Append(_twoTabsSpace + _fourTabsSpace).Append("</td>").Append(Environment.NewLine);
+                    .Append(SpaceConstants.SixTabsSpaces).Append("</td>").Append(Environment.NewLine);
             }
             reg = new Regex("{TableRows}");
             modifiedTemplate = reg.Replace(modifiedTemplate, sb.ToString());
@@ -649,7 +647,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             sb.Clear();
             foreach (string item in orderByDirectionFields)
             {
-                sb.Append(_twoTabsSpace)
+                sb.Append(SpaceConstants.TwoTabsSpaces)
                     .Append(item).Append(Environment.NewLine);
             }
             reg = new Regex("{orderByDirectionFields}");
@@ -871,10 +869,10 @@ namespace Sylas.RemoteTasks.App.Controllers
             if (type.ToLower() == "modify")
             {
                 // 添加实体集的代码
-                StringBuilder codes = new StringBuilder();
+                StringBuilder codes = new();
                 foreach (string entityName in entityNamesParams)
                 {
-                    codes.Append($"public DbSet<{entityName}> {_coreOperations.ToPlural(entityName)} {{ get; set; }}").Append(Environment.NewLine).Append(_twoTabsSpace);
+                    codes.Append($"public DbSet<{entityName}> {_coreOperations.ToPlural(entityName)} {{ get; set; }}").Append(Environment.NewLine).Append(SpaceConstants.TwoTabsSpaces);
                 }
                 FileHelper.InsertCodePropertyLevel(dbContextFilePath, codes.ToString().TrimEnd());
             }
@@ -948,7 +946,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         }
 
         /// <summary>
-        /// 代码生成页面,Url地址如:http://localhost:5105/Home/CodeGen?tableFullName=Configs&tableComment=通用配置&connectionString=Server=127.0.0.1;Port=3306;Stmt=;Database=engine;Uid=root;Pwd=123456;Allow%20User%20Variables=true;&serviceFieldInController=
+        /// 代码生成配置页面,Url地址如:http://localhost:5105/Home/CodeGen?tableFullName=Configs&tableComment=通用配置&connectionString=Server=127.0.0.1;Port=3306;Stmt=;Database=engine;Uid=root;Pwd=123456;Allow%20User%20Variables=true;&serviceFieldInController=
         /// </summary>
         /// <param name="repositorySnippets"></param>
         /// <param name="templateId"></param>
@@ -958,12 +956,12 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// <param name="connectionString">目标表所在的数据库的连接字符串</param>
         /// <param name="serviceFieldInController">控制器中负责业务的服务字段, 空表示创建新的服务类</param>
         /// <returns></returns>
-        public async Task<IActionResult> CodeGen([FromServices] DatabaseInfo database, [FromServices]RepositoryBase<Snippet> repositorySnippets, int templateId, string tableFullName, string tableComment, string connectionString, string serviceFieldInController)
+        public async Task<IActionResult> CodeGen([FromServices] DatabaseInfo database, [FromServices] RepositoryBase<Snippet> repositorySnippets, int templateId, string tableFullName, string tableComment, string connectionString, string serviceFieldInController)
         {
             #region 参数为空跳转到配置参数的页面
             if (string.IsNullOrWhiteSpace($"{tableFullName}") || string.IsNullOrWhiteSpace($"{tableComment}") || string.IsNullOrWhiteSpace($"{connectionString}"))
             {
-                var templates = await repositorySnippets.GetPageAsync(1, 100, filter: new DataFilter { FilterItems = [new FilterItem(nameof(Snippet.TypeId), "=", "2")] });
+                var templates = await repositorySnippets.GetPageAsync(1, 100, filter: new DataFilter { FilterItems = [new FilterItem(nameof(Snippet.TypeId), "=", 2)] });
                 return View(templates.Data);
             }
             if (!string.IsNullOrWhiteSpace(connectionString))
@@ -997,7 +995,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             #endregion
 
             var columns = await database.GetTableColumnsInfoAsync(tableFullName);
-            var searchColumns = columns.Where(x => !string.IsNullOrWhiteSpace(x.ColumnCode) && (x.ColumnCode.Contains("name", StringComparison.OrdinalIgnoreCase) || x.ColumnCode.ToLower() == "id"));
+            var searchColumns = columns.Where(x => !string.IsNullOrWhiteSpace(x.ColumnCode) && (x.ColumnCode.Contains("name", StringComparison.OrdinalIgnoreCase) || x.ColumnCode.Equals("id", StringComparison.CurrentCultureIgnoreCase)));
 
             var tmplRecord = await repositorySnippets.GetByIdAsync(templateId) ?? throw new Exception("模板不存在");
             string currentTmpl = $"SnippetTmpl{tmplRecord.Id}";
@@ -1011,6 +1009,61 @@ namespace Sylas.RemoteTasks.App.Controllers
             var result = RazorEngine.Engine.Razor.Run(currentTmpl, modelType: null, model: model);
             ViewBag.PageHtml = result;
             return View("CodeGenPreview");
+        }
+        /// <summary>
+        /// 代码生成器配置页面V2
+        /// </summary>
+        /// <param name="repositorySnippets"></param>
+        /// <returns></returns>
+        public async Task<IActionResult> CodeGen2([FromServices] RepositoryBase<Snippet> repositorySnippets)
+        {
+            var templates = await repositorySnippets.GetPageAsync(1, 100, filter: new DataFilter { FilterItems = [new FilterItem(nameof(Snippet.TypeId), "=", 2)] });
+            return View(templates.Data);
+        }
+        /// <summary>
+        /// 代码生成
+        /// </summary>
+        /// <param name="repositorySnippets"></param>
+        /// <param name="templateId"></param>
+        /// <param name="database">从DI容器中获取的操作数据库的服务</param>
+        /// <param name="tableFullName">表名</param>
+        /// <param name="tableComment">表注释</param>
+        /// <param name="connectionString">目标表所在的数据库的连接字符串</param>
+        /// <param name="serviceFieldInController">控制器中负责业务的服务字段, 空表示创建新的服务类</param>
+        /// <returns></returns>
+        public async Task<IActionResult> CodeGenPost([FromServices] RepositoryBase<Snippet> repositorySnippets, [FromBody] CodeGeneratorInDto dto)
+        {
+            var tmplRecord = await repositorySnippets.GetByIdAsync(dto.TemplateId) ?? throw new Exception("模板不存在");
+            string currentTmpl = $"SnippetTmpl{tmplRecord.Id}";
+            if (!RazorEngine.Engine.Razor.IsTemplateCached(currentTmpl, null))
+            {
+                RazorEngine.Engine.Razor.AddTemplate(currentTmpl, tmplRecord.Content);
+                RazorEngine.Engine.Razor.Compile(currentTmpl);
+            }
+
+            var result = RazorEngine.Engine.Razor.Run(currentTmpl, modelType: null, model: dto);
+            return Ok(new RequestResult<string>(result));
+        }
+
+        public async Task<IActionResult> GetTableInfo([FromServices] DatabaseInfo database, string connectionString, string table)
+        {
+            if (string.IsNullOrWhiteSpace(connectionString) || string.IsNullOrWhiteSpace(table))
+            {
+                return Ok(RequestResult<IEnumerable<ColumnInfo>>.Error("数据库连接字符串和表名都不能为空"));
+            }
+            database.ChangeDatabase(connectionString);
+            var columns = await database.GetTableColumnsInfoAsync(table);
+            return Ok(new RequestResult<IEnumerable<ColumnInfo>>(columns));
+        }
+
+        public async Task<IActionResult> GetAllTables(string connectionString)
+        {
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                return Ok(RequestResult<IEnumerable<dynamic>>.Error("数据库连接字符串不能为空"));
+            }
+            var tables = await DatabaseInfo.GetAllTablesAsync(connectionString);
+            return Ok(new RequestResult<IEnumerable<dynamic>>(tables));
         }
     }
 }

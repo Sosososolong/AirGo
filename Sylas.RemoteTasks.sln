@@ -7,9 +7,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Sylas.RemoteTasks.App", "Sy
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Sylas.RemoteTasks.Test", "Sylas.RemoteTasks.Test\Sylas.RemoteTasks.Test.csproj", "{7F96E3C5-69B9-489D-A732-40E4A0192C22}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sylas.RemoteTasks.Database", "Sylas.RemoteTasks.Database\Sylas.RemoteTasks.Database.csproj", "{B7AB40AE-9045-4CEF-B3C2-AC59EC3BA463}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Sylas.RemoteTasks.Database", "Sylas.RemoteTasks.Database\Sylas.RemoteTasks.Database.csproj", "{B7AB40AE-9045-4CEF-B3C2-AC59EC3BA463}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sylas.RemoteTasks.Utils", "Sylas.RemoteTasks.Utils\Sylas.RemoteTasks.Utils.csproj", "{4C8CF5D9-C644-4893-A500-2250D8F48BB1}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Sylas.RemoteTasks.Utils", "Sylas.RemoteTasks.Utils\Sylas.RemoteTasks.Utils.csproj", "{4C8CF5D9-C644-4893-A500-2250D8F48BB1}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

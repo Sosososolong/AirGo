@@ -2,6 +2,7 @@
 using Sylas.RemoteTasks.App.RemoteHostModule;
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
 using Sylas.RemoteTasks.Database.SyncBase;
+using Sylas.RemoteTasks.Utils;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {
@@ -83,6 +84,15 @@ namespace Sylas.RemoteTasks.App.Controllers
         public async Task<IActionResult> DeleteAnythingSettingByIdAsync(int id)
         {
             return Json(await anythingService.DeleteAnythingSettingByIdAsync(id));
+        }
+        /// <summary>
+        /// 服务器和应用状态数据
+        /// </summary>
+        /// <returns></returns>
+        public async Task<IActionResult> ServerAndAppStatus()
+        {
+            var info = await SystemCmd.GetServerAndAppInfoAsync();
+            return View(info);
         }
     }
 }

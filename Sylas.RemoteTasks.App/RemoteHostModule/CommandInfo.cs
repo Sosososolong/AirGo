@@ -4,5 +4,6 @@
     {
         public string Name { get; set; } = string.Empty;
         public string CommandTxt { get; set; } = string.Empty;
+        public string Disabled { get; set; } = string.Empty;
     }
 }
