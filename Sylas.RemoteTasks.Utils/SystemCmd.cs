@@ -326,33 +326,39 @@ namespace Sylas.RemoteTasks.Utils
             };
         }
 
-        //public static async Task<List<string>> GetTopCpuProcesses()
-        //{
-        //    // 使用Process类实现
-        //    var processes = Process.GetProcesses();
-        //    List<(string, double)> list = [];
-        //    foreach (var pro in processes)
-        //    {
-        //        int interval = 1000;
-        //        //上次记录的CPU时间
-        //        var prevCpuTime = TimeSpan.Zero;
-        //        for (int i = 0; i < 2; i++)
-        //        {
-        //            //当前时间
-        //            var curTime = pro.TotalProcessorTime;
-        //            //间隔时间内的CPU运行时间除以逻辑CPU数量
-        //            var value = (curTime - prevCpuTime).TotalMilliseconds / interval / Environment.ProcessorCount * 100;
-        //            prevCpuTime = curTime;
-        //            //输出
-        //            Console.WriteLine(pro.ProcessName + ": " + value);
-        //            await Task.Delay(interval);
-        //            if (i == 1)
-        //            {
-        //                list.Add((pro.ProcessName, Math.Round(value, 1)));
-        //            }
-        //        }
-        //    }
-        //}
+        /// <summary>
+        /// 获取进程的CPU使用率和占用内存
+        /// </summary>
+        /// <param name="processName"></param>
+        /// <returns></returns>
+        public static async Task<List<string>> GetProcessCpuAndRam(string processName)
+        {
+            // 使用Process类实现
+            var processes = Process.GetProcessesByName(processName);
+            List<string> list = [];
+            foreach (var p in processes)
+            {
+                int interval = 1000;
+                //上次记录的CPU时间
+                var prevCpuTime = TimeSpan.Zero;
+                for (int i = 0; i < 2; i++)
+                {
+                    //当前时间
+                    var curTime = p.TotalProcessorTime;
+                    //间隔时间内的CPU运行时间除以逻辑CPU数量
+                    var value = (curTime - prevCpuTime).TotalMilliseconds / interval / Environment.ProcessorCount * 100;
+                    prevCpuTime = curTime;
+                    //输出
+                    Console.WriteLine(p.ProcessName + ": " + value);
+                    await Task.Delay(interval);
+                    if (i > 0)
+                    {
+                        list.Add($"{p.ProcessName} {p.Id}:{Math.Round(value, 1)} {GetProcessRam(p)}MB");
+                    }
+                }
+            }
+            return list;
+        }
 
         #region 主机信息管理
         /// <summary>
@@ -557,7 +563,12 @@ namespace Sylas.RemoteTasks.Utils
             memoryInfo.AppRamRate = Math.Round((double)Process.GetCurrentProcess().WorkingSet64 / 1024 / 1024 / memoryInfo.Total, 4);
             return memoryInfo;
         }
-
+        /// <summary>
+        /// 获取进程的内存使用 MB
+        /// </summary>
+        /// <param name="p"></param>
+        /// <returns></returns>
+        public static double GetProcessRam(Process p) => Math.Round((double)p.WorkingSet64 / 1024 / 1024, 0);
         /// <summary>
         /// 获取系统状态
         /// </summary>

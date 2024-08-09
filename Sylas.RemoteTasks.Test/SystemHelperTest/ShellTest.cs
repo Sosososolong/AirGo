@@ -33,5 +33,20 @@ namespace Sylas.RemoteTasks.Test.SystemHelperTest
             var res = await SystemCmd.GetServerAndAppInfoAsync();
             outputHelper.WriteLine(JsonConvert.SerializeObject(res));
         }
+
+        [Fact]
+        public async Task GetProcessCpuAndRam()
+        {
+            var t1 = DateTime.Now;
+            var res = await SystemCmd.GetProcessCpuAndRam("nginx");
+            var t2 = DateTime.Now;
+            outputHelper.WriteLine($"-------------------------{(t2 - t1).TotalMilliseconds}/ms------------------------------");
+            outputHelper.WriteLine(JsonConvert.SerializeObject(res));
+
+            res = await SystemCmd.GetProcessCpuAndRam("devenv");
+            var t3 = DateTime.Now;
+            outputHelper.WriteLine($"-------------------------{(t3 - t2).TotalMilliseconds}/ms------------------------------");
+            outputHelper.WriteLine(JsonConvert.SerializeObject(res));
+        }
     }
 }
