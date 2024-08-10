@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json;
 using Sylas.RemoteTasks.Utils;
+using System.Collections.Concurrent;
 using Xunit.Abstractions;
 
 namespace Sylas.RemoteTasks.Test.SystemHelperTest
@@ -38,15 +39,27 @@ namespace Sylas.RemoteTasks.Test.SystemHelperTest
         public async Task GetProcessCpuAndRam()
         {
             var t1 = DateTime.Now;
-            var res = await SystemCmd.GetProcessCpuAndRam("nginx");
+            var res = await SystemCmd.GetProcessCpuAndRamAsync("nginx");
             var t2 = DateTime.Now;
             outputHelper.WriteLine($"-------------------------{(t2 - t1).TotalMilliseconds}/ms------------------------------");
             outputHelper.WriteLine(JsonConvert.SerializeObject(res));
 
-            res = await SystemCmd.GetProcessCpuAndRam("devenv");
+            res = await SystemCmd.GetProcessCpuAndRamAsync("devenv");
             var t3 = DateTime.Now;
-            outputHelper.WriteLine($"-------------------------{(t3 - t2).TotalMilliseconds}/ms------------------------------");
+            outputHelper.WriteLine($"{Environment.NewLine}-------------------------{(t3 - t2).TotalMilliseconds}/ms------------------------------");
             outputHelper.WriteLine(JsonConvert.SerializeObject(res));
+
+            string[] pns = ["nginx", "devenv"];
+            ConcurrentBag<string> result = [];
+            Task[] tasks = pns.Select(async pn =>
+            {
+                var res = await SystemCmd.GetProcessCpuAndRamAsync(pn);
+                result.Add(JsonConvert.SerializeObject(res));
+            }).ToArray();
+            await Task.WhenAll(tasks);
+            var t4 = DateTime.Now;
+            outputHelper.WriteLine($"{Environment.NewLine}-------------------------{(t4 - t3).TotalMilliseconds}/ms------------------------------");
+            outputHelper.WriteLine(JsonConvert.SerializeObject(result.ToList()));
         }
     }
 }

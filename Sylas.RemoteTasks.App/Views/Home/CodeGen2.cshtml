@@ -86,456 +86,456 @@
 </div>
 
 @section Scripts {
-<script>
-    let allTables = {};
-    let allTableOptions = {};
-    const leftJoinContainer = document.querySelector('.leftJoinContainer');
-    const connectionStringInput = document.querySelector("#connectionString");
+    <script>
+        let allTables = {};
+        let allTableOptions = {};
+        const leftJoinContainer = document.querySelector('.leftJoinContainer');
+        const connectionStringInput = document.querySelector("#connectionString");
 
-    const mainTableInput = document.querySelector("#tableFullName");
-    const tableAliasInput = document.querySelector('#tableAliasName');
+        const mainTableInput = document.querySelector("#tableFullName");
+        const tableAliasInput = document.querySelector('#tableAliasName');
 
-    let mainTable = {
-        name: '',
-        alias: '',
-        columns: []
-    };
-    let leftJoinTables = [];
-    let options = { backdrop: true, focus: true, keyboard: true };
-    const columnsSelector = new bootstrap.Modal(document.getElementById('columnsSelector'), options);
-    const tmplRenderResult = new bootstrap.Modal(document.getElementById('tmplRenderResult'), options);
-    /**
-     * 查询连接字符串对应库的所有表
-     */
-    async function getDbTables(event) {
-        if (!connectionStringInput.value) {
-            showErrorBox('连接字符串不能为空');
-            connectionStringInput.focus();
-            return;
+        let mainTable = {
+            name: '',
+            alias: '',
+            columns: []
+        };
+        let leftJoinTables = [];
+        let options = { backdrop: true, focus: true, keyboard: true };
+        const columnsSelector = new bootstrap.Modal(document.getElementById('columnsSelector'), options);
+        const tmplRenderResult = new bootstrap.Modal(document.getElementById('tmplRenderResult'), options);
+        /**
+         * 查询连接字符串对应库的所有表
+         */
+        async function getDbTables(event) {
+            if (!connectionStringInput.value) {
+                showErrorBox('连接字符串不能为空');
+                connectionStringInput.focus();
+                return;
+            }
+
+            console.log(`查询所有表: ${connectionStringInput.value}`)
+            const { tableOptions, _ } = await getDbTableOptionsAsync(connectionStringInput.value);
+            // "表名"输入框 可选所有表
+            document.querySelector("#allTables").innerHTML = tableOptions;
         }
-
-        console.log(`查询所有表: ${connectionStringInput.value}`)
-        const { tableOptions, _ } = await getDbTableOptionsAsync(connectionStringInput.value);
-        // "表名"输入框 可选所有表
-        document.querySelector("#allTables").innerHTML = tableOptions;
-    }
-    /**
-     * 添加联表相关信息
-     */
-    async function addLeftJoinTable(e) {
-        const { tableOptions, _ } = await getDbTableOptionsAsync(connectionStringInput.value);
-        let leftJoinTableIndex = document.querySelector('.leftJoinContainer').querySelectorAll(".leftJoinTableIndexFlag").length;
-        let joinTableContainer = document.createElement("div");
-        joinTableContainer.className = "card mb-3";
-        joinTableContainer.innerHTML = `<div class="card-body">
-                <!--<label for="leftJoinTable${leftJoinTableIndex}" class="form-label">关联表表名</label>-->
-                <input id="leftJoinTable${leftJoinTableIndex}" type="text" class="form-control mb-3" list="tableOptions${leftJoinTableIndex}" placeholder="需要关联的表的表名, 如: userroles" aria-label="JoinedTable" onchange="leftJoinTableChanged(${leftJoinTableIndex})">
-                <datalist id="tableOptions${leftJoinTableIndex}">
-                      ${tableOptions}
-                </datalist>
-                <input id="leftJoinTableAlias${leftJoinTableIndex}" type="hidden" class="form-control" placeholder="别名, 如: ur" aria-label="JoinedTableAlias">
+        /**
+         * 添加联表相关信息
+         */
+        async function addLeftJoinTable(e) {
+            const { tableOptions, _ } = await getDbTableOptionsAsync(connectionStringInput.value);
+            let leftJoinTableIndex = document.querySelector('.leftJoinContainer').querySelectorAll(".leftJoinTableIndexFlag").length;
+            let joinTableContainer = document.createElement("div");
+            joinTableContainer.className = "card mb-3";
+            joinTableContainer.innerHTML = `<div class="card-body">
+                    <!--<label for="leftJoinTable${leftJoinTableIndex}" class="form-label">关联表表名</label>-->
+                    <input id="leftJoinTable${leftJoinTableIndex}" type="text" class="form-control mb-3" list="tableOptions${leftJoinTableIndex}" placeholder="需要关联的表的表名, 如: userroles" aria-label="JoinedTable" onchange="leftJoinTableChanged(${leftJoinTableIndex})">
+                    <datalist id="tableOptions${leftJoinTableIndex}">
+                          ${tableOptions}
+                    </datalist>
+                    <input id="leftJoinTableAlias${leftJoinTableIndex}" type="hidden" class="form-control" placeholder="别名, 如: ur" aria-label="JoinedTableAlias">
                 
-                <!--<label for="selfRelatedColumnInput${leftJoinTableIndex}" class="form-label">关联表的关联字段</label>-->
-                <input id="selfRelatedColumnInput${leftJoinTableIndex}" list="rightColumnsList${leftJoinTableIndex}" type="text" class="form-control mb-3" placeholder="关联表的关联字段, 如: userroles表的UserId字段关联到users表" aria-label="RightJoinedTable"><input type="hidden" class="leftJoinTableIndexFlag" />
-                <datalist id="rightColumnsList${leftJoinTableIndex}"></datalist>
+                    <!--<label for="selfRelatedColumnInput${leftJoinTableIndex}" class="form-label">关联表的关联字段</label>-->
+                    <input id="selfRelatedColumnInput${leftJoinTableIndex}" list="rightColumnsList${leftJoinTableIndex}" type="text" class="form-control mb-3" placeholder="关联表的关联字段, 如: userroles表的UserId字段关联到users表" aria-label="RightJoinedTable"><input type="hidden" class="leftJoinTableIndexFlag" />
+                    <datalist id="rightColumnsList${leftJoinTableIndex}"></datalist>
             
-                <!--<label for="otherTableRelatedColumnInput${leftJoinTableIndex}" class="form-label">主表或其他表的关联字段</label>-->
-                <input id="otherTableRelatedColumnInput${leftJoinTableIndex}" list="leftColumnsList${leftJoinTableIndex}" type="text" class="form-control mb-3" placeholder="主表或其他表的关联字段, 如: users表的Id字段 - users.Id" aria-label="LeftJoinedTable" ondblclick="showLeftRelatedColumnSelector(this)">
-                <datalist id="leftColumnsList${leftJoinTableIndex}"></datalist>
-                <button class="btn btn-danger" type="button" id="removeBtn${leftJoinTableIndex}" onclick="this.closest('.card').remove()">-</button>
-            </div>
-            `;
-        // "添加联表"按钮所在div
-        const buttonDiv = document.querySelector('.leftJoinContainer').querySelector('div:has(button.add-related-btn)');
-        // 按钮前面添加元素
-        buttonDiv.insertAdjacentElement('beforebegin', joinTableContainer);
-    }
-
-    /**
-     * 获取当前关联表的左关联可选字段列表
-     */
-    function getLeftRelatedColumns(relatedTableIndex) {
-        // 左关联字段可能是主表或者是除了当前左联表之外的其他左联表
-        let leftRelatedColumns = []
-        for (let i = 0; i < mainTable.columns.length; i++) {
-            leftRelatedColumns.push(`${mainTable.alias}.${mainTable.columns[i].columnCode}`);
+                    <!--<label for="otherTableRelatedColumnInput${leftJoinTableIndex}" class="form-label">主表或其他表的关联字段</label>-->
+                    <input id="otherTableRelatedColumnInput${leftJoinTableIndex}" list="leftColumnsList${leftJoinTableIndex}" type="text" class="form-control mb-3" placeholder="主表或其他表的关联字段, 如: users表的Id字段 - users.Id" aria-label="LeftJoinedTable" ondblclick="showLeftRelatedColumnSelector(this)">
+                    <datalist id="leftColumnsList${leftJoinTableIndex}"></datalist>
+                    <button class="btn btn-danger" type="button" id="removeBtn${leftJoinTableIndex}" onclick="this.closest('.card').remove()">-</button>
+                </div>
+                `;
+            // "添加联表"按钮所在div
+            const buttonDiv = document.querySelector('.leftJoinContainer').querySelector('div:has(button.add-related-btn)');
+            // 按钮前面添加元素
+            buttonDiv.insertAdjacentElement('beforebegin', joinTableContainer);
         }
-        if (relatedTableIndex - 1 > -1) {
-            for (let i = 0; i <= relatedTableIndex - 1; i++) {
-                const leftJoinTable = leftJoinTables.find(x => x.index == i);
-                for (let i = 0; i < leftJoinTable.columns.length; i++) {
-                    leftRelatedColumns.push(`${leftJoinTable.alias}.${leftJoinTable.columns[i].columnCode}`);
+
+        /**
+         * 获取当前关联表的左关联可选字段列表
+         */
+        function getLeftRelatedColumns(relatedTableIndex) {
+            // 左关联字段可能是主表或者是除了当前左联表之外的其他左联表
+            let leftRelatedColumns = []
+            for (let i = 0; i < mainTable.columns.length; i++) {
+                leftRelatedColumns.push(`${mainTable.alias}.${mainTable.columns[i].columnCode}`);
+            }
+            if (relatedTableIndex - 1 > -1) {
+                for (let i = 0; i <= relatedTableIndex - 1; i++) {
+                    const leftJoinTable = leftJoinTables.find(x => x.index == i);
+                    for (let i = 0; i < leftJoinTable.columns.length; i++) {
+                        leftRelatedColumns.push(`${leftJoinTable.alias}.${leftJoinTable.columns[i].columnCode}`);
+                    }
                 }
             }
+            return leftRelatedColumns;
         }
-        return leftRelatedColumns;
-    }
-    /**
-     * 获取当前关联表的左关联可选字段datalist的可选option列表
-     */
-    function getLeftRelatedColumnOptions(relatedTableIndex) {
-        const columns = getLeftRelatedColumns(relatedTableIndex);
-        const columnOptions = columns.map(x => `<option value="${x}">`);
-        const columnOptionsHtml = columnOptions.join('');
-        return columnOptionsHtml;
-    }
-
-    /**
-     * 表单提交
-     */
-    document.querySelector("form").onsubmit = function(e){
-        e.preventDefault();
-        const submitBtn = e.target.querySelector('button[type="submit"]');
-            showSpinner(submitBtn);
-        fetch('/Home/CodeGenPost', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                title: document.querySelector('#title').value,
-                mainTable,
-                tableComment: document.querySelector('#tableComment') ? document.querySelector('#tableComment').value : '',
-                leftJoinTables,
-                templateId: document.querySelector('select[name="templateId"]').value
-            })
-        }).then(response => {
-            if (response.ok) {
-                var rspJson = response.json();
-                return rspJson;
-            } else {
-                showErrorBox("Failed to do something: " + response.json());
-            }
-        }).then(rspJson => {
-            if (rspJson.code !== 1) {
-                showErrorBox(rspJson.errMsg ? rspJson.errMsg : "操作失败")
-            } else {
-                document.querySelector('#tmplRenderResult .modal-body').innerHTML = rspJson.data;
-                tmplRenderResult.show();
-            }
-        }).catch(error => {
-            showErrorBox(error);
-        }).finally(() => {
-            closeSpinner(submitBtn);
-        });
-    }
-
-    /**
-     * 选择了主表后获取主表相关信息
-     */
-    async function mainTableChanged() {
-        const connectionString = connectionStringInput.value;
-        if (!connectionString) {
-            connectionStringInput.focus();
-            showErrorBox('连接字符串不能为空');
-            return;
+        /**
+         * 获取当前关联表的左关联可选字段datalist的可选option列表
+         */
+        function getLeftRelatedColumnOptions(relatedTableIndex) {
+            const columns = getLeftRelatedColumns(relatedTableIndex);
+            const columnOptions = columns.map(x => `<option value="${x}">`);
+            const columnOptionsHtml = columnOptions.join('');
+            return columnOptionsHtml;
         }
 
-        mainTable.name = mainTableInput.value
-        if (!mainTable.name) {
-            mainTableInput.focus();
-            showErrorBox('主表不能为空');
-            return;
+        /**
+         * 表单提交
+         */
+        document.querySelector("form").onsubmit = function(e){
+            e.preventDefault();
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+                showSpinner(submitBtn);
+            fetch('/Home/CodeGenPost', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    title: document.querySelector('#title').value,
+                    mainTable,
+                    tableComment: document.querySelector('#tableComment') ? document.querySelector('#tableComment').value : '',
+                    leftJoinTables,
+                    templateId: document.querySelector('select[name="templateId"]').value
+                })
+            }).then(response => {
+                if (response.ok) {
+                    var rspJson = response.json();
+                    return rspJson;
+                } else {
+                    showErrorBox("Failed to do something: " + response.json());
+                }
+            }).then(rspJson => {
+                if (rspJson.code !== 1) {
+                    showErrorBox(rspJson.errMsg ? rspJson.errMsg : "操作失败")
+                } else {
+                    document.querySelector('#tmplRenderResult .modal-body').innerHTML = rspJson.data;
+                    tmplRenderResult.show();
+                }
+            }).catch(error => {
+                showErrorBox(error);
+            }).finally(() => {
+                closeSpinner(submitBtn);
+            });
         }
 
-        // 给别名默认值
-        mainTable.alias = mainTable.name;
-        tableAliasInput.value = mainTable.name;
-
-        // 获取主表所有字段
-        const response = await fetchData(`/Home/GetTableInfo?connectionString=${connectionString}&table=${mainTable.name}`, 'POST', null, null);
-        if (response) {
-            if (response.code === 1) {
-                mainTable.columns = response.data;
-                addShowingColumnsCkbs('#tableAliasName', mainTable.name);
-            } else {
-                showErrorBox(response.errMsg);
-            }
-        }
-    }
-
-    /**
-     * 获取数据库所有表, 作为datalist下拉选项列表
-     */
-    async function getDbTableOptionsAsync(connectionString) {
-        if (!connectionString) {
-            connectionString = connectionStringInput.value;
+        /**
+         * 选择了主表后获取主表相关信息
+         */
+        async function mainTableChanged() {
+            const connectionString = connectionStringInput.value;
             if (!connectionString) {
+                connectionStringInput.focus();
                 showErrorBox('连接字符串不能为空');
                 return;
             }
-        }
-        let dbs = Object.keys(allTableOptions);
-        if (dbs.indexOf(connectionString) === -1) {
-            
-            allTableOptions[connectionString] = '';
-            allTables[connectionString] = [];
 
-            let response = await fetchData(`/Home/GetAllTables?connectionString=${connectionString}`, 'POST', null, null);
-            if (response && response.code === 1) {
-                const tables = response.data;
-                for (let i = 0; i < tables.length; i++) {
-                    allTableOptions[connectionString] += `<option value="${tables[i]}">`;
-                    allTables[connectionString].push(tables[i]);
-                }
-            } else {
-                showErrorBox('获取数据表失败');
+            mainTable.name = mainTableInput.value
+            if (!mainTable.name) {
+                mainTableInput.focus();
+                showErrorBox('主表不能为空');
                 return;
             }
-        }
-        return { tableOptions: allTableOptions[connectionString], tableList: allTables[connectionString]};
-    }
 
-    /**
-     * 弹出 联表选择器
-     */
-    async function showLeftRelatedColumnSelector(ele) {
-        const eleId = ele.id;
-        let relatedIndex = eleId[eleId.length - 1];
+            // 给别名默认值
+            mainTable.alias = mainTable.name;
+            tableAliasInput.value = mainTable.name;
 
-        // 1. 显示可选关联字段列表(其他表)
-        const leftJoinTableInput = document.querySelector(`#leftJoinTable${relatedIndex}`);
-        let inputedLeftJoinTable = leftJoinTableInput.value;
-
-        const { _, tableList } = await getDbTableOptionsAsync();
-        let leftJoinTableNamesHtml = '<label class="btn btn-outline-default text-center" style="font-size:22px;font-weight:bold;" for="radio-table-title">请选择需要联查的表</label>';
-        for (let i = 0; i < tableList.length; i++) {
-            const t = tableList[i];
-            const checkedProp = t == inputedLeftJoinTable ? ' checked' : '';
-            leftJoinTableNamesHtml += `<input onchange="leftJoinTableChangedInModal(this, ${relatedIndex})" type="radio" class="btn-check" name="leftJoinTableRadio" id="radio-table-${t}" autocomplete="off"${checkedProp}><label class="btn btn-outline-primary text-start" for="radio-table-${t}">${t}</label>\n`
-        }
-        document.querySelector('.leftJoinTableName').innerHTML = leftJoinTableNamesHtml;
-        
-        // 2. 显示可选关联字段列表(其他表)
-        const selectorContentEle = document.querySelector('.beRelatedColumnsContainer');
-        selectorContentEle.innerHTML = '';
-        let columns = getLeftRelatedColumns(relatedIndex);
-        let radioListHtml = '<lable class="btn btn-default text-start" style="font-size:22px;font-weight:bold;">请选择联查关联字段(其他表):</lable>\n';
-        let columnTables = [];
-        for (let i = 0; i < columns.length; i++) {
-            const col = columns[i];
-            const tableAndCol = col.split('.');
-            const tableName = tableAndCol[0];
-            const colName = tableAndCol[1];
-            // 遇到新表(或第一张表), 先添加表名作为标题
-            if (columnTables.indexOf(tableName) === -1) {
-                columnTables.push(tableName);
-                radioListHtml += `<lable class="btn btn-default text-start" style="font-size:22px;">${tableName}表</lable>\n`;
-            }
-            radioListHtml += `<input onchange="otherRelatedColumnChanged(this, ${relatedIndex}, '${tableName}')" type="radio" class="btn-check" name="leftRelatedColumnRadio" id="radio-${col}" autocomplete="off"><label class="btn btn-outline-primary text-start" for="radio-${col}">&nbsp;&nbsp;&nbsp;&nbsp;${colName}</label>\n`;
-        }
-        // document.querySelector('#otherTableRelatedColumnInput${relatedIndex}').value='${tableName + "."}' + this.nextElementSibling.textContent.trim()
-
-        selectorContentEle.innerHTML = radioListHtml;
-
-        columnsSelector.show();
-    }
-
-    /**
-     * 通过"联表选择器"修改了联表表名后, 更新表单和联表的字段信息
-     */
-    function leftJoinTableChangedInModal(radio, relatedIndex) {
-        document.querySelector(`#leftJoinTable${relatedIndex}`).value = radio.labels[0].textContent
-        leftJoinTableChanged(relatedIndex);
-    }
-
-    /**
-     * 当用户选择了联表的关联字段(确定关联字段值)
-     * columnRadioInput: 选择的关联字段对应的radio input控件
-     * index: 当前联表的索引
-     * table: 关联字段对应的表名
-     */
-    function otherRelatedColumnChanged(columnRadioInput, index, table) {
-        // BOOKMARK: 确定联表关联字段 - 从联表选择器选择 - 主表或者其他表中的关联字段
-        const alias = table === mainTable.name ? mainTable.alias : leftJoinTables.find(x => x.name === table).alias;
-        const relatedColumn = `${alias}.${columnRadioInput.nextElementSibling.textContent.trim()}`;
-        document.querySelector(`#otherTableRelatedColumnInput${index}`).value = relatedColumn;
-        // 补充关联表信息 - 其他表的关联字段
-        leftJoinTables[index].otherRelatedColumn = relatedColumn;
-    }
-    /**
-     * 选择了联表的表后获取所联表相关信息
-     */
-    async function leftJoinTableChanged(index) {
-        // BOOKMARK: 添加一个关联表
-        const leftJoinTableInput = document.querySelector(`#leftJoinTable${index}`);
-        const leftJoinTable = leftJoinTableInput.value
-        const leftJoinTableAlias = leftJoinTable;
-        // 别名
-        document.querySelector(`#leftJoinTableAlias${index}`).value = leftJoinTableAlias;
-
-        // 获取联查表的所有字段
-        const response = await fetchData(`/Home/GetTableInfo?connectionString=${connectionStringInput.value}&table=${leftJoinTable}`, 'POST', null, null);
-        if (response) {
-            if (response.code === 1) {
-                columns = response.data;
-                const existTable = leftJoinTables.find(x => x.index == index);
-                const currentTable = {
-                    index: index,
-                    name: leftJoinTable,
-                    alias: leftJoinTableAlias,
-                    columns: columns
-                };
-                if (existTable) {
-                    leftJoinTables[index] = currentTable;
+            // 获取主表所有字段
+            const response = await fetchData(`/Home/GetTableInfo?connectionString=${connectionString}&table=${mainTable.name}`, 'POST', null, null);
+            if (response) {
+                if (response.code === 1) {
+                    mainTable.columns = response.data;
+                    addShowingColumnsCkbs('#tableAliasName', mainTable.name);
                 } else {
-                    leftJoinTables.push(currentTable);
-                }
-                // 关联字段(关联表自身) 选项 - input datalist | modal radio
-                let rightRelatedColumnOptions = '';
-                let rightRelatedColumnRadioOptionsHtml = '<lable class="btn btn-default text-start" style="font-size:22px;font-weight:bold;">请选择关联查表自身的关联字段:</lable>\n';
-                for (let i = 0; i < columns.length; i++) {
-                    rightRelatedColumnOptions += `<option value="${leftJoinTable}.${columns[i].columnCode}">`;
-                    rightRelatedColumnRadioOptionsHtml += `<input onchange="relatedColumnChanged(this, ${index})" type="radio" class="btn-check" name="rightRelatedColumnRadio" id="radio-self-${columns[i].columnCode}" autocomplete="off"><label class="btn btn-outline-primary text-start" for="radio-self-${columns[i].columnCode}">&nbsp;&nbsp;&nbsp;&nbsp;${columns[i].columnName}</label>\n`;
-                }
-                document.querySelector(`#rightColumnsList${index}`).innerHTML = rightRelatedColumnOptions;
-                document.querySelector('.joinTableColumnsContainer').innerHTML = rightRelatedColumnRadioOptionsHtml;
-
-                // 关联表需要显示的字段
-                addShowingColumnsCkbs(`#removeBtn${index}`, currentTable.name, index);
-            } else {
-                showErrorBox(response.errMsg);
-            }
-        }
-
-        let leftRelatedColumnOptionsHtml = getLeftRelatedColumnOptions(index);
-        document.querySelector(`#leftColumnsList${index}`).innerHTML = leftRelatedColumnOptionsHtml;
-    }
-    /**
-     * 添加展示字段的选择区域
-     */
-    function addShowingColumnsCkbs(eleSelectorNextToColumnCkbs, currentTableName, leftJoinTableIndex) {
-        const eleNextToColumnCkbs = document.querySelector(eleSelectorNextToColumnCkbs);
-        if (currentTableName === mainTable.name) {
-            leftJoinTableIndex = -1;
-        }
-        let showedColumnsHtml = '';
-        const currentTable = leftJoinTableIndex === -1 ? mainTable : leftJoinTables.find(x => x.index == leftJoinTableIndex);
-        currentTable.columns.forEach(x => {
-            showedColumnsHtml += `<div class="col col-lg-2 col-md-6 col-12 mb-3">
-                                    <div class="input-group-text">
-                                      <input onclick="checkboxClicked(this, ${leftJoinTableIndex})" class="form-check-input mt-0" type="checkbox" aria-label="Checkbox for showing column">
-                                    </div>
-                                    <input type="text" onkeyup="updateDisplayName(this, ${leftJoinTableIndex})" name="${currentTableName}${x.columnCode}" placeholder="${x.columnCode}" class="form-control" aria-label="Column display name">
-                                    <button class="btn btn-sm btn-primary" type="button" id="addColumnAlias${x.columnCode}" onclick="addColumnAlias(this, ${leftJoinTableIndex}, '${x.columnCode}')">+ 添加别名</button>
-                                  </div>`
-        });
-        const ckbsContainer = document.createElement('div');
-        ckbsContainer.className = 'row';
-        ckbsContainer.innerHTML = showedColumnsHtml;
-        eleNextToColumnCkbs.insertAdjacentElement('beforebegin', ckbsContainer);
-    }
-    /**
-     * 给字段添加一个别名输入框
-     */
-    function addColumnAlias(btn, leftJoinTableIndex, columnCode) {
-        const currentTable = leftJoinTableIndex === -1 ? mainTable : leftJoinTables.find(x => x.index == leftJoinTableIndex);
-        const input = document.createElement('input');
-        input.type = "text";
-        input.onkeyup = `updateDisplayName(this, ${leftJoinTableIndex})`;
-        input.name = `${currentTable.name}${columnCode}Alias`;
-        input.value = `${columnCode}`;
-        input.className = "form-control";
-        input.ariaLabel = "Column alias name";
-        btn.insertAdjacentElement('beforebegin', input);
-
-        // 添加"移除"按钮
-        btn.insertAdjacentHTML('afterend', `<button class="btn btn-sm btn-danger" type="button" onclick="removeColumnAlias(this, ${leftJoinTableIndex}, '${columnCode}')">- 取消别名</button>`);
-        // 移除"添加"按钮
-        btn.remove();
-
-        updateDisplayName(input, leftJoinTableIndex);
-    }
-
-    /**
-     * 移除字段的别名输入框
-     */
-    function removeColumnAlias(btn, leftJoinTableIndex, columnCode) {
-        const currentTable = leftJoinTableIndex === -1 ? mainTable : leftJoinTables.find(x => x.index == leftJoinTableIndex);
-        const aliasInput = document.querySelector(`input[name="${currentTable.name}${columnCode}Alias"]`);
-        if (aliasInput) {
-            aliasInput.remove();
-            if (currentTable.showingColumns) {
-                const currentColumn = currentTable.showingColumns.find(x => x.columnCode === columnCode);
-                if (currentColumn) {
-                    currentColumn.columnAlias = '';
+                    showErrorBox(response.errMsg);
                 }
             }
         }
-        // 添加"添加"按钮
-        btn.insertAdjacentHTML('afterend', `<button class="btn btn-sm btn-primary" type="button" id="addColumnAlias${columnCode}" onclick="addColumnAlias(this, ${leftJoinTableIndex}, '${columnCode}')">+ 添加别名</button>`);
-        // 移除"移除"按钮
-        btn.remove();
-    }
-    /**
-     * 当用户选择或取消了关联表需要展示的字段(用户点击了字段对应的复选框)
-     */
-    function checkboxClicked(ckb, leftJoinTableIndex) {
-        // BOOKMARK: 需要显示的字段 - 关联表
-        const currentTable = leftJoinTableIndex === -1 ? mainTable : leftJoinTables.find(x => x.index == leftJoinTableIndex);
-        const displayNameInput = ckb.parentElement.nextElementSibling;
-        const inputColName = displayNameInput.name.replace(currentTable.name, '');
 
-        if (ckb.checked) {
-            if (displayNameInput !== document.activeElement) {
-                // 当前input不是处于焦点状态, 让其获取焦点
-                displayNameInput.focus();
+        /**
+         * 获取数据库所有表, 作为datalist下拉选项列表
+         */
+        async function getDbTableOptionsAsync(connectionString) {
+            if (!connectionString) {
+                connectionString = connectionStringInput.value;
+                if (!connectionString) {
+                    showErrorBox('连接字符串不能为空');
+                    return;
+                }
             }
-            if (!currentTable.showingColumns) {
-                currentTable.showingColumns = [];
+            let dbs = Object.keys(allTableOptions);
+            if (dbs.indexOf(connectionString) === -1) {
+            
+                allTableOptions[connectionString] = '';
+                allTables[connectionString] = [];
+
+                let response = await fetchData(`/Home/GetAllTables?connectionString=${connectionString}`, 'POST', null, null);
+                if (response && response.code === 1) {
+                    const tables = response.data;
+                    for (let i = 0; i < tables.length; i++) {
+                        allTableOptions[connectionString] += `<option value="${tables[i]}">`;
+                        allTables[connectionString].push(tables[i]);
+                    }
+                } else {
+                    showErrorBox('获取数据表失败');
+                    return;
+                }
+            }
+            return { tableOptions: allTableOptions[connectionString], tableList: allTables[connectionString]};
+        }
+
+        /**
+         * 弹出 联表选择器
+         */
+        async function showLeftRelatedColumnSelector(ele) {
+            const eleId = ele.id;
+            let relatedIndex = eleId[eleId.length - 1];
+
+            // 1. 显示可选关联字段列表(其他表)
+            const leftJoinTableInput = document.querySelector(`#leftJoinTable${relatedIndex}`);
+            let inputedLeftJoinTable = leftJoinTableInput.value;
+
+            const { _, tableList } = await getDbTableOptionsAsync();
+            let leftJoinTableNamesHtml = '<label class="btn btn-outline-default text-center" style="font-size:22px;font-weight:bold;" for="radio-table-title">请选择需要联查的表</label>';
+            for (let i = 0; i < tableList.length; i++) {
+                const t = tableList[i];
+                const checkedProp = t == inputedLeftJoinTable ? ' checked' : '';
+                leftJoinTableNamesHtml += `<input onchange="leftJoinTableChangedInModal(this, ${relatedIndex})" type="radio" class="btn-check" name="leftJoinTableRadio" id="radio-table-${t}" autocomplete="off"${checkedProp}><label class="btn btn-outline-primary text-start" for="radio-table-${t}">${t}</label>\n`
+            }
+            document.querySelector('.leftJoinTableName').innerHTML = leftJoinTableNamesHtml;
+        
+            // 2. 显示可选关联字段列表(其他表)
+            const selectorContentEle = document.querySelector('.beRelatedColumnsContainer');
+            selectorContentEle.innerHTML = '';
+            let columns = getLeftRelatedColumns(relatedIndex);
+            let radioListHtml = '<lable class="btn btn-default text-start" style="font-size:22px;font-weight:bold;">请选择联查关联字段(其他表):</lable>\n';
+            let columnTables = [];
+            for (let i = 0; i < columns.length; i++) {
+                const col = columns[i];
+                const tableAndCol = col.split('.');
+                const tableName = tableAndCol[0];
+                const colName = tableAndCol[1];
+                // 遇到新表(或第一张表), 先添加表名作为标题
+                if (columnTables.indexOf(tableName) === -1) {
+                    columnTables.push(tableName);
+                    radioListHtml += `<lable class="btn btn-default text-start" style="font-size:22px;">${tableName}表</lable>\n`;
+                }
+                radioListHtml += `<input onchange="otherRelatedColumnChanged(this, ${relatedIndex}, '${tableName}')" type="radio" class="btn-check" name="leftRelatedColumnRadio" id="radio-${col}" autocomplete="off"><label class="btn btn-outline-primary text-start" for="radio-${col}">&nbsp;&nbsp;&nbsp;&nbsp;${colName}</label>\n`;
+            }
+            // document.querySelector('#otherTableRelatedColumnInput${relatedIndex}').value='${tableName + "."}' + this.nextElementSibling.textContent.trim()
+
+            selectorContentEle.innerHTML = radioListHtml;
+
+            columnsSelector.show();
+        }
+
+        /**
+         * 通过"联表选择器"修改了联表表名后, 更新表单和联表的字段信息
+         */
+        function leftJoinTableChangedInModal(radio, relatedIndex) {
+            document.querySelector(`#leftJoinTable${relatedIndex}`).value = radio.labels[0].textContent
+            leftJoinTableChanged(relatedIndex);
+        }
+
+        /**
+         * 当用户选择了联表的关联字段(确定关联字段值)
+         * columnRadioInput: 选择的关联字段对应的radio input控件
+         * index: 当前联表的索引
+         * table: 关联字段对应的表名
+         */
+        function otherRelatedColumnChanged(columnRadioInput, index, table) {
+            // BOOKMARK: 确定联表关联字段 - 从联表选择器选择 - 主表或者其他表中的关联字段
+            const alias = table === mainTable.name ? mainTable.alias : leftJoinTables.find(x => x.name === table).alias;
+            const relatedColumn = `${alias}.${columnRadioInput.nextElementSibling.textContent.trim()}`;
+            document.querySelector(`#otherTableRelatedColumnInput${index}`).value = relatedColumn;
+            // 补充关联表信息 - 其他表的关联字段
+            leftJoinTables[index].otherRelatedColumn = relatedColumn;
+        }
+        /**
+         * 选择了联表的表后获取所联表相关信息
+         */
+        async function leftJoinTableChanged(index) {
+            // BOOKMARK: 添加一个关联表
+            const leftJoinTableInput = document.querySelector(`#leftJoinTable${index}`);
+            const leftJoinTable = leftJoinTableInput.value
+            const leftJoinTableAlias = leftJoinTable;
+            // 别名
+            document.querySelector(`#leftJoinTableAlias${index}`).value = leftJoinTableAlias;
+
+            // 获取联查表的所有字段
+            const response = await fetchData(`/Home/GetTableInfo?connectionString=${connectionStringInput.value}&table=${leftJoinTable}`, 'POST', null, null);
+            if (response) {
+                if (response.code === 1) {
+                    columns = response.data;
+                    const existTable = leftJoinTables.find(x => x.index == index);
+                    const currentTable = {
+                        index: index,
+                        name: leftJoinTable,
+                        alias: leftJoinTableAlias,
+                        columns: columns
+                    };
+                    if (existTable) {
+                        leftJoinTables[index] = currentTable;
+                    } else {
+                        leftJoinTables.push(currentTable);
+                    }
+                    // 关联字段(关联表自身) 选项 - input datalist | modal radio
+                    let rightRelatedColumnOptions = '';
+                    let rightRelatedColumnRadioOptionsHtml = '<lable class="btn btn-default text-start" style="font-size:22px;font-weight:bold;">请选择关联查表自身的关联字段:</lable>\n';
+                    for (let i = 0; i < columns.length; i++) {
+                        rightRelatedColumnOptions += `<option value="${leftJoinTable}.${columns[i].columnCode}">`;
+                        rightRelatedColumnRadioOptionsHtml += `<input onchange="relatedColumnChanged(this, ${index})" type="radio" class="btn-check" name="rightRelatedColumnRadio" id="radio-self-${columns[i].columnCode}" autocomplete="off"><label class="btn btn-outline-primary text-start" for="radio-self-${columns[i].columnCode}">&nbsp;&nbsp;&nbsp;&nbsp;${columns[i].columnName}</label>\n`;
+                    }
+                    document.querySelector(`#rightColumnsList${index}`).innerHTML = rightRelatedColumnOptions;
+                    document.querySelector('.joinTableColumnsContainer').innerHTML = rightRelatedColumnRadioOptionsHtml;
+
+                    // 关联表需要显示的字段
+                    addShowingColumnsCkbs(`#removeBtn${index}`, currentTable.name, index);
+                } else {
+                    showErrorBox(response.errMsg);
+                }
             }
 
-            // 字段已经添加则更新显示名称, 否则添加字段
-            let currentColumn = currentTable.showingColumns.find(x => x.columnCode === inputColName);
-            if (currentColumn) {
-                currentColumn.columnDisplayName = displayNameInput.value;
-            } else {
-                currentColumn = { columnCode: inputColName, columnDisplayName: displayNameInput.value };
-                
-                // 补充字段的C#类型
-                const fullColumnInfo = currentTable.columns.find(x => x.columnCode === inputColName);
-                const csharpType = fullColumnInfo ? fullColumnInfo.columnCSharpType : '';
-                currentColumn.columnCSharpType = csharpType;
-
-                currentTable.showingColumns.push(currentColumn);
+            let leftRelatedColumnOptionsHtml = getLeftRelatedColumnOptions(index);
+            document.querySelector(`#leftColumnsList${index}`).innerHTML = leftRelatedColumnOptionsHtml;
+        }
+        /**
+         * 添加展示字段的选择区域
+         */
+        function addShowingColumnsCkbs(eleSelectorNextToColumnCkbs, currentTableName, leftJoinTableIndex) {
+            const eleNextToColumnCkbs = document.querySelector(eleSelectorNextToColumnCkbs);
+            if (currentTableName === mainTable.name) {
+                leftJoinTableIndex = -1;
             }
+            let showedColumnsHtml = '';
+            const currentTable = leftJoinTableIndex === -1 ? mainTable : leftJoinTables.find(x => x.index == leftJoinTableIndex);
+            currentTable.columns.forEach(x => {
+                showedColumnsHtml += `<div class="col col-lg-2 col-md-6 col-12 mb-3">
+                                        <div class="input-group-text">
+                                          <input onclick="checkboxClicked(this, ${leftJoinTableIndex})" class="form-check-input mt-0" type="checkbox" aria-label="Checkbox for showing column">
+                                        </div>
+                                        <input type="text" onkeyup="updateDisplayName(this, ${leftJoinTableIndex})" name="${currentTableName}${x.columnCode}" placeholder="${x.columnCode}" class="form-control" aria-label="Column display name">
+                                        <button class="btn btn-sm btn-primary" type="button" id="addColumnAlias${x.columnCode}" onclick="addColumnAlias(this, ${leftJoinTableIndex}, '${x.columnCode}')">+ 添加别名</button>
+                                      </div>`
+            });
+            const ckbsContainer = document.createElement('div');
+            ckbsContainer.className = 'row';
+            ckbsContainer.innerHTML = showedColumnsHtml;
+            eleNextToColumnCkbs.insertAdjacentElement('beforebegin', ckbsContainer);
+        }
+        /**
+         * 给字段添加一个别名输入框
+         */
+        function addColumnAlias(btn, leftJoinTableIndex, columnCode) {
+            const currentTable = leftJoinTableIndex === -1 ? mainTable : leftJoinTables.find(x => x.index == leftJoinTableIndex);
+            const input = document.createElement('input');
+            input.type = "text";
+            input.onkeyup = `updateDisplayName(this, ${leftJoinTableIndex})`;
+            input.name = `${currentTable.name}${columnCode}Alias`;
+            input.value = `${columnCode}`;
+            input.className = "form-control";
+            input.ariaLabel = "Column alias name";
+            btn.insertAdjacentElement('beforebegin', input);
 
-            const aliasInput = ckb.parentElement.parentElement.querySelector(`input[name="${currentTable.name}${inputColName}Alias"]`);
+            // 添加"移除"按钮
+            btn.insertAdjacentHTML('afterend', `<button class="btn btn-sm btn-danger" type="button" onclick="removeColumnAlias(this, ${leftJoinTableIndex}, '${columnCode}')">- 取消别名</button>`);
+            // 移除"添加"按钮
+            btn.remove();
+
+            updateDisplayName(input, leftJoinTableIndex);
+        }
+
+        /**
+         * 移除字段的别名输入框
+         */
+        function removeColumnAlias(btn, leftJoinTableIndex, columnCode) {
+            const currentTable = leftJoinTableIndex === -1 ? mainTable : leftJoinTables.find(x => x.index == leftJoinTableIndex);
+            const aliasInput = document.querySelector(`input[name="${currentTable.name}${columnCode}Alias"]`);
             if (aliasInput) {
-                currentColumn.columnAlias = aliasInput.value;
+                aliasInput.remove();
+                if (currentTable.showingColumns) {
+                    const currentColumn = currentTable.showingColumns.find(x => x.columnCode === columnCode);
+                    if (currentColumn) {
+                        currentColumn.columnAlias = '';
+                    }
+                }
             }
-        } else {
-            if (currentTable.showingColumns) {
-                currentTable.showingColumns = currentTable.showingColumns.filter(x => x.columnCode !== inputColName);
-            }
+            // 添加"添加"按钮
+            btn.insertAdjacentHTML('afterend', `<button class="btn btn-sm btn-primary" type="button" id="addColumnAlias${columnCode}" onclick="addColumnAlias(this, ${leftJoinTableIndex}, '${columnCode}')">+ 添加别名</button>`);
+            // 移除"移除"按钮
+            btn.remove();
         }
-    }
-    /**
-     * 修改需要展示的字段的显示名称
-     */
-    function updateDisplayName(displayNameInput, index) {
-        // BOOKMARK: 需要显示的字段 - 关联表 - 字段显示名称
-        if (displayNameInput.value) {
-            const ckb = displayNameInput.parentElement.firstElementChild.firstElementChild;
-            if (!ckb.checked) {
-                ckb.click();
-            } else {
-                checkboxClicked(ckb, index);
-            }
-        }
-    }
+        /**
+         * 当用户选择或取消了关联表需要展示的字段(用户点击了字段对应的复选框)
+         */
+        function checkboxClicked(ckb, leftJoinTableIndex) {
+            // BOOKMARK: 需要显示的字段 - 关联表
+            const currentTable = leftJoinTableIndex === -1 ? mainTable : leftJoinTables.find(x => x.index == leftJoinTableIndex);
+            const displayNameInput = ckb.parentElement.nextElementSibling;
+            const inputColName = displayNameInput.name.replace(currentTable.name, '');
 
-    /**
-     * 当用户选择了联表的关联字段(确定关联字段值)
-     * columnRadioInput: 选择的关联字段对应的radio input控件
-     * index: 当前联表的索引
-     */
-    function relatedColumnChanged(columnRadioInput, index) {
-        // BOOKMARK: 确定联表关联字段 - 从联表选择器选择 - 关联表中的关联字段
-        const relatedColumn = `${leftJoinTables[index].alias}.${columnRadioInput.nextElementSibling.textContent.trim()}`;
-        document.querySelector(`#selfRelatedColumnInput${index}`).value = relatedColumn;
-        // 补充关联表信息 - 关联表的关联字段
-        leftJoinTables[index].relatedColumn = relatedColumn;
-    }
-</script>
+            if (ckb.checked) {
+                if (displayNameInput !== document.activeElement) {
+                    // 当前input不是处于焦点状态, 让其获取焦点
+                    displayNameInput.focus();
+                }
+                if (!currentTable.showingColumns) {
+                    currentTable.showingColumns = [];
+                }
+
+                // 字段已经添加则更新显示名称, 否则添加字段
+                let currentColumn = currentTable.showingColumns.find(x => x.columnCode === inputColName);
+                if (currentColumn) {
+                    currentColumn.columnDisplayName = displayNameInput.value;
+                } else {
+                    currentColumn = { columnCode: inputColName, columnDisplayName: displayNameInput.value };
+                
+                    // 补充字段的C#类型
+                    const fullColumnInfo = currentTable.columns.find(x => x.columnCode === inputColName);
+                    const csharpType = fullColumnInfo ? fullColumnInfo.columnCSharpType : '';
+                    currentColumn.columnCSharpType = csharpType;
+
+                    currentTable.showingColumns.push(currentColumn);
+                }
+
+                const aliasInput = ckb.parentElement.parentElement.querySelector(`input[name="${currentTable.name}${inputColName}Alias"]`);
+                if (aliasInput) {
+                    currentColumn.columnAlias = aliasInput.value;
+                }
+            } else {
+                if (currentTable.showingColumns) {
+                    currentTable.showingColumns = currentTable.showingColumns.filter(x => x.columnCode !== inputColName);
+                }
+            }
+        }
+        /**
+         * 修改需要展示的字段的显示名称
+         */
+        function updateDisplayName(displayNameInput, index) {
+            // BOOKMARK: 需要显示的字段 - 关联表 - 字段显示名称
+            if (displayNameInput.value) {
+                const ckb = displayNameInput.parentElement.firstElementChild.firstElementChild;
+                if (!ckb.checked) {
+                    ckb.click();
+                } else {
+                    checkboxClicked(ckb, index);
+                }
+            }
+        }
+
+        /**
+         * 当用户选择了联表的关联字段(确定关联字段值)
+         * columnRadioInput: 选择的关联字段对应的radio input控件
+         * index: 当前联表的索引
+         */
+        function relatedColumnChanged(columnRadioInput, index) {
+            // BOOKMARK: 确定联表关联字段 - 从联表选择器选择 - 关联表中的关联字段
+            const relatedColumn = `${leftJoinTables[index].alias}.${columnRadioInput.nextElementSibling.textContent.trim()}`;
+            document.querySelector(`#selfRelatedColumnInput${index}`).value = relatedColumn;
+            // 补充关联表信息 - 关联表的关联字段
+            leftJoinTables[index].relatedColumn = relatedColumn;
+        }
+    </script>
 }

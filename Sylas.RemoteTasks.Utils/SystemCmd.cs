@@ -331,12 +331,19 @@ namespace Sylas.RemoteTasks.Utils
         /// </summary>
         /// <param name="processName"></param>
         /// <returns></returns>
-        public static async Task<List<string>> GetProcessCpuAndRam(string processName)
+        public static async Task<List<string>> GetProcessCpuAndRamAsync(string processName)
         {
             // 使用Process类实现
             var processes = Process.GetProcessesByName(processName);
-            List<string> list = [];
-            foreach (var p in processes)
+            ConcurrentBag<string> result = [];
+            Task[] tasks = processes.Select(async p =>
+            {
+                await GetProcessCpuAverageRate(p, result);
+            }).ToArray();
+            await Task.WhenAll(tasks);
+            return [.. result];
+
+            static async Task GetProcessCpuAverageRate(Process p, ConcurrentBag<string> result)
             {
                 int interval = 1000;
                 //上次记录的CPU时间
@@ -353,11 +360,10 @@ namespace Sylas.RemoteTasks.Utils
                     await Task.Delay(interval);
                     if (i > 0)
                     {
-                        list.Add($"{p.ProcessName} {p.Id}:{Math.Round(value, 1)} {GetProcessRam(p)}MB");
+                        result.Add($"{p.ProcessName} {p.Id}:{Math.Round(value, 1)} {GetProcessRam(p)}");
                     }
                 }
             }
-            return list;
         }
 
         #region 主机信息管理

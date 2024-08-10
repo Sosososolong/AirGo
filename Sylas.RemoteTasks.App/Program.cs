@@ -5,6 +5,7 @@ using Sylas.RemoteTasks.App.DatabaseManager;
 using Sylas.RemoteTasks.App.DataHandlers;
 using Sylas.RemoteTasks.App.ExceptionHandlers;
 using Sylas.RemoteTasks.App.Helpers;
+using Sylas.RemoteTasks.App.Hubs;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.RemoteHostModule;
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
@@ -26,6 +27,9 @@ builder.Services.AddGlobalHotKeys(builder.Configuration);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+
+builder.Services.AddSignalR();
+
 builder.Services.AddHttpClient();
 builder.Services.AddHttpContextAccessor();
 
@@ -131,5 +135,6 @@ else
     app.MapControllerRoute(name: "default", pattern: "{controller=Home}/{action=Index}/{id?}");
 }
 
+app.MapHub<InformationHub>("informationHub");
 
 app.Run();
