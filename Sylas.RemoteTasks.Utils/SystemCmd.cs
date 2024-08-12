@@ -355,8 +355,6 @@ namespace Sylas.RemoteTasks.Utils
                     //间隔时间内的CPU运行时间除以逻辑CPU数量
                     var value = (curTime - prevCpuTime).TotalMilliseconds / interval / Environment.ProcessorCount * 100;
                     prevCpuTime = curTime;
-                    //输出
-                    Console.WriteLine(p.ProcessName + ": " + value);
                     await Task.Delay(interval);
                     if (i > 0)
                     {
@@ -565,8 +563,6 @@ namespace Sylas.RemoteTasks.Utils
                 {
                 }
             }
-            memoryInfo.AppRam = Math.Round((double)Process.GetCurrentProcess().WorkingSet64 / 1024 / 1024, 0);
-            memoryInfo.AppRamRate = Math.Round((double)Process.GetCurrentProcess().WorkingSet64 / 1024 / 1024 / memoryInfo.Total, 4);
             return memoryInfo;
         }
         /// <summary>
@@ -581,6 +577,7 @@ namespace Sylas.RemoteTasks.Utils
         /// <returns></returns>
         public static async Task<ServerInfo> GetServerAndAppInfoAsync()
         {
+            var memoryInfo = await GetMemoryInfoAsync();
             return new()
             {
                 MachineName = MachineName,
@@ -589,11 +586,12 @@ namespace Sylas.RemoteTasks.Utils
                 DoNetName = DoNetName,
                 IP = string.Join("; ", IpList),
                 CpuCount = CpuCount,
+                DiskInfos = await GetDiskInfosAsync(),
+                MemoryInfo = memoryInfo,
                 AppStartTime = AppStartTime,
                 AppRunTime = AppRunTime,
-
-                DiskInfos = await GetDiskInfosAsync(),
-                MemoryInfo = await GetMemoryInfoAsync()
+                AppRam = Math.Round((double)Process.GetCurrentProcess().WorkingSet64 / 1024 / 1024, 0),
+                AppRamRate = Math.Round((double)Process.GetCurrentProcess().WorkingSet64 / 1024 / 1024 / memoryInfo.Total, 4),
             };
         }
         #endregion
@@ -628,6 +626,15 @@ namespace Sylas.RemoteTasks.Utils
         /// </summary>
         public int CpuCount { get; set; }
         /// <summary>
+        /// 磁盘信息
+        /// </summary>
+        public List<DiskInfo> DiskInfos { get; set; } = [];
+        /// <summary>
+        /// 内存信息
+        /// </summary>
+        public MemoryInfo MemoryInfo { get; set; } = new MemoryInfo();
+
+        /// <summary>
         /// 应用启动时间
         /// </summary>
         public string AppStartTime { get; set; } = string.Empty;
@@ -636,13 +643,13 @@ namespace Sylas.RemoteTasks.Utils
         /// </summary>
         public string AppRunTime { get; set; } = string.Empty;
         /// <summary>
-        /// 磁盘信息
+        /// APP占用内存
         /// </summary>
-        public List<DiskInfo> DiskInfos { get; set; } = [];
+        public double AppRam { get; set; }
         /// <summary>
-        /// 内存信息
+        /// APP内存使用率
         /// </summary>
-        public MemoryInfo MemoryInfo { get; set; } = new MemoryInfo();
+        public double AppRamRate { get; set; }
     }
     /// <summary>
     /// 内存信息
@@ -682,15 +689,6 @@ namespace Sylas.RemoteTasks.Utils
         /// 空闲内存
         /// </summary>
         public string FreeRam { get; set; } = string.Empty;
-
-        /// <summary>
-        /// APP占用内存
-        /// </summary>
-        public double AppRam { get; set; }
-        /// <summary>
-        /// APP内存使用率
-        /// </summary>
-        public double AppRamRate { get; set; }
     }
     /// <summary>
     /// 磁盘信息

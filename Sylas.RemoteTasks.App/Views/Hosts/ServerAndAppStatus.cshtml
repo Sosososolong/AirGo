@@ -20,6 +20,7 @@
     <tr><td>CPU数量:</td><td>@Model.CpuCount</td></tr>
     <tr><td>应用开始运行时间:</td><td>@Model.AppStartTime</td></tr>
     <tr><td>应用总运行时间:</td><td>@Model.AppRunTime</td></tr>
+    <tr><td>应用占用内存:</td><td>@(Model.AppRam)MB / @(Model.AppRamRate)%</td></tr>
 </table>
 
 <h5 style="margin-top:20px;">CPU内存信息</h5>
@@ -29,7 +30,6 @@
     <tr><td>已使用:</td><td>@(Math.Round(Model.MemoryInfo.Used / 1024, 0))GB</td></tr>
     <tr><td>空闲:</td><td>@(Math.Round(Model.MemoryInfo.Free / 1024, 0))GB</td></tr>
     <tr><td>内存使用率:</td><td>@Math.Round(100 * Model.MemoryInfo.Used / Model.MemoryInfo.Total, 2)%</td></tr>
-    <tr><td>应用占用内存:</td><td>@(Model.MemoryInfo.AppRam)MB / @(Model.MemoryInfo.AppRamRate)%</td></tr>
 </table>
 
 <h5 style="margin-top:20px;">磁盘信息</h5>

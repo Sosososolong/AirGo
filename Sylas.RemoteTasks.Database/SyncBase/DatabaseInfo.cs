@@ -14,6 +14,7 @@ using Oracle.ManagedDataAccess.Client;
 using Sylas.RemoteTasks.App.RegexExp;
 using Sylas.RemoteTasks.Utils;
 using System;
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
@@ -316,9 +317,18 @@ namespace Sylas.RemoteTasks.Database.SyncBase
 
             string allCountSqlTxt = $"select count(*) from {table} where 1=1 {condition}";
 
+            var start = DateTime.Now;
+            await Console.Out.WriteLineAsync("执行SQL语句" + Environment.NewLine + allCountSqlTxt);
+            
             var allCount = await conn.ExecuteScalarAsync<int>(allCountSqlTxt, parameters);
+            
+            var t1 = DateTime.Now;
+            await Console.Out.WriteLineAsync($"耗时: {(t1 - start).TotalMilliseconds}/ms");
             await Console.Out.WriteLineAsync("执行SQL语句" + Environment.NewLine + sql);
+            
             var data = await conn.QueryAsync<T>(sql, parameters);
+
+            await Console.Out.WriteLineAsync($"耗时: {(DateTime.Now - t1).TotalMilliseconds}/ms{Environment.NewLine}");
 
             return new PagedData<T> { Data = data, Count = allCount, TotalPages = (allCount + pageSize - 1) / pageSize };
 
@@ -1137,7 +1147,8 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                             ValideParameter(key);
                             if (compareType == "in")
                             {
-                                var valList = val.ToString().Split(',');
+                                IEnumerable<object> valList = val is IEnumerable vals ? vals.Cast<object>() : val.ToString().Split(',');
+                                
                                 queryCondition += $" and {key} in(";
                                 int valListIndex = 0;
                                 foreach (var valItem in valList)

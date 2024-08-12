@@ -100,7 +100,24 @@ namespace Sylas.RemoteTasks.App.DatabaseManager
         {
             if (!dbConnectionString.ConnectionString.IsDbConnectionString())
             {
-                throw new Exception("数据库连接字符串格式异常");
+                bool valid = false;
+                try
+                {
+                    var decrypConnectionString = SecurityHelper.AesDecrypt(dbConnectionString.ConnectionString);
+                    if (!string.IsNullOrWhiteSpace(decrypConnectionString))
+                    {
+                        dbConnectionString.ConnectionString = decrypConnectionString;
+                        valid = true;
+                    }
+                }
+                catch (Exception)
+                {
+
+                }
+                if (!valid)
+                {
+                    throw new Exception("数据库连接字符串格式异常");
+                }
             }
             dbConnectionString.ConnectionString = SecurityHelper.AesEncrypt(dbConnectionString.ConnectionString);
             var parameters = new Dictionary<string, object> { { "id", dbConnectionString.Id } };
@@ -138,7 +155,7 @@ namespace Sylas.RemoteTasks.App.DatabaseManager
                 parameters.Add("orderNo", dbConnectionString.OrderNo);
             }
             setStatement.Append($"updateTime=@updateTime,");
-            parameters.Add("updateTime", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+            parameters.Add("updateTime", DateTime.Now);
 
             string sql = $"update {DbConnectionInfo.TableName} set {setStatement.ToString().TrimEnd(',')} where id=@id";
             return await _db.ExecuteSqlAsync(sql, parameters);

@@ -2,6 +2,7 @@
 using Sylas.RemoteTasks.App.RequestProcessor.Models.Dtos;
 using Sylas.RemoteTasks.Database;
 using Sylas.RemoteTasks.Database.SyncBase;
+using System.Diagnostics;
 using System.Text;
 
 namespace Sylas.RemoteTasks.App.RequestProcessor
@@ -22,31 +23,28 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
         /// <returns></returns>
         public async Task<PagedData<HttpRequestProcessor>> GetPageAsync(int pageIndex, int pageSize, string orderField, bool isAsc, DataFilter filter)
         {
-            var start = DateTime.Now;
             var pages = await _db.QueryPagedDataAsync<HttpRequestProcessor>(HttpRequestProcessor.TableName, pageIndex, pageSize, orderField, isAsc, filter);
-            var pagesend = DateTime.Now;
-            await Console.Out.WriteLineAsync($"HttpRequestProcessorEnd: {(pagesend - start).TotalMilliseconds}/ms");
+            
+            var processorIds = pages.Data.Select(x => x.Id);
+            var stepsFilters = new List<FilterItem>
+            {
+                new("processorid", "in", processorIds)
+            };
+            var steps = (await GetStepsPageAsync(1, 1000, "id", true, new DataFilter { FilterItems = stepsFilters })).Data;
+
+            var stepIds = steps.Select(x => x.Id);
+            var filterCondition = new FilterItem("stepid", "in", stepIds);
+            var dataHandlers = (await GetDataHandlersPageAsync(1, 1000, "id", true, new DataFilter { FilterItems = [filterCondition] })).Data;
+
             foreach (var processor in pages.Data)
             {
-                var stepsFilters = new List<FilterItem>
+                processor.Steps = steps.Where(x => x.ProcessorId == processor.Id).ToList();
+                foreach (var step in processor.Steps)
                 {
-                    new("processorid", "=", processor.Id)
-                };
-                var stepsStart = DateTime.Now;
-                var steps = (await GetStepsPageAsync(1, 1000, "id", true, new DataFilter { FilterItems = stepsFilters })).Data;
-                var stepsEnd = DateTime.Now;
-                await Console.Out.WriteLineAsync($"    GetSteps End: {(stepsEnd - stepsStart).TotalMilliseconds}/ms");
-                processor.Steps = steps;
-
-                foreach (var step in steps)
-                {
-                    var filterCondition = new FilterItem("stepid", "=", step.Id);
-                    var datahandlerStart = DateTime.Now;
-                    var dataHandlers = (await GetDataHandlersPageAsync(1, 1000, "id", true, new DataFilter { FilterItems = [filterCondition] })).Data;
-                    await Console.Out.WriteLineAsync($"        GetStepHandlers End: {(DateTime.Now - datahandlerStart).TotalMilliseconds}/ms");
-                    step.DataHandlers = dataHandlers;
+                    step.DataHandlers = dataHandlers.Where(x => x.StepId == step.Id).ToList();
                 }
             }
+
             return pages;
         }
         /// <summary>
