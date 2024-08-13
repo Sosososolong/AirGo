@@ -114,6 +114,7 @@ namespace Sylas.RemoteTasks.App.Helpers
             string clientId = configuration["IdentityServerConfiguration:ClientId"] ?? throw new Exception("client id不能为空");
             string clientSecret = configuration["IdentityServerConfiguration:ClientSecret"] ?? throw new Exception("client secret不能为空");
             string oidcResponseType = configuration["IdentityServerConfiguration:OidcResponseType"] ?? throw new Exception("oidc response type不能为空");
+            bool requireHttpsMetadata = configuration.GetValue<bool>("IdentityServerConfiguration:RequireHttpsMetadata");
             List<string> scopes = [];
             configuration.GetSection("IdentityServerConfiguration:Scopes").Bind(scopes);
 
@@ -147,7 +148,7 @@ namespace Sylas.RemoteTasks.App.Helpers
                 //远程认证地址
                 options.Authority = identityServerBaseUrl;
                 //Https强制要求标识
-                options.RequireHttpsMetadata = false;
+                options.RequireHttpsMetadata = requireHttpsMetadata;
                 //客户端ID（支持隐藏模式和授权码模式，密码模式和客户端模式不需要用户登录）
                 options.ClientId = clientId;
                 options.ClientSecret = clientSecret;

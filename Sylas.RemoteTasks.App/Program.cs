@@ -70,12 +70,12 @@ builder.Services.AddHostedService<PublishService>();
 // BOOKMARK: Action过滤器
 builder.Services.AddScoped<CustomActionFilter>();
 
-// BOOKMARK: 添加身份认证
+// BOOKMARK: 添加鉴权(身份认证)
 builder.Services.AddAuthenticationService(builder.Configuration);
-
+// BOOKMARK: 添加授权策略
 builder.Services.AddAuthorization(options =>
 {
-    var adminApiConfiguration = new { AdministrationRole = "SkorubaIdentityAdminAdministrator", OidcApiName = "remotetasks_api" };
+    var adminApiConfiguration = new { AdministrationRole = builder.Configuration["IdentityServerConfiguration:AdministrationRole"], OidcApiName = builder.Configuration["IdentityServerConfiguration:ApiName"] };
     options.AddPolicy(AuthorizationConstants.AdministrationPolicy,
         policy =>
             policy.RequireAssertion(context => context.User.HasClaim(c =>
