@@ -7,7 +7,7 @@ using Sylas.RemoteTasks.Utils.Dto;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {
-    public class SyncController : Controller
+    public class SyncController : CustomBaseController
     {
         private readonly HttpClient _httpClient;
         private readonly ILogger<SyncController> _logger;

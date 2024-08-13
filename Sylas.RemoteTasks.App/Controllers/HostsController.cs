@@ -6,7 +6,7 @@ using Sylas.RemoteTasks.Utils;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {
-    public class HostsController(ILoggerFactory loggerFactory, HostService hostService, AnythingService anythingService) : Controller
+    public class HostsController(ILoggerFactory loggerFactory, HostService hostService, AnythingService anythingService) : CustomBaseController
     {
         private readonly HostService _hostService = hostService;
 

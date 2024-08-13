@@ -4,7 +4,7 @@ namespace Sylas.RemoteTasks.App.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class UploadController : Controller
+    public class UploadController : CustomBaseController
     {
         private const string _boundary = "EAD567A8E8524B2FAC2E0628ABB6DF6E";
         private const string _uploadClient = "upload_client";

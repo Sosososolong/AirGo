@@ -11,7 +11,7 @@ using System.Text.RegularExpressions;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {
-    public partial class ProjectController(DbConnectionInfoRepository dbConnectionInfoRepository, IConfiguration configuration) : Controller
+    public partial class ProjectController(DbConnectionInfoRepository dbConnectionInfoRepository, IConfiguration configuration) : CustomBaseController
     {
         private readonly DbConnectionInfoRepository _dbConnectionInfoRepository = dbConnectionInfoRepository;
         private readonly IConfiguration _configuration = configuration;

@@ -6,7 +6,7 @@ using Sylas.RemoteTasks.Utils.Dto;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {
-    public class SnippetController(RepositoryBase<Snippet> repository, RepositoryBase<SnippetType> snippetTypeRepository) : Controller
+    public class SnippetController(RepositoryBase<Snippet> repository, RepositoryBase<SnippetType> snippetTypeRepository) : CustomBaseController
     {
         public IActionResult Index()
         {

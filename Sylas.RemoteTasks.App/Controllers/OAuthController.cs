@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {
-    public class OAuthController : Controller
+    public class OAuthController : CustomBaseController
     {
         /// <summary>
         /// 测试微信钉钉第三方登录

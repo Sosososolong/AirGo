@@ -18,7 +18,7 @@ using System.Text.RegularExpressions;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {
-    public class HomeController(ILogger<HomeController> logger, IWebHostEnvironment webHostEnvironment, IConfiguration configuration, DatabaseProvider databaseProvider) : Controller
+    public class HomeController(ILogger<HomeController> logger, IWebHostEnvironment webHostEnvironment, IConfiguration configuration, DatabaseProvider databaseProvider) : CustomBaseController
     {
         private readonly DotNETOperation _coreOperations = new();
         private readonly DatabaseProvider _db = databaseProvider;

@@ -1,3 +1,4 @@
+using IdentityModel;
 using IdentityServer4.AccessTokenValidation;
 using Sylas.RemoteTasks.App.BackgroundServices;
 using Sylas.RemoteTasks.App.Database;
@@ -10,6 +11,7 @@ using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.RemoteHostModule;
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
 using Sylas.RemoteTasks.App.RequestProcessor;
+using Sylas.RemoteTasks.Utils.Constants;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,6 +26,9 @@ builder.Configuration.AddUserSecrets<Program>();
 
 // 注册全局热键
 builder.Services.AddGlobalHotKeys(builder.Configuration);
+
+// 添加缓存
+builder.Services.AddCache();
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
@@ -62,39 +67,23 @@ builder.Services.AddTransient<RequestProcessorService>();
 // 后台任务
 builder.Services.AddHostedService<PublishService>();
 
-// 鉴权服务(配置Identity Server服务器)
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultScheme = IdentityServerAuthenticationDefaults.AuthenticationScheme;
-    options.DefaultAuthenticateScheme = IdentityServerAuthenticationDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = IdentityServerAuthenticationDefaults.AuthenticationScheme;
-    options.DefaultSignInScheme = IdentityServerAuthenticationDefaults.AuthenticationScheme;
-    options.DefaultForbidScheme = IdentityServerAuthenticationDefaults.AuthenticationScheme;
-}).AddIdentityServerAuthentication(options =>
-{
-    options.Authority = builder.Configuration["IdentityServerConfiguration:Authority"];
-    // 即api resource (获取token时参数scope关联的api resource)
-    options.ApiName = builder.Configuration["IdentityServerConfiguration:ApiName"];
-    // 即api resource secret
-    options.ApiSecret = builder.Configuration["IdentityServerConfiguration:ApiSecret"];
-    options.RequireHttpsMetadata = builder.Configuration.GetValue<bool>("IdentityServerConfiguration:RequireHttpsMetadata");
-    options.EnableCaching = builder.Configuration.GetValue<bool>("IdentityServerConfiguration:EnableCaching");
-    options.CacheDuration = TimeSpan.FromMinutes(builder.Configuration.GetValue<int>("IdentityServerConfiguration:CacheDuration"));
-});
+// BOOKMARK: Action过滤器
+builder.Services.AddScoped<CustomActionFilter>();
 
-//builder.Services.AddAuthorization(config =>
-//{
-//    config.AddPolicy("sfapi.2", policyBuilder =>
-//    {
-//        //policyBuilder.RequireScope("sfapi2");
-//        policyBuilder.RequireAssertion(context => context.User.Claims.Any(c => c.Type == "scope" && c.Value == "sfapi2"));
-//    });
-//    config.AddPolicy("sfapi.3", policyBuilder =>
-//    {
-//        //policyBuilder.RequireScope("sfapi3");
-//        policyBuilder.RequireAssertion(context => context.User.Claims.Any(c => c.Type == "scope" && c.Value == "sfapi3"));
-//    });
-//});
+// BOOKMARK: 添加身份认证
+builder.Services.AddAuthenticationService(builder.Configuration);
+
+builder.Services.AddAuthorization(options =>
+{
+    var adminApiConfiguration = new { AdministrationRole = "SkorubaIdentityAdminAdministrator", OidcApiName = "remotetasks_api" };
+    options.AddPolicy(AuthorizationConstants.AdministrationPolicy,
+        policy =>
+            policy.RequireAssertion(context => context.User.HasClaim(c =>
+                    ((c.Type == JwtClaimTypes.Role && c.Value == adminApiConfiguration.AdministrationRole) ||
+                    (c.Type == $"client_{JwtClaimTypes.Role}" && c.Value == adminApiConfiguration.AdministrationRole))
+                ) && context.User.HasClaim(c => c.Type == JwtClaimTypes.Scope && c.Value == adminApiConfiguration.OidcApiName)
+            ));
+});
 
 var app = builder.Build();
 
@@ -103,7 +92,7 @@ var app = builder.Build();
 // 1. 那么使用到的地方相当于获取对象的方式又耦合了DI容器对象了(依赖注入的方式, 我们只关心我们要获取的服务对象类型, 其他我们看不见也不关心, 也就是和其他的背后实现的对象耦合度很低, 我们可以任意地替换其他的DI实现)
 // 2. 全局的唯一对象是一种不够安全的设计, 经常会带来线程安全问题(虽然这里它是一个只读对象)
 //ServiceLocator.Instance = app.Services;
-
+app.UseSession();
 app.UseExceptionHandler(LambdaHandler.ReturnOperationResultAction);
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
@@ -120,6 +109,7 @@ app.UseRouting();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
 
 if (app.Environment.IsDevelopment())
 {
