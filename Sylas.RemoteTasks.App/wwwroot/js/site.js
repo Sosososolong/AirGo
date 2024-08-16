@@ -6,10 +6,29 @@
 const tables = {};
 const dataSources = {};
 
-async function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, ths, idFieldName, filterItems = null, data = null, onDataLoaded = undefined, wrapper = '', modalSettings) {
+/**
+ * 
+ * @param {string} apiUrl 查询api地址
+ * @param {number} pageIndex 当前页
+ * @param {number} pageSize 每页多少条数据
+ * @param {string} tableId 数据表table标签的id属性值
+ * @param {string} tableContainerSelector 数据表table标签的父元素选择器
+ * @param {Array} ths 数据表对应的数据列的配置, 如果dataViewBuilder不为空, 则ths的作用为配置关键字搜索的字段
+ * @param {string} idFieldName 主键字段名
+ * @param {Array} filterItems 过滤项集合
+ * @param {Array} data 初始化数据表的数据
+ * @param {function} onDataLoaded 当数据加载完毕执行的回调函数
+ * @param {string} wrapper table标签的外部html
+ * @param {Object} modalSettings 添加数据弹窗的配置
+ * @param {Boolean} primaryKeyIsInt 主键是否是整型
+ * @param {string} addButtonSelector 添加按钮的选择器, 不传将创建添加按钮
+ * @param {function} dataViewBuilder 不使用table标签展示数据时使用, 该函数根据传入的数据集返回展示数据的元素对象
+ */
+async function createTable(apiUrl, pageIndex, pageSize, tableId, tableContainerSelector, ths, idFieldName, filterItems = null, data = null, onDataLoaded = undefined, wrapper = '', modalSettings = {}, primaryKeyIsInt = true, addButtonSelector = '', dataViewBuilder = null) {
     if (!tables[tableId]) {
         tables[tableId] = {
             tableId: tableId,
+            primaryKeyIsInt: primaryKeyIsInt,
             pageIndex: pageIndex,
             pageSize: pageSize,
             totalPages: 0,
@@ -36,14 +55,15 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSele
             modalSettings: modalSettings, // 添加数据面板
             ths: ths,
             dataSourceField: {
-                xxFieldName: [
-                    { id: 1, value: '同步应用和流程数据 - zcmu' }
-                ]
+                // xxFieldName: [
+                //     { id: 1, value: 'xxx' }
+                // ]
             },
             modalId: '',
             modal: {}, // 当前table的bootstrap.Modal对象
             addOptions: {
                 button: '',
+                modalHtml: '',
             },
             tableForm: {
                 formHtml: '',
@@ -51,8 +71,12 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSele
             }
         }
     }
-
+    
     var targetTable = tables[tableId];
+
+    if (addButtonSelector) {
+        targetTable.addOptions.button = document.querySelector(addButtonSelector);
+    }
 
     if (filterItems) {
         targetTable.dataFilter.filterItems = filterItems;
@@ -60,6 +84,13 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSele
     targetTable.dataFilter.keywords.fields = ths.filter(th => th.searchedByKeywords).map(th => th.name);
 
     targetTable.renderBody = async function (data) {
+        if (dataViewBuilder && typeof(dataViewBuilder) === 'function') {
+            let dataPannel = dataViewBuilder(data);
+            dataPannel.id = this.tableId;
+            const t = document.querySelector(`#${this.tableId}`);
+            t.parentNode.replaceChild(dataPannel, t);
+            return;
+        }
         var tbody = $(`#${this.tableId} tbody`);
         tbody.empty();
         for (var j = 0; j < data.length; j++) {
@@ -73,6 +104,7 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSele
                     tr.append(`<td>${buttonHtml}</td>`);
                 }
                 if (th.name) {
+                    // 字段值
                     var tdValue = row[th.name];
                     if (th.title.indexOf('时间') > -1) {
                         tdValue = tdValue.replace('T', ' ');
@@ -84,6 +116,7 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSele
                         }
                         for (let dataSourceIndex = 0; dataSourceIndex < this.dataSourceField[th.name].length; dataSourceIndex++) {
                             let dataSource = this.dataSourceField[th.name][dataSourceIndex];
+                            // 字段值由id转为name
                             if (tdValue === dataSource.id) {
                                 tdValue = dataSource.value;
                                 break;
@@ -141,9 +174,17 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSele
         const method = 'POST';
 
         async function onSuccess(response) {
-            var data = response.data;
-            var totalCount = response.count;
-            targetTable.totalPages = response.totalPages;
+            if (!response) {
+                showErrorBox('请求失败');
+                return;
+            }
+            if (response && !response.data) {
+                showErrorBox(response.errMsg ?? '请求失败');
+                return;
+            }
+            var data = response.data.data;
+            var totalCount = response.data.count;
+            targetTable.totalPages = response.data.totalPages;
             // 将数据添加到表格中
             await targetTable.renderBody(data);
 
@@ -154,6 +195,11 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSele
                 pagination.append('<li class="page-item ' + (i == targetTable.pageIndex ? 'active' : '') + '"><a class="page-link" href="#" data-page="' + i + '">' + i + '</a></li>');
             }
             pagination.append('<li class="page-item ' + (targetTable.pageIndex == targetTable.totalPages ? 'disabled' : '') + '"><a class="page-link" href="#" data-page="' + (targetTable.pageIndex + 1) + '">Next</a></li>');
+
+            // 记录Id主键字段是否是整型
+            if (data.length > 0 && isNaN(data[0].id) && targetTable.primaryKeyIsInt) {
+                targetTable.primaryKeyIsInt = false;
+            }
         }
         
         var response = await fetchData(url, method, targetTable.dataFilter, this.tableId);
@@ -176,7 +222,7 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSele
         for (var i = 0; i < ths.length; i++) {
             var th = ths[i]
             if (th.name) {
-                if (th.name === 'createTime' || th.name === 'updateTime') {
+                if (th.name === 'createTime' || th.name === 'updateTime' || th.notShowInForm) {
                     continue;
                 }
                 let formItemId = `${this.tableId}FormInput_${th.name}`;
@@ -238,7 +284,7 @@ ${inputComponent}
     <div class="modal-dialog">
     <div class="modal-content">
         <div class="modal-header">
-        <h5 class="modal-title">${this.tableId}添加数据</h5>
+        <h5 class="modal-title">添加数据</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
@@ -283,7 +329,6 @@ ${inputComponent}
         }
 
         let url = `${dataSourceApi}`;
-        let dataSourceOptions = `<option value="${defaultValue}">请选择</option>`;
 
         // 获取数据源数据(缓存)
         let dataSourceData = [];
@@ -293,12 +338,14 @@ ${inputComponent}
             dataSourceData = dataSources[currentKey]
         } else {
             let response = await fetchData(url, 'POST', bodyDataFilter, null)
-            if (response) {
-                dataSourceData = response.data;
+            if (response && response.code === 1) {
+                dataSourceData = response.data.data;
                 dataSources[currentKey] = dataSourceData;
             }
         }
 
+        // 数据源选项集对应的下拉项集合
+        let dataSourceOptions = `<option value="${defaultValue}">请选择</option>`;
         dataSourceData.forEach(row => {
             dataSourceOptions += `<option value="${row['id']}">${row[displayField]}</option>`
 
@@ -311,6 +358,7 @@ ${inputComponent}
             // HttpRequestProcessor的id和title(id: 1, value: 同步应用和流程数据 - zcmu)
             this.dataSourceField[thDataSource.name].push({ id: row['id'], value: row[displayField] })
         });
+        this.dataSourceField[`${thDataSource.name}_options`] = dataSourceOptions;
         return dataSourceOptions;
     }
 
@@ -318,29 +366,92 @@ ${inputComponent}
         let searchFormHtmlBase = `<form id="search-form">
     <div class="row g-3">
         <div class="col-sm-3">
-            <input type="text" placeholder="关键字" class="form-control" id="search-input" oninput="onSearching">
+            <input type="text" placeholder="关键字" class="form-control form-control-sm" id="search-input">
         </div>
         {{othersFormItems}}
         <div class="col-sm">
-            <button type="submit" class="btn btn-dark">搜索</button>
+            <button type="submit" class="btn btn-dark btn-sm">搜索</button>
             {{others}}
         </div>
     </div>
 </form>`;
-        searchFormHtmlBase = searchFormHtmlBase.replace('{{othersFormItems}}', '');
+        
+        let dataSourceFormItems = '';
+        if (this.dataSourceField) {
+            const dataSourceFields = Object.keys(this.dataSourceField);
+            dataSourceFields.forEach(key => {
+                if (key.endsWith('_options')) {
+                    return;
+                }
+                const field = key;
+                const data = this.dataSourceField[key];
+                const dataOptionsHtml = this.dataSourceField[`${key}_options`];
+                dataSourceFormItems += `<div class="col-sm-3">
+                    <select class="form-control form-select-sm" aria-label="Default select" name="${field}" id="${field}">${dataOptionsHtml}</select>
+                </div>`;
+            })
+        }
+        
+        searchFormHtmlBase = searchFormHtmlBase.replace('{{othersFormItems}}', dataSourceFormItems);
         if (this.modalSettings) {
             // BOOKMARK: 前端/frontend封装site.js - 创建模态框 1."添加"按钮(弹出表单)
             //data-bs-toggle="modal" data-bs-target="#${tableDataModalId}"
-            this.addOptions.button = `<button type="button" class="btn btn-primary" onclick="showAddPannel(tables['${tableId}'])">添加</button>`;
-            searchFormHtmlBase = searchFormHtmlBase.replace('{{others}}', this.addOptions.button);
+            if (!this.addOptions.button) {
+                this.addOptions.button = `<button type="button" class="btn btn-primary btn-sm" onclick="showAddPannel(tables['${tableId}'])">添加</button>`;
+                searchFormHtmlBase = searchFormHtmlBase.replace('{{others}}', this.addOptions.button);
+            } else {
+                this.addOptions.button.onclick = function(event) {
+                    showAddPannel(targetTable);
+                };
+                searchFormHtmlBase = searchFormHtmlBase.replace('{{others}}', '');
+            }
         }
-        const searchForm = $(tableParentSelector).find("form");
+        const searchForm = $(tableContainerSelector).find("form");
         if (searchForm.length === 0) {
-            $(tableParentSelector).prepend(searchFormHtmlBase);
+            $(tableContainerSelector).prepend(searchFormHtmlBase);
         }
+
+        // 搜索表单提交事件
+        $('#search-form').on('submit', function (event) {
+            event.preventDefault();
+            targetTable.dataFilter.keywords.value = $('#search-input').val().trim();
+            
+            const filterItems = [];
+            document.querySelector('#search-form').querySelectorAll('input,select').forEach(item => {
+                if (item.id !== 'search-input') {
+                    // itemValue如果直接使用表单项的值(item.value)得到的都是字符串; 实际上id的值有可能是数字, 所以需要从dataSourceField中找到原始的数据项
+                    const itemValue = targetTable.dataSourceField[item.name].find(x => x.id == item.value).id; // item.value;
+
+                    filterItems.push({
+                        fieldName: item.name,
+                        compareType: '=',
+                        value: itemValue
+                    });
+                }
+            });
+            targetTable.dataFilter.filterItems = filterItems;
+            targetTable.pageIndex = 1;
+            targetTable.loadData();
+        });
+
+        let interval = 0;
+        document.querySelector('#search-input').addEventListener('input', function (event) {
+            if (interval) {
+                clearTimeout(interval);
+            }
+            interval = setTimeout(() => {
+                targetTable.dataFilter.keywords.value = $('#search-input').val().trim();
+                targetTable.pageIndex = 1;
+                targetTable.loadData();
+            }, 500);
+        });
     }
 
-    targetTable.initTableStruct = async function initTableStruct() {
+    /**
+     * 初始化数据展示的容器(表格或者自定义), 数据分页栏和数据管理表单的html基本结构
+     * @returns {void}
+     */
+    targetTable.initDataViewStructs = async function() {
         if ($(`#${this.tableId}`).length) {
             return;
         }
@@ -372,11 +483,11 @@ ${inputComponent}
     </nav>
     ${this.addOptions.modalHtml}`;
         if (this.wrapper) {
-            tableHtml = $(tableParentSelector).append(this.wrapper.replace('{{tableHtml}}', tableHtml));
+            tableHtml = $(tableContainerSelector).append(this.wrapper.replace('{{tableHtml}}', tableHtml));
         }
 
         // 初始化数据表格结构
-        $(tableParentSelector).append(tableHtml)
+        $(tableContainerSelector).append(tableHtml);
         // 获取对应的modal
         if (this.modalId) {
             // BOOKMARK: 前端/frontend封装site.js - table对象的 bootstrap.Modal对象
@@ -399,21 +510,13 @@ ${inputComponent}
     }
 
     targetTable.render = async function render() {
+        // 初始化表格结构
+        await this.initDataViewStructs();
         // 初始化表格搜索栏表单
         this.initSearchForm();
-        // 初始化表格结构
-        await this.initTableStruct();
         // 加载第一页数据
         await this.loadData();
     }
-
-    // 搜索表单提交事件
-    $('#search-form').on('submit', function (event) {
-        event.preventDefault();
-        targetTable.dataFilter.keywords.value = $('#search-input').val().trim();
-        targetTable.pageIndex = 1;
-        targetTable.loadData();
-    });
 
     targetTable.searchKeywords = function() {
         // 获取表单元素
@@ -479,10 +582,14 @@ function showModal(table) {
     table.modal.show();
 }
 
+/**
+ * 提交表单数据, 提交的接口地址和请求方法由触发事件的元素上的自定义属性值决定
+ */
 async function handleDataForm(table, eventTrigger) {
+    // handleType为"add"或者"update"
     let handleType = eventTrigger.getAttribute("data-form-type");
-    let url = handleType === "add" ? table.modalSettings.url : eventTrigger.getAttribute("data-update-url");
-    let method = handleType === "add" ? table.modalSettings.method : eventTrigger.getAttribute("data-update-method");
+    let url = handleType === "add" ? table.modalSettings.url : table.modalSettings.updateUrl;
+    let method = handleType === "add" ? table.modalSettings.method : table.modalSettings.updateMethod;
 
     // 需要提交的数据对应的所有表单项(添加时不需要Id字段, 如果带上了值为""的Id字段, 会因为转为int类型失败从而导致参数自动绑定失败)
     let formItemIds = handleType === "add" ? table.formItemIdsForAddPannel : table.formItemIds;
@@ -514,9 +621,9 @@ async function handleDataForm(table, eventTrigger) {
         closeSpinner();
     }
 
-    if (response && response.isSuccess) {
+    if (response && (response.code === 1 || response.isSuccess)) {
         table.modal.hide();
-        showMsgBox('操作成功', () => table.loadData()); //table.searchKeywords();
+        showMsgBox('操作成功', () => table.loadData());
     } else {
         showErrorBox(response.errMsg, '错误提示', [{ class: 'error', content: '关闭' }]);
     }
@@ -549,9 +656,9 @@ function getFormData(formItemIds) {
 async function showUpdatePannel(eventTrigger) {
     let tableId = eventTrigger.getAttribute('data-table-id');
     let table = tables[tableId];
-    let dataId = Number(eventTrigger.getAttribute('data-id'));
+    const dataIdStr = eventTrigger.getAttribute('data-id');
+    let dataId = table.primaryKeyIsInt ? Number(dataIdStr) : dataIdStr;
     let fetchUrl = eventTrigger.getAttribute('data-fetch-url');
-    let updateUrl = eventTrigger.getAttribute('data-update-url');
     let method = eventTrigger.getAttribute('data-method');
 
     let findByIdFilter = {
@@ -570,7 +677,7 @@ async function showUpdatePannel(eventTrigger) {
     var fetchedData = await fetchData(fetchUrl, method, findByIdFilter);
     if (fetchedData && fetchedData.data) {
         await table.createModal();
-        let record = fetchedData.data[0];
+        let record = fetchedData.data.data[0];
         table.formItemIds.forEach(formItemId => {
             let formItem = document.querySelector(`#${formItemId}`);
 
@@ -587,8 +694,6 @@ async function showUpdatePannel(eventTrigger) {
 
         let submitButton = document.querySelector(`#${table.modalId} button[data-btn-type="submit"]`);
         submitButton.setAttribute("data-form-type", "update");
-        submitButton.setAttribute("data-update-url", updateUrl);
-        submitButton.setAttribute("data-update-method", method);
 
         let modalTitle = document.querySelector(`#${table.modalId} .modal-title`);
         modalTitle.innerHTML = modalTitle.innerHTML.replace("添加", "更新");
@@ -628,15 +733,18 @@ async function deleteData(eventTrigger) {
     }
 }
 
-async function execute(eventTrigger) {
-    let tableId = eventTrigger.getAttribute('data-table-id');
-    let table = tables[tableId];
-    let dataContent = eventTrigger.getAttribute('data-content');
+async function execute(eventTrigger, callback = null, useSpinner = true) {
+    const isEle = eventTrigger instanceof HTMLElement;
+    let tableId = isEle ? eventTrigger.getAttribute('data-table-id') : eventTrigger['dataTableId'];
+    let table = tableId ? tables[tableId] : tables[0];
+    let dataContent = isEle ? eventTrigger.getAttribute('data-content') : eventTrigger['dataContent'];
 
-    let url = eventTrigger.getAttribute('data-execute-url');
-    let method = eventTrigger.getAttribute('data-method');
+    let url = isEle ? eventTrigger.getAttribute('data-execute-url') : eventTrigger['dataExecuteUrl'];
+    let method = isEle ? eventTrigger.getAttribute('data-method') : eventTrigger['dataMethod'];
     let response = null;
-    showSpinner();
+    if (useSpinner) {
+        showSpinner();
+    }
     try {
         response = await $.ajax({
             url: url,
@@ -649,10 +757,17 @@ async function execute(eventTrigger) {
         showErrorBox('操作失败');
         console.log(e);
     } finally {
-        closeSpinner();
+        if (useSpinner) {
+            closeSpinner();
+        }
     }
 
-    if (response && response.isSuccess) {
+    if (callback) {
+        callback(response);
+        return;
+    }
+
+    if (response && (response.isSuccess || response.data)) {
         showMsgBox('操作成功', () => table.loadData());
     } else {
         showErrorBox(response.errMsg, '错误提示', [{ class: 'error', content: '关闭' }]);

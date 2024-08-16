@@ -13,14 +13,14 @@ namespace Sylas.RemoteTasks.App.Controllers
             return View();
         }
 
-        public async Task<IActionResult> GetSnippets(int pageIndex, int pageSize, string orderField, bool isAsc = true, [FromBody] DataFilter? dataFilter = null)
+        public async Task<IActionResult> GetSnippets(int pageIndex = 1, int pageSize = 10, string orderField = "", bool isAsc = true, [FromBody] DataFilter? dataFilter = null)
         {
             if (string.IsNullOrWhiteSpace(orderField))
             {
                 orderField = nameof(Snippet.Description);
             }
             var snippetPage = await repository.GetPageAsync(pageIndex, pageSize, orderField, isAsc, dataFilter);
-            return Json(snippetPage);
+            return Json(new RequestResult<PagedData<Snippet>>(snippetPage));
         }
         public async Task<IActionResult> AddSnippetAsync([FromBody] Snippet snippet)
         {
@@ -34,13 +34,13 @@ namespace Sylas.RemoteTasks.App.Controllers
             return added > 0 ? Ok(new OperationResult(true)) : BadRequest();
         }
 
-        public async Task<IActionResult> GetSnippetTypesAsync(string keyword)
+        public async Task<IActionResult> GetSnippetTypesAsync(string keyword = "")
         {
             Keywords keywords = string.IsNullOrWhiteSpace(keyword)
                 ? new Keywords()
                 : new Keywords { Fields = [nameof(SnippetType.Name)], Value = keyword };
             var typesPage = await snippetTypeRepository.GetPageAsync(1, 100, filter: new DataFilter() { Keywords = keywords });
-            return Json(typesPage);
+            return Json(new RequestResult<PagedData<SnippetType>>(typesPage));
         }
 
         public async Task<IActionResult> DeleteSnippetAsync([FromBody] int id)

@@ -9,6 +9,14 @@ namespace Sylas.RemoteTasks.App.Database
     public class EntityBase<T>
     {
         /// <summary>
+        /// 初始化创建时间和更新时间
+        /// </summary>
+        public EntityBase()
+        {
+            CreateTime = DateTime.Now;
+            UpdateTime = DateTime.Now;
+        }
+        /// <summary>
         /// 默认主键字段都是Id
         /// </summary>
         public T? Id { get; set; }

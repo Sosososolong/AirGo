@@ -1,4 +1,5 @@
 ﻿using Dapper;
+using Sylas.RemoteTasks.Database.Attributes;
 using Sylas.RemoteTasks.Utils;
 using System;
 using System.Linq;
@@ -37,7 +38,8 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             #region 反射获取实体类的基本信息
             var entityType = typeof(T);
 
-            _tableName = entityType.Name;
+            var tableAttribute = entityType.GetCustomAttribute<TableAttribute>(true);
+            _tableName = tableAttribute is not null && !string.IsNullOrWhiteSpace(tableAttribute.TableName) ? tableAttribute.TableName : entityType.Name;
 
             var properties = entityType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
             // entityType.GetCustomAttribute 自定义特性获取主键信息或者其他信息
@@ -54,13 +56,13 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             var insertSqlFields = autoIncreasingPkTypeNames.Contains(primaryKeyProp.PropertyType.Name) ? otherPropertyNames : allPropertyNames;
             var insertSqlFieldsStatement = string.Join(',', insertSqlFields);
             var insertSqlValuesStatement = string.Join(",", insertSqlFields.Select(x => $"@{x}"));
-            _insertSql = $"insert into {entityType.Name} ({insertSqlFieldsStatement}) values ({insertSqlValuesStatement})";
+            _insertSql = $"insert into {_tableName} ({insertSqlFieldsStatement}) values ({insertSqlValuesStatement})";
 
             // Int32 String DateTime
             var updateSqlFields = otherPropertyNames;
             var updateFieldItems = updateSqlFields.Where(x => !x.Equals("CreateTime", StringComparison.OrdinalIgnoreCase)).Select(x => $"{x}=@{x}");
             var updateFieldsStatement = string.Join(",", updateFieldItems);
-            _updateSql = $"update {entityType.Name} set {updateFieldsStatement} where {primaryKeyProp.Name}=@{primaryKeyProp.Name};";
+            _updateSql = $"update {_tableName} set {updateFieldsStatement} where {primaryKeyProp.Name}=@{primaryKeyProp.Name};";
             #endregion
 
             #region 构建sql执行参数的lambda表达式目录树并缓存lambda表达式

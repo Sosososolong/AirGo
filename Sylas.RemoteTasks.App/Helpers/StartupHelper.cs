@@ -182,16 +182,18 @@ namespace Sylas.RemoteTasks.App.Helpers
                 options.CallbackPath = "/signin-oidc";
             });
         }
-        private static Task OnRedirectToIdentityProvider(RedirectContext n)
+        private static Task OnRedirectToIdentityProvider(RedirectContext redirectContext)
         {
-            string scheme = n.Request.Headers["X-Forwarded-Proto"].ToString() ?? n.Request.Scheme;
+            Console.WriteLine(string.Join(',', redirectContext.Request.Headers.Select(x => $"{x.Key}:{x.Value}")));
+            // X-Scheme
+            string scheme = redirectContext.Request.Headers["X-Scheme"].ToString() ?? redirectContext.Request.Scheme;
             if (string.IsNullOrEmpty(scheme))
             {
                 scheme = "http";
             }
-            var host = $"{scheme}://{n.Request.Host.Value}";
-            n.ProtocolMessage.RedirectUri = $"{host}/signin-oidc";
-            n.ProtocolMessage.PostLogoutRedirectUri = $"{host}/signout-callback-oidc";
+            var host = $"{scheme}://{redirectContext.Request.Host.Value}";
+            redirectContext.ProtocolMessage.RedirectUri = $"{host}/signin-oidc";
+            redirectContext.ProtocolMessage.PostLogoutRedirectUri = $"{host}/signout-callback-oidc";
             return Task.CompletedTask;
         }
         private static Task OnMessageReceived(MessageReceivedContext context)
@@ -212,6 +214,7 @@ namespace Sylas.RemoteTasks.App.Helpers
             if (context.User != null)
             {
                 context.Options.ClaimActions.Clear();
+                // 从user数据拿属性添加到Claims中
                 context.Options.ClaimActions.MapJsonKey("name", "UserAccount"); //给name单独映射
                 context.Options.ClaimActions.MapJsonKey("scope", "scope");
                 context.Options.ClaimActions.MapJsonKey("role", "role");
@@ -231,7 +234,6 @@ namespace Sylas.RemoteTasks.App.Helpers
             if (!string.IsNullOrEmpty(accessToken))
             {
                 context.HttpContext.Session.SetString("token", accessToken);
-                //context.HttpContext.Response.HttpContext.Session.SetString("token", accessToken);
 
                 // 将scope声明添加到用户的Claims中
                 var scopes = context.TokenEndpointResponse.Scope.Split(' ');

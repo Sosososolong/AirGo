@@ -5,10 +5,8 @@ namespace Sylas.RemoteTasks.App.Snippets
 {
     public class Snippet : EntityBase<int>
     {
-        public Snippet()
+        public Snippet() : base()
         {
-            CreateTime = DateTime.Now;
-            UpdateTime = DateTime.Now;
         }
         public Snippet(string title, string description, string content, string tmplVariables, int typeId, DateTime createTime, DateTime updateTime)
         {

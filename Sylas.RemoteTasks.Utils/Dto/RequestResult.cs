@@ -43,6 +43,12 @@
         /// <returns></returns>
         public static RequestResult<T> Error(string errMsg) => new(0, default, errMsg);
         /// <summary>
+        /// 返回成功结果
+        /// </summary>
+        /// <param name="t"></param>
+        /// <returns></returns>
+        public static RequestResult<T> Success(T t) => new(1, t, "");
+        /// <summary>
         /// 状态码
         /// </summary>
         public int Code { get; set; }

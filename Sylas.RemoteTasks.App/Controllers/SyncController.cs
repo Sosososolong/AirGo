@@ -49,18 +49,21 @@ namespace Sylas.RemoteTasks.App.Controllers
                 pageSize = 10;
             }
             var processors = await _repository.GetPageAsync(pageIndex, pageSize, orderField, isAsc, dataFilter);
-            return Json(processors);
+            var result = new RequestResult<PagedData<HttpRequestProcessor>>(processors);
+            return Json(result);
         }
 
         public async Task<IActionResult> GetHttpRequestProcessorStepsAsync(int pageIndex, int pageSize, string orderField, bool isAsc, [FromBody] DataFilter dataFilter)
         {
             var steps = await _repository.GetStepsPageAsync(pageIndex, pageSize, orderField, isAsc, dataFilter);
-            return Json(steps);
+            var result = new RequestResult<PagedData<HttpRequestProcessorStep>>(steps);
+            return Json(result);
         }
         public async Task<IActionResult> GetHttpRequestProcessorStepDataHandlersAsync(int pageIndex, int pageSize, string orderField, bool isAsc, [FromBody] DataFilter dataFilter)
         {
             var steps = await _repository.GetDataHandlersPageAsync(pageIndex, pageSize, orderField, isAsc, dataFilter);
-            return Json(steps);
+            var result = new RequestResult<PagedData<HttpRequestProcessorStepDataHandler>>(steps);
+            return Json(result);
         }
 
         #region HttpRequestProcessor

@@ -26,7 +26,7 @@
                 { name: 'updateTime', title: '更新时间' },
                 // 操作栏
                 { name: '', title: '操作', type: 'button', tmpl: `
-                            <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="{{id}}" data-fetch-url="/Snippet/GetSnippets" data-update-url="/Snippet/UpdateSnippet" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
+                            <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="{{id}}" data-fetch-url="/Snippet/GetSnippets" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
                             <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-content="&quot;{{id}}&quot;" data-execute-url="/Snippet/DeleteSnippet" data-method="POST" onclick="showConfirmBox('确定删除? 此操作无法撤销!', () => execute(this))">删除</button>`
                 }
             ]
@@ -47,7 +47,7 @@
                 null,                       // 初始化数据(有的话就渲染此数据, 不会请求接口)
                 onDataLoaded,               // 订阅数据渲染完成事件
                 '',                         // 对数据表添加父元素, 使用{{tableHtml}}变量代表整个数据表html
-                { url: 'Snippet/AddSnippet', 'method': 'POST' }   // 添加修改数据表单弹窗; url为添加数据的url(修改的url放到修改按钮上); method也是请求添加数据接口的请求方法
+                { url: 'Snippet/AddSnippet', method: 'POST', updateUrl: '/Snippet/UpdateSnippet', updateMethod: 'POST' }   // 添加修改数据表单弹窗; url为添加数据的url(修改的url放到修改按钮上); method也是请求添加数据接口的请求方法
             )
 
             /**

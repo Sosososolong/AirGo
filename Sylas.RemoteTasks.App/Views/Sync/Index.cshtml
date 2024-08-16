@@ -25,7 +25,7 @@
                 { name: 'remark', title: '备注', width: 50, showPart: 12 },
                 // 操作栏
                 { name: '', title: '操作', type: 'button', tmpl: `<button type="button" class="btn btn-primary btn-sm" data-bs-toggle="collapse" href="#collapse${tableId}{{id}}" role="button" aria-expanded="true" aria-controls="collapse${tableId}{{id}}">步骤</button>
-                        <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="{{id}}" data-fetch-url="/Sync/GetHttpRequestProcessors" data-update-url="/Sync/UpdateHttpRequestProcessor" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
+                        <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="{{id}}" data-fetch-url="/Sync/GetHttpRequestProcessors" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
                         <button type="button" class="btn btn-primary btn-sm d-none" data-table-id="${tableId}" data-id="{{id}}" data-delete-url="/Sync/DeleteHttpRequestProcessor" data-method="POST" onclick="showConfirmBox('确定删除? 此操作无法撤销!', () => deleteData(this))">删除</button>
                         <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-content="&quot;{{id}}&quot;" data-execute-url="/Sync/CloneProcessor" data-method="POST" onclick="showConfirmBox('您确定要克隆数据吗', () => execute(this))">克隆</button>
                         <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-content="{ &quot;processorIds&quot;: [{{id}}], &quot;stepId&quot;: 0 }" data-execute-url="/Sync/ExecuteHttpProcessor" data-method="POST" onclick="showConfirmBox('您确定要执行所有步骤吗?', () => execute(this))">执行</button>`
@@ -37,7 +37,7 @@
              * HttpRequestProcessors
              */
             await createTable(apiUrl, 1, 10, tableId, tableParentSelector, ths, idFieldName, null, null, onProcessorsDataLoaded, ''
-                , { modalType: 'add', url: 'Sync/AddHttpRequestProcessor', 'method': 'POST' }
+                , { url: 'Sync/AddHttpRequestProcessor', method: 'POST', updateUrl: '/Sync/UpdateHttpRequestProcessor', updateMethod: 'POST' }
             )
 
             /**
@@ -65,7 +65,7 @@
                         //{ name: 'previous', title: '上一个步骤', type: `dataSource|dataSourceApi=/Sync/GetHttpRequestProcessorSteps|displayField=remark|body={"filterItems":[{"fieldName":"processorId","compareType": "=","value":"${processorId}"}],"keywords": {"fields": [],"value": ""}}|defaultValue=0` },
                         { name: 'processorId', title: 'HTTP处理器', type: 'dataSource|dataSourceApi=/Sync/GetHttpRequestProcessors?pageIndex=1&pageSize=1000|displayField=title' },
                         { name: '', title: '操作', type: 'button', tmpl: `<button type="button" class="btn btn-primary btn-sm mt-1" data-bs-toggle="collapse" href="#collapse${tableStepsId}{{id}}" role="button" aria-expanded="true" aria-controls="collapse${tableStepsId}{{id}}">数据处理器</button>
-                                <button type="button" class="btn btn-primary btn-sm mt-1" data-table-id="${tableStepsId}" data-id="{{id}}" data-fetch-url="/Sync/GetHttpRequestProcessorSteps" data-update-url="/Sync/UpdateHttpRequestProcessorStep" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
+                                <button type="button" class="btn btn-primary btn-sm mt-1" data-table-id="${tableStepsId}" data-id="{{id}}" data-fetch-url="/Sync/GetHttpRequestProcessorSteps" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
                                 <button type="button" class="btn btn-primary btn-sm mt-1" data-table-id="${tableStepsId}" data-content="&quot;{{id}}&quot;" data-execute-url="/Sync/CloneStep" data-method="POST" onclick="showConfirmBox('您确定要克隆此步骤吗', () => execute(this))">克隆</button>
                                 <button type="button" class="btn btn-primary btn-sm mt-1" data-table-id="${tableStepsId}" data-content="{ &quot;processorIds&quot;: [${processorId}], &quot;stepId&quot;: {{id}} }" data-delete-url="/Sync/ExecuteHttpProcessor" data-execute-url="/Sync/ExecuteHttpProcessor" data-method="POST" data-method="POST" onclick="showConfirmBox('您确定要执行此步骤吗', () => execute(this))">执行</button>
                                 <button type="button" class="btn btn-primary btn-sm mt-1 d-none" data-table-id="${tableStepsId}" data-id="{{id}}" data-delete-url="/Sync/DeleteHttpRequestProcessorStep" data-method="POST" onclick="showConfirmBox('确定删除? 此操作无法撤销!', () => deleteData(this))">删除</button>
@@ -85,7 +85,7 @@
                     // wrapper 每一张表关联的是Processor表的某一行数据
                     `<div id="collapse${tableId}${row[idFieldName]}" class="collapse" aria-labelledby="${tableParentSelector}" data-bs-parent="#accordion"><div class="card-body">{{tableHtml}}</div></div>`
                     // Modal Settings
-                    , { modalType: 'add', url: 'Sync/AddHttpRequestProcessorStep', 'method': 'POST' }
+                    , { url: 'Sync/AddHttpRequestProcessorStep', method: 'POST', updateUrl: '/Sync/UpdateHttpRequestProcessorStep', updateMethod: 'POST' }
                 );
 
 
@@ -120,7 +120,7 @@
                                     title: '操作',
                                     type: 'button',
                                     tmpl: `
-                                        <button type="button" class="btn btn-primary btn-sm mt-1" data-table-id="${tableDataHandlersId}" data-id="{{id}}" data-fetch-url="/Sync/GetHttpRequestProcessorStepDataHandlers" data-update-url="/Sync/UpdateHttpRequestProcessorStepDataHandler" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
+                                        <button type="button" class="btn btn-primary btn-sm mt-1" data-table-id="${tableDataHandlersId}" data-id="{{id}}" data-fetch-url="/Sync/GetHttpRequestProcessorStepDataHandlers" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
                                         <button type="button" class="btn btn-primary btn-sm mt-1 d-none" data-table-id="${tableDataHandlersId}" data-id="{{id}}" data-delete-url="/Sync/DeleteHttpRequestProcessorStepDataHandler" data-method="POST" onclick="deleteData(this)">删除</button>`
                                 }
                             ],
@@ -137,7 +137,7 @@
                             // wrapper 每一张表关联的是Steps表的某一行数据
                             `<div id="collapse${tableStepsId}${stepId}" class="collapse" aria-labelledby="${tableParentSelector}" data-bs-parent="#accordion"><div class="card-body">{{tableHtml}}</div></div>`
                             // Modal Settings
-                            , { modalType: 'add', url: 'Sync/AddHttpRequestProcessorStepDataHandler', 'method': 'POST' }
+                            , { url: 'Sync/AddHttpRequestProcessorStepDataHandler', method: 'POST', updateUrl: '/Sync/UpdateHttpRequestProcessorStepDataHandler', updateMethod: 'POST', }
                         );
                     }
                 }
