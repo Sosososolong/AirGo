@@ -22,14 +22,14 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         private string Host { get; set; }
         private int Port { get; } = 0;
         private string UserName { get; set; }
-        private string PrivateKey { get; set; }
+        private readonly IPrivateKeySource[] _privateKeyFiles;
         /// <summary>
         /// 从池中获取一个SSH连接
         /// </summary>
         /// <returns></returns>
         /// <exception cref="InvalidOperationException"></exception>
         /// <exception cref="Exception"></exception>
-        public SshClient GetConnection()
+        private SshClient GetConnection()
         {
             if (!_sshConnectionPool.TryTake(out SshClient? connection))
             {
@@ -38,9 +38,10 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                     if (_currentConnections < _maxConnections)
                     {
                         Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 创建了SshClient");
-                        connection = new SshClient(Host, Port, UserName, new PrivateKeyFile(PrivateKey));
+                        connection = new SshClient(Host, Port, UserName, _privateKeyFiles);
                         connection.Connect();
-                        _sshConnectionPool.Add(connection);
+                        // 创建时不需要添加到池中, 用完返回进池就可以了
+                        //_sshConnectionPool.Add(connection);
                         _currentConnections++;
                     }
                     else
@@ -76,9 +77,10 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                     if (_currentConnections < _maxConnections)
                     {
                         Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 创建了SFtpClient");
-                        connection = new SftpClient(Host, Port, UserName, new PrivateKeyFile(PrivateKey));
+                        connection = new SftpClient(Host, Port, UserName, _privateKeyFiles);
                         connection.Connect();
-                        _sftpConnectionPool.Add(connection);
+                        // 创建时不需要添加到池中, 用完返回进池就可以了
+                        //_sftpConnectionPool.Add(connection);
                         _currentConnections++;
                     }
                     else
@@ -130,7 +132,14 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         /// </summary>
         public void Dispose()
         {
-            while (_sshConnectionPool.TryTake(out SshClient? connection))
+            foreach (var connection in _sshConnectionPool)
+            {
+                connection?.Disconnect();
+                connection?.Dispose();
+                _currentConnections--;
+            }
+
+            foreach (var connection in _sftpConnectionPool)
             {
                 connection?.Disconnect();
                 connection?.Dispose();
@@ -151,8 +160,12 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
             Host = host;
             Port = port == 0 ? 22 : port;
             UserName = username;
-            PrivateKey = privateKey;
-
+            _privateKeyFiles = privateKey.Split([';', ','], StringSplitOptions.RemoveEmptyEntries).Select(x => new PrivateKeyFile(x)).ToArray(); //new PrivateKeyFile(privateKey);
+            if (_privateKeyFiles.Length == 0)
+            {
+                string defaultPrivateKey = Environment.OSVersion.Platform == PlatformID.Win32NT ? "C:/Users/Wu Qianlin/.ssh/id_ed25519" : "/root/.ssh/id_ed25519";
+                _privateKeyFiles = [new PrivateKeyFile(defaultPrivateKey)];
+            }
             _maxConnections = 20;
             _currentConnections = 0;
         }
@@ -170,8 +183,8 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         /// <summary>
         /// 运行命令
         /// shell命令
-        /// 上传 upload   (?<local>[^\s]+) (?<remote>[^\s]+) -include=(?<include>[^\s+]) -exclude=(?<exclude>[^\s]+) 
-        /// 下载 download (?<local>[^\s]+) (?<remote>[^\s]+) -include=(?<include>[^\s+]) -exclude=(?<exclude>[^\s]+) 
+        /// 上传 upload   {LOCAL} {REMOTE 1.不存在则认为是目录;2存在情况2.1文件覆盖;2.2目录则上传该位置} -include={要求只上传文件名包含该子字符串的文件,多个用','隔开} -exclude={文件名包含指定字符串则不上传,多个用','隔开} 
+        /// 下载 download {LOCAL} {REMOTE} -include={要求只上传文件名包含该子字符串的文件,多个用','隔开} -exclude={文件名包含指定字符串则不上传,多个用','隔开} 
         /// </summary>
         /// <param name="command"></param>
         /// <returns></returns>
@@ -212,77 +225,89 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                 return sshCommand;
             }
         }
-        private void Upload(string local, string remote, string[]? includes, string[]? excludes)
+        private void Upload(string local, string remotePath, string[]? includes, string[]? excludes)
         {
             var conn = GetSftpConnection();
 
             var localFiles = new List<string>();
-            // 上传目录
-            if (Directory.Exists(local))
+            bool uploadDirectory = Directory.Exists(local);
+            foreach (var item in remotePath.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries))
             {
-                #region 上传目录
-                // 统一目录格式
-                local = local.TrimEnd('.');
-                remote = remote.TrimEnd('.');
-                local = local.EndsWith('/') ? local : $"{local}/";
-                remote = remote.EndsWith('/') ? remote : $"{remote}/";
-
-                EnsureDirectoryExist(remote, conn);
-                localFiles = FileHelper.FindFilesRecursive(local, f => includes == null || !includes.Any() || includes.Any(part => Path.GetFileName(f).Contains(part)) && (excludes == null || excludes.All(part => f.IndexOf(part) == -1)), null, null);
-                foreach (var localFile in localFiles)
+                if (string.IsNullOrWhiteSpace(item))
                 {
-                    var localFileRelativePath = localFile.Replace(local, "");
-                    var targetFilePath = Path.Combine(remote, localFileRelativePath);
-                    using var fs = File.OpenRead(localFile);
-
-                    var targetDirectory = Path.GetDirectoryName(targetFilePath)?.Replace('\\', '/');
-                    if (string.IsNullOrWhiteSpace(targetDirectory))
-                    {
-                        Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 上传文件, 获取服务器文件的目录失败[{targetFilePath}]");
-                        continue;
-                    }
-                    EnsureDirectoryExist(targetDirectory, conn);
-
-                    try
-                    {
-                        conn.UploadFile(fs, targetFilePath);
-                        Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 文件已上传: {targetFilePath}");
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 上传文件[{localFile}] -> [{targetFilePath}]异常: {ex.Message}");
-                        throw;
-                    }
+                    continue;
                 }
-                #endregion
-            }
-            else if (File.Exists(local))
-            {
-                #region 上传文件
-                using var fs = File.OpenRead(local);
-                if (conn.Exists(remote))
+                string remote = item.Trim();
+                // 上传目录
+                if (uploadDirectory)
                 {
-                    var remoteAttributes = conn.GetAttributes(remote);
-                    if (remoteAttributes.IsDirectory)
+                    #region 上传目录
+                    // 统一目录格式
+                    local = local.TrimEnd('.');
+                    remote = remote.TrimEnd('.');
+                    local = local.EndsWith('/') ? local : $"{local}/";
+                    remote = remote.EndsWith('/') ? remote : $"{remote}/";
+
+                    EnsureDirectoryExist(remote, conn);
+                    localFiles = FileHelper.FindFilesRecursive(local, f => includes == null || !includes.Any() || includes.Any(part => Path.GetFileName(f).Contains(part)) && (excludes == null || excludes.All(part => f.IndexOf(part) == -1)), null, null);
+                    foreach (var localFile in localFiles)
                     {
-                        remote = Path.Combine(remote, local.Split('/').Last()).Replace('\\', '/');
+                        var localFileRelativePath = localFile.Replace(local, "");
+                        var targetFilePath = Path.Combine(remote, localFileRelativePath);
+                        using var fs = File.OpenRead(localFile);
+
+                        var targetDirectory = Path.GetDirectoryName(targetFilePath)?.Replace('\\', '/');
+                        if (string.IsNullOrWhiteSpace(targetDirectory))
+                        {
+                            Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 上传文件, 获取服务器文件的目录失败[{targetFilePath}]");
+                            continue;
+                        }
+                        EnsureDirectoryExist(targetDirectory, conn);
+
+                        try
+                        {
+                            conn.UploadFile(fs, targetFilePath);
+                            Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 文件已上传: {targetFilePath}");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 上传文件[{localFile}] -> [{targetFilePath}]异常: {ex.Message}");
+                            throw;
+                        }
                     }
+                    #endregion
+                }
+                else if (File.Exists(local))
+                {
+                    #region 上传文件
+                    string localFileName = local.Split('/').Last();
+                    using var fs = File.OpenRead(local);
+                    if (conn.Exists(remote))
+                    {
+                        var remoteAttributes = conn.GetAttributes(remote);
+                        if (remoteAttributes.IsDirectory)
+                        {
+                            remote = Path.Combine(remote, localFileName).Replace('\\', '/');
+                        }
+                    }
+                    else
+                    {
+                        var ssh = GetConnection();
+                        ssh.RunCommand($"mkdir -p {remote}");
+                        ReturnConnection(ssh);
+                        remote = Path.Combine(remote, localFileName).Replace('\\', '/');
+                    }
+                    conn.UploadFile(fs, remote);
+                    Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 上传文件成功: {localFileName} -> {remote}");
+                    localFiles.Add(local);
+                    #endregion
                 }
                 else
                 {
-                    var ssh = GetConnection();
-                    ssh.RunCommand($"mkdir -p {remote}");
-                    ReturnConnection(ssh);
-                    remote = Path.Combine(remote, local.Split('/').Last()).Replace('\\', '/');
+                    throw new Exception($"本地路径:{local}不存在, 无法上传");
                 }
-                conn.UploadFile(fs, remote);
-                localFiles.Add(local);
-                #endregion
             }
-            else
-            {
-                throw new Exception($"本地路径:{local}不存在, 无法上传");
-            }
+            
             ReturnConnection(conn);
         }
 
