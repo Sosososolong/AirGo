@@ -6,7 +6,7 @@
 	<LangVersion>Latest</LangVersion>
 
 	<!--版本号-->
-	<Version>1.0.3</Version>
+	<Version>1.0.4</Version>
 	<!--添加该配置, 在编译时进行打包-->
 	<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 	<!--添加该配置才会生成注释文件, 默认无注释-->
@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <PackageReference Include="Dapper" Version="2.1.24" />
+    <PackageReference Include="MailKit" Version="4.7.1.1" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.3.1" />
     <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />

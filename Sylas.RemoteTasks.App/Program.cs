@@ -1,5 +1,4 @@
 using IdentityModel;
-using IdentityServer4.AccessTokenValidation;
 using Sylas.RemoteTasks.App.BackgroundServices;
 using Sylas.RemoteTasks.App.Database;
 using Sylas.RemoteTasks.App.DatabaseManager;
@@ -64,6 +63,8 @@ builder.Services.AddTransient<HostService>();
 builder.Services.AddTransient<AnythingService>();
 builder.Services.AddTransient<RequestProcessorService>();
 
+// MailKit
+
 // 后台任务
 builder.Services.AddHostedService<PublishService>();
 
@@ -114,11 +115,11 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
-
-if (app.Environment.IsDevelopment())
+var defaultController = app.Configuration["DefaultController"];
+var defaultAction = app.Configuration["DefaultAction"] ?? "Index";
+//if (app.Environment.IsDevelopment())
+if (!string.IsNullOrWhiteSpace(defaultController))
 {
-    var defaultController = app.Configuration["DefaultController"] ?? "Sync";
-    var defaultAction = app.Configuration["DefaultAction"] ?? "Index";
     app.MapControllerRoute(
         name: "default",
         //pattern: "{controller=Hosts}/{action=Index}/{id?}");

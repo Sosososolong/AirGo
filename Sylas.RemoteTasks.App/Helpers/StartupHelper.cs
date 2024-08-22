@@ -184,12 +184,11 @@ namespace Sylas.RemoteTasks.App.Helpers
         }
         private static Task OnRedirectToIdentityProvider(RedirectContext redirectContext)
         {
-            Console.WriteLine(string.Join(',', redirectContext.Request.Headers.Select(x => $"{x.Key}:{x.Value}")));
             // X-Scheme
             string scheme = redirectContext.Request.Headers["X-Scheme"].ToString() ?? redirectContext.Request.Scheme;
             if (string.IsNullOrEmpty(scheme))
             {
-                scheme = "http";
+                scheme = redirectContext.Request.Scheme;
             }
             var host = $"{scheme}://{redirectContext.Request.Host.Value}";
             redirectContext.ProtocolMessage.RedirectUri = $"{host}/signin-oidc";

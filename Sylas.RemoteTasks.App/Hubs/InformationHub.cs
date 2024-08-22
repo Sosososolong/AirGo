@@ -39,6 +39,7 @@ namespace Sylas.RemoteTasks.App.Hubs
             static async Task GetProcessStatusAsync(string pn, ConcurrentBag<string> statusList)
             {
                 List<string> pnStatus = await SystemCmd.GetProcessCpuAndRamAsync(pn);
+                Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 获取Cpu和内存占用:{pn}");
                 foreach (var item in pnStatus)
                 {
                     statusList.Add(item);

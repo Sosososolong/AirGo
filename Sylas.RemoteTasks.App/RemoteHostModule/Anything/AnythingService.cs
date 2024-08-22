@@ -179,8 +179,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             var argTmpls = string.IsNullOrWhiteSpace(anythingExecutor.Arguments)
                 ? []
                 : JsonConvert.DeserializeObject<List<ArgumentInfo>>(anythingExecutor.Arguments) ?? throw new Exception($"无效的AnythingExecutor参数:{anythingExecutor.Arguments}");
-            object[] args = [];
-            args = new object[argTmpls.Count];
+            object[] args = new object[argTmpls.Count];
             for (int i = 0; i < args.Length; i++)
             {
                 var argTmpl = argTmpls[i];
@@ -200,9 +199,8 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
                     }
                 }
             }
-            var t = ReflectionHelper.GetTypeByClassName(executorName);
-            var instance = ReflectionHelper.CreateInstance(t, args);
-            var anythingCommandExecutor = instance as ICommandExecutor ?? throw new Exception("从模板生成ICommandExecutor失败");
+
+            var anythingCommandExecutor = ICommandExecutor.Create(executorName, args, "从模板生成ICommandExecutor失败");
             #endregion
 
             #region 解析出AnythingInfo
