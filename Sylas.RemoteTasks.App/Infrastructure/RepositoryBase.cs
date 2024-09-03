@@ -61,11 +61,6 @@ namespace Sylas.RemoteTasks.App.Infrastructure
         /// <exception cref="Exception"></exception>
         public async Task<int> UpdateAsync(T t)
         {
-            var recordCount = await _db.ExecuteScalarAsync($"select count(*) from {DbTableInfo<T>._tableName} where id=@id", new Dictionary<string, object> { { "id", t.Id } });
-            if (recordCount == 0)
-            {
-                throw new Exception($"{DbTableInfo<T>._tableName}不存在");
-            }
             var start = DateTime.Now;
             var sql = DbTableInfo<T>._updateSql;
             var parameters = DbTableInfo<T>._getUpdateSqlParameters(t);

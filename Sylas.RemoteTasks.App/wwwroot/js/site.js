@@ -208,6 +208,30 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableContainerS
         }
     };
 
+    /**
+     * 构建一个表单项的html
+     * @param {Object} th 字段配置
+     * @param {String} formItemId 表单项的id
+     * @param {String} formItemComponent 表单组件的html, 如input/select等
+     * @returns
+     */
+    targetTable.buildFormItemHtml = function (th, formItemId, formItemComponent) {
+        let formItemHtml = `<div class="mb-3">
+<label for="${formItemId}" class="col-form-label">${th.title}:</label>
+${formItemComponent}
+</div>`;
+
+        // 追加到表单html中
+        this.tableForm.formHtml += formItemHtml;
+
+        // BOOKMARK: 前端/frontend封装site.js - 创建模态框 3.3表单项 除Id字段外的其他表单项 - 记录表单项的元素Id
+        if (this.formItemIds.indexOf(formItemId) === -1) {
+            this.formItemIds.push(formItemId);
+            this.formItemIdsForAddPannel.push(formItemId);
+            this.formItemIdsMapper[formItemId] = th.name;
+        }
+    }
+
     targetTable.createModal = async function () {
         // BOOKMARK: 前端/frontend封装site.js - 创建模态框
         if (this.modalId && this.modal) {
@@ -233,39 +257,28 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableContainerS
                         th.enumValus.forEach(val => {
                             dataSourceOptions += `<option value="${val}">${val}</option>`
                         })
-                        this.tableForm.formHtml += `<div class="mb-3">
-<label for="${formItemId}" class="col-form-label">${th.title}:</label>
-<select class="form-control form-select-sm" aria-label="Default select" name="${th.name}" id="${formItemId}">${dataSourceOptions}</select>
-</div>`;
+                        const formItemComponent = `<select class="form-control form-select-sm" aria-label="Default select" name="${th.name}" id="${formItemId}">${dataSourceOptions}</select>`;
+                        this.buildFormItemHtml(th, formItemId, formItemComponent);
                     } else {
-                        const inputComponent = th.multiLines
-                            ? `<textarea class="form-control form-control-sm" placeholder="${th.title}" name="${th.name}" id="${formItemId}" ondblclick="textareaDbClicked(this)" aria-label=".form-control-sm example"></textarea>`
-                            : `<input class="form-control form-control-sm" type="text" placeholder="${th.title}" name="${th.name}" id="${formItemId}" aria-label=".form-control-sm example">`
+                        const formItemComponent = th.multiLines
+                            ? `<textarea class="form-control form-control-sm" placeholder="${th.title}" name="${th.name}" id="${formItemId}" ondblclick="textareaDbClicked(this)"></textarea>`
+                            : `<input class="form-control form-control-sm" type="text" placeholder="${th.title}" name="${th.name}" id="${formItemId}">`
                         // BOOKMARK: 前端/frontend封装site.js - 创建模态框 3.2表单项 除Id字段外的其他表单项 - 普通字段
-                        this.tableForm.formHtml += `<div class="mb-3">
-<label for="${formItemId}" class="col-form-label">${th.title}:</label>
-${inputComponent}
-</div>`;
-                    }
-
-                    // BOOKMARK: 前端/frontend封装site.js - 创建模态框 3.3表单项 除Id字段外的其他表单项 - 记录表单项的元素Id
-                    if (this.formItemIds.indexOf(formItemId) === -1) {
-                        this.formItemIds.push(formItemId);
-                        this.formItemIdsForAddPannel.push(formItemId);
-                        this.formItemIdsMapper[formItemId] = th.name;
+                        this.buildFormItemHtml(th, formItemId, formItemComponent);;
                     }
                 } else if (th.type.indexOf('dataSource') === 0) {
                     let dataSourceOptions = await this.resolveDataSourceField(th);
-
-                    this.tableForm.formHtml += `<div class="mb-3">
-<label for="${formItemId}" class="col-form-label">${th.title}:</label>
-<select class="form-control form-select-sm" aria-label="Default select" name="${th.name}" id="${formItemId}">${dataSourceOptions}</select>
-</div>`;
-                    // 记录表单项Id
-                    if (this.formItemIds.indexOf(formItemId) === -1) {
-                        this.formItemIds.push(formItemId);
-                        this.formItemIdsForAddPannel.push(formItemId);
-                        this.formItemIdsMapper[formItemId] = th.name;
+                    const formItemComponent = `<select class="form-control form-select-sm" aria-label="Default select" name="${th.name}" id="${formItemId}">${dataSourceOptions}</select>`;
+                    this.buildFormItemHtml(th, formItemId, formItemComponent);
+                } else if (th.type == 'image') {
+                    // BOOKMARK: 前端/frontend封装site.js - 创建模态框 3.2表单项 除Id字段外的其他表单项 - 图片字段
+                    const formItemComponent = `<input type="hidden" name="${th.name}" id="${formItemId}" /><input class="form-control form-control-sm" type="file" multiple name="${th.name}_files" onchange="showImages(event, '.img-preview-container')" id="${formItemId}_files"><div class="img-preview-container" style="display:flex;align-items:flex-end;flex-wrap:wrap;"></div>`;
+                    this.buildFormItemHtml(th, formItemId, formItemComponent);
+                    const fileInputId = `${formItemId}_files`;
+                    if (this.formItemIds.indexOf(fileInputId) === -1) {
+                        this.formItemIds.push(fileInputId);
+                        this.formItemIdsForAddPannel.push(fileInputId);
+                        this.formItemIdsMapper[fileInputId] = `${th.name}_files`;
                     }
                 }
             }
@@ -288,7 +301,9 @@ ${inputComponent}
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
-        ${this.tableForm.formHtml}
+            <form id="${this.tableId}Form">
+            ${this.tableForm.formHtml}
+            </form>
         </div>
         <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
@@ -406,8 +421,8 @@ ${inputComponent}
                 searchFormHtmlBase = searchFormHtmlBase.replace('{{others}}', '');
             }
         }
-        const searchForm = $(tableContainerSelector).find("form");
-        if (searchForm.length === 0) {
+        const searchForm = document.querySelector(tableContainerSelector).querySelector("#search-form");
+        if (!searchForm) {
             $(tableContainerSelector).prepend(searchFormHtmlBase);
         }
 
@@ -583,6 +598,30 @@ function showModal(table) {
 }
 
 /**
+ * 删除formData中的空值字段; 将缓存的文件添加到formData中
+ * @param {any} formData
+ */
+function checkFormData(formData) {
+    const keys = [...formData.keys()]; // 获取所有字段的键
+    for (const key of keys) {
+        if (!formData.get(key)) { // 如果字段值为空
+            formData.delete(key); // 删除该字段
+        }
+    }
+
+    // 遍历 cachedFiles 对象的每个属性, 添加缓存的文件到 FormData 对象中
+    for (var key in cachedFiles) {
+        if (cachedFiles.hasOwnProperty(key)) {
+            var files = cachedFiles[key]; // 获取当前属性的文件数组
+            formData.delete(key);
+            for (var i = 0; i < files.length; i++) {
+                formData.append(key, files[i]); // 将文件添加到 FormData 对象中
+            }
+        }
+    }
+}
+
+/**
  * 提交表单数据, 提交的接口地址和请求方法由触发事件的元素上的自定义属性值决定
  */
 async function handleDataForm(table, eventTrigger) {
@@ -591,41 +630,86 @@ async function handleDataForm(table, eventTrigger) {
     let url = handleType === "add" ? table.modalSettings.url : table.modalSettings.updateUrl;
     let method = handleType === "add" ? table.modalSettings.method : table.modalSettings.updateMethod;
 
-    // 需要提交的数据对应的所有表单项(添加时不需要Id字段, 如果带上了值为""的Id字段, 会因为转为int类型失败从而导致参数自动绑定失败)
-    let formItemIds = handleType === "add" ? table.formItemIdsForAddPannel : table.formItemIds;
-
-    let data = getFormData(formItemIds);
-    let dataJsonString = JSON.stringify(data);
-    showSpinner();
     let response = null;
-    try {
-        response = await $.ajax({
-            url: url,
+    showSpinner();
+
+    const currentForm = document.querySelector(`#${table.tableId}Form`);
+    let showMessage = null;
+    if (currentForm.querySelector('input[type="file"]')) {
+        var formData = new FormData(currentForm);
+        checkFormData(formData);
+        fetch(url, {
+            // 你的服务器端接收上传的URL
             method: method,
-            data: dataJsonString,
-            //contentType: 'application/x-www-form-urlencoded',
-            contentType: 'application/json;charset=utf-8',
-            dataType: 'json'
+            body: formData
+        })
+        .then(resp => {
+            if (resp.ok) {
+                return resp.json();
+            } else {
+                showMessage = () => showErrorBox('操作失败:' + resp.statusText);
+                return;
+            }
+        })
+        .then(data => {
+            if (data) {
+                showMessage = () => showResultBox(data);
+            }
+        })
+        .catch(error => {
+            if (e.status === 500) {
+                showMessage = () => showErrorBox('接口异常, 请联系系统管理员')
+            } else if (e.status === 404) {
+                showMessage = () => showErrorBox(`接口不存在: ${url}`)
+            } else {
+                showMessage = () => showErrorBox(e.textStatus);
+            }
+            console.log(e);
+        })
+        .finally(() => {
+            closeSpinner();
+            showMessage();
         });
-    } catch (e) {
-        if (e.status === 500) {
-            showErrorBox('接口异常, 请联系系统管理员')
-            console.log(url, e);
-        } else if (e.status === 404) {
-            showErrorBox(`接口不存在: ${url}`)
-        } else {
-            alert(e.textStatus)
+    } else {
+        // 需要提交的数据对应的所有表单项(添加时不需要Id字段, 如果带上了值为""的Id字段, 会因为转为int类型失败从而导致参数自动绑定失败)
+        let formItemIds = handleType === "add" ? table.formItemIdsForAddPannel : table.formItemIds;
+
+        let data = getFormData(formItemIds);
+        let dataJsonString = JSON.stringify(data);
+        try {
+            response = await $.ajax({
+                url: url,
+                method: method,
+                data: dataJsonString,
+                //contentType: 'application/x-www-form-urlencoded',
+                contentType: 'application/json;charset=utf-8',
+                dataType: 'json'
+            });
+            showMessage = () => showResultBox(response);
+        } catch (e) {
+            if (e.status === 500) {
+                showMessage = () => showErrorBox('接口异常, 请联系系统管理员')
+            } else if (e.status === 404) {
+                showMessage = () => showErrorBox(`接口不存在: ${url}`)
+            } else {
+                showMessage = () => showErrorBox(e.textStatus);
+            }
+            console.log(e);
+        } finally {
+            closeSpinner();
+            showMessage();
         }
-        console.log(e);
-    } finally {
-        closeSpinner();
     }
 
-    if (response && (response.code === 1 || response.isSuccess)) {
-        table.modal.hide();
-        showMsgBox('操作成功', () => table.loadData());
-    } else {
-        showErrorBox(response.errMsg, '错误提示', [{ class: 'error', content: '关闭' }]);
+    function showResultBox(response) {
+        if (response && (response.code === 1 || response.isSuccess)) {
+            table.modal.hide();
+            showMsgBox('操作成功', () => table.loadData());
+        } else {
+            if (response) {
+                showErrorBox(response.errMsg, '错误提示', [{ class: 'error', content: '关闭' }]);
+            }
+        }
     }
 }
 
@@ -684,12 +768,29 @@ async function showUpdatePannel(eventTrigger) {
             let field = table.formItemIdsMapper[formItemId];
             let fieldValue;
             try {
-                fieldValue = record[field].toString();
+                if (formItem.type === 'file') {
+                    cachedFiles[field] = [];
+                    field = field.replace('_files', '');
+                }
+                fieldValue = record[field] ? record[field].toString() : '';
             } catch (e) {
                 console.log(e);
             }
-
-            formItem.value = fieldValue;
+            if (formItem.type === 'file') {
+                // 直接使用imageUrl字段的图片相对路径显示所有图片
+                const imgContainer = document.querySelector('.img-preview-container');
+                imgContainer.innerHTML = '';
+                if (fieldValue) {
+                    formItem.value = '';
+                    fieldValue.split(';').forEach(function (url) {
+                        if (url) {
+                            showImage(imgContainer, url);
+                        }
+                    });
+                }
+            } else {
+                formItem.value = fieldValue;
+            }
         })
 
         let submitButton = document.querySelector(`#${table.modalId} button[data-btn-type="submit"]`);
@@ -774,6 +875,87 @@ async function execute(eventTrigger, callback = null, useSpinner = true) {
     }
 }
 
+let cachedFiles = {};
+function showImages(event, imgContainer) {
+    var files = event.target.files;
+    var filesName = event.target.name;
+    //const allImg = document.querySelectorAll('.img-preview');
+    //if (allImg) {
+    //    allImg.forEach(x => x.remove());
+    //}
+    // 遍历预览所有图片
+    for (var i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (file.type.indexOf('image') !== 0) {
+            continue;
+        }
+        // 缓存所有图片
+        const urlsField = filesName.replace('_files', '');
+        const urls = document.querySelector(`input[name="${urlsField}"]`).value;
+        if (cachedFiles[filesName].findIndex(x => x.name === file.name && x.lastModified === file.lastModified && x.size === file.size) === -1 && urls.indexOf(file.name) === -1) {
+            cachedFiles[filesName].push(file);
+            showImage(imgContainer, file);
+        }
+    }
+}
+
+function showImage(imgContainer, image) {
+    let div = document.createElement('div');
+    div.style.display = 'inline-block';
+    div.style.position = 'relative';
+    div.style.margin = '5px 5px 0 0';
+
+    let img = document.createElement('img');
+    // 只设置宽度, 高度自适应
+    img.width = 100;
+    // 添加class
+    img.classList.add('img-preview');
+    if (typeof (image) === 'object') {
+        img.src = URL.createObjectURL(image);
+        img.setAttribute('data-filename', image.name);
+        img.onload = function () {
+            URL.revokeObjectURL(img.src); // 释放内存
+        };
+    } else {
+        img.src = image;
+    }
+    
+    //event.target.insertAdjacentElement('afterend', img);
+    div.appendChild(img);
+
+    if (typeof (imgContainer) === 'object') {
+        imgContainer.appendChild(div);
+    } else {
+        document.querySelector(imgContainer).appendChild(div);
+    }
+
+    // 删除按钮
+    div.innerHTML += `<div style="width:100%;border-radius:20px;position:absolute;bottom:0;right:0;cursor:pointer;padding:3px;font-size:18px;line-height:15px;text-align:center;background:rgba(255,0,0,0.3);color:#fff;backdrop-filter: blur(5px);" onclick="deleteImg(this)">-</div>`;
+}
+function deleteImg(node) {
+    const imgUrl = node.previousElementSibling.getAttribute('src');
+    // 遍历 cachedFiles 对象的每个属性, 更新字段所存的Url信息
+    for (var key in cachedFiles) {
+        if (cachedFiles.hasOwnProperty(key)) {
+            if (imgUrl.indexOf('blob:') === -1) {
+                const imgField = key.replace('_files', '');
+                const imgInput = document.querySelector(`input[name="${imgField}"]`);
+                imgInput.value = imgInput.value.replace(imgUrl + ';', '').replace(imgUrl, '');
+            } else {
+                // 删除缓存的文件
+                const files = cachedFiles[key];
+                const imgName = node.previousElementSibling.getAttribute('data-filename');
+                const index = files.findIndex(x => x.name === imgName);
+                if (index > -1) {
+                    files.splice(index, 1);
+                }
+            }
+        }
+    }
+
+    // 删除图片元素
+    node.parentNode.remove();
+}
 //function textareaDbClicked(ele) {
 //    fetch("/Home/CodeEditor")
 //        .then(response => {

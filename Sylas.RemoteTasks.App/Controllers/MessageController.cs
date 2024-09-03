@@ -9,8 +9,9 @@ namespace Sylas.RemoteTasks.App.Controllers
         public async Task<IActionResult> SendEmail(string to, string title, string content)
         {
             var sender = configuration.GetSection("Email:Sender").Get<EmailSender>() ?? throw new Exception("邮箱配置异常");
-            var result = await EmailHelper.SendAsync(sender, to, title, content);
-            return Ok(RequestResult<bool>.Success(result.IsSuccess));
+            var opResult = await EmailHelper.SendAsync(sender, to, title, content);
+            var requestResult = opResult.IsSuccess ? RequestResult<bool>.Success(true) : RequestResult<bool>.Error(opResult.ErrMsg);
+            return Ok(requestResult);
         }
     }
 }

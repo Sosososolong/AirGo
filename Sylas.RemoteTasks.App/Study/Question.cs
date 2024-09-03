@@ -8,8 +8,9 @@ namespace Sylas.RemoteTasks.App.Study
     {
         public int TypeId { get; set; }
         public string Title { get; set; } = string.Empty;
+        public string? ImageUrl { get; set; }
         public string Answer { get; set; } = string.Empty;
-        public string Remark { get; set; } = string.Empty;
+        public string? Remark { get; set; }
         public int ErrorCount { get; set; }
         public int CorrectCount { get; set; }
     }

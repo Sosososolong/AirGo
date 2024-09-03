@@ -38,8 +38,13 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// </summary>
         /// <param name="question"></param>
         /// <returns></returns>
-        public async Task<IActionResult> AddQuestion([FromBody] Question question)
+        public async Task<IActionResult> AddQuestion([FromServices] IWebHostEnvironment env, [FromForm] Question question)
         {
+            var operationResult = await SaveUploadedFilesAsync(env);
+            if (operationResult.IsSuccess && operationResult.Data is not null)
+            {
+                question.ImageUrl = operationResult.Data.First();
+            }
             int affectedRows = await questionRepository.AddAsync(question);
             var result = affectedRows > 0 ? new RequestResult<bool>(true) : new RequestResult<bool>(false);
             return Ok(result);
@@ -50,8 +55,17 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// </summary>
         /// <param name="question"></param>
         /// <returns></returns>
-        public async Task<IActionResult> UpdateQuestion([FromBody] Question question)
+        public async Task<IActionResult> UpdateQuestion([FromServices] IWebHostEnvironment env, [FromForm] Question question)
         {
+            Question? record = await questionRepository.GetByIdAsync(question.Id);
+            if (record is null)
+            {
+                return Ok(RequestResult<bool>.Error("记录不存在"));
+            }
+
+            var imgs = await HandleUploadedFilesAsync(record.ImageUrl, question.ImageUrl, env);
+            question.ImageUrl = string.Join(';', imgs);
+
             int affectedRows = await questionRepository.UpdateAsync(question);
             var result = affectedRows > 0 ? new RequestResult<bool>(true) : new RequestResult<bool>(false);
             return Ok(result);
