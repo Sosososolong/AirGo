@@ -124,13 +124,14 @@ namespace Sylas.RemoteTasks.App.Controllers
         Tuple<string, string> GetFilePathInfo(IWebHostEnvironment env, string filename)
         {
             string controllerName = GetType().Name.Replace("Controller", string.Empty);
-            string moduleStaticDir = Path.Combine(env.WebRootPath, controllerName);
+            string staticDirName = "Static";
+            string moduleStaticDir = Path.Combine(env.WebRootPath, staticDirName, controllerName);
             if (!Directory.Exists(moduleStaticDir))
             {
                 Directory.CreateDirectory(moduleStaticDir);
             }
             var filePath = Path.Combine(moduleStaticDir, filename);
-            return Tuple.Create(filePath, $"{controllerName}/{filename};");
+            return Tuple.Create(filePath, $"{staticDirName}/{controllerName}/{filename};");
         }
     }
 }
