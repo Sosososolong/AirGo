@@ -20,30 +20,19 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         /// <summary>
         /// 查询
         /// </summary>
-        /// <param name="pageIndex"></param>
-        /// <param name="pageSize"></param>
-        /// <param name="orderField"></param>
-        /// <param name="isAsc"></param>
-        /// <param name="dataFilter"></param>
+        /// <param name="search">分页查询参数</param>
         /// <returns></returns>
-        public async Task<PagedData<AnythingSetting>> GetAnythingSettingsAsync(int pageIndex, int pageSize, string orderField, bool isAsc = false, DataFilter? dataFilter = null)
+        public async Task<PagedData<AnythingSetting>> GetAnythingSettingsAsync(DataSearch? search = null)
         {
-            if (string.IsNullOrWhiteSpace(orderField))
-            {
-                orderField = nameof(AnythingSetting.UpdateTime);
-            }
-            var snippetPage = await repository.GetPageAsync(pageIndex, pageSize, orderField, isAsc, dataFilter);
+            search ??= new();
+            var snippetPage = await repository.GetPageAsync(search);
             return snippetPage;
         }
 
         /// <summary>
         /// 根据Id查询
         /// </summary>
-        /// <param name="pageIndex"></param>
-        /// <param name="pageSize"></param>
-        /// <param name="orderField"></param>
-        /// <param name="isAsc"></param>
-        /// <param name="dataFilter"></param>
+        /// <param name="search">分页查询参数</param>
         /// <returns></returns>
         public async Task<AnythingSetting?> GetAnythingSettingByIdAsync(int id)
         {
@@ -96,7 +85,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
                 return anythingInfos;
             }
             anythingInfos = [];
-            var anythingSettingsPage = await GetAnythingSettingsAsync(1, 1000, "");
+            var anythingSettingsPage = await GetAnythingSettingsAsync(new DataSearch(1, 1000));
             if (anythingSettingsPage.Data is not null)
             {
                 foreach (var anythingSetting in anythingSettingsPage.Data)

@@ -141,7 +141,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                 // BOOKMARK: HttpRequestProcessor - 11. 处理Step - 获取所有需要执行的步骤对应的所有DataHandlerInfos
 
                 // Step - 最后一个执行完之后如果有数据, 是否要重新从第一个开始循环执行
-                if (stepIndex == stepCount - 1 && processor.StepCirleRunningWhenLastStepHasData)
+                if (stepIndex == stepCount - 1 && processor.StepCirleRunningWhenLastStepHasData.HasValue && processor.StepCirleRunningWhenLastStepHasData.Value)
                 {
                     // 预期的值n需要-1, 因为for循环里面会执行++操作正好等于预期值n
                     stepIndex = -1;

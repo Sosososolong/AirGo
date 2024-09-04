@@ -243,7 +243,7 @@
             tableAliasInput.value = mainTable.name;
 
             // 获取主表所有字段
-            const response = await fetchData(`/Home/GetTableInfo?connectionString=${connectionString}&table=${mainTable.name}`, 'POST', null, null);
+            const response = await fetchData(`/Home/GetTableInfo?connectionString=${connectionString}&table=${mainTable.name}`, 'POST');
             if (response) {
                 if (response.code === 1) {
                     mainTable.columns = response.data;
@@ -271,7 +271,7 @@
                 allTableOptions[connectionString] = '';
                 allTables[connectionString] = [];
 
-                let response = await fetchData(`/Home/GetAllTables?connectionString=${connectionString}`, 'POST', null, null);
+                let response = await fetchData(`/Home/GetAllTables?connectionString=${connectionString}`, 'POST');
                 if (response && response.code === 1) {
                     const tables = response.data;
                     for (let i = 0; i < tables.length; i++) {
@@ -365,7 +365,7 @@
             document.querySelector(`#leftJoinTableAlias${index}`).value = leftJoinTableAlias;
 
             // 获取联查表的所有字段
-            const response = await fetchData(`/Home/GetTableInfo?connectionString=${connectionStringInput.value}&table=${leftJoinTable}`, 'POST', null, null);
+            const response = await fetchData(`/Home/GetTableInfo?connectionString=${connectionStringInput.value}&table=${leftJoinTable}`, 'POST');
             if (response) {
                 if (response.code === 1) {
                     columns = response.data;

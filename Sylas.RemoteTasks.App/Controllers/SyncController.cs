@@ -38,30 +38,22 @@ namespace Sylas.RemoteTasks.App.Controllers
             return Ok(new OperationResult(true));
         }
 
-        public async Task<IActionResult> GetHttpRequestProcessorsAsync(int pageIndex, int pageSize, string orderField, bool isAsc, [FromBody] DataFilter dataFilter)
+        public async Task<IActionResult> GetHttpRequestProcessorsAsync([FromBody] DataSearch search)
         {
-            if (pageIndex == 0)
-            {
-                pageIndex = 1;
-            }
-            if (pageSize == 0)
-            {
-                pageSize = 10;
-            }
-            var processors = await _repository.GetPageAsync(pageIndex, pageSize, orderField, isAsc, dataFilter);
+            var processors = await _repository.GetPageAsync(search);
             var result = new RequestResult<PagedData<HttpRequestProcessor>>(processors);
             return Json(result);
         }
 
-        public async Task<IActionResult> GetHttpRequestProcessorStepsAsync(int pageIndex, int pageSize, string orderField, bool isAsc, [FromBody] DataFilter dataFilter)
+        public async Task<IActionResult> GetHttpRequestProcessorStepsAsync([FromBody] DataSearch search)
         {
-            var steps = await _repository.GetStepsPageAsync(pageIndex, pageSize, orderField, isAsc, dataFilter);
+            var steps = await _repository.GetStepsPageAsync(search);
             var result = new RequestResult<PagedData<HttpRequestProcessorStep>>(steps);
             return Json(result);
         }
-        public async Task<IActionResult> GetHttpRequestProcessorStepDataHandlersAsync(int pageIndex, int pageSize, string orderField, bool isAsc, [FromBody] DataFilter dataFilter)
+        public async Task<IActionResult> GetHttpRequestProcessorStepDataHandlersAsync([FromBody] DataSearch search)
         {
-            var steps = await _repository.GetDataHandlersPageAsync(pageIndex, pageSize, orderField, isAsc, dataFilter);
+            var steps = await _repository.GetDataHandlersPageAsync(search);
             var result = new RequestResult<PagedData<HttpRequestProcessorStepDataHandler>>(steps);
             return Json(result);
         }
@@ -100,7 +92,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             }
             if (processor.Id == 0)
             {
-                return Json(new OperationResult(false, "处理器标题不能为空"));
+                return Json(new OperationResult(false, "处理器Id不能为空"));
             }
             if (string.IsNullOrWhiteSpace(processor.Title))
             {

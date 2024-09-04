@@ -11,6 +11,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Npgsql;
 using Oracle.ManagedDataAccess.Client;
+using Org.BouncyCastle.Crypto;
 using Sylas.RemoteTasks.App.RegexExp;
 using Sylas.RemoteTasks.Utils;
 using System;
@@ -287,23 +288,12 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// 分页查询指定数据表, 可使用db参数切换到指定数据库
         /// </summary>
         /// <param name="table">查询的表明</param>
-        /// <param name="pageIndex">第几页</param>
-        /// <param name="pageSize">每页多少条数</param>
-        /// <param name="orderField">排序字段</param>
-        /// <param name="isAsc">是否升序</param>
-        /// <param name="filters">查询条件</param>
+        /// <param name="search">查询参数</param>
         /// <param name="db">指定要切换查询的数据库, 不指定使用Default配置的数据库</param>
         /// <returns></returns>
-        public async Task<PagedData<T>> QueryPagedDataAsync<T>(string table, int pageIndex, int pageSize, string? orderField, bool isAsc, DataFilter filters, string db = "") where T : new()
+        public async Task<PagedData<T>> QueryPagedDataAsync<T>(string table, DataSearch? search, string db = "") where T : new()
         {
-            if (pageIndex == 0)
-            {
-                pageIndex = 1;
-            }
-            if (pageSize == 0)
-            {
-                pageSize = 20;
-            }
+            search ??= new();
 
             using var conn = GetDbConnection(_connectionString);
             if (!string.IsNullOrWhiteSpace(db))
@@ -313,7 +303,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
 
             var dbType = GetDbType(conn.ConnectionString);
 
-            string sql = GetPagedSql(conn.Database, table, dbType, pageIndex, pageSize, orderField, isAsc, filters, out string condition, out Dictionary<string, object> parameters);
+            string sql = GetPagedSql(conn.Database, table, dbType, search.PageIndex, search.PageSize, search.Filter, search.Rules, out string condition, out Dictionary<string, object> parameters);
 
             string allCountSqlTxt = $"select count(*) from {table} where 1=1 {condition}";
 
@@ -330,24 +320,21 @@ namespace Sylas.RemoteTasks.Database.SyncBase
 
             await Console.Out.WriteLineAsync($"耗时: {(DateTime.Now - t1).TotalMilliseconds}/ms{Environment.NewLine}");
 
-            return new PagedData<T> { Data = data, Count = allCount, TotalPages = (allCount + pageSize - 1) / pageSize };
+            return new PagedData<T> { Data = data, Count = allCount, TotalPages = (allCount + search.PageSize - 1) / search.PageSize };
 
         }
         /// <summary>
         /// 分页查询指定数据表, 可使用数据库连接字符串connectionString参数指定连接的数据库
         /// </summary>
         /// <param name="table">查询的表明</param>
-        /// <param name="pageIndex">第几页</param>
-        /// <param name="pageSize">每页多少条数</param>
-        /// <param name="orderField">排序字段</param>
-        /// <param name="isAsc">是否升序</param>
-        /// <param name="filters">查询条件</param>
+        /// <param name="search">查询参数</param>
         /// <param name="connectionString">指定要切换查询的数据库, 不指定使用Default配置的数据库连接</param>
         /// <returns></returns>
-        public async Task<PagedData<T>> QueryPagedDataWithConnectionStringAsync<T>(string table, int pageIndex, int pageSize, string? orderField, bool isAsc, DataFilter filters, string connectionString) where T : new()
+        public async Task<PagedData<T>> QueryPagedDataWithConnectionStringAsync<T>(string table, DataSearch? search, string connectionString) where T : new()
         {
+            search ??= new();
             _connectionString = connectionString;
-            return await QueryPagedDataAsync<T>(table, pageIndex, pageSize, orderField, isAsc, filters);
+            return await QueryPagedDataAsync<T>(table, search);
         }
         /// <summary>
         /// 执行增删改的SQL语句返回受影响的行数 - 可使用db参数指定切换到当前连接的用户有权限的其他数据库
@@ -1093,6 +1080,127 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             }
         }
 
+//        public static string GetPagedSql(string db, string table, DatabaseType dbType, int pageIndex, int pageSize, string? orderField, bool isAsc, DataFilter? filters, out string queryCondition, out Dictionary<string, object> queryConditionParameters)
+//        {
+//            string orderClause = string.Empty;
+//            if (!string.IsNullOrWhiteSpace(orderField))
+//            {
+//                ValideParameter(orderField);
+//                orderClause = $" order by {orderField} {(isAsc ? "asc" : "desc")}";
+//            }
+//            string parameterFlag = dbType == DatabaseType.Oracle || dbType == DatabaseType.Dm ? ":" : "@";
+
+//            #region 处理过滤条件
+//            queryCondition = string.Empty;
+//            queryConditionParameters = [];
+//            if (filters != null)
+//            {
+//                if (filters.FilterItems != null && filters.FilterItems.Count() > 0)
+//                {
+//                    var filterItems = filters.FilterItems;
+//                    foreach (var filterField in filterItems)
+//                    {
+//                        if (filterField.FieldName is null || filterField.CompareType is null || filterField.Value is null || string.IsNullOrWhiteSpace(filterField.Value.ToString()))
+//                        {
+//                            continue;
+//                        }
+//                        var key = filterField.FieldName;
+//                        if (!queryConditionParameters.ContainsKey(key))
+//                        {
+//                            var compareType = filterField.CompareType;
+//                            var compareTypes = new List<string> { ">", "<", "=", ">=", "<=", "!=", "include", "in" };
+//                            if (!compareTypes.Contains(compareType))
+//                            {
+//                                throw new ArgumentException("过滤条件比较类型不正确");
+//                            }
+//                            var val = filterField?.Value ?? string.Empty;
+//                            ValideParameter(key);
+//                            if (compareType == "in")
+//                            {
+//                                IEnumerable<object> valList = val is IEnumerable vals ? vals.Cast<object>() : val.ToString().Split(',');
+                                
+//                                queryCondition += $" and {key} in(";
+//                                int valListIndex = 0;
+//                                foreach (var valItem in valList)
+//                                {
+//                                    var paramName = valListIndex == 0 ? key : $"{key}{valListIndex}";
+//                                    queryCondition += $"{parameterFlag}{paramName},";
+//                                    queryConditionParameters.Add(paramName, valItem);
+//                                    valListIndex++;
+//                                }
+//                                queryCondition = queryCondition.TrimEnd(',');
+//                                queryCondition += ")";
+//                            }
+//                            else
+//                            {
+//                                if (compareType == "include")
+//                                {
+//                                    queryCondition += $" and {key} like CONCAT(CONCAT('%', {parameterFlag}{key}), '%')";
+//                                }
+//                                else
+//                                {
+//                                    queryCondition += $" and {key}{compareType}{parameterFlag}{key}";
+//                                }
+//                                queryConditionParameters.Add(key, val);
+//                            }
+//                        }
+//                    }
+//                }
+//                if (filters.Keywords != null && filters.Keywords.Fields != null && filters.Keywords.Fields.Length > 0 && !string.IsNullOrWhiteSpace(filters.Keywords.Value))
+//                {
+//                    var keyWordsCondition = string.Empty;
+//                    foreach (var keyWordsField in filters.Keywords.Fields)
+//                    {
+//                        string varName = $"keyWords{keyWordsField}";
+//                        if (!queryConditionParameters.ContainsKey(varName))
+//                        {
+//                            if (dbType == DatabaseType.MySql)
+//                            {
+//                                keyWordsCondition += $" or {keyWordsField} like CONCAT(CONCAT('%', {parameterFlag}{varName}), '%')";
+//                            }
+//                            else if (dbType == DatabaseType.SqlServer)
+//                            {
+//                                keyWordsCondition += $" or {keyWordsField} like '%'+{parameterFlag}{varName}+'%'";
+//                            }
+//                            else
+//                            {
+//                                keyWordsCondition += $" or {keyWordsField} like '%'||{parameterFlag}{varName}||'%'";
+//                            }
+//                            queryConditionParameters.Add(varName, filters.Keywords.Value);
+//                        }
+//                    }
+//                    if (!string.IsNullOrEmpty(keyWordsCondition))
+//                    {
+//                        queryCondition += $" and ({keyWordsCondition[4..]})";
+//                    }
+//                }
+//            }
+//            #endregion
+
+//            string baseSqlTxt = $"select * from {table} where 1=1 {queryCondition}";
+
+//            #region 不同数据库对应的SQL语句
+//            string sql = dbType switch
+//            {
+//                DatabaseType.Oracle => $@"select * from 
+//	(
+//	select t.*,rownum no from 
+//		(
+//		{baseSqlTxt} {orderClause}
+//		) t 
+//	)
+//where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
+//                DatabaseType.MySql => $@"{baseSqlTxt} {orderClause} limit {(pageIndex - 1) * pageSize},{pageSize}",
+//                DatabaseType.SqlServer => $"{baseSqlTxt} {(string.IsNullOrEmpty(orderClause) ? "order by id desc" : orderClause)} OFFSET ({pageIndex}-1)*{pageSize} ROWS FETCH NEXT {pageSize} ROW ONLY",
+//                DatabaseType.Sqlite => $@"{baseSqlTxt} {orderClause} limit {pageSize} offset {(pageIndex - 1) * pageSize}",
+//                DatabaseType.Pg => $@"{baseSqlTxt} {orderClause} limit {pageSize} offset {(pageIndex - 1) * pageSize}",
+//                _ => throw new Exception("未知的数据库类型")
+
+//            };
+//            #endregion
+
+//            return sql;
+//        }
         /// <summary>
         /// 获取分页查询的SQL语句
         /// </summary>
@@ -1101,26 +1209,32 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="dbType"></param>
         /// <param name="pageIndex"></param>
         /// <param name="pageSize"></param>
-        /// <param name="orderField"></param>
-        /// <param name="isAsc"></param>
         /// <param name="filters"></param>
         /// <param name="queryCondition"></param>
         /// <param name="queryConditionParameters"></param>
+        /// <param name="orderRules">排序规则</param>
         /// <returns></returns>
         /// <exception cref="ArgumentException"></exception>
         /// <exception cref="Exception"></exception>
-        public static string GetPagedSql(string db, string table, DatabaseType dbType, int pageIndex, int pageSize, string? orderField, bool isAsc, DataFilter? filters, out string queryCondition, out Dictionary<string, object> queryConditionParameters)
+        public static string GetPagedSql(string db, string table, DatabaseType dbType, int pageIndex, int pageSize, DataFilter? filters, List<OrderRule>? orderRules, out string queryCondition, out Dictionary<string, object> queryConditionParameters)
         {
+            #region 排序表达式
+            orderRules ??= [new()];
+
             string orderClause = string.Empty;
-            if (!string.IsNullOrWhiteSpace(orderField))
+            foreach (var orderRule in orderRules)
             {
-                orderField = orderField.Replace("-", string.Empty).Replace("'", string.Empty);
-                ValideParameter(orderField);
-                orderClause = $" order by {orderField} {(isAsc ? "asc" : "desc")}";
+                ValideParameter(orderRule.OrderField);
+                orderClause += $"{orderRule.OrderField} {(orderRule.IsAsc ? "asc" : "desc")},";
             }
-            string parameterFlag = dbType == DatabaseType.Oracle || dbType == DatabaseType.Dm ? ":" : "@";
+            if (!string.IsNullOrWhiteSpace(orderClause))
+            {
+                orderClause = $" order by {orderClause.TrimEnd(',')}";
+            }
+            #endregion
 
             #region 处理过滤条件
+            string parameterFlag = dbType == DatabaseType.Oracle || dbType == DatabaseType.Dm ? ":" : "@";
             queryCondition = string.Empty;
             queryConditionParameters = [];
             if (filters != null)
@@ -1148,7 +1262,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                             if (compareType == "in")
                             {
                                 IEnumerable<object> valList = val is IEnumerable vals ? vals.Cast<object>() : val.ToString().Split(',');
-                                
+
                                 queryCondition += $" and {key} in(";
                                 int valListIndex = 0;
                                 foreach (var valItem in valList)
@@ -1216,14 +1330,14 @@ namespace Sylas.RemoteTasks.Database.SyncBase
 	(
 	select t.*,rownum no from 
 		(
-		{baseSqlTxt} {orderClause}
+		{baseSqlTxt}{orderClause}
 		) t 
 	)
 where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
-                DatabaseType.MySql => $@"{baseSqlTxt} {orderClause} limit {(pageIndex - 1) * pageSize},{pageSize}",
-                DatabaseType.SqlServer => $"{baseSqlTxt} {(string.IsNullOrEmpty(orderClause) ? "order by id desc" : orderClause)} OFFSET ({pageIndex}-1)*{pageSize} ROWS FETCH NEXT {pageSize} ROW ONLY",
-                DatabaseType.Sqlite => $@"{baseSqlTxt} {orderClause} limit {pageSize} offset {(pageIndex - 1) * pageSize}",
-                DatabaseType.Pg => $@"{baseSqlTxt} {orderClause} limit {pageSize} offset {(pageIndex - 1) * pageSize}",
+                DatabaseType.MySql => $@"{baseSqlTxt}{orderClause} limit {(pageIndex - 1) * pageSize},{pageSize}",
+                DatabaseType.SqlServer => $"{baseSqlTxt}{(string.IsNullOrEmpty(orderClause) ? " order by id desc" : orderClause)} OFFSET ({pageIndex}-1)*{pageSize} ROWS FETCH NEXT {pageSize} ROW ONLY",
+                DatabaseType.Sqlite => $@"{baseSqlTxt}{orderClause} limit {pageSize} offset {(pageIndex - 1) * pageSize}",
+                DatabaseType.Pg => $@"{baseSqlTxt}{orderClause} limit {pageSize} offset {(pageIndex - 1) * pageSize}",
                 _ => throw new Exception("未知的数据库类型")
 
             };
@@ -1237,17 +1351,16 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// <param name="table"></param>
         /// <param name="pageIndex"></param>
         /// <param name="pageSize"></param>
-        /// <param name="orderField"></param>
-        /// <param name="isAsc"></param>
         /// <param name="dbConn"></param>
         /// <param name="filters"></param>
+        /// <param name="orderRules">排序规则</param>
         /// <returns></returns>
-        public static async Task<PagedData> GetPagedDataAsync(string table, int pageIndex, int pageSize, string? orderField, bool isAsc, IDbConnection dbConn, DataFilter? filters)
+        public static async Task<PagedData> GetPagedDataAsync(string table, int pageIndex, int pageSize, IDbConnection dbConn, DataFilter? filters, List<OrderRule>? orderRules)
         {
             // TODO: 数据库类型 作为公共属性
             var dbType = GetDbType(dbConn.ConnectionString);
 
-            string sql = GetPagedSql(dbConn.Database, table, dbType, pageIndex, pageSize, orderField, isAsc, filters, out string condition, out Dictionary<string, object> parameters);
+            string sql = GetPagedSql(dbConn.Database, table, dbType, pageIndex, pageSize, filters, orderRules, out string condition, out Dictionary<string, object> parameters);
 
             string allCountSqlTxt = $"select count(*) from {table} where 1=1 {condition}";
             var data = await dbConn.QueryAsync(sql, parameters);
@@ -1819,7 +1932,8 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                 try
                 {
                     sourceDataTable.Clear();
-                    var srouceTableDataReader = (await GetPagedDataAsync(sourceTableStatement, pageIndex, 3000, string.Join(',', primaryKeys), true, sourceConn, filter)).DataReader ?? throw new Exception($"源表{sourceTableName}的数据读取器为空");
+                    List<OrderRule> orderRules = primaryKeys.Select(x => new OrderRule { OrderField = x, IsAsc = true }).ToList();
+                    var srouceTableDataReader = (await GetPagedDataAsync(sourceTableStatement, pageIndex, 3000, sourceConn, filter, orderRules)).DataReader ?? throw new Exception($"源表{sourceTableName}的数据读取器为空");
                     sourceDataTable.Load(srouceTableDataReader);
                 }
                 catch (Exception ex)

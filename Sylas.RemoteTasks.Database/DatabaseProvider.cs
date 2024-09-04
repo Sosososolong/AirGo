@@ -326,15 +326,12 @@ public class DatabaseProvider : IDatabaseProvider
     /// 分页查询指定数据表, 可使用db参数切换到指定数据库
     /// </summary>
     /// <param name="table">查询的表明</param>
-    /// <param name="pageIndex">第几页</param>
-    /// <param name="pageSize">每页多少条数</param>
-    /// <param name="orderField">排序字段</param>
-    /// <param name="isAsc">是否升序</param>
-    /// <param name="filters">查询条件</param>
+    /// <param name="search">分页查询参数</param>
     /// <param name="db">指定要切换查询的数据库, 不指定使用Default配置的数据库</param>
     /// <returns></returns>
-    public async Task<PagedData<T>> QueryPagedDataAsync<T>(string table, int pageIndex, int pageSize, string? orderField, bool isAsc, DataFilter filters, string db = "") where T : new()
+    public async Task<PagedData<T>> QueryPagedDataAsync<T>(string table, DataSearch? search, string db = "") where T : new()
     {
+        search ??= new();
         //初始化 与数据库交互的一些对象
         DbConnection conn = SqlClientFactory.Instance.CreateConnection();
         if (!string.IsNullOrWhiteSpace(db))
@@ -342,7 +339,7 @@ public class DatabaseProvider : IDatabaseProvider
             await conn.ChangeDatabaseAsync(db);
         }
 
-        string pagedSql = DatabaseInfo.GetPagedSql(conn.Database, table, DatabaseInfo.GetDbType(ConnectionString), pageIndex, pageSize, orderField, isAsc, filters, out string condition, out Dictionary<string, object> conditionParameters);
+        string pagedSql = DatabaseInfo.GetPagedSql(conn.Database, table, DatabaseInfo.GetDbType(ConnectionString), search.PageSize, search.PageSize, search.Filter, search.Rules, out string condition, out Dictionary<string, object> conditionParameters);
         string allCountSqlTxt = $"select count(*) from {conn.Database}.{table} where 1=1 {condition}";
 
         var dataSet = await QueryAsync(pagedSql, conditionParameters);
@@ -353,27 +350,24 @@ public class DatabaseProvider : IDatabaseProvider
         var allCount = Convert.ToInt32(allCountDataSet.Tables[0].Rows[0][0]);
 
         
-        return new PagedData<T> { Data = data, Count = allCount, TotalPages = (allCount + pageSize - 1) / pageSize };
+        return new PagedData<T> { Data = data, Count = allCount, TotalPages = (allCount + search.PageSize - 1) / search.PageSize };
     }
     /// <summary>
     /// 分页查询指定数据表, 可使用数据库连接字符串connectionString参数指定连接的数据库
     /// </summary>
     /// <param name="table">查询的表明</param>
-    /// <param name="pageIndex">第几页</param>
-    /// <param name="pageSize">每页多少条数</param>
-    /// <param name="orderField">排序字段</param>
-    /// <param name="isAsc">是否升序</param>
-    /// <param name="filters">查询条件</param>
+    /// <param name="search">查询参数</param>
     /// <param name="connectionString">指定要切换查询的数据库, 不指定使用Default配置的数据库连接</param>
     /// <returns></returns>
-    public async Task<PagedData<T>> QueryPagedDataWithConnectionStringAsync<T>(string table, int pageIndex, int pageSize, string? orderField, bool isAsc, DataFilter filters, string connectionString) where T : new()
+    public async Task<PagedData<T>> QueryPagedDataWithConnectionStringAsync<T>(string table, DataSearch? search, string connectionString) where T : new()
     {
+        search ??= new();
         if (string.IsNullOrWhiteSpace(connectionString))
         {
             throw new Exception("参数数据库连接字符串不能为空");
         }
         ConnectionString = connectionString;
-        return await QueryPagedDataAsync<T>(table, pageIndex, pageSize, orderField, isAsc, filters);
+        return await QueryPagedDataAsync<T>(table, search);
     }
     /// <summary>
     /// 执行增删改的SQL语句 - 可使用db参数指定切换到当前连接的用户有权限的其他数据库

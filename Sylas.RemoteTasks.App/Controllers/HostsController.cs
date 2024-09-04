@@ -60,15 +60,12 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// <summary>
         /// AnythingSetting分页查询
         /// </summary>
-        /// <param name="pageIndex"></param>
-        /// <param name="pageSize"></param>
-        /// <param name="orderField"></param>
-        /// <param name="isAsc"></param>
-        /// <param name="dataFilter"></param>
+        /// <param name="search">分页查询参数</param>
         /// <returns></returns>
-        public async Task<IActionResult> GetAnythingSettingsAsync(int pageIndex, int pageSize, string orderField, bool isAsc = true, [FromBody] DataFilter? dataFilter = null)
+        public async Task<IActionResult> GetAnythingSettingsAsync([FromBody] DataSearch? search = null)
         {
-            var anythingSettings = await anythingService.GetAnythingSettingsAsync(pageIndex, pageSize, orderField, isAsc, dataFilter);
+            search ??= new();
+            var anythingSettings = await anythingService.GetAnythingSettingsAsync(search);
             return Json(anythingSettings);
         }
         /// <summary>

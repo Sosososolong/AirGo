@@ -18,7 +18,7 @@ namespace Sylas.RemoteTasks.App.Controllers
 
         public async Task<IActionResult> Index()
         {
-            var connectionInfos = (await _dbConnectionInfoRepository.GetPageAsync(1, 10000, "Name", true, new DataFilter())).Data;
+            var connectionInfos = (await _dbConnectionInfoRepository.GetPageAsync(new(1, 10000, new DataFilter(), [new("Name", true)]))).Data;
             List<DbConnectionDetail> connectionDetails = [];
             foreach (var connectionInfo in connectionInfos)
             {
@@ -56,7 +56,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             {
                 return Ok(new OperationResult(false, "数据库地址不能为空"));
             }
-            var connectionInfosPage = await _dbConnectionInfoRepository.GetPageAsync(1, 10000, "Name", true, new DataFilter());
+            var connectionInfosPage = await _dbConnectionInfoRepository.GetPageAsync(new(1, 10000, new DataFilter(), [new("Name", true)]));
             var connectionInfos = connectionInfosPage.Data;
             var regex = databaseType switch
             {

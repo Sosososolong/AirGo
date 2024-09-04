@@ -41,7 +41,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor.Models
                 Title = source.Title,
                 Url = source.Url,
                 Remark = source.Remark,
-                StepCirleRunningWhenLastStepHasData = source.StepCirleRunningWhenLastStepHasData
+                StepCirleRunningWhenLastStepHasData = source.StepCirleRunningWhenLastStepHasData.HasValue ? source.StepCirleRunningWhenLastStepHasData.Value : false,
             };
         }
     }

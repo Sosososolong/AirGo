@@ -38,6 +38,10 @@
              */
             await createTable(apiUrl, 1, 10, tableId, tableParentSelector, ths, idFieldName, null, null, onProcessorsDataLoaded, ''
                 , { url: 'Sync/AddHttpRequestProcessor', method: 'POST', updateUrl: '/Sync/UpdateHttpRequestProcessor', updateMethod: 'POST' }
+                , true
+                , null
+                , null
+                , []
             )
 
             /**
@@ -86,6 +90,10 @@
                     `<div id="collapse${tableId}${row[idFieldName]}" class="collapse" aria-labelledby="${tableParentSelector}" data-bs-parent="#accordion"><div class="card-body">{{tableHtml}}</div></div>`
                     // Modal Settings
                     , { url: 'Sync/AddHttpRequestProcessorStep', method: 'POST', updateUrl: '/Sync/UpdateHttpRequestProcessorStep', updateMethod: 'POST' }
+                    , true
+                    , null
+                    , null
+                    , []
                 );
 
 
@@ -138,6 +146,10 @@
                             `<div id="collapse${tableStepsId}${stepId}" class="collapse" aria-labelledby="${tableParentSelector}" data-bs-parent="#accordion"><div class="card-body">{{tableHtml}}</div></div>`
                             // Modal Settings
                             , { url: 'Sync/AddHttpRequestProcessorStepDataHandler', method: 'POST', updateUrl: '/Sync/UpdateHttpRequestProcessorStepDataHandler', updateMethod: 'POST', }
+                            , true
+                            , null
+                            , null
+                            , []
                         );
                     }
                 }

@@ -9,7 +9,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
         public async Task<OperationResult> ExecuteHttpRequestProcessorsAsync(int[] ids, int stepId = 0)
         {
             var idsString = string.Join(',', ids);
-            var httpRequestProcessors = await repository.GetPageAsync(1, 1000, "id", true, new DataFilter() { FilterItems = [new() { CompareType = "in", FieldName = "id", Value = idsString }] });
+            var httpRequestProcessors = await repository.GetPageAsync(new(1, 1000, new DataFilter() { FilterItems = [new() { CompareType = "in", FieldName = "id", Value = idsString }] }, [new("id", true)]));
             Dictionary<string, object>? dataContext = null;
 
             if (httpRequestProcessors.Data is null || !httpRequestProcessors.Data.Any())

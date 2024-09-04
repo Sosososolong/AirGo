@@ -14,7 +14,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor.Models
         public string Url { get; set; } = string.Empty;
         public string Headers { get; set; } = "{}";
         public string Remark { get; set; } = string.Empty;
-        public bool StepCirleRunningWhenLastStepHasData { get; set; } = false;
-        public IEnumerable<HttpRequestProcessorStep> Steps { get; set; } = Enumerable.Empty<HttpRequestProcessorStep>();
+        public bool? StepCirleRunningWhenLastStepHasData { get; set; } = false;
+        public IEnumerable<HttpRequestProcessorStep> Steps { get; set; } = [];
     }
 }

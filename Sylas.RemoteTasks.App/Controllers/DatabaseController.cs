@@ -19,15 +19,12 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// <summary>
         /// 数据库连接字符串信息分页查询
         /// </summary>
-        /// <param name="pageIndex"></param>
-        /// <param name="pageSize"></param>
-        /// <param name="orderField"></param>
-        /// <param name="isAsc"></param>
-        /// <param name="dataFilter"></param>
+        /// <param name="search">分页查询参数</param>
         /// <returns></returns>
-        public async Task<IActionResult> ConnectionStringsAsync(int pageIndex, int pageSize, string orderField, bool isAsc = true, [FromBody] DataFilter? dataFilter = null)
+        public async Task<IActionResult> ConnectionStringsAsync([FromBody] DataSearch? search = null)
         {
-            var page = await repository.GetPageAsync(pageIndex, pageSize, orderField, isAsc, dataFilter ?? new DataFilter());
+            search ??= new();
+            var page = await repository.GetPageAsync(search);
             return Ok(page);
         }
         /// <summary>

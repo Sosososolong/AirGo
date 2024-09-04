@@ -16,15 +16,12 @@ namespace Sylas.RemoteTasks.App.DatabaseManager
         /// <summary>
         /// 分页查询多个数据库连接字符串信息
         /// </summary>
-        /// <param name="pageIndex"></param>
-        /// <param name="pageSize"></param>
-        /// <param name="orderField"></param>
-        /// <param name="isAsc"></param>
-        /// <param name="filter"></param>
+        /// <param name="search">分页查询参数</param>
         /// <returns></returns>
-        public async Task<PagedData<DbConnectionInfo>> GetPageAsync(int pageIndex, int pageSize, string orderField, bool isAsc, DataFilter filter)
+        public async Task<PagedData<DbConnectionInfo>> GetPageAsync(DataSearch search)
         {
-            var pages = await _db.QueryPagedDataAsync<DbConnectionInfo>(DbConnectionInfo.TableName, pageIndex, pageSize, orderField, isAsc, filter);
+            search ??= new();
+            var pages = await _db.QueryPagedDataAsync<DbConnectionInfo>(DbConnectionInfo.TableName, search);
             return pages;
         }
         /// <summary>
@@ -34,7 +31,7 @@ namespace Sylas.RemoteTasks.App.DatabaseManager
         /// <returns></returns>
         public async Task<DbConnectionInfo?> GetByIdAsync(int id)
         {
-            var pages = await _db.QueryPagedDataAsync<DbConnectionInfo>(DbConnectionInfo.TableName, 1, 1, "id", true, new DataFilter { FilterItems = [new("id", "=", id)] });
+            var pages = await _db.QueryPagedDataAsync<DbConnectionInfo>(DbConnectionInfo.TableName, new(1, 1, new DataFilter { FilterItems = [new("id", "=", id)] }, [new("id", true)]));
             var connectionString = pages.Data.FirstOrDefault();
             if (connectionString is null)
             {

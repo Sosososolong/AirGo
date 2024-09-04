@@ -16,19 +16,12 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// <summary>
         /// 问题分页查询
         /// </summary>
-        /// <param name="pageIndex"></param>
-        /// <param name="pageSize"></param>
-        /// <param name="orderField"></param>
-        /// <param name="isAsc"></param>
-        /// <param name="dataFilter"></param>
+        /// <param name="search"></param>
         /// <returns></returns>
-        public async Task<IActionResult> GetQuestions(int pageIndex, int pageSize, string orderField = "", bool isAsc = false, [FromBody] DataFilter? dataFilter = null)
+        public async Task<IActionResult> GetQuestions([FromBody] DataSearch? search = null)
         {
-            if (string.IsNullOrWhiteSpace(orderField))
-            {
-                orderField = "ErrorCount";
-            }
-            var snippetPage = await questionRepository.GetPageAsync(pageIndex, pageSize, orderField, isAsc, dataFilter);
+            search ??= new();
+            var snippetPage = await questionRepository.GetPageAsync(search);
             var result = new RequestResult<PagedData<Question>>(snippetPage);
             return Ok(result);
         }
@@ -119,9 +112,9 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// </summary>
         /// <param name="typeRepository"></param>
         /// <returns></returns>
-        public async Task<RequestResult<PagedData<QuestionType>>> GetQuestionTypes([FromServices]RepositoryBase<QuestionType> typeRepository, int pageIndex = 1, int pageSize = 10, string orderField = "", bool isAsc = false, [FromBody] DataFilter? dataFilter = null)
+        public async Task<RequestResult<PagedData<QuestionType>>> GetQuestionTypes([FromServices]RepositoryBase<QuestionType> typeRepository, [FromBody] DataSearch search)
         {
-            var pagedTypes = await typeRepository.GetPageAsync(pageIndex, pageSize, orderField, isAsc, dataFilter);
+            var pagedTypes = await typeRepository.GetPageAsync(search);
             var result = RequestResult<PagedData<QuestionType>>.Success(pagedTypes);
             return result;
         }

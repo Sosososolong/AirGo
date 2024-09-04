@@ -8,23 +8,24 @@ const dataSources = {};
 
 /**
  * 
- * @param {string} apiUrl 查询api地址
- * @param {number} pageIndex 当前页
- * @param {number} pageSize 每页多少条数据
- * @param {string} tableId 数据表table标签的id属性值
- * @param {string} tableContainerSelector 数据表table标签的父元素选择器
+ * @param {String} apiUrl 查询api地址
+ * @param {Number} pageIndex 当前页
+ * @param {Number} pageSize 每页多少条数据
+ * @param {String} tableId 数据表table标签的id属性值
+ * @param {String} tableContainerSelector 数据表table标签的父元素选择器
  * @param {Array} ths 数据表对应的数据列的配置, 如果dataViewBuilder不为空, 则ths的作用为配置关键字搜索的字段
- * @param {string} idFieldName 主键字段名
+ * @param {String} idFieldName 主键字段名
  * @param {Array} filterItems 过滤项集合
  * @param {Array} data 初始化数据表的数据
- * @param {function} onDataLoaded 当数据加载完毕执行的回调函数
- * @param {string} wrapper table标签的外部html
+ * @param {Function} onDataLoaded 当数据加载完毕执行的回调函数
+ * @param {String} wrapper table标签的外部html
  * @param {Object} modalSettings 添加数据弹窗的配置
  * @param {Boolean} primaryKeyIsInt 主键是否是整型
- * @param {string} addButtonSelector 添加按钮的选择器, 不传将创建添加按钮
- * @param {function} dataViewBuilder 不使用table标签展示数据时使用, 该函数根据传入的数据集返回展示数据的元素对象
+ * @param {String} addButtonSelector 添加按钮的选择器, 不传将创建添加按钮
+ * @param {Function} dataViewBuilder 不使用table标签展示数据时使用, 该函数根据传入的数据集返回展示数据的元素对象
+ * @param {Object} orderRules 排序规则
  */
-async function createTable(apiUrl, pageIndex, pageSize, tableId, tableContainerSelector, ths, idFieldName, filterItems = null, data = null, onDataLoaded = undefined, wrapper = '', modalSettings = {}, primaryKeyIsInt = true, addButtonSelector = '', dataViewBuilder = null) {
+async function createTable(apiUrl, pageIndex, pageSize, tableId, tableContainerSelector, ths, idFieldName, filterItems = null, data = null, onDataLoaded = undefined, wrapper = '', modalSettings = {}, primaryKeyIsInt = true, addButtonSelector = '', dataViewBuilder = null, orderRules = null) {
     if (!tables[tableId]) {
         tables[tableId] = {
             tableId: tableId,
@@ -32,8 +33,7 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableContainerS
             pageIndex: pageIndex,
             pageSize: pageSize,
             totalPages: 0,
-            orderField: '',
-            isAsc: true,
+            orderRules: !orderRules ? [{ orderField: 'updateTime', isAsc: false }] : orderRules,
             dataFilter: {
                 filterItems: [
                     {
@@ -153,11 +153,6 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableContainerS
     // this指向的是window对象, 因为它的父作用域就是createTable()方法, createTable中的this就是window对象
     targetTable.test = () => console.log(this);
 
-    targetTable.getFetchUrl = function () {
-        // 如果换成() => 函数形式this就成了window对象
-        return `${apiUrl}?pageIndex=${this.pageIndex}&pageSize=${this.pageSize}&orderField=${this.orderField}&isAsc=${this.isAsc}`;
-    }
-
     targetTable.loadData = async function () {
         // 分页条
         var pagination = $(`#page-${this.tableId}`);
@@ -170,7 +165,6 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableContainerS
         }
 
         // 发送 AJAX 请求获取数据
-        const url = this.getFetchUrl();
         const method = 'POST';
 
         async function onSuccess(response) {
@@ -202,7 +196,7 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableContainerS
             }
         }
         
-        var response = await fetchData(url, method, targetTable.dataFilter, this.tableId);
+        var response = await fetchData(apiUrl, method, this.pageIndex, this.pageSize, targetTable.dataFilter, this.orderRules, this.tableId);
         if (response) {
             await onSuccess(response);
         }
@@ -352,7 +346,7 @@ ${formItemComponent}
         if (dataSourceKeys.indexOf(currentKey) > -1) {
             dataSourceData = dataSources[currentKey]
         } else {
-            let response = await fetchData(url, 'POST', bodyDataFilter, null)
+            let response = await fetchData(url, 'POST', 1, 100, bodyDataFilter, []);
             if (response && response.code === 1) {
                 dataSourceData = response.data.data;
                 dataSources[currentKey] = dataSourceData;
@@ -378,7 +372,7 @@ ${formItemComponent}
     }
 
     targetTable.initSearchForm = function initSearchForm() {
-        let searchFormHtmlBase = `<form id="search-form">
+        let searchFormHtmlBase = `<form id="search-form" style="margin-bottom:10px;">
     <div class="row g-3">
         <div class="col-sm-3">
             <input type="text" placeholder="关键字" class="form-control form-control-sm" id="search-input">
@@ -484,7 +478,7 @@ ${formItemComponent}
         </tbody>
     </table>
     <nav aria-label="Page navigation">
-        <ul class="pagination" id="page-${this.tableId}">
+        <ul class="pagination mt-3" id="page-${this.tableId}">
             <li class="page-item disabled">
                 <a class="page-link" href="#" tabindex="-1" aria-disabled="true">Previous</a>
             </li>
@@ -544,17 +538,31 @@ ${formItemComponent}
 }
 
 
-async function fetchData(url, method, dataFilter, renderElementId, finallyAction) {
+async function fetchData(url, method, pageIndex, pageSize, dataFilter, orderRules, renderElementId, finallyAction) {
     //showSpinner();
     let overlay = null;
     if (renderElementId) {
         overlay = addOverlay(renderElementId);
     }
+    let search = {
+    };
+    if (pageIndex) {
+        search.pageIndex = pageIndex;
+    }
+    if (pageSize) {
+        search.pageSize = pageSize;
+    }
+    if (dataFilter) {
+        search.filter = dataFilter;
+    }
+    if (orderRules) {
+        search.rules = orderRules;
+    }
     try {
         let response = await $.ajax({
             url: url,
             method: method,
-            data: JSON.stringify(dataFilter),
+            data: JSON.stringify(search),
             //contentType: 'application/x-www-form-urlencoded',
             contentType: 'application/json',
             dataType: 'json',
@@ -758,7 +766,7 @@ async function showUpdatePannel(eventTrigger) {
             value: ''
         }
     };
-    var fetchedData = await fetchData(fetchUrl, method, findByIdFilter);
+    var fetchedData = await fetchData(fetchUrl, method, 1, 1, findByIdFilter, []);
     if (fetchedData && fetchedData.data) {
         await table.createModal();
         let record = fetchedData.data.data[0];

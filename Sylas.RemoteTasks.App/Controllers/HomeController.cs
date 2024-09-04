@@ -961,7 +961,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             #region 参数为空跳转到配置参数的页面
             if (string.IsNullOrWhiteSpace($"{tableFullName}") || string.IsNullOrWhiteSpace($"{tableComment}") || string.IsNullOrWhiteSpace($"{connectionString}"))
             {
-                var templates = await repositorySnippets.GetPageAsync(1, 100, filter: new DataFilter { FilterItems = [new FilterItem(nameof(Snippet.TypeId), "=", 2)] });
+                var templates = await repositorySnippets.GetPageAsync(new(1, 100, new DataFilter { FilterItems = [new FilterItem(nameof(Snippet.TypeId), "=", 2)] }));
                 return View(templates.Data);
             }
             if (!string.IsNullOrWhiteSpace(connectionString))
@@ -1017,7 +1017,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// <returns></returns>
         public async Task<IActionResult> CodeGen2([FromServices] RepositoryBase<Snippet> repositorySnippets)
         {
-            var templates = await repositorySnippets.GetPageAsync(1, 100, filter: new DataFilter { FilterItems = [new FilterItem(nameof(Snippet.TypeId), "=", 2)] });
+            var templates = await repositorySnippets.GetPageAsync(new(1, 100, filter: new DataFilter { FilterItems = [new FilterItem(nameof(Snippet.TypeId), "=", 2)] }));
             return View(templates.Data);
         }
         /// <summary>

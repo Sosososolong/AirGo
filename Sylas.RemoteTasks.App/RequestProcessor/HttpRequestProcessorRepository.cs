@@ -15,26 +15,22 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
         /// <summary>
         /// 分页查询多个Http请求处理器
         /// </summary>
-        /// <param name="pageIndex"></param>
-        /// <param name="pageSize"></param>
-        /// <param name="orderField"></param>
-        /// <param name="isAsc"></param>
-        /// <param name="filter"></param>
+        /// <param name="search">分页查询参数</param>
         /// <returns></returns>
-        public async Task<PagedData<HttpRequestProcessor>> GetPageAsync(int pageIndex, int pageSize, string orderField, bool isAsc, DataFilter filter)
+        public async Task<PagedData<HttpRequestProcessor>> GetPageAsync(DataSearch search)
         {
-            var pages = await _db.QueryPagedDataAsync<HttpRequestProcessor>(HttpRequestProcessor.TableName, pageIndex, pageSize, orderField, isAsc, filter);
+            var pages = await _db.QueryPagedDataAsync<HttpRequestProcessor>(HttpRequestProcessor.TableName, search);
             
             var processorIds = pages.Data.Select(x => x.Id);
             var stepsFilters = new List<FilterItem>
             {
                 new("processorid", "in", processorIds)
             };
-            var steps = (await GetStepsPageAsync(1, 1000, "id", true, new DataFilter { FilterItems = stepsFilters })).Data;
+            var steps = (await GetStepsPageAsync(new(1, 1000, new DataFilter { FilterItems = stepsFilters }, [new("id", true)]))).Data;
 
             var stepIds = steps.Select(x => x.Id);
             var filterCondition = new FilterItem("stepid", "in", stepIds);
-            var dataHandlers = (await GetDataHandlersPageAsync(1, 1000, "id", true, new DataFilter { FilterItems = [filterCondition] })).Data;
+            var dataHandlers = (await GetDataHandlersPageAsync(new(1, 1000, new DataFilter { FilterItems = [filterCondition] }, [new("id", true)]))).Data;
 
             foreach (var processor in pages.Data)
             {
@@ -54,7 +50,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
         /// <returns></returns>
         public async Task<HttpRequestProcessor?> GetByIdAsync(int id)
         {
-            var pages = await _db.QueryPagedDataAsync<HttpRequestProcessor>(HttpRequestProcessor.TableName, 1, 1, "id", true, new DataFilter { FilterItems = [new FilterItem("id", "=", id)] });
+            var pages = await _db.QueryPagedDataAsync<HttpRequestProcessor>(HttpRequestProcessor.TableName, new(1, 1, new DataFilter { FilterItems = [new FilterItem("id", "=", id)] }, [new("id", true)]));
             var processor = pages.Data.FirstOrDefault();
             if (processor is null)
             {
@@ -64,13 +60,13 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
             {
                 new("processorid", "=", processor.Id)
             };
-            var steps = (await GetStepsPageAsync(1, 1000, "id", true, new DataFilter { FilterItems = stepsFilters })).Data;
+            var steps = (await GetStepsPageAsync(new(1, 1000, new DataFilter { FilterItems = stepsFilters }, [new("id", true)]))).Data;
             processor.Steps = steps;
 
             foreach (var step in steps)
             {
                 var filterCondition = new FilterItem("stepid", "=", step.Id);
-                var dataHandlers = (await GetDataHandlersPageAsync(1, 1000, "id", true, new DataFilter { FilterItems = [ filterCondition ] })).Data;
+                var dataHandlers = (await GetDataHandlersPageAsync(new(1, 1000, new DataFilter { FilterItems = [ filterCondition ] }, [new("id", true)]))).Data;
                 step.DataHandlers = dataHandlers;
             }
             return processor;
@@ -131,13 +127,13 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                 setStatement.Append($"Headers=@Headers,");
                 parameters.Add("Headers", processor.Headers);
             }
-            if (!string.IsNullOrWhiteSpace(processor.Remark))
+            if (processor.Remark is not null)
             {
                 setStatement.Append($"remark=@remark,");
                 parameters.Add("remark", processor.Remark);
             }
             setStatement.Append($"stepCirleRunningWhenLastStepHasData=@stepCirleRunningWhenLastStepHasData,");
-            parameters.Add("stepCirleRunningWhenLastStepHasData", processor.StepCirleRunningWhenLastStepHasData ? 1 : 0);
+            parameters.Add("stepCirleRunningWhenLastStepHasData", processor.StepCirleRunningWhenLastStepHasData.HasValue && processor.StepCirleRunningWhenLastStepHasData.Value ? 1 : 0);
 
             string sql = $"update {HttpRequestProcessor.TableName} set {setStatement.ToString().TrimEnd(',')} where id=@id";
             return await _db.ExecuteSqlAsync(sql, parameters);
@@ -185,15 +181,11 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
         /// <summary>
         /// 分页查询Http请求处理器具体执行的多个步骤
         /// </summary>
-        /// <param name="pageIndex"></param>
-        /// <param name="pageSize"></param>
-        /// <param name="orderField"></param>
-        /// <param name="isAsc"></param>
-        /// <param name="filter"></param>
+        /// <param name="search">分页查询参数</param>
         /// <returns></returns>
-        public async Task<PagedData<HttpRequestProcessorStep>> GetStepsPageAsync(int pageIndex, int pageSize, string orderField, bool isAsc, DataFilter filter)
+        public async Task<PagedData<HttpRequestProcessorStep>> GetStepsPageAsync(DataSearch search)
         {
-            return await _db.QueryPagedDataAsync<HttpRequestProcessorStep>(HttpRequestProcessorStep.TableName, pageIndex, pageSize, orderField, isAsc, filter);
+            return await _db.QueryPagedDataAsync<HttpRequestProcessorStep>(HttpRequestProcessorStep.TableName, search);
         }
 
         public async Task<int> CloneStepAsync(int id)
@@ -213,7 +205,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
         }
         public async Task<HttpRequestProcessorStep?> GetStepByIdAsync(int id)
         {
-            var pages = await _db.QueryPagedDataAsync<HttpRequestProcessorStep>(HttpRequestProcessorStep.TableName, 1, 1, "id", true, new DataFilter { FilterItems = [new("id", "=", id)] });
+            var pages = await _db.QueryPagedDataAsync<HttpRequestProcessorStep>(HttpRequestProcessorStep.TableName, new(1, 1, new DataFilter { FilterItems = [new("id", "=", id)] }, [new("id", true)]));
             var step = pages.Data.FirstOrDefault();
             if (step is null)
             {
@@ -223,7 +215,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                 {
                     new("stepId", "=", step.Id)
                 };
-            var dataHandlers = (await GetDataHandlersPageAsync(1, 1000, "id", true, new DataFilter { FilterItems = dataHandlersFilters })).Data;
+            var dataHandlers = (await GetDataHandlersPageAsync(new(1, 1000, new DataFilter { FilterItems = dataHandlersFilters }, [new("id", true)]))).Data;
             step.DataHandlers = dataHandlers;
             return step;
         }
@@ -314,15 +306,11 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
         /// <summary>
         /// 分页查询Http请求处理器具体执行的多个步骤
         /// </summary>
-        /// <param name="pageIndex"></param>
-        /// <param name="pageSize"></param>
-        /// <param name="orderField"></param>
-        /// <param name="isAsc"></param>
-        /// <param name="filter"></param>
+        /// <param name="search">分页查询参数</param>
         /// <returns></returns>
-        public async Task<PagedData<HttpRequestProcessorStepDataHandler>> GetDataHandlersPageAsync(int pageIndex, int pageSize, string orderField, bool isAsc, DataFilter filter)
+        public async Task<PagedData<HttpRequestProcessorStepDataHandler>> GetDataHandlersPageAsync(DataSearch search)
         {
-            return await _db.QueryPagedDataAsync<HttpRequestProcessorStepDataHandler>(HttpRequestProcessorStepDataHandler.TableName, pageIndex, pageSize, orderField, isAsc, filter);
+            return await _db.QueryPagedDataAsync<HttpRequestProcessorStepDataHandler>(HttpRequestProcessorStepDataHandler.TableName, search);
         }
         /// <summary>
         /// 根据Id查询数据处理器
@@ -331,7 +319,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
         /// <returns></returns>
         public async Task<HttpRequestProcessorStepDataHandler?> GetDataHandlerByIdAsync(int id)
         {
-            var pages = await _db.QueryPagedDataAsync<HttpRequestProcessorStepDataHandler>(HttpRequestProcessorStepDataHandler.TableName, 1, 1, "id", true, new DataFilter { FilterItems = [new("id", "=", id)] });
+            var pages = await _db.QueryPagedDataAsync<HttpRequestProcessorStepDataHandler>(HttpRequestProcessorStepDataHandler.TableName, new(1, 1, new DataFilter { FilterItems = [new("id", "=", id)] }, [new("id", true)]));
             var dataHandler = pages.Data.FirstOrDefault();
             return dataHandler;
         }

@@ -13,7 +13,10 @@
 @section Scripts{
     <script>
         function showRemark(input) {
-            input.parentElement.querySelector('.remark').style.display = 'inline-block';
+            const remark = input.parentElement.querySelector('.remark');
+            remark.style.display = 'inline-block';
+            // remark.style.display = window.outerWidth > 800 ? 'inline-block' : 'block';
+            // remark.style.textAlign = window.outerWidth > 800 ? 'left' : 'right';
         }
 
         const apiUrl = "/Study/GetQuestions";
@@ -43,20 +46,21 @@
         function buildDataView(data) {
             let container = document.createElement('div');
             data.forEach((q, index) => {
-                let imageHtml = '<div style="display:flex;align-items:flex-end;flex-wrap:wrap;">';
+                let imageHtml = '';
                 if (q.imageUrl) {
+                    imageHtml += '<div style="display:flex;align-items:flex-end;flex-wrap:wrap;">';
                     q.imageUrl.split(';').forEach(url => {
                         imageHtml += `<img src="${url}" style="width: 100px;height: 100px;" />`;
                     });
+                    imageHtml += '</div>';
                 }
-                imageHtml += '</div>';
-                container.innerHTML += (`<div class="question" style="padding: 3px;width:560px;">${imageHtml}<label style="width:180px" for="answer${index}">${q.title}</label>
-                <input class="answer-input" data-id="${q.id}" id="answer${index}" value="" onchange="checkAnswer(this)" ondblclick="showRemark(this)" onfocus="this.parentElement.classList.add('focus')" onblur="this.parentElement.classList.remove('focus')" />
+                container.innerHTML += (`<div class="question" style="padding: 5px;border-radius:5px;">${imageHtml}<label style="width:32%;max-width:300px;" for="answer${index}">${q.title}</label>
+                <input style="width:120px;" class="answer-input" data-id="${q.id}" id="answer${index}" value="" onchange="checkAnswer(this)" ondblclick="showRemark(this)" onfocus="this.parentElement.classList.add('focus')" onblur="this.parentElement.classList.remove('focus')" />
                 <input hidden value="${q.answer}" />
                 <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="${q.id}" data-fetch-url="${apiUrl}" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
                 <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-content="&quot;${q.id}&quot;" data-execute-url="/Study/DeleteQuestion" data-method="POST" onclick="showConfirmBox('确定删除? 此操作无法撤销!', () => execute(this))">删除</button>
                 <span class="is-answer-correct">&nbsp;&nbsp;</span>
-                <span class="remark" style="display:none;">&nbsp;&nbsp;${q.remark ? q.remark : q.answer}</span>
+                <span class="remark text-primary" style="display:none;">&nbsp;&nbsp;${q.remark ? q.remark : q.answer}</span>
                 </div>`);
             });
             return container;
@@ -80,7 +84,8 @@
             { url: 'Study/AddQuestion', method: 'POST', updateUrl: '/Study/UpdateQuestion', updateMethod: 'POST' },   // 添加修改数据表单弹窗; url为添加数据的url(修改的url放到修改按钮上); method也是请求添加数据接口的请求方法
             true,
             'h1',
-            buildDataView
+            buildDataView,
+            [{ orderField: 'errorCount', isAsc: false }, {orderField: 'correctCount', isAsc: true}]
         )
 
         /**
@@ -107,9 +112,11 @@
             function answerChecked(response) {
                 const isAnswerCorrectMarkSpan = input.parentElement.querySelector('.is-answer-correct');
                 if (response && response.data) {
-                    isAnswerCorrectMarkSpan.style = 'background-color: blue;margin-left: 5px;display: inline-block;';
+                    isAnswerCorrectMarkSpan.textContent = '√';
+                    isAnswerCorrectMarkSpan.style = 'color:green;margin-left:5px;display:inline-block;';
                 } else {
-                    isAnswerCorrectMarkSpan.style = 'background-color:brown;margin-left: 5px;display: inline-block;';
+                    isAnswerCorrectMarkSpan.textContent = 'x';
+                    isAnswerCorrectMarkSpan.style = 'color:brown;margin-left:5px;display:inline-block;';
                     showRemark(input);
                 }
             }

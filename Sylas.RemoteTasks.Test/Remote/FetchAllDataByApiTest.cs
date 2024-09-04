@@ -33,7 +33,7 @@ namespace Sylas.RemoteTasks.Test.Remote
         {
             var affectedRows = await DatabaseInfo.DesensitizeAsync("Data Source=localhost:1521/helowin;User ID=userinfo;Password=123456;PERSIST SECURITY INFO=True;Pooling = True;Max Pool Size = 100;Min Pool Size = 1;"
                 , "syncoc"
-                , new List<string> { "username", "email", "phone" });
+                , ["username", "email", "phone"]);
             _outputHelper.WriteLine($"已经脱敏{affectedRows}条数据");
         }
 
