@@ -202,11 +202,11 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             foreach (var anythingCommand in commands)
             {
                 anythingCommand.CommandTxt = TmplHelper.ResolveExpressionValue(anythingCommand.CommandTxt, properties)?.ToString() ?? throw new Exception($"解析命令\"{anythingCommand.CommandTxt}\"异常");
-                if (!string.IsNullOrWhiteSpace(anythingCommand.Disabled))
+                if (!string.IsNullOrWhiteSpace(anythingCommand.ExecutedState))
                 {
-                    anythingCommand.Disabled = TmplHelper.ResolveExpressionValue(anythingCommand.Disabled, properties)?.ToString() ?? throw new Exception($"解析命令\"{anythingCommand.Disabled}\"异常");
+                    anythingCommand.ExecutedState = TmplHelper.ResolveExpressionValue(anythingCommand.ExecutedState, properties)?.ToString() ?? throw new Exception($"解析命令\"{anythingCommand.ExecutedState}\"异常");
                     var start = DateTime.Now;
-                    anythingCommand.Disabled = (await anythingCommandExecutor.ExecuteAsync(anythingCommand.Disabled)).Message;
+                    anythingCommand.ExecutedState = (await anythingCommandExecutor.ExecuteAsync(anythingCommand.ExecutedState)).Message;
                     Console.WriteLine($"检测命令是否可用: {(DateTime.Now - start).TotalMilliseconds}/ms");
                 }
             }

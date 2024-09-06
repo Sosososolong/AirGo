@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Sylas.RemoteTasks.App.DatabaseManager;
+using Sylas.RemoteTasks.App.DatabaseManager.Models;
 using Sylas.RemoteTasks.App.DatabaseManager.Models.Dtos;
+using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils.Dto;
 
@@ -10,7 +11,7 @@ namespace Sylas.RemoteTasks.App.Controllers
     /// 数据库管理
     /// </summary>
     /// <param name="repository"></param>
-    public class DatabaseController(DbConnectionInfoRepository repository) : CustomBaseController
+    public class DatabaseController(RepositoryBase<DbConnectionInfo> repository) : CustomBaseController
     {
         public IActionResult Index()
         {
@@ -25,7 +26,8 @@ namespace Sylas.RemoteTasks.App.Controllers
         {
             search ??= new();
             var page = await repository.GetPageAsync(search);
-            return Ok(page);
+            var result = new RequestResult<PagedData<DbConnectionInfo>>(page);
+            return Ok(result);
         }
         /// <summary>
         /// 添加一个数据库连接字符串信息
@@ -34,8 +36,8 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// <returns></returns>
         public async Task<IActionResult> AddConnectionStringAsync([FromBody] DbConnectionInfoInDto dto)
         {
-            int affectedRows = await repository.AddAsync(dto);
-            return Ok(new OperationResult(affectedRows > 0));
+            int affectedRows = await repository.AddAsync(dto.ToEntity());
+            return Ok(new RequestResult<bool>(affectedRows > 0));
         }
         /// <summary>
         /// 更新数据库连接信息
@@ -56,7 +58,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             connInfo.OrderNo = dto.OrderNo;
             connInfo.UpdateTime = DateTime.Now;
             int affectedRows = await repository.UpdateAsync(connInfo);
-            return Ok(new OperationResult(affectedRows > 0));
+            return Ok(new RequestResult<bool>(affectedRows > 0));
         }
         /// <summary>
         /// 克隆一个数据库连接字符串信息
@@ -65,8 +67,13 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// <returns></returns>
         public async Task<IActionResult> CloneConnectionStringAsync([FromBody] int id)
         {
-            var affectedRows = await repository.CloneAsync(id);
-            return Ok(new OperationResult(affectedRows > 0));
+            var connInfo = await repository.GetByIdAsync(id);
+            if (connInfo is null)
+            {
+                return Ok(new RequestResult<bool>(false) { ErrMsg = "记录不存在" });
+            }
+            var affectedRows = await repository.AddAsync(connInfo);
+            return Ok(new RequestResult<bool>(affectedRows > 0));
         }
         /// <summary>
         /// 删除数据库连接字符串信息
@@ -80,7 +87,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             {
                 affectedRows += await repository.DeleteAsync(Convert.ToInt32(id));
             }
-            return Ok(new OperationResult(affectedRows > 0));
+            return Ok(new RequestResult<bool>(affectedRows > 0));
         }
     }
 }

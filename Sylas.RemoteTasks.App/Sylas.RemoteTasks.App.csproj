@@ -9,6 +9,17 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="RegExp\**" />
+    <Compile Remove="Repositories\**" />
+    <Content Remove="RegExp\**" />
+    <Content Remove="Repositories\**" />
+    <EmbeddedResource Remove="RegExp\**" />
+    <EmbeddedResource Remove="Repositories\**" />
+    <None Remove="RegExp\**" />
+    <None Remove="Repositories\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Remove="TaskConfig.log.json" />
   </ItemGroup>
 
@@ -38,11 +49,6 @@
 
   <ItemGroup>
     <Service Include="{508349b6-6b84-4df5-91f0-309beebad82d}" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="RegExp\" />
-    <Folder Include="Repositories\" />
   </ItemGroup>
 
 </Project>

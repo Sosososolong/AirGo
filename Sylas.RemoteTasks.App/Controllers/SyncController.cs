@@ -7,20 +7,12 @@ using Sylas.RemoteTasks.Utils.Dto;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {
-    public class SyncController : CustomBaseController
+    public class SyncController(IHttpClientFactory httpClientFactory, ILogger<SyncController> logger, IConfiguration configuration, HttpRequestProcessorRepository repository) : CustomBaseController
     {
-        private readonly HttpClient _httpClient;
-        private readonly ILogger<SyncController> _logger;
-        private readonly IConfiguration _configuration;
-        private readonly HttpRequestProcessorRepository _repository;
-
-        public SyncController(IHttpClientFactory httpClientFactory, ILogger<SyncController> logger, IConfiguration configuration, HttpRequestProcessorRepository repository)
-        {
-            _httpClient = httpClientFactory.CreateClient();
-            _logger = logger;
-            _configuration = configuration;
-            _repository = repository;
-        }
+        private readonly HttpClient _httpClient = httpClientFactory.CreateClient();
+        private readonly ILogger<SyncController> _logger = logger;
+        private readonly IConfiguration _configuration = configuration;
+        private readonly HttpRequestProcessorRepository _repository = repository;
 
         public IActionResult Index([FromServices] RequestProcessorService service)
         {

@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Sylas.RemoteTasks.App.DatabaseManager;
+using Sylas.RemoteTasks.App.DatabaseManager.Models;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.RegexExp;
 using Sylas.RemoteTasks.Database.SyncBase;
@@ -11,14 +12,13 @@ using System.Text.RegularExpressions;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {
-    public partial class ProjectController(DbConnectionInfoRepository dbConnectionInfoRepository, IConfiguration configuration) : CustomBaseController
+    public partial class ProjectController(RepositoryBase<DbConnectionInfo> dbConnectionInfoRepository, IConfiguration configuration) : CustomBaseController
     {
-        private readonly DbConnectionInfoRepository _dbConnectionInfoRepository = dbConnectionInfoRepository;
         private readonly IConfiguration _configuration = configuration;
 
         public async Task<IActionResult> Index()
         {
-            var connectionInfos = (await _dbConnectionInfoRepository.GetPageAsync(new(1, 10000, new DataFilter(), [new("Name", true)]))).Data;
+            var connectionInfos = (await dbConnectionInfoRepository.GetPageAsync(new(1, 10000, new DataFilter(), [new("Name", true)]))).Data;
             List<DbConnectionDetail> connectionDetails = [];
             foreach (var connectionInfo in connectionInfos)
             {
@@ -56,7 +56,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             {
                 return Ok(new OperationResult(false, "数据库地址不能为空"));
             }
-            var connectionInfosPage = await _dbConnectionInfoRepository.GetPageAsync(new(1, 10000, new DataFilter(), [new("Name", true)]));
+            var connectionInfosPage = await dbConnectionInfoRepository.GetPageAsync(new(1, 10000, new DataFilter(), [new("Name", true)]));
             var connectionInfos = connectionInfosPage.Data;
             var regex = databaseType switch
             {

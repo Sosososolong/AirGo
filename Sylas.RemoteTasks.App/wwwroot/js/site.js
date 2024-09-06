@@ -68,7 +68,8 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableContainerS
             tableForm: {
                 formHtml: '',
                 formHtmlFieldPk: '',
-            }
+            },
+            hasCustomDataViewBuilder: dataViewBuilder && typeof (dataViewBuilder) === 'function',
         }
     }
     
@@ -84,7 +85,8 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableContainerS
     targetTable.dataFilter.keywords.fields = ths.filter(th => th.searchedByKeywords).map(th => th.name);
 
     targetTable.renderBody = async function (data) {
-        if (dataViewBuilder && typeof(dataViewBuilder) === 'function') {
+        // BOOKMARK: sitejs 3 loadData -> renderBody 渲染数据到页面
+        if (this.hasCustomDataViewBuilder) {
             let dataPannel = dataViewBuilder(data);
             dataPannel.id = this.tableId;
             const t = document.querySelector(`#${this.tableId}`);
@@ -469,7 +471,11 @@ ${formItemComponent}
             await this.createModal();
         }
 
-        var tableHtml = `<table class="table table-sm table-hover table-bordered mt-3" id="${tableId}">
+        // BOOKMARK: sitejs 1. initDataViewStructs 构建数据展示的容器结构
+        if (this.hasCustomDataViewBuilder) {
+            $(tableContainerSelector).append(`<div id="${tableId}" style="margin-top:50px;"></div>`);
+        } else {
+            var tableHtml = `<table class="table table-sm table-hover table-bordered mt-3" id="${tableId}">
         <thead>
             <tr>
             </tr>
@@ -491,21 +497,22 @@ ${formItemComponent}
         </ul>
     </nav>
     ${this.addOptions.modalHtml}`;
-        if (this.wrapper) {
-            tableHtml = $(tableContainerSelector).append(this.wrapper.replace('{{tableHtml}}', tableHtml));
-        }
+            if (this.wrapper) {
+                tableHtml = $(tableContainerSelector).append(this.wrapper.replace('{{tableHtml}}', tableHtml));
+            }
 
-        // 初始化数据表格结构
-        $(tableContainerSelector).append(tableHtml);
-        // 获取对应的modal
-        if (this.modalId) {
-            // BOOKMARK: 前端/frontend封装site.js - table对象的 bootstrap.Modal对象
-            this.modal = new bootstrap.Modal(`#${this.modalId}`);
-        }
+            // 初始化数据表格结构
+            $(tableContainerSelector).append(tableHtml);
+            // 获取对应的modal
+            if (this.modalId) {
+                // BOOKMARK: 前端/frontend封装site.js - table对象的 bootstrap.Modal对象
+                this.modal = new bootstrap.Modal(`#${this.modalId}`);
+            }
 
-        ths.forEach(th => {
-            $(`#${this.tableId} thead tr`).append(`<th>${th.title}</th>`);
-        });
+            ths.forEach(th => {
+                $(`#${this.tableId} thead tr`).append(`<th>${th.title}</th>`);
+            });
+        }
 
         // 分页导航点击事件
         $(`#page-${this.tableId}`).on('click', 'a[data-page]', function (event) {
@@ -539,7 +546,7 @@ ${formItemComponent}
 
 
 async function fetchData(url, method, pageIndex, pageSize, dataFilter, orderRules, renderElementId, finallyAction) {
-    //showSpinner();
+    //showSpinner(renderElementId);
     let overlay = null;
     if (renderElementId) {
         overlay = addOverlay(renderElementId);

@@ -10,6 +10,19 @@ namespace Sylas.RemoteTasks.App.DatabaseManager.Models.Dtos
         public string ConnectionString { get; set; } = "";
         public string Remark { get; set; } = "";
         public int OrderNo { get; set; }
+        public DbConnectionInfo ToEntity()
+        {
+            return new DbConnectionInfo
+            {
+                Name = Name,
+                Alias = Alias,
+                ConnectionString = ConnectionString,
+                Remark = Remark,
+                OrderNo = OrderNo,
+                CreateTime = DateTime.Now,
+                UpdateTime = DateTime.Now
+            };
+        }
     }
 
     public class DbConnectionInfoUpdateDto : DbConnectionInfoInDto

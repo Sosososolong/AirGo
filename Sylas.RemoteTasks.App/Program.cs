@@ -46,7 +46,6 @@ builder.Services.AddSingleton<RequestProcessorBase>();
 // 添加仓储 - 泛型仓储
 builder.Services.AddScoped(typeof(RepositoryBase<>), typeof(RepositoryBase<>));
 builder.Services.AddScoped<HttpRequestProcessorRepository>();
-builder.Services.AddScoped<DbConnectionInfoRepository>();
 
 // TODO: 动态注册所有DataHandler服务
 builder.Services.AddTransient<DataHandlerSyncDataToDb>();

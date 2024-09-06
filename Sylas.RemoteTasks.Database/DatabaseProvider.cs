@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils.Extensions;
+using Sylas.RemoteTasks.Utils;
 
 namespace Sylas.RemoteTasks.App.Database;
 
@@ -229,7 +230,7 @@ public class DatabaseProvider : IDatabaseProvider
     {
         DbCommand command = SqlClientFactory.Instance.CreateCommand();
 
-        conn.ConnectionString = ConnectionString;
+        conn.ConnectionString = SecurityHelper.AesDecrypt(ConnectionString);
         conn.Open();
 
         command.Connection = conn;

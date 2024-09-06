@@ -19,11 +19,58 @@
                 </button>
                 <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
                     <ul class="navbar-nav flex-grow-1">
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Index">Home</a>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle text-dark" role="button" data-bs-toggle="dropdown" aria-expanded="false">Home</a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" asp-area="" asp-controller="Home" asp-action="Index">Index</a></li>
+                                <li><a class="dropdown-item" asp-area="" asp-controller="Home" asp-action="Prepare">CodeGen0(项目管理 未完成)</a></li>
+                                <li><a class="dropdown-item" asp-area="" asp-controller="Home" asp-action="CodeGen">CodeGen1(简单api)</a></li>
+                                <li><a class="dropdown-item" asp-area="" asp-controller="Home" asp-action="CodeGen2">CodeGen2(通用 New)</a></li>
+                            </ul>
                         </li>
+                        
+                        <!--Study-->
                         <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
+                            <a class="nav-link text-dark" asp-area="" asp-controller="Study" asp-action="Index">Study</a>
+                        </li>
+
+                        <!--Hosts-->
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle text-dark" role="button" data-bs-toggle="dropdown" aria-expanded="false">Hosts</a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="/Hosts">Index</a></li>
+                                <li><a class="dropdown-item" href="/Hosts/AnythingInfos">Anything</a></li>
+                                <li><a class="dropdown-item" href="/Hosts/ServerAndAppStatus">Server And App Status</a></li>
+                            </ul>
+                        </li>
+                        
+                        <!--Database ConnectionStrings-->
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" asp-area="" asp-controller="Database" asp-action="Index">Database</a>
+                        </li>
+
+                        <!--OAuth Test-->
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle text-dark" role="button" data-bs-toggle="dropdown" aria-expanded="false">OAuth</a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="/OAuth">微信钉钉第三方登录</a></li>
+                                <li><a class="dropdown-item" href="/OAuth/Password">密码模式登录</a></li>
+                            </ul>
+                        </li>
+                        
+                        <!--Projects Manager-->
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" href="/Project">Projects</a>
+                        </li>
+                        
+                        <!--Snippets Manager-->
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" href="/Snippet">Snippets</a>
+                        </li>
+                        
+                        <!--Sync Manager-->
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" href="/Sync">数据同步</a>
                         </li>
                     </ul>
                 </div>

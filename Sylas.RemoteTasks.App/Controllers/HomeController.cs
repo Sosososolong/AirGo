@@ -661,7 +661,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// <returns></returns>
         public IActionResult Prepare()
         {
-            if (Request.Method != "GET" || _operationsInfo == null)
+            if (Request.Method != "GET" || string.IsNullOrWhiteSpace(_operationsInfo))
             {
                 ViewBag.Cached = "NOCACHED";
                 Init();
@@ -956,7 +956,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// <param name="connectionString">目标表所在的数据库的连接字符串</param>
         /// <param name="serviceFieldInController">控制器中负责业务的服务字段, 空表示创建新的服务类</param>
         /// <returns></returns>
-        public async Task<IActionResult> CodeGen([FromServices] DatabaseInfo database, [FromServices] RepositoryBase<Snippet> repositorySnippets, int templateId, string tableFullName, string tableComment, string connectionString, string serviceFieldInController)
+        public async Task<IActionResult> CodeGen([FromServices] DatabaseInfo database, [FromServices] RepositoryBase<Snippet> repositorySnippets, int templateId, string? tableFullName, string? tableComment, string? connectionString, string? serviceFieldInController)
         {
             #region 参数为空跳转到配置参数的页面
             if (string.IsNullOrWhiteSpace($"{tableFullName}") || string.IsNullOrWhiteSpace($"{tableComment}") || string.IsNullOrWhiteSpace($"{connectionString}"))
