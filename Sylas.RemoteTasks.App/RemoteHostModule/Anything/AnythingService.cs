@@ -2,7 +2,6 @@
 using Newtonsoft.Json;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.Database.SyncBase;
-using Sylas.RemoteTasks.Utils;
 using Sylas.RemoteTasks.Utils.CommandExecutor;
 using Sylas.RemoteTasks.Utils.Dto;
 using Sylas.RemoteTasks.Utils.Template;
@@ -25,8 +24,17 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         public async Task<PagedData<AnythingSetting>> GetAnythingSettingsAsync(DataSearch? search = null)
         {
             search ??= new();
-            var snippetPage = await repository.GetPageAsync(search);
-            return snippetPage;
+            var recordPage = await repository.GetPageAsync(search);
+            foreach (var record in recordPage.Data)
+            {
+                var properties = JsonConvert.DeserializeObject<Dictionary<string, object>>(record.Properties) ?? [];
+                properties.ResolveSelfTmplValues();
+                record.Name = TmplHelper.ResolveExpressionValue(record.Name, properties)?.ToString() ?? throw new Exception($"Name {record.Name} 解析失败");
+                record.Title = TmplHelper.ResolveExpressionValue(record.Title, properties)?.ToString() ?? throw new Exception($"Title {record.Title} 解析失败");
+                record.Commands = TmplHelper.ResolveExpressionValue(record.Commands, properties)?.ToString() ?? throw new Exception($"Commands {record.Commands} 解析失败");
+                record.Properties = JsonConvert.SerializeObject(properties);
+            }
+            return recordPage;
         }
 
         /// <summary>
@@ -143,7 +151,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         {
             #region 解析Properties
             var properties = JsonConvert.DeserializeObject<Dictionary<string, object>>(anythingSetting.Properties) ?? [];
-            properties.ResolveSelfTmplValues();
+            //properties.ResolveSelfTmplValues();
             #endregion
 
             #region 解析Executor对象和构造函数参数
@@ -194,17 +202,17 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
 
             #region 解析出AnythingInfo
             // 根据Properties解析其他模板
-            anythingSetting.Name = TmplHelper.ResolveExpressionValue(anythingSetting.Name, properties)?.ToString() ?? throw new Exception($"Name {anythingSetting.Name} 解析失败");
-            anythingSetting.Title = TmplHelper.ResolveExpressionValue(anythingSetting.Title, properties)?.ToString() ?? throw new Exception($"Title {anythingSetting.Title} 解析失败");
+            //anythingSetting.Name = TmplHelper.ResolveExpressionValue(anythingSetting.Name, properties)?.ToString() ?? throw new Exception($"Name {anythingSetting.Name} 解析失败");
+            //anythingSetting.Title = TmplHelper.ResolveExpressionValue(anythingSetting.Title, properties)?.ToString() ?? throw new Exception($"Title {anythingSetting.Title} 解析失败");
 
             // 解析CommandTxt中的模板
             var commands = JsonConvert.DeserializeObject<List<CommandInfo>>(anythingSetting.Commands) ?? [];
             foreach (var anythingCommand in commands)
             {
-                anythingCommand.CommandTxt = TmplHelper.ResolveExpressionValue(anythingCommand.CommandTxt, properties)?.ToString() ?? throw new Exception($"解析命令\"{anythingCommand.CommandTxt}\"异常");
+                //anythingCommand.CommandTxt = TmplHelper.ResolveExpressionValue(anythingCommand.CommandTxt, properties)?.ToString() ?? throw new Exception($"解析命令\"{anythingCommand.CommandTxt}\"异常");
                 if (!string.IsNullOrWhiteSpace(anythingCommand.ExecutedState))
                 {
-                    anythingCommand.ExecutedState = TmplHelper.ResolveExpressionValue(anythingCommand.ExecutedState, properties)?.ToString() ?? throw new Exception($"解析命令\"{anythingCommand.ExecutedState}\"异常");
+                    //anythingCommand.ExecutedState = TmplHelper.ResolveExpressionValue(anythingCommand.ExecutedState, properties)?.ToString() ?? throw new Exception($"解析命令\"{anythingCommand.ExecutedState}\"异常");
                     var start = DateTime.Now;
                     anythingCommand.ExecutedState = (await anythingCommandExecutor.ExecuteAsync(anythingCommand.ExecutedState)).Message;
                     Console.WriteLine($"检测命令是否可用: {(DateTime.Now - start).TotalMilliseconds}/ms");

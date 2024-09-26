@@ -1,8 +1,10 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Sylas.RemoteTasks.App.RemoteHostModule;
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
+using Sylas.RemoteTasks.App.Study;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils;
+using Sylas.RemoteTasks.Utils.Dto;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {
@@ -29,6 +31,17 @@ namespace Sylas.RemoteTasks.App.Controllers
         }
 
         /// <summary>
+        /// 命令配置的分页查询
+        /// </summary>
+        /// <returns></returns>
+        public async Task<IActionResult> AnythingSettingsAsync(DataSearch? search = null)
+        {
+            var anythingSettings = await anythingService.GetAnythingSettingsAsync(search);
+            var result = new RequestResult<PagedData<AnythingSetting>>(anythingSettings);
+            return Ok(result);
+        }
+
+        /// <summary>
         /// 显示所有命令
         /// </summary>
         /// <returns></returns>
@@ -37,6 +50,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             var anythingInfos = await anythingService.GetAllAnythingInfosAsync();
             return View(anythingInfos);
         }
+        
         /// <summary>
         /// 对指定对象anything执行指定的命令command
         /// </summary>

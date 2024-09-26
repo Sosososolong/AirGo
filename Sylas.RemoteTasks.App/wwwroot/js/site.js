@@ -260,7 +260,7 @@ ${formItemComponent}
                             ? `<textarea class="form-control form-control-sm" placeholder="${th.title}" name="${th.name}" id="${formItemId}" ondblclick="textareaDbClicked(this)"></textarea>`
                             : `<input class="form-control form-control-sm" type="text" placeholder="${th.title}" name="${th.name}" id="${formItemId}">`
                         // BOOKMARK: 前端/frontend封装site.js - 创建模态框 3.2表单项 除Id字段外的其他表单项 - 普通字段
-                        this.buildFormItemHtml(th, formItemId, formItemComponent);;
+                        this.buildFormItemHtml(th, formItemId, formItemComponent);
                     }
                 } else if (th.type.indexOf('dataSource') === 0) {
                     let dataSourceOptions = await this.resolveDataSourceField(th);
@@ -473,7 +473,7 @@ ${formItemComponent}
 
         // BOOKMARK: sitejs 1. initDataViewStructs 构建数据展示的容器结构
         if (this.hasCustomDataViewBuilder) {
-            $(tableContainerSelector).append(`<div id="${tableId}" style="margin-top:50px;"></div>`);
+            $(tableContainerSelector).append(`<div id="${tableId}" style="margin-top:50px;"></div>${this.addOptions.modalHtml}`);
         } else {
             var tableHtml = `<table class="table table-sm table-hover table-bordered mt-3" id="${tableId}">
         <thead>
@@ -497,21 +497,23 @@ ${formItemComponent}
         </ul>
     </nav>
     ${this.addOptions.modalHtml}`;
+
             if (this.wrapper) {
                 tableHtml = $(tableContainerSelector).append(this.wrapper.replace('{{tableHtml}}', tableHtml));
             }
 
             // 初始化数据表格结构
             $(tableContainerSelector).append(tableHtml);
-            // 获取对应的modal
-            if (this.modalId) {
-                // BOOKMARK: 前端/frontend封装site.js - table对象的 bootstrap.Modal对象
-                this.modal = new bootstrap.Modal(`#${this.modalId}`);
-            }
 
             ths.forEach(th => {
                 $(`#${this.tableId} thead tr`).append(`<th>${th.title}</th>`);
             });
+        }
+
+        // 获取对应的modal
+        if (this.modalId) {
+            // BOOKMARK: 前端/frontend封装site.js - table对象的 bootstrap.Modal对象
+            this.modal = new bootstrap.Modal(`#${this.modalId}`);
         }
 
         // 分页导航点击事件
@@ -525,6 +527,7 @@ ${formItemComponent}
         });
     }
 
+    // BOOKMARK: 1. 渲染数据 - 开始
     targetTable.render = async function render() {
         // 初始化表格结构
         await this.initDataViewStructs();

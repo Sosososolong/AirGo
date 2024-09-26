@@ -48,16 +48,21 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// </summary>
         /// <param name="question"></param>
         /// <returns></returns>
-        public async Task<IActionResult> UpdateQuestion([FromServices] IWebHostEnvironment env, [FromForm] Question question)
+        public async Task<IActionResult> UpdateQuestion([FromServices] IWebHostEnvironment env, [FromForm] Dictionary<string, string> question)
         {
-            Question? record = await questionRepository.GetByIdAsync(question.Id);
+            Question? record = await questionRepository.GetByIdAsync(question);
             if (record is null)
             {
                 return Ok(RequestResult<bool>.Error("记录不存在"));
             }
 
-            var imgs = await HandleUploadedFilesAsync(record.ImageUrl, question.ImageUrl, env);
-            question.ImageUrl = string.Join(';', imgs);
+            string? imgUrlKey = question.Keys.FirstOrDefault(x => x.Equals("ImageUrl", StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrWhiteSpace(imgUrlKey))
+            {
+                string imgUrl = question[imgUrlKey];
+                var imgs = await HandleUploadedFilesAsync(record.ImageUrl, imgUrl, env);
+                question[imgUrlKey] = string.Join(';', imgs);
+            }
 
             int affectedRows = await questionRepository.UpdateAsync(question);
             var result = affectedRows > 0 ? new RequestResult<bool>(true) : new RequestResult<bool>(false);
