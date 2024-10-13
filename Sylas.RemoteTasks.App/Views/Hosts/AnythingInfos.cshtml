@@ -7,7 +7,7 @@
     <div class="row">
         @foreach (var anything in Model)
         {
-            <div class="row">
+            <div class="row flex-row justify-content-around">
                 <div class="col-md-12 mb-4">
                     <div class="card">
                         @{
@@ -102,23 +102,25 @@
         // 用于添加数据搜索表单,数据列表,分页栏等数据相关元素
         const tableParentSelector = "#anythingContainer";
         const tableId = 'datatable';
+        // 自定义布局时, 也需要定义字段(生成表单用); 自定义布局时无需定义操作栏
         const ths = [
+            { name: 'properties', title: '环境变量', multiLines: true },
+            { name: 'name', title: '名称', searchedByKeywords: true },
             { name: 'title', title: '标题', searchedByKeywords: true },
-            { name: 'answer', title: '', searchedByKeywords: true },
             { name: 'executor', title: '执行者', searchedByKeywords: true },
-            { name: 'commands', title: '命令' },
+            { name: 'commands', title: '命令', multiLines: true },
             
             { name: 'createTime', title: '创建时间' },
             { name: 'updateTime', title: '更新时间' },
 
             // { name: 'typeId', title: '题目类型', type: 'dataSource|dataSourceApi=/Study/GetQuestionTypes?pageIndex=1&pageSize=1000|displayField=name' },
 
-            // 操作栏
-            {
-                name: '', title: '操作', type: 'button', tmpl: `
-                                <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="{{id}}" data-fetch-url="${apiUrl}" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
-                                <button type="button" class="btn btn-primary btn-sm d-none" data-table-id="${tableId}" data-content="&quot;{{id}}&quot;" data-execute-url="/Study/DeleteQuestion" data-method="POST" onclick="showConfirmBox('确定删除? 此操作无法撤销!', () => execute(this))">删除</button>`
-            }
+            // 操作栏 
+            // {
+            //     name: '', title: '操作', type: 'button', tmpl: `
+            //                     <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="{{id}}" data-fetch-url="${apiUrl}" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
+            //                     <button type="button" class="btn btn-primary btn-sm d-none" data-table-id="${tableId}" data-content="&quot;{{id}}&quot;" data-execute-url="/Study/DeleteQuestion" data-method="POST" onclick="showConfirmBox('确定删除? 此操作无法撤销!', () => execute(this))">删除</button>`
+            // }
         ]
         const idFieldName = "id";
 
@@ -129,12 +131,16 @@
                         <div class="row">
                 <div class="col-md-12 mb-4">
                     <div class="card">
-                        <div class="card-header" id="heading-${record.title}">
+                                <div class="card-header d-flex justify-content-between" id="heading-${record.title}">
                             <h5 class="card-title mb-0">
-                                <button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#collapse${record.title}" aria-expanded="false" aria-controls="collapse${record.title}">
+                                <button class="btn btn-link btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#collapse${record.title}" aria-expanded="false" aria-controls="collapse${record.title}">
                                     ${record.title}
                                 </button>
                             </h5>
+                            <div>
+                                <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="${record.id}" data-fetch-url="${apiUrl}" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
+                                <button type="button" class="btn btn-primary btn-sm d-none" data-table-id="${tableId}" data-content="&quot;${record.id}&quot;" data-execute-url="/Study/DeleteQuestion" data-method="POST" onclick="showConfirmBox('确定删除? 此操作无法撤销!', () => execute(this))">删除</button>
+                            </div>
                         </div>
                         <div id="collapse${record.title}" class="collapse" aria-labelledby="heading-${record.title}" data-bs-parent="#accordion">
                             <div class="card-body">
@@ -143,8 +149,6 @@
                     </div>
                 </div>
             </div>
-                        <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="${record.id}" data-fetch-url="${apiUrl}" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
-                        <button type="button" class="btn btn-primary btn-sm d-none" data-table-id="${tableId}" data-content="&quot;${record.id}&quot;" data-execute-url="/Study/DeleteQuestion" data-method="POST" onclick="showConfirmBox('确定删除? 此操作无法撤销!', () => execute(this))">删除</button>
                     </div>`);
             });
             return container;
@@ -165,11 +169,11 @@
             null,                       // 初始化数据(有的话就渲染此数据, 不会请求接口)
             onDataLoaded,               // 订阅数据渲染完成事件
             '',                         // 对数据表添加父元素, 使用{{tableHtml}}变量代表整个数据表html
-            { url: 'Study/AddQuestion', method: 'POST', updateUrl: '/Study/UpdateQuestion', updateMethod: 'POST' },   // 添加修改数据表单弹窗; url为添加数据的url(修改的url放到修改按钮上); method也是请求添加数据接口的请求方法
+            { url: 'Hosts/AddAnythingSetting', method: 'POST', updateUrl: '/Hosts/UpdateAnythingSetting', updateMethod: 'POST' },   // 添加修改数据表单弹窗; url为添加数据的url(修改的url放到修改按钮上); method也是请求添加数据接口的请求方法
             true,
             'h1',
             buildDataView,
-            [{ orderField: 'errorCount', isAsc: false }, { orderField: 'correctCount', isAsc: true }]
+            [{ orderField: 'name', isAsc: false }]
         )
 
         /**

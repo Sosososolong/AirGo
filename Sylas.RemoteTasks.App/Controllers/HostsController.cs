@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.RemoteHostModule;
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
 using Sylas.RemoteTasks.App.Study;
@@ -34,7 +35,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// 命令配置的分页查询
         /// </summary>
         /// <returns></returns>
-        public async Task<IActionResult> AnythingSettingsAsync(DataSearch? search = null)
+        public async Task<IActionResult> AnythingSettingsAsync([FromBody] DataSearch? search = null)
         {
             var anythingSettings = await anythingService.GetAnythingSettingsAsync(search);
             var result = new RequestResult<PagedData<AnythingSetting>>(anythingSettings);
@@ -87,7 +88,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// </summary>
         /// <param name="anythingSetting"></param>
         /// <returns></returns>
-        public async Task<IActionResult> UpdateAnythingSettingAsync([FromBody] AnythingSetting anythingSetting)
+        public async Task<IActionResult> UpdateAnythingSettingAsync([FromBody] Dictionary<string, string> anythingSetting)
         {
             var result = await anythingService.UpdateAnythingSettingAsync(anythingSetting);
             return Json(result);

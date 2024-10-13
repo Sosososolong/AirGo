@@ -25,15 +25,21 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         {
             search ??= new();
             var recordPage = await repository.GetPageAsync(search);
-            foreach (var record in recordPage.Data)
-            {
-                var properties = JsonConvert.DeserializeObject<Dictionary<string, object>>(record.Properties) ?? [];
-                properties.ResolveSelfTmplValues();
-                record.Name = TmplHelper.ResolveExpressionValue(record.Name, properties)?.ToString() ?? throw new Exception($"Name {record.Name} 解析失败");
-                record.Title = TmplHelper.ResolveExpressionValue(record.Title, properties)?.ToString() ?? throw new Exception($"Title {record.Title} 解析失败");
-                record.Commands = TmplHelper.ResolveExpressionValue(record.Commands, properties)?.ToString() ?? throw new Exception($"Commands {record.Commands} 解析失败");
-                record.Properties = JsonConvert.SerializeObject(properties);
-            }
+            //foreach (var record in recordPage.Data)
+            //{
+                //var properties = JsonConvert.DeserializeObject<Dictionary<string, object>>(record.Properties) ?? [];
+                //properties.ResolveSelfTmplValues();
+                //if (!properties.ContainsKey(nameof(record.Name)))
+                //{
+                //    properties[nameof(record.Name)] = record.Name;
+                //}
+                //if (!properties.ContainsKey(nameof(record.Title)))
+                //{
+                //    properties[nameof(record.Title)] = record.Title;
+                //}
+                //record.Commands = TmplHelper.ResolveExpressionValue(record.Commands, properties)?.ToString() ?? throw new Exception($"Commands {record.Commands} 解析失败");
+                //record.Properties = JsonConvert.SerializeObject(properties);
+            //}
             return recordPage;
         }
 
@@ -75,7 +81,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         /// </summary>
         /// <param name="anythingSetting"></param>
         /// <returns></returns>
-        public async Task<OperationResult> UpdateAnythingSettingAsync(AnythingSetting anythingSetting)
+        public async Task<OperationResult> UpdateAnythingSettingAsync(Dictionary<string, string> anythingSetting)
         {
             var added = await repository.UpdateAsync(anythingSetting);
             return added > 0 ? new OperationResult(true) : new OperationResult(false, "Affected rows: 0");
@@ -151,7 +157,15 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         {
             #region 解析Properties
             var properties = JsonConvert.DeserializeObject<Dictionary<string, object>>(anythingSetting.Properties) ?? [];
-            //properties.ResolveSelfTmplValues();
+            properties.ResolveSelfTmplValues();
+            if (!properties.ContainsKey(nameof(anythingSetting.Name)))
+            {
+                properties[nameof(anythingSetting.Name)] = anythingSetting.Name;
+            }
+            if (!properties.ContainsKey(nameof(anythingSetting.Title)))
+            {
+                properties[nameof(anythingSetting.Title)] = anythingSetting.Title;
+            }
             #endregion
 
             #region 解析Executor对象和构造函数参数
@@ -209,7 +223,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             var commands = JsonConvert.DeserializeObject<List<CommandInfo>>(anythingSetting.Commands) ?? [];
             foreach (var anythingCommand in commands)
             {
-                //anythingCommand.CommandTxt = TmplHelper.ResolveExpressionValue(anythingCommand.CommandTxt, properties)?.ToString() ?? throw new Exception($"解析命令\"{anythingCommand.CommandTxt}\"异常");
+                anythingCommand.CommandTxt = TmplHelper.ResolveExpressionValue(anythingCommand.CommandTxt, properties)?.ToString() ?? throw new Exception($"解析命令\"{anythingCommand.CommandTxt}\"异常");
                 if (!string.IsNullOrWhiteSpace(anythingCommand.ExecutedState))
                 {
                     //anythingCommand.ExecutedState = TmplHelper.ResolveExpressionValue(anythingCommand.ExecutedState, properties)?.ToString() ?? throw new Exception($"解析命令\"{anythingCommand.ExecutedState}\"异常");

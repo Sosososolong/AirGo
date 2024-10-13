@@ -45,7 +45,7 @@ namespace Sylas.RemoteTasks.App.DataHandlers
             }
             else
             {
-                data = new List<JToken>() { JToken.FromObject(dataSource) };
+                data = [JToken.FromObject(dataSource)];
             }
 
             // 数据库连接字符串中, sqlserver, oracle, sqite包含"Data Source=xxx"; mysql, mslocaldb包含"Server=xxx"

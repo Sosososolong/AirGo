@@ -257,7 +257,7 @@ ${formItemComponent}
                         this.buildFormItemHtml(th, formItemId, formItemComponent);
                     } else {
                         const formItemComponent = th.multiLines
-                            ? `<textarea class="form-control form-control-sm" placeholder="${th.title}" name="${th.name}" id="${formItemId}" ondblclick="textareaDbClicked(this)"></textarea>`
+                            ? `<textarea class="form-control form-control-sm" rows="5" placeholder="${th.title}" name="${th.name}" id="${formItemId}" ondblclick="textareaDbClicked(this)"></textarea>`
                             : `<input class="form-control form-control-sm" type="text" placeholder="${th.title}" name="${th.name}" id="${formItemId}">`
                         // BOOKMARK: 前端/frontend封装site.js - 创建模态框 3.2表单项 除Id字段外的其他表单项 - 普通字段
                         this.buildFormItemHtml(th, formItemId, formItemComponent);
@@ -974,21 +974,8 @@ function deleteImg(node) {
     // 删除图片元素
     node.parentNode.remove();
 }
-//function textareaDbClicked(ele) {
-//    fetch("/Home/CodeEditor")
-//        .then(response => {
-//            // 确保请求成功
-//            if (!response.ok) {
-//                throw new Error('Network response was not ok');
-//            }
-//            return response.text(); // 将响应转换为文本
-//        })
-//        .then(html => {
-//            // 将获取到的HTML内容插入到页面的指定元素中
-//            document.getElementById('container').innerHTML = html;
-//        })
-//        .catch(error => {
-//            // 处理请求过程中可能出现的错误
-//            console.error('There was a problem with the fetch operation:', error);
-//        });
-//}
+function textareaDbClicked(ele) {
+    ele.closest('.modal-dialog').classList.add('modal-fullscreen');
+    // 添加一个返回原始大小的按钮
+    ele.insertAdjacentHTML('afterend', `<button type="button" class="btn btn-primary mt-3" onclick="document.querySelector('#${ele.id}').closest('.modal-dialog').classList.remove('modal-fullscreen');this.remove()">返回</button>`);
+}

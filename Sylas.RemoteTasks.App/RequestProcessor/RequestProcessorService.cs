@@ -8,13 +8,12 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
     {
         public async Task<OperationResult> ExecuteHttpRequestProcessorsAsync(int[] ids, int stepId = 0)
         {
-            var idsString = string.Join(',', ids);
-            var httpRequestProcessors = await repository.GetPageAsync(new(1, 1000, new DataFilter() { FilterItems = [new() { CompareType = "in", FieldName = "id", Value = idsString }] }, [new("id", true)]));
+            var httpRequestProcessors = await repository.GetPageAsync(new(1, 1000, new DataFilter() { FilterItems = [new() { CompareType = "in", FieldName = "id", Value = ids }] }, [new("id", true)]));
             Dictionary<string, object>? dataContext = null;
 
             if (httpRequestProcessors.Data is null || !httpRequestProcessors.Data.Any())
             {
-                return new OperationResult(false, $"没有找到Id为{idsString}的HttpRequestProcessor");
+                return new OperationResult(false, $"没有找到Id为{string.Join(',', ids)}的HttpRequestProcessor");
             }
 
             foreach (var httpRequestProcessor in httpRequestProcessors.Data)
