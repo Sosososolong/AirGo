@@ -1,4 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 
 namespace Sylas.RemoteTasks.Utils.Extensions
@@ -24,6 +27,48 @@ namespace Sylas.RemoteTasks.Utils.Extensions
                 return true;
             }
             return false;
+        }
+
+        /// <summary>
+        /// 对象集合转换为字典集合
+        /// </summary>
+        /// <param name="objects"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        public static IEnumerable<IDictionary<string, object>> CastToDictionaries(this IEnumerable<object> objects)
+        {
+            IEnumerable<IDictionary<string, object>> batchDictionaries = [];
+
+            if (objects.Any())
+            {
+                var first = objects.First();
+                if (first is DataRow firstRow)
+                {
+                    var columns = firstRow.Table.Columns;
+                    batchDictionaries = objects.Cast<DataRow>().Select(record =>
+                    {
+                        Dictionary<string, object> recordDictionary = [];
+                        foreach (DataColumn column in columns)
+                        {
+                            recordDictionary[column.ColumnName] = record[column];
+                        }
+                        return recordDictionary;
+                    });
+                }
+                else if (first is Dictionary<string, object>)
+                {
+                    batchDictionaries = objects.Cast<Dictionary<string, object>>();
+                }
+                else if (first is IDictionary<string, object>)
+                {
+                    batchDictionaries = objects.Cast<IDictionary<string, object>>();
+                }
+                else
+                {
+                    batchDictionaries = JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(JsonConvert.SerializeObject(objects)) ?? throw new Exception("对象集合转换为字典结合失败");
+                }
+            }
+            return batchDictionaries;
         }
     }
 }

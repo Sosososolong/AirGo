@@ -14,6 +14,7 @@ using Oracle.ManagedDataAccess.Client;
 using Org.BouncyCastle.Crypto;
 using Sylas.RemoteTasks.App.RegexExp;
 using Sylas.RemoteTasks.Utils;
+using Sylas.RemoteTasks.Utils.Extensions;
 using System;
 using System.Collections;
 using System.Collections.Concurrent;
@@ -701,7 +702,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             {
                 ChangeDatabase(conn, db);
             }
-            await SyncDatabaseAsync(conn, table, sourceRecords, ignoreFields, sourceIdField, targetIdField, _logger);
+            await SyncDatabaseAsync(conn, table, sourceRecords, ignoreFields, sourceIdField, _logger);
         }
 
         /// <summary>
@@ -725,7 +726,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 conn.ChangeDatabase(db);
             }
 
-            await SyncDatabaseAsync(conn, table, sourceRecords, ignoreFields, sourceIdField, targetIdField, logger);
+            await SyncDatabaseAsync(conn, table, sourceRecords, ignoreFields, sourceIdField, logger);
         }
         /// <summary>
         /// 把数据同步到指定数据表
@@ -735,25 +736,22 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="sourceRecords"></param>
         /// <param name="ignoreFields"></param>
         /// <param name="sourceIdField"></param>
-        /// <param name="targetIdField"></param>
         /// <param name="logger"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static async Task SyncDatabaseAsync(IDbConnection conn, string table, IEnumerable<JToken> sourceRecords, string[] ignoreFields, string sourceIdField = "", string targetIdField = "", ILogger? logger = null)
+        public static async Task SyncDatabaseAsync(IDbConnection conn, string table, IEnumerable<JToken> sourceRecords, string[] ignoreFields, string sourceIdField = "", ILogger? logger = null)
         {
             var varFlag = GetDbParameterFlag(conn.ConnectionString);
             // 先获取数据
-            var dbRecords = await conn.QueryAsync($"select * from {conn.Database}.{table}") ?? throw new Exception($"获取{table}数据失败");
+            var dbRecords = (await conn.QueryAsync($"select * from {conn.Database}.{table}") ?? throw new Exception($"获取{table}数据失败"))
+                .Select(row => (IDictionary<string, object>)row);
 
-            var compareResult = await CompareRecordsAsync(sourceRecords, dbRecords, ignoreFields, sourceIdField, targetIdField);
+            var compareResult = await CompareRecordsAsync(sourceRecords, dbRecords, ignoreFields, sourceIdField);
             // 然后删除已存在并且发生了变化的数据
-            await DeleteExistRecordsAsync(conn, compareResult, table, varFlag, targetIdField, logger);
+            await DeleteExistRecordsAsync(conn, compareResult, table, varFlag, sourceIdField, logger);
 
             var inserts = compareResult.ExistInSourceOnly;
-            if (compareResult.Changed.Any())
-            {
-                compareResult.Changed.ForEach(x => inserts.Add(x.SourceRecord));
-            }
+            inserts.AddRange(compareResult.Intersection);
 
             await InsertDataAsync(inserts, table, conn);
         }
@@ -765,7 +763,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="table"></param>
         /// <param name="conn"></param>
         /// <returns></returns>
-        public static async Task InsertDataAsync(JArray inserts, string table, IDbConnection conn)
+        public static async Task InsertDataAsync(IEnumerable<IDictionary<string, object>> inserts, string table, IDbConnection conn)
         {
             // TODO: 尝试将GetInsertSqlInfosAsync的分批批量插入语句逻辑移植到GetTableSqlsInfoAsync, 然后这里替换为GetTableSqlsInfoAsync, 好处是表不存在可以创建表
             var insertSqlInfos = await GetInsertSqlInfosAsync(inserts, table, conn);
@@ -839,10 +837,69 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             }
             #endregion
         }
+        /// <summary>
+        /// 获取主键
+        /// </summary>
+        /// <param name="dataKeys"></param>
+        /// <param name="sourceIdField"></param>
+        /// <returns></returns>
+        static List<string> GetPrimaryKeys(ICollection<string> dataKeys, string sourceIdField)
+        {
+            return GetPrimaryKeys(dataKeys.ToList(), sourceIdField);
+        }
+        /// <summary>
+        /// 获取主键
+        /// </summary>
+        /// <param name="dataKeys"></param>
+        /// <param name="sourceIdField"></param>
+        /// <returns></returns>
+        static List<string> GetPrimaryKeys(List<string> dataKeys, string sourceIdField)
+        {
+            List<string> sourcePrimaryKeys = [];
+            sourcePrimaryKeys = CheckRecordIdFields(sourceIdField ?? string.Empty, dataKeys);
+            return sourcePrimaryKeys;
+
+            #region 本地方法, 校验参数提供的数据Id字段, 支持组合Id, 不存在的去掉; 如果提供的字段都不存在则校验有可能存在的主键字段如: id,guid, 存在则添加.
+            List<string> CheckRecordIdFields(string idFieldName, List<string>? allFields)
+            {
+                if (allFields is null || !allFields.Any())
+                {
+                    return [.. idFieldName.Split(',', StringSplitOptions.RemoveEmptyEntries)];
+                }
+
+                List<string> idFields = [];
+                var idFieldArr = idFieldName.Split(',');
+                // 校验参数提供的Id字段是否存在
+                foreach (var idField in idFieldArr)
+                {
+                    if (allFields.Any(x => x == idField.ToLower()))
+                    {
+                        idFields.Add(idField);
+                    }
+                }
+                if (!idFields.Any())
+                {
+                    if (allFields.Any(x => x == "id"))
+                    {
+                        idFields.Add("id");
+                    }
+                    else if (allFields.Any(x => x == "guid"))
+                    {
+                        idFields.Add("guid");
+                    }
+                    else
+                    {
+                        idFields.Add(allFields.First());
+                    }
+                }
+                return idFields;
+            }
+            #endregion
+        }
 
         static async Task DeleteExistRecordsAsync(IDbConnection conn, DataComparedResult compareResult, string targetTable, string varFlag, string targetIdField, ILogger? logger = null)
         {
-            if (!compareResult.Changed.Any())
+            if (!compareResult.Intersection.Any())
             {
                 return;
             }
@@ -850,49 +907,40 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             StringBuilder deleteSqlsBuilder = new();
             var index = 0;
             Dictionary<string, dynamic> parameters = [];
-            foreach (var item in compareResult.Changed)
+            foreach (var item in compareResult.Intersection)
             {
-                var itemProps = item.TargetRecord.Properties();
+                var itemProps = item.Keys.ToList();
 
                 if (targetIdField.Contains(','))
                 {
-                    var targetPrimaryKeys = GetPrimaryKeys(compareResult.Changed.FirstOrDefault()?.TargetRecord, targetIdField);
+                    // 当前数据的主键字段集合
+                    var primaryKeys = GetPrimaryKeys(itemProps, targetIdField);
                     StringBuilder conditionsBuilder = new();
-                    for (int i = 0; i < targetPrimaryKeys.Count; i++)
+                    for (int i = 0; i < primaryKeys.Count; i++)
                     {
-                        var targetPrimaryKey = targetPrimaryKeys[i];
-                        var targetIdVal = itemProps.FirstOrDefault(x => string.Equals(x.Name, targetPrimaryKey, StringComparison.OrdinalIgnoreCase))?.Value;
-                        if (targetIdVal is null)
-                        {
-                            var firstProp = itemProps.First();
-                            targetIdField = firstProp.Name;
-                            targetIdVal = firstProp.Value;
-                        }
+                        var primaryKey = primaryKeys[i];
+                        var targetIdVal = item[primaryKey] ?? throw new Exception($"主键字段{primaryKey}值为空");
 
-                        conditionsBuilder.Append($" and {targetPrimaryKey}={varFlag}id{i}{index}");
-                        parameters.Add($"id{i}{index}", targetIdVal.ToObject<dynamic>());
+                        conditionsBuilder.Append($" and {primaryKey}={varFlag}id{i}{index}");
+                        parameters.Add($"id{i}{index}", targetIdVal);
                     }
                     deleteSqlsBuilder.Append($"delete from {targetTable} where 1=1 {conditionsBuilder};{Environment.NewLine}");
                 }
                 else
                 {
-                    targetIdField = string.IsNullOrEmpty(targetIdField) ? itemProps.First().Name : targetIdField;
-                    var targetIdVal = itemProps.FirstOrDefault(x => string.Equals(x.Name, targetIdField, StringComparison.OrdinalIgnoreCase))?.Value;
-                    if (targetIdVal is null)
-                    {
-                        var firstProp = itemProps.First();
-                        targetIdField = firstProp.Name;
-                        targetIdVal = firstProp.Value;
-                    }
+                    targetIdField = string.IsNullOrEmpty(targetIdField) ? itemProps.First() : targetIdField;
+                    // 当前数据的主键字段
+                    var primaryKey = itemProps.FirstOrDefault(x => x.Equals(targetIdField, StringComparison.OrdinalIgnoreCase)) ?? throw new Exception($"无效的主键字段{targetIdField}");
+                    var targetIdVal = item[primaryKey] ?? throw new Exception($"主键字段{primaryKey}值为空");
 
                     deleteSqlsBuilder.Append($"{varFlag}id{index},");
-                    parameters.Add($"id{index}", targetIdVal.ToObject<dynamic>());
+                    parameters.Add($"id{index}", targetIdVal);
                 }
 
 
                 index++;
 
-                if (index > 0 && index % 100 == 0 || index >= compareResult.Changed.Count)
+                if (index > 0 && index % 100 == 0 || index >= compareResult.Intersection.Count)
                 {
                     if (deleteSqlsBuilder.Length > 0)
                     {
@@ -960,7 +1008,16 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <returns></returns>
         public static async Task<List<SqlInfo>> GetInsertSqlInfosAsync(object data, string table, IDbConnection conn)
         {
-            var inserts = data is JArray jarray ? jarray : JArray.FromObject(data);
+            IEnumerable<IDictionary<string, object>> inserts;
+            if (data is IEnumerable<object> dataList)
+            {
+                inserts = dataList.CastToDictionaries();
+            }
+            else
+            {
+                inserts = [ JObject.FromObject(data).ToObject<Dictionary<string, object>>() ?? throw new Exception("数据转字典失败") ];
+            }
+
             var dbType = GetDbType(conn.ConnectionString);
             var tableCols = await GetTableColumnsInfoAsync(conn, table);
             var varFlag = GetDbParameterFlag(dbType);
@@ -972,20 +1029,16 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             {
                 return insertSqls;
             }
-            if (firstRecord is not JObject firstRecordJObj)
-            {
-                return insertSqls;
-            }
 
             // 1. 获取字段部分
-            var insertFieldsStatement = GetFieldsStatement(firstRecordJObj, dbType);
+            var insertFieldsStatement = GetFieldsStatement(firstRecord, dbType);
 
             var insertValuesStatementBuilder = new StringBuilder();
             int recordIndex = 0;
             
             var parameters = new Dictionary<string, object?>();
             string? batchInsertSql;
-            foreach (JObject insert in inserts.Cast<JObject>())
+            foreach (Dictionary<string, object> insert in inserts)
             {
                 #region 2. 为每条数据生成Values部分(@v1,@v2,...),\n
                 insertValuesStatementBuilder.Append("(");
@@ -1270,7 +1323,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                             ValideParameter(key);
                             if (compareType == "in")
                             {
-                                IEnumerable<object> valList = val is IEnumerable vals ? vals.Cast<object>() : val.ToString().Split(',');
+                                IEnumerable<object> valList = val is not string && val is IEnumerable vals ? vals.Cast<object>() : val.ToString().Split(',');
 
                                 queryCondition += $" and {key} in(";
                                 int valListIndex = 0;
@@ -1398,9 +1451,13 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// <param name="obj"></param>
         /// <param name="dbType"></param>
         /// <returns></returns>
-        public static string GetFieldsStatement(JObject obj, DatabaseType dbType)
+        public static string GetFieldsStatement(object obj, DatabaseType dbType)
         {
-            var insertFields = obj.Properties().Where(x => x.Name != "NO").Select(x => x.Name);
+            if (obj is not Dictionary<string, object> dic)
+            {
+                dic = JObject.FromObject(obj).ToObject<Dictionary<string, object>>() ?? throw new Exception("数据转字典失败");
+            }
+            var insertFields = dic.Where(x => x.Key != "NO").Select(x => x.Key);
             insertFields = GetTableStatements(insertFields, dbType);
             return string.Join(',', insertFields);
         }
@@ -1447,24 +1504,24 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// <summary>
         /// 获取字段值
         /// </summary>
-        /// <param name="p"></param>
+        /// <param name="pv"></param>
         /// <param name="col"></param>
         /// <returns></returns>
-        public static dynamic? GetColumnValue(JProperty p, ColumnInfo? col)
+        public static dynamic? GetColumnValue(object pv, ColumnInfo? col)
         {
             dynamic? pVal = null;
             // 实际是字节数组这里获得的是字节数组转换为base64字符串的结果
-            if (p.Value.Type == JTokenType.String && col is not null && !string.IsNullOrWhiteSpace(col.ColumnType) && col.ColumnType.Contains("blob", StringComparison.OrdinalIgnoreCase))
+            if (pv is JToken pvJToken && pvJToken.Type == JTokenType.String && col is not null && !string.IsNullOrWhiteSpace(col.ColumnType) && col.ColumnType.Contains("blob", StringComparison.OrdinalIgnoreCase))
             {
-                byte[] bytes = new byte[p.Value.ToString().Length];
-                if (Convert.TryFromBase64String(p.Value.ToString(), bytes, out int bytesWritten))
+                byte[] bytes = new byte[pvJToken.ToString().Length];
+                if (Convert.TryFromBase64String(pvJToken.ToString(), bytes, out _))
                 {
                     pVal = bytes;
                 }
             }
-            if (p.Value.Type == JTokenType.String && col is not null && !string.IsNullOrWhiteSpace(col.ColumnType) && col.ColumnType.Contains("time", StringComparison.OrdinalIgnoreCase))
+            else if (pv is JToken pvJToken2 && pvJToken2.Type == JTokenType.String && col is not null && !string.IsNullOrWhiteSpace(col.ColumnType) && col.ColumnType.Contains("time", StringComparison.OrdinalIgnoreCase))
             {
-                if (DateTime.TryParse(p.Value.ToString(), out DateTime timeValue))
+                if (DateTime.TryParse(pvJToken2.ToString(), out DateTime timeValue))
                 {
                     pVal = timeValue;
                 }
@@ -1475,7 +1532,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             }
 
             // BOOKMARK: ※※※※ 转为dynamic就不需要转换为具体的类型了 ※※※※
-            pVal ??= p.Value.ToObject<dynamic>();
+            pVal ??= JObject.FromObject(pv).ToObject<dynamic>();
 
             return pVal;
         }
@@ -1761,6 +1818,19 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                     parameters.Add(parameterName, GetColumnValue(columnValue, columnType));
                 }
             }
+            else if (record is Dictionary<string, object> recordDictionary)
+            {
+                foreach (var k in recordDictionary.Keys)
+                {
+                    if (k == "NO")
+                    {
+                        continue;
+                    }
+                    var paramName = $"{k}{random}";
+                    valueBuilder.Append($"{dbVarFlag}{paramName},");
+                    parameters.Add(paramName, recordDictionary[k]);
+                }
+            }
             else
             {
                 IEnumerable<JProperty> properties = record is JObject recordJObj ? recordJObj.Properties() : JObject.FromObject(record).Properties() ?? throw new Exception($"record不是DataRow或者记录对应的对象类型");
@@ -1773,7 +1843,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                     var paramName = $"{p.Name}{random}";
                     valueBuilder.Append($"{dbVarFlag}{paramName},");
 
-                    var col = colInfos.FirstOrDefault(x => string.Equals(x.ColumnCode, p.Name, StringComparison.OrdinalIgnoreCase));
+                    var col = colInfos.FirstOrDefault(x => x.ColumnCode.Equals(p.Name, StringComparison.OrdinalIgnoreCase));
                     dynamic? pVal = GetColumnValue(p, col);
                     parameters.Add(paramName, pVal);
                 }
@@ -2062,7 +2132,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             var sourceRecordsDynamic = await conn.QueryAsync($"select * from {table}");
             var sourceRecords = sourceRecordsDynamic.Select(x => JObject.FromObject(x) ?? throw new Exception("数据库数据异常, 数据转换失败")).ToList();
             var targetRecords = FileHelper.GetRecords(targetJsonInfo.FilePath, targetJsonInfo.DataFields);
-            return await CompareRecordsAsync(sourceRecords, targetRecords, [], sourceIdentityField, targetIdentityField);
+            return await CompareRecordsAsync(sourceRecords, targetRecords, [], sourceIdentityField);
         }
 
         /// <summary>
@@ -2072,80 +2142,30 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// <param name="targetRecordsData">要对比的目标数据表中查询出的数据</param>
         /// <param name="ignoreFields"></param>
         /// <param name="sourceIdField">源数据中的标识字段</param>
-        /// <param name="targetIdField">目标数据中的标识字段</param>
         /// <returns></returns>
-        public static async Task<DataComparedResult> CompareRecordsAsync(IEnumerable<object> sourceRecordsData, IEnumerable<object> targetRecordsData, string[] ignoreFields, string sourceIdField, string targetIdField)
+        public static async Task<DataComparedResult> CompareRecordsAsync(IEnumerable<object> sourceRecordsData, IEnumerable<object> targetRecordsData, string[] ignoreFields, string sourceIdField)
         {
             #region 先将集合转换为JArray类型; 处理DataRow对象
-            List<JObject> sourceArray = [];
-            List<JObject> targetArray = [];
-            if (sourceRecordsData is not null && sourceRecordsData.Any())
-            {
-                var first = sourceRecordsData.First();
-                // BOOKMARK: DataRow是一个非常复杂的对象; 如果DataRow集合直接转换为JArray(DataRow直接转换为JObject)会非常耗时非常占用内存(几十个字段的数据几万条占用几十G内存); 提取数据转为字典几万数据只要几秒便可完成
-                if (first is DataRow firstRow)
-                {
-                    var columns = firstRow.Table.Columns;
-                    foreach (DataRow record in sourceRecordsData.Cast<DataRow>())
-                    {
-                        Dictionary<string, object> recordDictionary = [];
-                        foreach (DataColumn column in columns)
-                        {
-                            recordDictionary[column.ColumnName] = record[column];
-                        }
-                        sourceArray.Add(JObject.FromObject(recordDictionary));
-                    }
-                }
-                else
-                {
-                    sourceArray = sourceRecordsData.Select(JObject.FromObject).ToList();
-                }
-            }
-            if (targetRecordsData is not null && targetRecordsData.Any())
-            {
-                var firstTarget = targetRecordsData.First();
-                // BOOKMARK: DataRow是一个非常复杂的对象; 如果DataRow集合直接转换为JArray(DataRow直接转换为JObject)会非常耗时非常占用内存(几十个字段的数据几万条占用几十G内存); 提取数据转为字典几万数据只要几秒便可完成
-                if (firstTarget is DataRow firstTargetRow)
-                {
-                    var columns = firstTargetRow.Table.Columns;
-                    foreach (DataRow record in targetRecordsData.Cast<DataRow>())
-                    {
-                        Dictionary<string, object> recordDictionary = [];
-                        foreach (DataColumn column in columns)
-                        {
-                            recordDictionary[column.ColumnName] = record[column];
-                        }
-                        targetArray.Add(JObject.FromObject(recordDictionary));
-                    }
-                }
-                else
-                {
-                    targetArray = targetRecordsData.Select(JObject.FromObject).ToList();
-                }
-            }
+            IEnumerable<IDictionary<string, object>> sourceArray = sourceRecordsData.CastToDictionaries();
+            IEnumerable<IDictionary<string, object>> targetArray = targetRecordsData.CastToDictionaries();
 
-            if (sourceArray.Count == 0 && targetArray.Count == 0)
+            if (sourceArray.Count() == 0 && targetArray.Count() == 0)
             {
                 return new DataComparedResult();
             }
 
-            if (sourceArray.Count == 0 && targetArray.Count != 0)
+            if (sourceArray.Count() == 0 && targetArray.Count() != 0)
             {
-                return new DataComparedResult { ExistInTargetOnly = JArray.FromObject(targetArray) };
+                return new DataComparedResult { ExistInTargetOnly = [..targetArray] };
             }
 
-            if (sourceArray.Count != 0 && targetArray.Count == 0)
+            if (sourceArray.Count() != 0 && targetArray.Count() == 0)
             {
-                return new DataComparedResult { ExistInSourceOnly = JArray.FromObject(sourceArray) };
+                return new DataComparedResult { ExistInSourceOnly = sourceArray.ToList() };
             }
             #endregion
 
             #region 参数校验
-            if (sourceIdField.Count(x => x == ',') != targetIdField.Count(x => x == ','))
-            {
-                throw new Exception($"提供Source的主键字段{sourceIdField}与Target的主键字段{targetIdField}无法一一对应");
-            }
-
             if (sourceArray is null)
             {
                 throw new Exception("对比数据源数据集为空");
@@ -2157,8 +2177,8 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             #endregion
 
             #region 获取主键字段
-            var sourcePrimaryKeys = GetPrimaryKeys(sourceArray.FirstOrDefault(), sourceIdField);
-            var targetPrimaryKeys = GetPrimaryKeys(targetArray.FirstOrDefault(), targetIdField);
+            var sourcePrimaryKeys = GetPrimaryKeys(sourceArray.FirstOrDefault().Keys, sourceIdField);
+            var targetPrimaryKeys = GetPrimaryKeys(targetArray.FirstOrDefault().Keys, sourceIdField);
             if (sourcePrimaryKeys.Count == 0 || targetPrimaryKeys.Count == 0)
             {
                 throw new Exception("主键字段不能为空");
@@ -2167,19 +2187,19 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             {
                 throw new Exception($"解析后的主键字段无法一一对应");
             }
+            bool equalsLogic(IDictionary<string, object> x, IDictionary<string, object> y)
+            {
+                return DictionaryComparer.EqualsByPrimaryKeys(x, y, sourcePrimaryKeys);
+            }
+            int hashCodeGetter(IDictionary<string, object> target)
+            {
+                return DictionaryComparer.GetHashCodeByPrimaryKeys(target, sourcePrimaryKeys);
+            }
             #endregion
 
             #region 定义线程安全的数据容器和其他变量
-            // 假设Target中都是全新数据
-            var existInSourceOnly = new List<JObject>();
-            existInSourceOnly.AddRange(sourceArray);
-
-            // 遍历Target, Source中没有找到的项目
-            ConcurrentBag<JObject> existInTarget = [];
-            // Source找到了 - 数据变化了
-            ConcurrentBag<ChangedRecord> changed = [];
-            // Source找到了 - 数据变化了
-            ConcurrentBag<ChangedRecord> notChanged = [];
+            // Source和Target的交集
+            ConcurrentBag<IDictionary<string, object>> intersectInSourceAndTarget = [];
             #endregion
 
             #region 调用CPU密集型任务帮助类进行多线程分批对比数据
@@ -2188,110 +2208,34 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
 
             #region 构建数据对比结果并返回
 
-            // 对比结果
+            // target中独有的(existInTarget) = target所有 - 交集
+            var existInSourceOnly = sourceArray.Except(intersectInSourceAndTarget, new DictionaryComparer(equalsLogic, hashCodeGetter)).ToList();
+            // source中独有的(existInSource) = source所有 - 交集
+            var existInTargetOnly = targetArray.Except(intersectInSourceAndTarget, new DictionaryComparer(equalsLogic, hashCodeGetter)).ToList();
             DataComparedResult compareResult = new()
             {
-                ExistInTargetOnly = JArray.FromObject(existInTarget),
-                Changed = [.. changed],
-                NotChanged = [.. notChanged]
+                Intersection = [.. intersectInSourceAndTarget],
+                ExistInSourceOnly = existInSourceOnly,
+                ExistInTargetOnly = existInTargetOnly,
             };
-
-            // 计算对比结果中的ExistInSourceOnly: Source中出去变化的和没变化的(Souce中找到的)即Source中独有的数据
-            compareResult.Changed.ForEach(x => existInSourceOnly.Remove(x.SourceRecord));
-            compareResult.NotChanged.ForEach(x => existInSourceOnly.Remove(x.SourceRecord));
-            if (existInSourceOnly.Count != 0)
-            {
-                existInSourceOnly.ForEach(compareResult.ExistInSourceOnly.Add);
-            }
 
             // 返回
             return compareResult;
             #endregion
 
             #region 本地方法, 数据对比逻辑
-            void CompareBatchData(IEnumerable<object> batchData)
+            void CompareBatchData(IEnumerable<IDictionary<string, object>> batchData)
             {
                 var start = DateTime.Now;
-                foreach (var targetBatchItem in batchData.Cast<JObject>())
-                {
-                    JObject? existedSourceRecord = null;
-                    Dictionary<string, string> targetIdValues = [];
-                    // target 主键值; 支持多个
-                    foreach (var targetPk in targetPrimaryKeys)
-                    {
-                        targetIdValues.Add(targetPk, targetBatchItem.Properties().FirstOrDefault(x => string.Equals(targetPk, x.Name, StringComparison.OrdinalIgnoreCase))?.Value?.ToString() ?? throw new Exception($"查找ID失败"));
-                    }
 
-                    #region 数据源中查找对应的数据
-                    foreach (var sourceRecord in sourceArray)
-                    {
-                        // 获取所有主键字段的值
-                        Dictionary<string, string> sourceIdValues = [];
-                        foreach (var sourcePrimaryKey in sourcePrimaryKeys)
-                        {
-                            var sourcePkValue = sourceRecord.Properties().FirstOrDefault(x => string.Equals(sourcePrimaryKey, x.Name, StringComparison.OrdinalIgnoreCase))?.Value?.ToString() ?? throw new Exception($"查找ID失败");
-                            sourceIdValues.Add(sourcePrimaryKey, sourcePkValue);
-                        }
-
-                        // 比较是否所有主键字段值都相同
-                        bool allPksHasSameValue = true;
-                        foreach (var sourceIdValue in sourceIdValues)
-                        {
-                            if ($"{sourceIdValue.Value}" != $"{targetIdValues[sourceIdValue.Key]}")
-                            {
-                                allPksHasSameValue = false;
-                                break;
-                            }
-                        }
-
-                        // 都相同表示同一条数据, Source中找到数据, 查找数据结束
-                        if (allPksHasSameValue)
-                        {
-                            existedSourceRecord = sourceRecord;
-                            break;
-                        }
-                    }
-                    #endregion
-
-                    // 数据源中没有当前数据
-                    if (existedSourceRecord is null)
-                    {
-                        existInTarget.Add(targetBatchItem);
-                    }
-                    else
-                    {
-                        var existedSourceProps = existedSourceRecord.Properties();
-                        var existedTargetProps = targetBatchItem.Properties();
-
-                        #region 比较每个字段的值, 判断同一条数据是否发生了变化
-                        bool hasChanged = false;
-                        foreach (var sourceProp in existedSourceProps)
-                        {
-                            // 忽略字段不比较
-                            if (ignoreFields.Any() && ignoreFields.Any(x => string.Equals(x, sourceProp.Name, StringComparison.OrdinalIgnoreCase)))
-                            {
-                                continue;
-                            }
-                            var targetProp = existedTargetProps.FirstOrDefault(p => string.Equals(p.Name, sourceProp.Name, StringComparison.OrdinalIgnoreCase));
-                            if (targetProp is not null)
-                            {
-                                if (sourceProp.Value.StringValueNotEquals(targetProp.Value)) // 当前字段(key)的值不相同(至少有一个不为null且不为空字符串 并且两个字段值不相等)
-                                {
-                                    changed.Add(new ChangedRecord { SourceRecord = existedSourceRecord, TargetRecord = targetBatchItem });
-                                    hasChanged = true;
-                                    break;
-                                }
-                            }
-                        }
-                        if (!hasChanged)
-                        {
-                            notChanged.Add(new ChangedRecord { SourceRecord = existedSourceRecord, TargetRecord = targetBatchItem });
-                        }
-                        #endregion
-                    }
-                }
+                // 交集 - Linq比较数据效率比普通手动遍历比较高很多
+                var intersect = sourceArray.Intersect(batchData, new DictionaryComparer(equalsLogic, hashCodeGetter)).ToList();
+                intersect.ForEach(intersectInSourceAndTarget.Add);
                 var end = DateTime.Now;
-                LoggerHelper.LogInformation($"数据对比: 已经处理了{batchData.Count()}; 耗时: {(end - start).TotalSeconds}/s{Environment.NewLine}");
+
+                var totalSeconds = (end - start).TotalSeconds;
+                LoggerHelper.LogInformation($"数据对比: 已经处理了{batchData.Count()}; 耗时: {DateTimeHelper.FormatSeconds(totalSeconds)}{Environment.NewLine}");
+                return;
             }
             #endregion
         }
@@ -2318,19 +2262,15 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             /// <summary>
             /// 仅存在于Source中
             /// </summary>
-            public JArray ExistInSourceOnly { get; set; } = [];
+            public List<IDictionary<string, object>> ExistInSourceOnly { get; set; } = [];
             /// <summary>
             /// 仅存在于Target中
             /// </summary>
-            public JArray ExistInTargetOnly { get; set; } = [];
+            public List<IDictionary<string, object>> ExistInTargetOnly { get; set; } = [];
             /// <summary>
             /// Source和Target中存在, 改变了的数据
             /// </summary>
-            public List<ChangedRecord> Changed { get; set; } = [];
-            /// <summary>
-            /// Source和Target中存在, 没有发生改变的数据
-            /// </summary>
-            public List<ChangedRecord> NotChanged { get; set; } = [];
+            public List<IDictionary<string, object>> Intersection { get; set; } = [];
         }
         /// <summary>
         /// 改变了的数据
@@ -2340,11 +2280,11 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             /// <summary>
             /// Source中的值
             /// </summary>
-            public JObject SourceRecord { get; set; } = [];
+            public Dictionary<string, object> SourceRecord { get; set; } = [];
             /// <summary>
             /// Target中的值
             /// </summary>
-            public JObject TargetRecord { get; set; } = [];
+            public Dictionary<string, object> TargetRecord { get; set; } = [];
         }
         /// <summary>
         /// 获取数据表的字段信息

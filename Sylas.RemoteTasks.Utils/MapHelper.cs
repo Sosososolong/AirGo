@@ -197,7 +197,7 @@ namespace Sylas.RemoteTasks.Utils
             var entity = Expression.Parameter(entityType, "sp");
             var result = Expression.Variable(type, "result");
             var init = Expression.Assign(result, Expression.New(type));
-            var addMethod = type.GetMethod("Add", new Type[] { typeof(string), typeof(object), typeof(DbType?), typeof(ParameterDirection?), typeof(int?) }) ?? throw new Exception($"{type.Name}没有找到Add方法");
+            var addMethod = type.GetMethod("Add", [typeof(string), typeof(object), typeof(DbType?), typeof(ParameterDirection?), typeof(int?)]) ?? throw new Exception($"{type.Name}没有找到Add方法");
             List<Expression> expressions = [init];
             foreach (var fieldName in parameterFields)
             {
@@ -215,9 +215,22 @@ namespace Sylas.RemoteTasks.Utils
 
             expressions.Add(returnExpression);
             expressions.Add(returnLableTarget);
-            var block = Expression.Block(new[] { result }, expressions);
+            var block = Expression.Block([result], expressions);
             var lambda = Expression.Lambda<Func<T, DynamicParameters>>(block, entity).Compile();
             return lambda;
+        }
+        /// <summary>
+        /// 创建将字符串转换为指定类型的lambda表达式
+        /// </summary>
+        /// <param name="type">目标类型</param>
+        /// <returns>转换函数</returns>
+        public static Func<string, object> CreateStringConverter(Type type)
+        {
+            // Func<string, object> result = input => Convert.ChangeType(input, type)
+            var param = Expression.Parameter(typeof(string), "input");
+            var body = Expression.Convert(Expression.Call(typeof(Convert), "ChangeType", null, param, Expression.Constant(type)), typeof(object));
+            var lambda = Expression.Lambda<Func<string, object>>(body, param);
+            return lambda.Compile();
         }
     }
 }

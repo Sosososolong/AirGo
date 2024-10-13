@@ -2,6 +2,7 @@
 using Sylas.RemoteTasks.Database.Attributes;
 using Sylas.RemoteTasks.Utils;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 
@@ -22,9 +23,17 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// </summary>
         public readonly static string _insertSql;
         /// <summary>
+        /// 所有可能更新的字段
+        /// </summary>
+        public readonly static string[] _allFields;
+        /// <summary>
         /// Update数据的SQL语句, 参数化形式
         /// </summary>
         public readonly static string _updateSql;
+        /// <summary>
+        /// 数据表的更新时间字段, 一般是UpdateTime
+        /// </summary>
+        public readonly static string _updateTimeField;
         /// <summary>
         /// Insert语句参数的获取函数
         /// </summary>
@@ -33,6 +42,10 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// Update语句参数的获取函数
         /// </summary>
         public readonly static Func<T, DynamicParameters> _getUpdateSqlParameters;
+        /// <summary>
+        /// 非字符串属性和转换器(将给定字符串转换为属性的类型, 如属性Id类型为int, 转换器将给定的"1"转换为1)
+        /// </summary>
+        public readonly static Dictionary<string, Func<string, object>> _propertyConverterMappers;
         static DbTableInfo()
         {
             #region 反射获取实体类的基本信息
@@ -44,6 +57,21 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             var properties = entityType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
             // entityType.GetCustomAttribute 自定义特性获取主键信息或者其他信息
             var allPropertyNames = properties.Select(x => x.Name).ToList();
+            _allFields = [.. allPropertyNames];
+
+            _updateTimeField = allPropertyNames.FirstOrDefault(x => x.Equals("UpdateTime", StringComparison.OrdinalIgnoreCase)) ?? string.Empty;
+
+            // 缓存不是字符串类型的属性信息和将字符串转换为属性类型的lambda表达式对象缓存到字典中(前端传递过来要进行类型转换)
+            _propertyConverterMappers = [];
+            foreach (var p in properties)
+            {
+                if (p.PropertyType.Name == typeof(string).Name)
+                {
+                    continue;
+                }
+                var converter = ExpressionBuilder.CreateStringConverter(p.PropertyType);
+                _propertyConverterMappers.Add(p.Name, converter);
+            }
             #endregion
 
             #region 获取insert语句和update语句

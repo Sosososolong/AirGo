@@ -15,6 +15,10 @@ namespace Sylas.RemoteTasks.Utils
         /// <returns></returns>
         public static string FormatSeconds(decimal seconds, int decimals)
         {
+            if (seconds < 1)
+            {
+                return seconds.ToString();
+            }
             var minutesVal = 0;
             var hoursVal = 0;
             var daysVal = 0;
