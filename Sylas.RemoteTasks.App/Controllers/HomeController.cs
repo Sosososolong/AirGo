@@ -959,7 +959,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         public async Task<IActionResult> CodeGen([FromServices] DatabaseInfo database, [FromServices] RepositoryBase<Snippet> repositorySnippets, int templateId, string? tableFullName, string? tableComment, string? connectionString, string? serviceFieldInController)
         {
             #region 参数为空跳转到配置参数的页面
-            if (string.IsNullOrWhiteSpace($"{tableFullName}") || string.IsNullOrWhiteSpace($"{tableComment}") || string.IsNullOrWhiteSpace($"{connectionString}"))
+            if (string.IsNullOrWhiteSpace(tableFullName) || string.IsNullOrWhiteSpace($"{tableFullName}") || string.IsNullOrWhiteSpace($"{tableComment}") || string.IsNullOrWhiteSpace($"{connectionString}"))
             {
                 var templates = await repositorySnippets.GetPageAsync(new(1, 100, new DataFilter { FilterItems = [new FilterItem(nameof(Snippet.TypeId), "=", 2)] }));
                 return View(templates.Data);

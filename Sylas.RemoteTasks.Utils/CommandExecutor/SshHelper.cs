@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Sylas.RemoteTasks.Utils.CommandExecutor
@@ -23,23 +24,46 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         private int Port { get; } = 0;
         private string UserName { get; set; }
         private readonly IPrivateKeySource[] _privateKeyFiles;
+        static SemaphoreSlim _semaphoneSlimLock = new(1, 1);
         /// <summary>
         /// 从池中获取一个SSH连接
         /// </summary>
         /// <returns></returns>
         /// <exception cref="InvalidOperationException"></exception>
         /// <exception cref="Exception"></exception>
-        private SshClient GetConnection()
+        private async Task<SshClient> GetConnectionAsync()
         {
             if (!_sshConnectionPool.TryTake(out SshClient? connection))
             {
-                lock (_syncLock)
+                //lock (_syncLock)
+                //{
+                //    if (_currentConnections < _maxConnections)
+                //    {
+                //        Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 创建了SshClient");
+                //        connection = new SshClient(Host, Port, UserName, _privateKeyFiles);
+                //        await connection.ConnectAsync();
+                //        // 创建时不需要添加到池中, 用完返回进池就可以了
+                //        //_sshConnectionPool.Add(connection);
+                //        _currentConnections++;
+                //    }
+                //    else
+                //    {
+                //        throw new InvalidOperationException("Reached maximum number of connections.");
+                //    }
+                //}
+
+                await _semaphoneSlimLock.WaitAsync();
+                // finally保证异常时也会-1
+                try
                 {
                     if (_currentConnections < _maxConnections)
                     {
                         Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 创建了SshClient");
                         connection = new SshClient(Host, Port, UserName, _privateKeyFiles);
-                        connection.Connect();
+                        
+                        CancellationTokenSource cts = new();
+                        await connection.ConnectAsync(cts.Token);
+                        
                         // 创建时不需要添加到池中, 用完返回进池就可以了
                         //_sshConnectionPool.Add(connection);
                         _currentConnections++;
@@ -48,6 +72,13 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                     {
                         throw new InvalidOperationException("Reached maximum number of connections.");
                     }
+                }
+                catch (Exception)
+                {
+                }
+                finally
+                {
+                    _semaphoneSlimLock.Release();
                 }
             }
 
@@ -205,7 +236,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                 {
                     throw new Exception("上传文件格式错误: " + command);
                 }
-                await Task.Run(() => Upload(local, remote, includes, excludes));
+                await UploadAsync(local, remote, includes, excludes);
                 return null;
             }
             else if (action.ToLower() == "download")
@@ -214,18 +245,18 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                 {
                     throw new Exception("上传文件格式错误: " + command);
                 }
-                await Task.Run(() => Download(local, remote, includes, excludes));
+                await DownloadAsync(local, remote, includes, excludes);
                 return null;
             }
             else
             {
-                var conn = GetConnection();
+                var conn = await GetConnectionAsync();
                 var sshCommand = conn.RunCommand(command);
                 ReturnConnection(conn);
                 return sshCommand;
             }
         }
-        private void Upload(string local, string remotePath, string[]? includes, string[]? excludes)
+        private async Task UploadAsync(string local, string remotePath, string[]? includes, string[]? excludes)
         {
             var conn = GetSftpConnection();
 
@@ -248,7 +279,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                     local = local.EndsWith('/') ? local : $"{local}/";
                     remote = remote.EndsWith('/') ? remote : $"{remote}/";
 
-                    EnsureDirectoryExist(remote, conn);
+                    await EnsureDirectoryExistAsync(remote, conn);
                     localFiles = FileHelper.FindFilesRecursive(local, f => includes == null || !includes.Any() || includes.Any(part => Path.GetFileName(f).Contains(part)) && (excludes == null || excludes.All(part => f.IndexOf(part) == -1)), null, null);
                     foreach (var localFile in localFiles)
                     {
@@ -262,7 +293,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                             Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 上传文件, 获取服务器文件的目录失败[{targetFilePath}]");
                             continue;
                         }
-                        EnsureDirectoryExist(targetDirectory, conn);
+                        await EnsureDirectoryExistAsync(targetDirectory, conn);
 
                         try
                         {
@@ -292,7 +323,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                     }
                     else
                     {
-                        var ssh = GetConnection();
+                        var ssh = await GetConnectionAsync();
                         ssh.RunCommand($"mkdir -p {remote}");
                         ReturnConnection(ssh);
                         remote = Path.Combine(remote, localFileName).Replace('\\', '/');
@@ -311,7 +342,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
             ReturnConnection(conn);
         }
 
-        private void Download(string local, string remote, string[]? includes, string[]? excludes)
+        private async Task DownloadAsync(string local, string remote, string[]? includes, string[]? excludes)
         {
             var conn = GetSftpConnection();
             if (!conn.Exists(remote))
@@ -331,7 +362,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                 remote = remote.EndsWith('/') ? remote : $"{remote}/";
 
                 // 获取远程目录下所有文件
-                var remoteFiles = GetRemoteFiles(remote, includes, excludes);
+                var remoteFiles = await GetRemoteFiles(remote, includes, excludes);
 
                 // 一个文件一个文件地下载
                 foreach (var remoteFile in remoteFiles)
@@ -373,7 +404,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
             }
             ReturnConnection(conn);
         }
-        private void EnsureDirectoryExist(string remoteDirectory, SftpClient? conn)
+        private async Task EnsureDirectoryExistAsync(string remoteDirectory, SftpClient? conn)
         {
             bool localConn = false;
             if (conn is null)
@@ -383,7 +414,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
             }
             if (!conn.Exists(remoteDirectory))
             {
-                var ssh = GetConnection();
+                var ssh = await GetConnectionAsync();
                 ssh.RunCommand($"mkdir -p {remoteDirectory}");
                 ReturnConnection(ssh);
             }
@@ -399,7 +430,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         /// <param name="includes"></param>
         /// <param name="excludes"></param>
         /// <returns></returns>
-        public string[] GetRemoteFiles(string remotePath, string[]? includes, string[]? excludes)
+        public async Task<string[]> GetRemoteFiles(string remotePath, string[]? includes, string[]? excludes)
         {
             #region 生成正则
             string includePattern = string.Empty;
@@ -430,7 +461,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
             }
             #endregion
 
-            var ssh = GetConnection();
+            var ssh = await GetConnectionAsync();
             var filesResult = ssh.RunCommand($"find {remotePath} -type f {includePattern} {excludePattern} -maxdepth 4 | head -n 100000").Result.Split('\n', StringSplitOptions.RemoveEmptyEntries);
             ReturnConnection(ssh);
             return filesResult;
@@ -441,11 +472,6 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         /// <param name="command"></param>
         public async Task<CommandResult> ExecuteAsync(string command)
         {
-            //var conn = GetConnection();
-            //var cmd = conn.CreateCommand(command);
-            //_ = cmd.Execute();
-            //await Task.Run(() => cmd.Execute());
-
             var cmd = await RunCommandAsync(command);
             var output = cmd?.Result ?? "";
             var error = cmd?.Error ?? "";
@@ -458,14 +484,14 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         }
 
         /// <summary>
-        /// 使用SSH连接主机处理文件, 服务器上没有该文件则上传; 如果文件上传了, 说明不是容器环境那么也需要将处理后的文件下载下来
+        /// 使用SSH连接主机处理文件, 服务器上没有该文件则上传; 如果文件上传了, 那么也需要将处理后的文件下载下来
         /// </summary>
         /// <param name="localPathSourceFile">文件在form环境中的路径, 如: C:/temp/temp.doc</param>
         /// <param name="remotePathSourceFile">文件上传到服务器上的路径, 如: /home/administrator/web/attachments/Convert/temp.doc</param>
         /// <param name="localPathResultFile">处理后的文件在form环境中的路径, 如: C:/temp/temp.pdf</param>
         /// <param name="remotePathResultFile">处理后的文件在服务器上的路径, 如: /home/administrator/web/attachments/Convert/temp.pdf</param>
         /// <param name="command">处理文件的命令</param>
-        public Tuple<bool, string> HandleFile(string localPathSourceFile, string remotePathSourceFile, string localPathResultFile, string remotePathResultFile, string command)
+        public async Task<Tuple<bool, string>> HandleFile(string localPathSourceFile, string remotePathSourceFile, string localPathResultFile, string remotePathResultFile, string command)
         {
             remotePathSourceFile = remotePathSourceFile.Replace("\\", "/");
 
@@ -475,16 +501,15 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
 
             // 如果是容器环境, 远程主机是宿主机, 文件可能已经已经挂载到宿主机, 不需要上传
             var sftp = GetSftpConnection();
-            var client = GetConnection();
+            var client = await GetConnectionAsync();
             var fileRemoteExist = sftp.Exists(remotePathSourceFile);
 
             bool fileUploaded = false;
             if (!fileRemoteExist)
             {
-                var remoteDir = Path.GetDirectoryName(remotePathSourceFile)?.Replace('\\', '/');
+                var remoteDir = Path.GetDirectoryName(remotePathSourceFile)?.Replace('\\', '/') ?? throw new Exception($"获取目录名称失败: {remotePathSourceFile}");
                 if (!sftp.Exists(remoteDir))
                 {
-
                     client.RunCommand($"mkdir -p {remoteDir}");
                 }
                 // 上传文件
@@ -494,7 +519,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                 fileUploaded = true;
             }
             var cmd = client.CreateCommand(command);
-            _ = cmd.Execute();
+            await cmd.ExecuteAsync();
             var output = cmd.Result;
             var error = cmd.Error;
 
