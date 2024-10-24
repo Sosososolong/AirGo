@@ -81,8 +81,8 @@ namespace Sylas.RemoteTasks.Database
 
             var insertValueStatement = GetInsertSqlValueStatement(varFlag, dbRecords?.FirstOrDefault());
             var updateValueStatement = GetUpdateSqlValueStatement(varFlag, dbRecords?.FirstOrDefault());
-            List<string> insertingSqls = new();
-            List<string> updatingSqls = new();
+            List<string> insertingSqls = [];
+            List<string> updatingSqls = [];
 
             foreach (var insert in inserts)
             {

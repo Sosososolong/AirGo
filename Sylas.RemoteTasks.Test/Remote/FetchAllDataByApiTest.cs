@@ -55,7 +55,7 @@ namespace Sylas.RemoteTasks.Test.Remote
             Assert.NotNull(targetDbConnectionString);
             Assert.True(configData is not null);
             var conn = DatabaseInfo.GetDbConnection(targetDbConnectionString);
-            await DatabaseHelper.SyncDataAsync(conn, "devdatamodel", config.Data?.ToList() ?? [], [], []);
+            await DatabaseHelper.SyncDataAsync(conn, "devdatamodel", configData?.ToList() ?? [], [], []);
         }
 
         /// <summary>

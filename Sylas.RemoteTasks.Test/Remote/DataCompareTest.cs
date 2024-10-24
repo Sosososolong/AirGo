@@ -20,10 +20,10 @@ namespace Sylas.RemoteTasks.Test.Remote
         {
             #region 准备测试数据
             var prepareStart = DateTime.Now;
-            List<dynamic> source = new();
-            List<dynamic> target = new();
-            dynamic sourceFirst = null;
-            dynamic sourceLast = null;
+            List<dynamic> source = [];
+            List<dynamic> target = [];
+            dynamic? sourceFirst = null;
+            dynamic? sourceLast = null;
             int sourceCount = 50000;
             int targetCount = 1000;
             for (int i = 0; i < sourceCount; i++)
@@ -179,10 +179,12 @@ namespace Sylas.RemoteTasks.Test.Remote
             #endregion
 
             var before = DateTime.Now;
-            var result = await DatabaseInfo.CompareRecordsAsync(source, target, Array.Empty<string>(), "Id");
+            var result = await DatabaseInfo.CompareRecordsAsync(source, target, [], "Id");
             var end = DateTime.Now;
-            _outputHelper.WriteLine("对比数据完毕" + (end - before).TotalSeconds.ToString() + "/s"); // 20s
-            _outputHelper.WriteLine($"ExistInSourceOnly:{result.ExistInSourceOnly.Count}; ExistInTargetOnly:{result.ExistInTargetOnly.Count}; Changed:{result.Changed.Count}"); // SouceOnly:50000 TargetOnly:1000 Changed:0
+            // 老版本使用NewtonSoft的IEnumerable<JObject>: 20s
+            // 新版本使用IEnumerable<IDictionary<string, obejct>>: 2s, 内存占用减少近一半
+            _outputHelper.WriteLine("对比数据完毕" + (end - before).TotalSeconds.ToString() + "/s");
+            _outputHelper.WriteLine($"ExistInSourceOnly:{result.ExistInSourceOnly.Count}; ExistInTargetOnly:{result.ExistInTargetOnly.Count}; Changed:{result.Intersection.Count}"); // SouceOnly:50000 TargetOnly:1000 Changed:0
         }
     }
 }

@@ -69,7 +69,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                 var bodyParams = JsonConvert.DeserializeObject<JToken>(resolvedBodyJson.ToString() ?? "");
                 _requestConfig.BodyDictionary = bodyParams;
             }
-            return new List<RequestConfig>() { CloneRequestConfig() };
+            return [CloneRequestConfig()];
         }
 
         /// <summary>
@@ -246,17 +246,15 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
             {
                 throw;
             }
-            // TODO: 去掉RequerstConfig的Data属性
-            _requestConfig.Data = null;
 
-            logger?.LogDebug($"{nameof(RequestAndBuildDataContextAsync)}, 请求结束, 获取data: {data.Count()}, 构建数据上下文");
+            logger?.LogDebug("{method}, 请求结束, 获取data: {count}, 构建数据上下文", nameof(RequestAndBuildDataContextAsync), data.Count());
 
             var buildDetail = DataContext.BuildDataContextBySource(data, dataContextTmpls, logger);
             return buildDetail;
         }
         async Task ExecuteDataHandlersAsync(IEnumerable<HttpRequestProcessorStepDataHandler> dataHandlers)
         {
-            dataHandlers = dataHandlers.OrderBy(x => x.OrderNo).ToList();
+            dataHandlers = [.. dataHandlers.OrderBy(x => x.OrderNo)];
             foreach (var dataHandler in dataHandlers)
             {
 

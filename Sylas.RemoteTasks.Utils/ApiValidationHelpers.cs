@@ -40,11 +40,7 @@ namespace Sylas.RemoteTasks.Utils
             List<StringBuilder> clientValidationLogs = [];
 
             var json = await File.ReadAllTextAsync(parametersFile);
-            var allInstanceParameters = JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(json);
-            if (allInstanceParameters is null)
-            {
-                throw new Exception($"文件{parametersFile}中的参数不正确");
-            }
+            var allInstanceParameters = JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(json) ?? throw new Exception($"文件{parametersFile}中的参数不正确");
 
             // D:\\.NET\\sylas\\routine\\txt\\validatioinrange0-9920230206145503.log
             var rangeInfo = $"range{firstIndex}-{firstIndex + count - 1}";

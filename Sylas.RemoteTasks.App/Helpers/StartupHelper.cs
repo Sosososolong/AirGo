@@ -114,12 +114,18 @@ namespace Sylas.RemoteTasks.App.Helpers
             string clientId = configuration["IdentityServerConfiguration:ClientId"] ?? throw new Exception("client id不能为空");
             string clientSecret = configuration["IdentityServerConfiguration:ClientSecret"] ?? throw new Exception("client secret不能为空");
             string oidcResponseType = configuration["IdentityServerConfiguration:OidcResponseType"] ?? throw new Exception("oidc response type不能为空");
+            string apiName = configuration["IdentityServerConfiguration:ApiName"] ?? throw new Exception("api name不能为空");
+            string apiSecret = configuration["IdentityServerConfiguration:ApiSecret"] ?? throw new Exception("api secret不能为空");
             bool requireHttpsMetadata = configuration.GetValue<bool>("IdentityServerConfiguration:RequireHttpsMetadata");
             List<string> scopes = [];
             configuration.GetSection("IdentityServerConfiguration:Scopes").Bind(scopes);
 
             JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
 
+            // 1.添加cookie身份认证方案;
+            // 2.AddOpenIdConnect: oidc远程认证方案(基于cookie的对接IdentityServer4认证中心进行登录);
+            // 3.AddIdentityServerAuthentication: IdentityServer4认证中心的API认证方案(Bearer token身份认证)
+            // 4.控制器中使用[Authorize(AuthenticationSchemes = "Bearer,Cookies")]特性进行授权验证, 优先使用Bearer token进行验证, 如果没有Bearer token则使用Cookies进行验证
             services.AddAuthentication(options =>
             {
                 //默认验证方案
@@ -180,6 +186,15 @@ namespace Sylas.RemoteTasks.App.Helpers
                     OnUserInformationReceived = n => OnUserInformationReceived(n)
                 };
                 options.CallbackPath = "/signin-oidc";
+            })
+            .AddIdentityServerAuthentication(options =>
+            {
+                options.Authority = identityServerBaseUrl;
+                // 即api resource (获取token时参数scope关联的api resource)
+                options.ApiName = apiName;
+                // 即api resource secret
+                options.ApiSecret = apiSecret;
+                options.RequireHttpsMetadata = requireHttpsMetadata;
             });
         }
         private static Task OnRedirectToIdentityProvider(RedirectContext redirectContext)

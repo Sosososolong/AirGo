@@ -1,22 +1,23 @@
 ﻿using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Newtonsoft.Json;
+using Sylas.RemoteTasks.Utils.Template;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Net.Http;
 using System.Text;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Text.Json;
 
 namespace Sylas.RemoteTasks.Utils
 {
     /// <summary>
-    /// 处理远程(HTTP)请求
+    /// 网络请求工具类
     /// </summary>
-    public static class RemoteHelpers
+    public static class RemoteHelpers2
     {
         private static string GetQueryString(IDictionary<string, object> queryDictionary)
         {
@@ -28,10 +29,10 @@ namespace Sylas.RemoteTasks.Utils
             var queryString = queryStringBuilder.ToString().TrimEnd('&');
             return queryString;
         }
-        private static string GetQueryString(JObject queryObj)
+        private static string GetQueryString(JsonElement queryObj)
         {
             var queryStringBuilder = new StringBuilder();
-            foreach (var queryProp in queryObj.Properties())
+            foreach (var queryProp in queryObj.EnumerateObject())
             {
                 queryStringBuilder.Append($"{queryProp.Name}={queryProp.Value}&");
             }
@@ -43,7 +44,7 @@ namespace Sylas.RemoteTasks.Utils
         /// </summary>
         /// <param name="requestConfig"></param>
         /// <returns></returns>
-        public static async Task<IEnumerable<JToken>?> FetchAllDataFromApiAsync(RequestConfig requestConfig)
+        public static async IAsyncEnumerable<IEnumerable<JsonElement>?> FetchAllDataFromApiAsync(RequestConfig requestConfig)
         {
             // 备份原始配置对象, 用于递归发送新的请求时用 ...
             var originRequestConfig = MapHelper<RequestConfig, RequestConfig>.Map(requestConfig);
@@ -55,38 +56,31 @@ namespace Sylas.RemoteTasks.Utils
                     nameof(requestConfig.Token),
                     nameof(requestConfig.QueryDictionary),
                     nameof(requestConfig.BodyDictionary),
-                    nameof(requestConfig.BodyDictionary2),
                     nameof(requestConfig.ReturnPrimaryRequest),
                     nameof(requestConfig.UpdateBodyParentIdRegex),
                     nameof(requestConfig.UpdateBodyParentIdValue)
                 ]);
 
-            var data = await fetchDatasRecursivelyAsync(requestConfig);
-            return data;
+            await foreach (var item in fetchDatasRecursivelyAsync(requestConfig))
+            {
+                yield return item;
+            }
 
-            async Task<IEnumerable<JToken>> fetchDatasRecursivelyAsync(RequestConfig config)
+            async IAsyncEnumerable<IEnumerable<JsonElement>> fetchDatasRecursivelyAsync(RequestConfig config)
             {
                 if (string.IsNullOrWhiteSpace(config.ResponseOkField) || string.IsNullOrWhiteSpace(config.ResponseDataField))
                 {
                     throw new Exception($"ResponseOkField或者ResponseDataField为空");
                 }
-                bool responseOkPredicate(JObject response) => response[config.ResponseOkField]?.ToString() == config.ResponseOkValue;
+                bool responseOkPredicate(JsonElement response) => string.IsNullOrWhiteSpace(config.ResponseOkField) || response.GetPropertyIgnoreCase(config.ResponseOkField).ToString() == config.ResponseOkValue;
                 var responseDataFieldArr = config.ResponseDataField.Split(':');
-                JToken? getDataFunc(JObject response)
+                JsonElement? getDataFunc(JsonElement response)
                 {
-                    JToken? result = response;
-                    foreach (var field in responseDataFieldArr)
-                    {
-                        if (result is not null && !string.IsNullOrWhiteSpace(field))
-                        {
-                            result = result[field];
-                        }
-                    }
-                    return result ?? new JArray();
+                    return response.GetPropertyIgnoreCase(config.ResponseDataField);
                 }
 
                 using var httpClient = new HttpClient();
-                var records = await FetchAllDataFromApiAsync(config.Url, config.FailMsg,
+                await foreach(var records in FetchAllDataFromApiAsync(config.Url, config.FailMsg,
                                                                        config.QueryDictionary, config.PageIndexField, config.PageIndexParamInQuery, config.BodyDictionary,
                                                                        responseOkPredicate,
                                                                        getDataFunc,
@@ -96,8 +90,10 @@ namespace Sylas.RemoteTasks.Utils
                                                                        requestMethod: config.RequestMethod,
                                                                        updateBodyParentIdRegex: config.UpdateBodyParentIdRegex,
                                                                        updateBodyParentIdValue: config.UpdateBodyParentIdValue,
-                                                                       authorizationHeaderToken: config.Token);
-                return records;
+                                                                       authorizationHeaderToken: config.Token))
+                {
+                    yield return records;
+                }
             }
         }
 
@@ -124,16 +120,15 @@ namespace Sylas.RemoteTasks.Utils
         /// <param name="logger"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static async Task<List<JToken>> FetchAllDataFromApiAsync(
+        public static async IAsyncEnumerable<IEnumerable<JsonElement>> FetchAllDataFromApiAsync(
                 string apiUrl,
                 string errPrefix,
-                IDictionary<string, object>?
-                queryDictionary,
+                IDictionary<string, object>? queryDictionary,
                 string pageIndexParamName,
                 bool pageIndexParamInQuery,
-                JToken? bodyDictionary,
-                Func<JObject, bool> responseOkPredicate,
-                Func<JObject, JToken?> getDataFunc,
+                object? bodyDictionary,
+                Func<JsonElement, bool> responseOkPredicate,
+                Func<JsonElement, JsonElement?> getDataFunc,
                 HttpClient httpClient,
                 string idFieldName,
                 string parentIdParamName,
@@ -163,15 +158,14 @@ namespace Sylas.RemoteTasks.Utils
             var queryString = (queryDictionary is null || !queryDictionary.Any()) ? string.Empty : GetQueryString(queryDictionary);
             #region 生成POST请求时body中的参数
             string bodyContent = "";
-            bodyDictionary ??= new JObject();
 
             // 如果请求方式是FormData/application/x-www-form-urlencoded, 那么body中的参数就跟QueryString一样: name=zhangsan&age=24, 
             // 如果请求方式是application/json, 那么body中的参数就是一个json字符串: { "name": "zhangsan", "age": 24 }, 
-            if (bodyDictionary.Any())
+            if (bodyDictionary is not null)
             {
                 if (mediaType == MediaType.FormuUrlEncoded)
                 {
-                    if (bodyDictionary is JObject bodyObj)
+                    if (bodyDictionary is JsonElement bodyObj)
                     {
                         bodyContent = GetQueryString(bodyObj);
                     }
@@ -182,38 +176,68 @@ namespace Sylas.RemoteTasks.Utils
                 }
                 else
                 {
-                    bodyContent = JsonConvert.SerializeObject(bodyDictionary);
+                    if (bodyDictionary is JObject)
+                    {
+                        bodyContent = bodyDictionary.ToString();
+                    }
+                    else if (bodyDictionary is JsonElement)
+                    {
+                        bodyContent = bodyDictionary.ToString();
+                    }
+                    else
+                    {
+                        bodyContent = JsonConvert.SerializeObject(bodyDictionary);
+                    }
                 }
             }
             #endregion
 
 
             var allDatas = new List<JToken>();
-            // BOOKMARK: 子节点递归获取所有数据
-            await FetchAllApiDataRecursivelyAsync();
-            return allDatas;
-
-            // **2. 子节点递归**
-            async Task FetchAllApiDataRecursivelyAsync()
+            await foreach(var item in StartFetchAllDataFromApiAsync())
             {
-                // BOOKMARK: 分页递归获取所有数据
-                var records = await ApiChildrenDataAsync();
-                if (records.Any())
+                yield return item;
+            }
+
+            // C -> yield return -> ... -> pageindex++ -> C
+
+            // B1                                              B1-> foreach records; pid=record.pid(2) -> ...
+            // C1(page 1, pid 1) -> yield return records -> ...             
+
+            //                                                    B1-> foreach records; pid=record.pid(3) -> ...
+            // -> C2(page 1, pid 2) -> yield reutrn records -> ...
+
+            //                                                     B1-> foreach records; pid=record.pid(4) -> ...
+            // --> C3(page 1, pid 3) -> yield return records -> ...
+
+            //                                                     B1-> foreach空集合 -> C4 END
+            // --> C4(page 1, pid 4) -> empty -> yield break -> ...
+
+            // --> C3(page2, pid 3) -> yield return records -> ...
+
+            // 1 开始: 使用分页条件和ParentId条件请求数据
+            async IAsyncEnumerable<IEnumerable<JsonElement>> StartFetchAllDataFromApiAsync()
+            {
+                // BOOKMARK: FetchAllDataFromApiAsync - 1. 请求分页数据(递归)
+                await foreach (var records in FetchAllPagedDataFromApiAsync())
                 {
-                    allDatas.AddRange(records);
-                }
-                if (string.IsNullOrWhiteSpace(parentIdParamName))
-                {
-                    return;
-                }
-                foreach (var record in records)
-                {
-                    if (record is JObject recordObj)
+                    if (records.Any())
                     {
-                        var id = recordObj.Properties().FirstOrDefault(x => string.Equals(x.Name, idFieldName, StringComparison.OrdinalIgnoreCase)) ?? throw new Exception($"不存在主键{idFieldName}");
-                        // TODO: 根据parentIdParamName判断父级数据 更改为 关联数据会更为通用; "处理关联数据"部分的逻辑和参数名也需要替换
-                        if (!string.IsNullOrWhiteSpace(parentIdParamName))
+                        yield return records;
+                    }
+                    //if (string.IsNullOrWhiteSpace(parentIdParamName))
+                    //{
+                    //    yield break;
+                    //}
+
+                    // BOOKMARK: FetchAllDataFromApiAsync - 2 请求子节点数据(递归)
+                    if (!string.IsNullOrWhiteSpace(parentIdParamName))
+                    {
+                        foreach (var record in records)
                         {
+                            var id = record.GetPropertyIgnoreCase(idFieldName);
+                            // TODO: 根据parentIdParamName判断父级数据 更改为 关联数据会更为通用; "处理关联数据"部分的逻辑和参数名也需要替换
+                            #region 更新parentId参数值, 继续处理当前pageIndex所有的子数据
                             if (parentIdParamInQuery)
                             {
                                 if (string.IsNullOrWhiteSpace(queryString))
@@ -240,30 +264,31 @@ namespace Sylas.RemoteTasks.Utils
                                     // TODO: 处理关联数据
                                     if (string.IsNullOrWhiteSpace(updateBodyParentIdRegex))
                                     {
-                                        bodyContent = bodyContent.TrimEnd('}') + $@",""{parentIdParamName}"":""{id.Value}""}}";
+                                        bodyContent = bodyContent.TrimEnd('}') + $@",""{parentIdParamName}"":""{id}""}}";
                                     }
                                     else
                                     {
                                         bodyContent = string.IsNullOrWhiteSpace(updateBodyParentIdValue)
-                                            ? Regex.Replace(bodyContent, updateBodyParentIdRegex, m => id.Value.ToString())
-                                            : Regex.Replace(bodyContent, updateBodyParentIdRegex, m => updateBodyParentIdValue.Replace("$parentId", id.Value.ToString(), StringComparison.OrdinalIgnoreCase));
+                                            ? Regex.Replace(bodyContent, updateBodyParentIdRegex, m => id.ToString())
+                                            : Regex.Replace(bodyContent, updateBodyParentIdRegex, m => updateBodyParentIdValue.Replace("$parentId", id.ToString(), StringComparison.OrdinalIgnoreCase));
                                     }
                                 }
                             }
-                            await FetchAllApiDataRecursivelyAsync();
+                            await foreach (var item in StartFetchAllDataFromApiAsync())
+                            {
+                                yield return item;
+                            }
+                            #endregion
                         }
                     }
                 }
-                //return records;
             }
 
-            // **1. 分页递归(根据父级Id获取所有子节点,可能有多页数据)**
-            async Task<List<JToken>> ApiChildrenDataAsync()
+            async IAsyncEnumerable<IEnumerable<JsonElement>> FetchAllPagedDataFromApiAsync()
             {
-                List<JToken> allApiDatas = [];
                 var pageIndex = 1;
 
-                #region 请求方式和参数
+                #region 2. 更新pageIndex参数值, 准备好发送HTTP请求
                 Func<Task<string>> queryAsync;
                 if (string.Equals(requestMethod, "post", StringComparison.OrdinalIgnoreCase))
                 {
@@ -312,43 +337,136 @@ namespace Sylas.RemoteTasks.Utils
                 }
                 #endregion
 
-                await GetApiDataRecursivelyAsync();
-                return allApiDatas;
-
-                async Task GetApiDataRecursivelyAsync()
+                // xx
+                // BOOKMARK: FetchAllDataFromApiAsync - 递归 99 (分页)获取所有数据 - 调用
+                await foreach (var item in GetApiDataRecursivelyAsync())
+                {
+                    yield return item;
+                }
+                //xx
+                async IAsyncEnumerable<IEnumerable<JsonElement>> GetApiDataRecursivelyAsync()
                 {
                     // 开始发送请求
                     var responseContent = await queryAsync();
 
-                    var responseObj = JsonConvert.DeserializeObject<JObject>(responseContent) ?? throw new Exception($"返回数据不是一个对象: {responseContent}");
-                    // 检查并获取响应数据
-                    var data = GetData(responseObj, errPrefix, responseOkPredicate, getDataFunc);
+                    JsonDocument doc = JsonDocument.Parse(responseContent);
+                    var root = doc.RootElement;
 
-                    if (data is JObject dataObj && dataObj is not null)
+                    // 检查并获取响应数据
+                    var data = GetData(root, errPrefix, responseOkPredicate, getDataFunc);
+
+                    if (data.ValueKind == JsonValueKind.Null)
                     {
-                        allApiDatas.Add(dataObj);
-                    }
-                    else if (data.Any())
-                    {
-                        allApiDatas.AddRange(data);
+                        LoggerHelper.LogCritical($"API接口返回数据为空, 停止查询");
+                        yield break;
                     }
                     // 没有数据或者不分页时停止
-                    if (!data.Any() || string.IsNullOrWhiteSpace(pageIndexParamName))
+                    else if ((data.ValueKind == JsonValueKind.Array && !data.EnumerateArray().Any()))
                     {
-                        return;
+                        LoggerHelper.LogCritical($"API接口返回数据为空, 停止查询");
+                        yield break;
                     }
-
-                    if (!string.IsNullOrWhiteSpace(pageIndexParamName))
+                    else if (string.IsNullOrWhiteSpace(pageIndexParamName))
                     {
+                        LoggerHelper.LogCritical($"API接口无需分页, 返回数据并停止查询");
+                        yield return data.GetElements();
+                        yield break;
+                    }
+                    else if (data.ValueKind == JsonValueKind.Object)
+                    {
+                        LoggerHelper.LogCritical($"API接口返回单个数据对象并非数据集合, 返回数据并停止查询");
+                        IEnumerable<JsonElement> result = [data];
+                        var arr = data.EnumerateArray();
+                        yield return data.GetElements();
+                        yield break;
+                    }
+                    else
+                    {
+                        LoggerHelper.LogInformation($"API接口成功获取第{pageIndex}页数据");
+                        yield return data.GetElements();
+
                         pageIndex++;
-                        await GetApiDataRecursivelyAsync();
+                        LoggerHelper.LogInformation($"递归获取下一页({pageIndex})数据");
+                        await foreach (var item in GetApiDataRecursivelyAsync())
+                        {
+                            yield return item;
+                        }
                     }
                 }
             }
         }
-        private static JToken GetData(JObject responseObj, string errPrefix, Func<JObject, bool> requestOkPredicate, Func<JObject, JToken?> getDataFunc)
+        /// <summary>
+        /// 消除JsonElement的ValueKind为对象数组和单个对象的数据差异, 统一返回JsonElement的可迭代集合
+        /// </summary>
+        /// <param name="element"></param>
+        /// <returns></returns>
+        static IEnumerable<JsonElement> GetElements(this JsonElement element)
         {
-            if (responseObj is null)
+            if (element.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in element.EnumerateArray())
+                {
+                    yield return item;
+                }
+            }
+            else
+            {
+                yield return element;
+            }
+        }
+        private static JsonElement GetProperty(this JsonElement element, string path)
+        {
+            string[] pathSegments = path.Split(':', '.');
+            JsonElement currentElement = element;
+
+            foreach (string segment in pathSegments)
+            {
+                if (currentElement.TryGetProperty(segment, out JsonElement nextElement))
+                {
+                    currentElement = nextElement;
+                }
+                else
+                {
+                    throw new InvalidOperationException($"Path segment '{segment}' not found in JSON.");
+                }
+            }
+
+            return currentElement;
+        }
+        static JsonElement GetPropertyIgnoreCase(this JsonElement element, string propertyPath)
+        {
+            string[] properties = propertyPath.Split(':', '.');
+            JsonElement result = element;
+            foreach (var propertyName in properties)
+            {
+                if (result.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (var prop in result.EnumerateObject())
+                    {
+                        if (propertyName.Equals(prop.Name, StringComparison.OrdinalIgnoreCase))
+                        {
+                            result = prop.Value;
+                        }
+                        else
+                        {
+                            throw new KeyNotFoundException($"Property '{propertyName}' not found.");
+                        }
+                    }
+                }
+                else if (result.ValueKind == JsonValueKind.Array && int.TryParse(propertyName, out int index))
+                {
+                    result = result[index];
+                }
+                else
+                {
+                    throw new Exception($"属性{propertyName}既不是对象属性也不是集合的子项.");
+                }
+            }
+            return result;
+        }
+        private static JsonElement GetData(JsonElement responseObj, string errPrefix, Func<JsonElement, bool> requestOkPredicate, Func<JsonElement, JsonElement?> getDataFunc)
+        {
+            if (responseObj.ValueKind == JsonValueKind.Null)
             {
                 throw new Exception($"{errPrefix}: API接口返回为空");
             }
@@ -360,103 +478,8 @@ namespace Sylas.RemoteTasks.Utils
             }
 
             var data = getDataFunc(responseObj) ?? throw new Exception($"{errPrefix}: API返回的数据为空");
-            if (data is not JArray dataArr)
-            {
-                data = dataArr = new JArray(data);
-            }
-            if (dataArr is null)
-            {
-                throw new Exception($"{errPrefix}: API没有获取到任何数据");
-            }
+
             return data;
         }
-    }
-    /// <summary>
-    /// http请求的媒体类型
-    /// </summary>
-    public class MediaType
-    {
-        /// <summary>
-        /// 媒体类型 - form-urlencoded
-        /// </summary>
-        public const string FormuUrlEncoded = "application/x-www-form-urlencoded";
-        /// <summary>
-        /// 媒体类型 - json
-        /// </summary>
-        public const string Json = "application/json";
-    }
-    /// <summary>
-    /// Http请求参数配置
-    /// </summary>
-    public class RequestConfig
-    {
-        /// <summary>
-        /// 请求地址
-        /// </summary>
-        public string Url { get; set; } = string.Empty;
-        /// <summary>
-        /// 分页页码字段
-        /// </summary>
-        public string PageIndexField { get; set; } = string.Empty;
-        /// <summary>
-        /// 分页每页多少条数据对应的字段
-        /// </summary>
-        public bool PageIndexParamInQuery { get; set; } = false;
-        /// <summary>
-        /// 数据的Id字段名
-        /// </summary>
-        public string IdFieldName { get; set; } = string.Empty;
-        /// <summary>
-        /// 父级数据的外键字段名称(如果有的话)
-        /// </summary>
-        public string ParentIdFieldName { get; set; } = string.Empty;
-        /// <summary>
-        /// querystring字典
-        /// </summary>
-        public IDictionary<string, object>? QueryDictionary { get; set; }
-        /// <summary>
-        /// 请求体中数据字典
-        /// </summary>
-        public JToken? BodyDictionary { get; set; }
-        /// <summary>
-        /// 请求体数据的字典形式
-        /// </summary>
-        public IDictionary<string, object>? BodyDictionary2 { get; set; } = new Dictionary<string, object>();
-        /// <summary>
-        /// 响应数据中表示成功的字段
-        /// </summary>
-        public string? ResponseOkField { get; set; }
-        /// <summary>
-        /// 响应json中表示成功的字段值是多少时表示成功
-        /// </summary>
-        public string? ResponseOkValue { get; set; }
-        /// <summary>
-        /// 响应json中数据所在的字段
-        /// </summary>
-        public string? ResponseDataField { get; set; }
-        /// <summary>
-        /// 请求失败时返回的信息
-        /// </summary>
-        public string FailMsg { get; set; } = string.Empty;
-        /// <summary>
-        /// 匹配ParentId的正则表达式
-        /// </summary>
-        public string UpdateBodyParentIdRegex { get; set; } = string.Empty;
-        /// <summary>
-        /// ParentId所要替换为的新值
-        /// </summary>
-        public string UpdateBodyParentIdValue { get; set; } = string.Empty;
-        /// <summary>
-        /// get or post
-        /// </summary>
-        public string RequestMethod { get; set; } = "GET";
-        /// <summary>
-        /// 请求的token
-        /// </summary>
-        public string Token { get; set; } = string.Empty;
-        /// <summary>
-        /// 递归回到主查询的请求, 基于当前数据字段值重新给请求参数赋值
-        /// </summary>
-        public string? ReturnPrimaryRequest { get; set; }
     }
 }

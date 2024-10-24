@@ -1,5 +1,4 @@
-﻿using Microsoft.CodeAnalysis.Text;
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Sylas.RemoteTasks.App.RegexExp;
@@ -8,9 +7,7 @@ using Sylas.RemoteTasks.Utils.Template.Parser;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Linq.Expressions;
 using System.Text.RegularExpressions;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace Sylas.RemoteTasks.Utils.Template
 {
@@ -368,7 +365,7 @@ namespace Sylas.RemoteTasks.Utils.Template
                     nextResoledIndex = block.Last().LineIndex + 1;
                 }
             }
-            
+
             int allTmplLines = tmplArray.Length;
 
             List<Tuple<int, int>> forBlocks;
@@ -427,7 +424,7 @@ namespace Sylas.RemoteTasks.Utils.Template
             {
                 dataContextDictionary = JObject.FromObject(dataContextObject).ToObject<Dictionary<string, object>>() ?? throw new Exception("无法将模板的数据上下文转换为字典");
             }
-            
+
             tmplWithParser = tmplWithParser.Replace("$$", _doubleFlag);
             var stringTmplMatches = RegexConst.StringTmpl.Matches(tmplWithParser);
 
