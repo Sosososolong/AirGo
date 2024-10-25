@@ -1,7 +1,9 @@
 ﻿using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text.Json;
 
 namespace Sylas.RemoteTasks.Utils
 {
@@ -127,53 +129,6 @@ namespace Sylas.RemoteTasks.Utils
 
             List<Node> getChildren(Node node) => allNodes.Where(n => n.ParentID == node.ID).ToList();
             List<Node> getParents(Node? node) => node is null ? allNodes.Where(n => n.ParentID == 0).ToList() : allNodes.Where(n => n.ID == node.ParentID).ToList();
-        }
-
-
-        /// <summary>
-        /// 将所有动态类型节点allNodes 按照上下级的方式展示
-        /// </summary>
-        /// <param name="allNodes"></param>
-        /// <returns></returns>
-        public static List<dynamic> GetDynamicChildren(List<dynamic> allNodes)
-        {
-            List<dynamic> result = new();
-
-            fillChildrenRecursively(result);
-            return result;
-
-            // 填充parents的子节点(递归)            
-            void fillChildrenRecursively(List<dynamic> parents)
-            {
-                if (!parents.Any())
-                {
-                    parents.AddRange(getParents(null));
-                }
-
-                foreach (var p in parents)
-                {
-                    var pChildren = getChildren(p);
-                    if (pChildren.Any())
-                    {
-                        p.Children = pChildren;
-                        fillChildrenRecursively(pChildren);
-                    }
-                }
-            }
-
-
-            List<dynamic> getChildren(dynamic node) => allNodes.Where(n => n.ParentID == node.ID).ToList();
-            List<dynamic> getParents(dynamic? node)
-            {
-                if (node is null)
-                {
-                    return allNodes.Where(n => n.ParentID == 0).ToList();
-                }
-                else
-                {
-                    return allNodes.Where(n => n.ID == node.ParentID).ToList();
-                }
-            }
         }
 
         /// <summary>
@@ -312,7 +267,7 @@ namespace Sylas.RemoteTasks.Utils
         }
 
         /// <summary>
-        /// 扁平化获取所有子项
+        /// 扁平化获取所有子项(JObject)
         /// </summary>
         /// <param name="list"></param>
         /// <param name="childrenField">childrenField</param>
@@ -342,33 +297,150 @@ namespace Sylas.RemoteTasks.Utils
             }
         }
         /// <summary>
+        /// 扁平化获取所有子项(Dictionary string, object)
+        /// </summary>
+        /// <param name="list"></param>
+        /// <param name="childrenField">childrenField</param>
+        /// <returns></returns>
+        public static IEnumerable<IDictionary<string, object>> GetAll(IEnumerable<IDictionary<string, object>> list, string childrenField)
+        {
+            if (list is null || !list.Any())
+            {
+                yield break;
+            }
+            //var result = new List<IDictionary<string, object>>();
+            //getAllChildren(list);
+            //return result;
+
+            //void getAllChildren(IEnumerable<IDictionary<string, object>> source)
+            //{
+            //    foreach (var item in source)
+            //    {
+            //        result.Add(item);
+            //        var itemProperty = item.Keys.FirstOrDefault(x => string.Equals(x, childrenField, StringComparison.OrdinalIgnoreCase)) ?? throw new Exception($"子节点集合字段[{childrenField}]错误");
+            //        var children = item[itemProperty];
+            //        if (children is not null && children is List<object> childrenList)
+            //        {
+            //            var childrenDictionaryList = childrenList.Select(x => x is not IDictionary<string, object> itemDictionary ? throw new Exception("字典的子节点不是字典类型") : itemDictionary);
+            //            getAllChildren(childrenDictionaryList);
+            //        }
+            //    }
+            //}
+
+            foreach (var item in list)
+            {
+                yield return item;
+                var itemProperty = item.Keys.FirstOrDefault(x => string.Equals(x, childrenField, StringComparison.OrdinalIgnoreCase)) ?? throw new Exception($"子节点集合字段[{childrenField}]错误");
+                var children = item[itemProperty];
+                if (children is not null && children is IEnumerable<object> childrenList)
+                {
+                    foreach (var childItem in GetAll(childrenList.Cast<IDictionary<string, object>>(), childrenField))
+                    {
+                        yield return childItem;
+                    };
+                }
+            }
+        }
+
+        /// <summary>
+        /// 扁平化获取所有子项(JsonElement)
+        /// </summary>
+        /// <param name="list"></param>
+        /// <param name="childrenField">childrenField</param>
+        /// <returns></returns>
+        public static IEnumerable<JsonElement> GetAll(IEnumerable<JsonElement> list, string childrenField)
+        {
+            if (list is null || !list.Any())
+            {
+                yield break;
+            }
+            #region 使用本地函数, 在本地函数中实现递归, 有一个好处是可以自定义一些局部变量, 完成一些其他逻辑, 比如根据记录的递归深度给日志输出一个缩进, 查看日志时可以很直观地知道代码递归的层级
+            foreach (var item in getAllChildren(list, 0))
+            {
+                yield return item;
+            }
+
+            IEnumerable<JsonElement> getAllChildren(IEnumerable<JsonElement> source, int deep)
+            {
+                var spacePrefix = new string(' ', deep * 4);
+                if (!source.Any())
+                {
+                    yield break;
+                }
+                foreach (JsonElement item in source)
+                {
+                    //File.AppendAllText("D:\\Download\\temp\\test/log.txt", $"{spacePrefix}获取父级数据 {item}\n");
+                    yield return item;
+                    var children = JsonHelper.GetDataElement(item, childrenField);
+                    if (children.ValueKind != JsonValueKind.Null && children.ValueKind != JsonValueKind.Undefined && children.ValueKind == JsonValueKind.Array)
+                    {
+                        var childrenList = children.EnumerateArray();
+                        foreach (var childItem in getAllChildren(childrenList.Cast<JsonElement>(), ++deep))
+                        {
+                            --deep;
+                            //File.AppendAllText("D:\\Download\\temp\\test/log.txt", $"{spacePrefix}获取子集数据 {childItem}\n");
+                            yield return childItem;
+                        }
+                    }
+                }
+            }
+            #endregion
+
+            #region 不使用本地函数, 代码简洁一些
+            //foreach (JsonElement item in list)
+            //{
+            //    File.AppendAllText("D:\\Download\\temp\\test/log.txt", $"获取一级数据1111 {item}\n");
+            //    yield return item;
+            //    var children = JsonHelper.GetDataElement(item, childrenField);
+            //    if (children.ValueKind != JsonValueKind.Null && children.ValueKind != JsonValueKind.Undefined && children.ValueKind == JsonValueKind.Array)
+            //    {
+            //        var childrenList = children.EnumerateArray();
+            //        foreach (var childItem in GetAll(childrenList.Cast<JsonElement>(), childrenField))
+            //        {
+            //            File.AppendAllText("D:\\Download\\temp\\test/log.txt", $"获取二级数据2222 {childItem}\n");
+            //            yield return childItem;
+            //        }
+            //    }
+            //}
+            #endregion
+        }
+
+        /// <summary>
         /// 扁平化获取所有子项
         /// </summary>
         /// <param name="list"></param>
         /// <param name="childrenField">childrenField</param>
         /// <returns></returns>
-        public static List<Dictionary<string, object>> GetAll(List<Dictionary<string, object>> list, string childrenField)
+        public static IEnumerable<object> GetAll(IEnumerable<object> list, string childrenField)
         {
             if (list is null || !list.Any())
             {
-                return [];
+                yield break;
             }
-            var result = new List<Dictionary<string, object>>();
-            getAllChildren(list);
-            return result;
-
-            void getAllChildren(IEnumerable<Dictionary<string, object>> source)
+            
+            var first = list.First();
+            if (first is JsonElement)
             {
-                foreach (var item in source)
+                var jsonElements = list.Cast<JsonElement>();
+                foreach (var item in GetAll(jsonElements, childrenField))
                 {
-                    result.Add(item);
-                    var itemProperty = item.Keys.FirstOrDefault(x => string.Equals(x, childrenField, StringComparison.OrdinalIgnoreCase)) ?? throw new Exception($"子节点集合字段[{childrenField}]错误");
-                    var children = item[itemProperty];
-                    if (children is not null && children is List<object> childrenList)
-                    {
-                        var childrenDictionaryList = childrenList.Select(x => x is not Dictionary<string, object> itemDictionary ? throw new Exception("字典的子节点不是字典类型") : itemDictionary);
-                        getAllChildren(childrenDictionaryList);
-                    }
+                    yield return item;
+                }
+            }
+            else if (first is IDictionary<string, object>)
+            {
+                var dicionaryList = list.Cast<IDictionary<string, object>>();
+                foreach (var item in GetAll(dicionaryList, childrenField))
+                {
+                    yield return item;
+                }
+            }
+            else
+            {
+                var jobjectList = list.Cast<JObject>();
+                foreach (var item in GetAll(jobjectList, childrenField))
+                {
+                    yield return item;
                 }
             }
         }

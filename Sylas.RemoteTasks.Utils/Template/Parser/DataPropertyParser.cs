@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace Sylas.RemoteTasks.Utils.Template.Parser
@@ -61,8 +62,13 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
             }
 
             var propsValue = specifiedRecordFieldValueExpression.Groups["props"].Value;
-            var props = propsValue.Split('.', StringSplitOptions.RemoveEmptyEntries);
+            if (propertyValue is JsonElement jsonElement)
+            {
+                var result = JsonHelper.GetDataElement(jsonElement, propsValue);
+                new ParseResult(true, [key], result);
+            }
 
+            var props = propsValue.Split('.', StringSplitOptions.RemoveEmptyEntries);
             foreach (var p in props)
             {
                 if (propertyValue is null || string.IsNullOrWhiteSpace(propertyValue.ToString()))
@@ -70,7 +76,7 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
                     throw new Exception($"{nameof(DataPropertyParser)}无法根据模板[{tmpl}]找到属性{p}");
                 }
 
-                if (propertyValue is Dictionary<string, object> recordDictionary)
+                if (propertyValue is IDictionary<string, object> recordDictionary)
                 {
                     var kv = recordDictionary.Where(x => x.Key.Equals(p, StringComparison.OrdinalIgnoreCase));
                     if (!kv.Any())

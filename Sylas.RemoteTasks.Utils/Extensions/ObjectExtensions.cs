@@ -1,6 +1,8 @@
 ﻿using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json;
 
 namespace Sylas.RemoteTasks.Utils.Extensions
 {
@@ -17,21 +19,22 @@ namespace Sylas.RemoteTasks.Utils.Extensions
         /// <returns></returns>
         public static object GetPropertyValue(this object source, string propName)
         {
-            if (source is Dictionary<string, object> dataContextDictionary)
+            if (source is IDictionary<string, object> dataContextDictionary)
             {
-                if (!dataContextDictionary.TryGetValue(propName, out object firstPropValueObj) || firstPropValueObj is null)
-                {
-                    throw new Exception($"无法获取属性{propName}的值");
-                }
-                return firstPropValueObj;
+                string key = dataContextDictionary.Keys.FirstOrDefault(x => x.Equals(propName, StringComparison.OrdinalIgnoreCase)) ?? throw new Exception($"无法获取属性{propName}的值");
+                return dataContextDictionary[key];
             }
-            else if (source is JObject dataContextJObj)
+            else if (source is JsonElement jsonEle)
             {
-                return dataContextJObj[propName] ?? throw new Exception($"无法获取属性{propName}的值");
+                return JsonHelper.GetDataElement(jsonEle, propName);
             }
             else
             {
-                return JObject.FromObject(source)[propName] ?? throw new Exception($"无法获取属性{propName}的值");
+                if (source is not JObject dataContextJObj)
+                {
+                    return JObject.FromObject(source)[propName] ?? throw new Exception($"无法获取属性{propName}的值");
+                }
+                return dataContextJObj[propName] ?? throw new Exception($"无法获取属性{propName}的值");
             }
         }
     }

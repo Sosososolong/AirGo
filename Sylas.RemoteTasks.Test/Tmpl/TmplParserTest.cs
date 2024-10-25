@@ -123,6 +123,7 @@ namespace Sylas.RemoteTasks.Test.Tmpl
             // 集合中选取元素组成新集合, 支持包含子节点的递归取值 $menuIds = CollectionSelectParser[$appItemList select Id -r]
             string parser = "CollectionSelectParser[$appItemList select Id -r]";
             var menuIds = TmplHelper.ResolveExpressionValue(parser, _dataContext);
+            Console.WriteLine(1);
             string menuIdsJson = JsonConvert.SerializeObject(menuIds);
             Assert.Equal("[\"ttnc1\",\"M1\",\"X1\",\"L1\"]", menuIdsJson);
             _dataContext.BuildDataContextBySource(_dataContext["$data"], [$"menuIds={parser}"]);
@@ -141,7 +142,17 @@ namespace Sylas.RemoteTasks.Test.Tmpl
             Assert.Equal("ttnc1,M1,X1,L1", menuIdsStr);
         }
 
-        string _text = $"111{Environment.NewLine} {Environment.NewLine} 222{Environment.NewLine}   $for  item in users   {Environment.NewLine} <span>${{item.name}}</span> <span>${{item.age}}</span> <span>$${{item.email}}</span>{Environment.NewLine} $for  item in imgs   {Environment.NewLine} <image href=\"${{item.url}}\" width=\"item.width\" />{Environment.NewLine} $forend{Environment.NewLine} $forend";
+        string _text = """
+            111
+            
+            222
+            $for item in users
+            <span>${item.name}</span> <span>${item.age}</span> <span>$${item.email}</span>
+            $for item in imgs
+            <image href="${item.url}" width="item.width" />
+            $forend
+            $forend
+            """;
         /// <summary>
         /// 解析出for循环脚本块
         /// </summary>
@@ -153,16 +164,16 @@ namespace Sylas.RemoteTasks.Test.Tmpl
             var lineInfos = resolvedInfo.SequenceLineInfos;
             Assert.Single(blocks);
             Assert.Equal(3, blocks.First().Count);
-            Assert.Equal("   $for  item in users   ", blocks.First()[0].Content);
-            Assert.Equal(" <span>${item.name}</span> <span>${item.age}</span> <span>$${item.email}</span>", blocks.First()[1].Content);
-            Assert.Equal(" $forend", blocks.First()[2].Content);
+            Assert.Equal("$for item in users", blocks.First()[0].Content);
+            Assert.Equal("<span>${item.name}</span> <span>${item.age}</span> <span>$${item.email}</span>", blocks.First()[1].Content);
+            Assert.Equal("$forend", blocks.First()[2].Content);
             
             Assert.Single(blocks.First().Children);
             var firstChild = blocks.First().Children.First();
             Assert.Equal(3, firstChild.Count);
-            Assert.Equal(" $for  item in imgs   ", firstChild[0].Content);
-            Assert.Equal(" <image href=\"${item.url}\" width=\"item.width\" />", firstChild[1].Content);
-            Assert.Equal(" $forend", firstChild[2].Content);
+            Assert.Equal("$for item in imgs", firstChild[0].Content);
+            Assert.Equal("<image href=\"${item.url}\" width=\"item.width\" />", firstChild[1].Content);
+            Assert.Equal("$forend", firstChild[2].Content);
 
             PrintBlocks(blocks);
             void PrintBlocks(List<TextBlock> blocks)

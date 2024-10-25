@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json.Linq;
 using Renci.SshNet.Security;
+using Sylas.RemoteTasks.Utils.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -39,9 +40,9 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
             bool selectSelf = string.Equals(prop, "SELF", StringComparison.OrdinalIgnoreCase);
 
             // 1. 理想情况: 因为我希望数据处理的输入输出都是基础类型,对象用字典,集合用字典集合表示这样的常见类型, 所以这里的集合很可能是一个集合字典
-            if (keyVal is List<object> valueList)
+            if (keyVal is IEnumerable<object> valueList)
             {
-                if (valueList.Count == 0)
+                if (!valueList.Any())
                 {
                     return new ParseResult(true, [key], new List<object>());
                 }
@@ -51,55 +52,30 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
                 }
                 else
                 {
-                    List<Dictionary<string, object>> valueDictionaryList = [];
-                    valueList.ForEach(x =>
-                    {
-                        var dictionary = x as Dictionary<string, object>;
-                        if (dictionary is not null)
-                        {
-                            valueDictionaryList.Add(dictionary);
-                        }
-                    });
+                    var list = string.IsNullOrWhiteSpace(recursively)
+                        ? valueList
+                        : NodesHelper.GetAll(valueList, "items");
+                    var result = list.Select(x => x.GetPropertyValue(prop));
+                    return new ParseResult(true, [key], result);
 
-                    if (!string.IsNullOrWhiteSpace(recursively))
-                    {
-                        valueDictionaryList = NodesHelper.GetAll(valueDictionaryList, "items");
-                    }
-                    var result = valueDictionaryList
-                        .Where(x => x.Keys.Any(k => k.Equals(prop, StringComparison.OrdinalIgnoreCase)))
-                        .Select(x =>
-                        {
-                            var k = x.Keys.First(x => x.Equals(prop));
-                            return x[k];
-                        });
-                    if (result.Count() > 0)
-                    {
-                        return new ParseResult(true, [key], result);
-                    }
+                    //if (!string.IsNullOrWhiteSpace(recursively))
+                    //{
+                    //    valueDictionaryList = NodesHelper.GetAll(valueDictionaryList, "items");
+                    //}
+                    //var result = valueDictionaryList
+                    //    .Where(x => x.Keys.Any(k => k.Equals(prop, StringComparison.OrdinalIgnoreCase)))
+                    //    .Select(x =>
+                    //    {
+                    //        var k = x.Keys.First(x => x.Equals(prop));
+                    //        return x[k];
+                    //    });
+                    //if (result.Count() > 0)
+                    //{
+                    //    return new ParseResult(true, [key], result);
+                    //}
                 }
             }
-
-
-            // 2. 当数据处理链的第一环节, 数据源本身就是一个JToken类型
-            var keyValJArray = JArray.FromObject(keyVal) ?? throw new Exception($"上下文数据{key}对应的值不是JArray类型, 无法执行Select操作");
-            if (keyValJArray.Count == 0)
-            {
-                return new ParseResult(true, [key], new List<object>());
-            }
-
-            if (selectSelf)
-            {
-                return new ParseResult(true, [key], keyValJArray);
-            }
-            var keyValJObjList = keyValJArray.ToObject<List<JObject>>() ?? throw new Exception($"Template select操作失败: 数据上下文{key}的值{keyValJArray}转换为List<JObject>失败, 不能执行Select操作");
-
-            if (!string.IsNullOrWhiteSpace(recursively))
-            {
-                keyValJObjList = NodesHelper.GetAll(keyValJObjList, "items");
-            }
-            var val = keyValJObjList.Select(x => x.Properties().FirstOrDefault(p => string.Equals(p.Name, prop, StringComparison.OrdinalIgnoreCase))?.Value ?? throw new Exception($"上下文{key}: {keyValJArray} 无法找到属性{prop}"));
-            val = val.Where(x => !string.IsNullOrWhiteSpace(x?.ToString()));
-            return new ParseResult(true, [key], JArray.FromObject(val));
+            throw new Exception("不是集合无法执行Select操作");
         }
     }
 }

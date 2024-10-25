@@ -266,7 +266,6 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                 MethodInfo handlerStartMethod = dataHandlerType.GetMethod("StartAsync") ?? throw new Exception($"DataHandler {handler} 没有实现Operation方法");
                 var handlerInstance = _serviceProvider.GetService(dataHandlerType);
 
-                // BOOKMARK: DataHandler 调用StartAsync()方法
                 var invokeResult = handlerStartMethod.Invoke(handlerInstance, [opParameters]);
                 if (handlerStartMethod.ReturnType == typeof(Task) || handlerStartMethod.ReturnType.IsGenericType && handlerStartMethod.ReturnType.GetGenericTypeDefinition() == typeof(Task<>))
                 {

@@ -1,6 +1,7 @@
 ﻿using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace Sylas.RemoteTasks.Utils.Template.Parser
@@ -35,26 +36,18 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
                     throw new Exception($"PlusOperatorParser异常, DataContext中未找到右边表达式{right}");
                 }
 
-                if (currentDataLeft is JArray)
+                if (currentDataLeft is not IEnumerable<object> currentDataLeftArr)
                 {
-                    Console.WriteLine("is jarray");
+                    currentDataLeftArr = [currentDataLeft];
                 }
-                JArray currentDataLeftJarray;
-                if (currentDataLeft is not IEnumerable<object>)
+                if (currentDataRight is not IEnumerable<object> currentDataRightArr)
                 {
-                    currentDataLeftJarray = [];
-                    currentDataLeftJarray.Add(currentDataLeft);
+                    currentDataRightArr = [currentDataRight];
                 }
-                else
-                {
-                    currentDataLeftJarray = JArray.FromObject(currentDataLeft) ?? throw new Exception("PlusOperatorParser异常, 左边表达式不是集合类型");
-                }
-                var currentDataRightJarray = currentDataRight.GetType().Name == "String" ? new() { currentDataRight } : JArray.FromObject(currentDataRight) ?? throw new Exception("PlusOperatorParser异常, 右边表达式不是集合类型");
-                foreach ( var item in currentDataLeftJarray)
-                {
-                    currentDataRightJarray.Add(item);
-                }
-                return new ParseResult(true, [left, right], currentDataRightJarray);
+                var resultDataList = currentDataLeftArr.ToList();
+                resultDataList.AddRange(currentDataRightArr);
+
+                return new ParseResult(true, [left, right], resultDataList);
             }
             return new ParseResult(false);
         }
