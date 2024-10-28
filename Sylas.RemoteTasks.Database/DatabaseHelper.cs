@@ -6,6 +6,7 @@ using Oracle.ManagedDataAccess.Client;
 using Sylas.RemoteTasks.App.RegexExp;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils;
+using Sylas.RemoteTasks.Utils.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -57,59 +58,6 @@ namespace Sylas.RemoteTasks.Database
         /// <param name="password"></param>
         /// <returns></returns>
         public static IDbConnection GetSqlServerConnection(string host, string port, string db, string username, string password) => string.IsNullOrWhiteSpace(port) ? new SqlConnection($"User ID={username};Password={password};Initial Catalog={db};Data Source={host}") : new SqlConnection($"User ID={username};Password={password};Initial Catalog={db};Data Source={host},{port}");
-        /// <summary>
-        /// 通用同步逻辑
-        /// </summary>
-        /// <param name="conn"></param>
-        /// <param name="table"></param>
-        /// <param name="sourcRecords"></param>
-        /// <param name="ignoreFields"></param>
-        /// <param name="dateTimeFields"></param>
-        /// <returns></returns>
-        /// <exception cref="Exception"></exception>
-        public static async Task SyncDataAsync(IDbConnection conn, string table, List<JToken> sourcRecords, string[] ignoreFields, string[] dateTimeFields)
-        {
-            //conn.ConnectionString: "server=whitebox.com;port=3306;database=db_engine_hznu;user id=root;allowuservariables=True"
-            //conn.ConnectionTimeout: 15
-            //conn.Database: "db_engine_hznu"
-            var varFlag = ":";
-            var dbRecords = await conn.QueryAsync($"select * from {table}") ?? throw new Exception($"获取{table}数据失败");
-            var compareResult = CompareRecordsForSyncDb(sourcRecords, dbRecords, ignoreFields, dateTimeFields, "ID", "ID");
-            var inserts = compareResult.Inserts;
-            var updates = compareResult.Updates;
-            var deletes = compareResult.Deletes;
-
-            var insertValueStatement = GetInsertSqlValueStatement(varFlag, dbRecords?.FirstOrDefault());
-            var updateValueStatement = GetUpdateSqlValueStatement(varFlag, dbRecords?.FirstOrDefault());
-            List<string> insertingSqls = [];
-            List<string> updatingSqls = [];
-
-            foreach (var insert in inserts)
-            {
-                insert["CREATEDTIME"] = (insert["CREATEDTIME"] is null || string.IsNullOrWhiteSpace(insert["CREATEDTIME"]?.ToString())) ? DateTime.Now : Convert.ToDateTime(insert["CREATEDTIME"]);
-                insert["UPDATEDTIME"] = (insert["UPDATEDTIME"] is null || string.IsNullOrWhiteSpace(insert["UPDATEDTIME"]?.ToString())) ? DateTime.Now : Convert.ToDateTime(insert["UPDATEDTIME"]);
-                var sql = $"insert into {table} values({insertValueStatement})";
-                insertingSqls.Add(sql);
-
-                var inserted = await conn.ExecuteAsync(sql, insert.ToObject<Dictionary<string, object>>());
-                System.Diagnostics.Debug.WriteLine($"新增{inserted}条数据数据: {insert["ID"]}");
-                if (inserted <= 0)
-                {
-                    throw new Exception($"添加数据失败{Environment.NewLine}{sql}");
-                }
-            }
-
-            foreach (var update in updates)
-            {
-                update["CREATEDTIME"] = (update["CREATEDTIME"] is null || string.IsNullOrWhiteSpace(update["CREATEDTIME"]?.ToString())) ? DateTime.Now : Convert.ToDateTime(update["CREATEDTIME"]);
-                update["UPDATEDTIME"] = (update["UPDATEDTIME"] is null || string.IsNullOrWhiteSpace(update["UPDATEDTIME"]?.ToString())) ? DateTime.Now : Convert.ToDateTime(update["UPDATEDTIME"]);
-                var sql = $"update {table} set {updateValueStatement} where id={varFlag}ID";
-                updatingSqls.Add(sql);
-
-                var updated = await conn.ExecuteAsync(sql, update.ToObject<Dictionary<string, object>>());
-                System.Diagnostics.Debug.WriteLine($"更新{updated}条数据数据: {update["ID"]}");
-            }
-        }
 
         /// <summary>
         /// 对比数据返回用于同步数据表操作的数据(要新增的数据, 要更新的数据, 要删除的数据)
@@ -121,7 +69,7 @@ namespace Sylas.RemoteTasks.Database
         /// <param name="sourceIdField"></param>
         /// <param name="targetIdField"></param>
         /// <returns></returns>
-        public static CompareResult CompareRecordsForSyncDb(List<JToken> sourceRecords, IEnumerable<dynamic>? dbRecordsDynamic, string[] ignoreFields, string[] dateTimeFields, string sourceIdField, string targetIdField)
+        public static CompareResult CompareRecordsForSyncDb(List<object> sourceRecords, IEnumerable<dynamic>? dbRecordsDynamic, string[] ignoreFields, string[] dateTimeFields, string sourceIdField, string targetIdField)
         {
             JArray inserts = [];
             JArray updates = [];
@@ -141,7 +89,7 @@ namespace Sylas.RemoteTasks.Database
 
             foreach (var sourceItem in sourceRecords)
             {
-                var currentDbRecord = dbRecords?.FirstOrDefault(x => x?[targetIdField]?.ToString() == sourceItem[sourceIdField]?.ToString());
+                var currentDbRecord = dbRecords?.FirstOrDefault(x => x?[targetIdField]?.ToString() == sourceItem.GetPropertyValue(sourceIdField).ToString());
                 if (currentDbRecord is null)
                 {
                     inserts.Add(sourceItem);

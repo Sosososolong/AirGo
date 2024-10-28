@@ -33,29 +33,20 @@ namespace Sylas.RemoteTasks.App.DataHandlers
                 idField = "id";
             }
 
-            // BOOKMARK: Tmpl-JToken 获取数据源的时候(Http请求获取数据), 默认使用JToken(JObject)接收数据
-            IEnumerable<JToken> data; // = dataSource is IEnumerable<JToken> enumerableData ? enumerableData : new List<JToken>() { JToken.FromObject(dataSource) };
-            if (dataSource is IEnumerable<object> enumerableData)
+            // BOOKMARK: Tmpl 获取数据源的时候(Http请求获取数据), 默认使用object接收数据
+            if (dataSource is not IEnumerable<object> enumerableData)
             {
-                if (!enumerableData.Any())
-                {
-                    return;
-                }
-                data = enumerableData.Select(x => x as JToken ?? throw new Exception("DataHandler 数据源项无法转换为JToken"));
-            }
-            else
-            {
-                data = [JToken.FromObject(dataSource)];
+                enumerableData = [dataSource];
             }
 
             // 数据库连接字符串中, sqlserver, oracle, sqite包含"Data Source=xxx"; mysql, mslocaldb包含"Server=xxx"
             if (_connectionStringSubStrings.Any(x => targetDb.Contains(x, StringComparison.OrdinalIgnoreCase)))
             {
-                await _databaseInfo.SyncDataToDbWithTargetConnectionStringAsync(table, data, [], sourceIdField: idField, targetIdField: idField, targetDb);
+                await _databaseInfo.SyncDataToDbWithTargetConnectionStringAsync(table, enumerableData, [], sourceIdField: idField, targetIdField: idField, targetDb);
             }
             else
             {
-                await _databaseInfo.SyncDataToDbAsync(table, data, [], sourceIdField: idField, targetIdField: idField, targetDb);
+                await _databaseInfo.SyncDataToDbAsync(table, enumerableData, [], sourceIdField: idField, targetIdField: idField, targetDb);
             }
         }
     }

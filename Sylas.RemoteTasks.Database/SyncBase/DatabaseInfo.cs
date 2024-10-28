@@ -326,7 +326,8 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             await Console.Out.WriteLineAsync($"耗时: {(t1 - start).TotalMilliseconds}/ms");
             await Console.Out.WriteLineAsync("执行SQL语句" + Environment.NewLine + sql);
             
-            var data = await conn.QueryAsync<T>(sql, parameters);
+            IEnumerable<T> data;
+            data = await conn.QueryAsync<T>(sql, parameters);
 
             await Console.Out.WriteLineAsync($"耗时: {(DateTime.Now - t1).TotalMilliseconds}/ms{Environment.NewLine}");
 
@@ -530,15 +531,19 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// 同步数据库
         /// </summary>
         /// <exception cref="Exception"></exception>
-        public static async Task SyncDatabaseByConnectionStringsAsync(string sourceConnectionString, string targetConnectionString, string syncedDb = "", string syncedTable = "", bool ignoreException = false)
+        public static async Task SyncDatabaseByConnectionStringsAsync(string sourceConnectionString, string targetConnectionString, string sourceDb = "", string sourceTable = "", bool ignoreException = false)
         {
             using var sourceConn = GetDbConnection(sourceConnectionString);
-            if (!string.IsNullOrWhiteSpace(syncedDb))
+            if (!string.IsNullOrWhiteSpace(sourceDb) && sourceConn.Database != sourceDb)
             {
-                sourceConn.ChangeDatabase(syncedDb);
+                if (sourceConn.State != ConnectionState.Open)
+                {
+                    sourceConn.Open();
+                }
+                sourceConn.ChangeDatabase(sourceDb);
             }
             // 数据源-数据库
-            var res = await GetAllTablesAsync(sourceConn, syncedDb);
+            var res = await GetAllTablesAsync(sourceConn, sourceDb);
 
             DatabaseType targetDbType = GetDbType(targetConnectionString);
             DatabaseType sourceDbType = GetDbType(sourceConnectionString);
@@ -547,7 +552,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             targetConn.Open();
             foreach (var table in res)
             {
-                if (!string.IsNullOrWhiteSpace(syncedTable) && !table.Equals(syncedTable, StringComparison.OrdinalIgnoreCase))
+                if (!string.IsNullOrWhiteSpace(sourceTable) && !table.Equals(sourceTable, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -659,7 +664,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="sourceIdField"></param>
         /// <param name="targetIdField"></param>
         /// <returns></returns>
-        public async Task SyncDataToDbWithTargetConnectionStringAsync(string table, IEnumerable<JToken> sourceRecords, string[] ignoreFields, string sourceIdField = "", string targetIdField = "", string connectionString = "")
+        public async Task SyncDataToDbWithTargetConnectionStringAsync(string table, IEnumerable<object> sourceRecords, string[] ignoreFields, string sourceIdField = "", string targetIdField = "", string connectionString = "")
         {
             if (!string.IsNullOrWhiteSpace(connectionString))
             {
@@ -677,7 +682,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="sourceIdField"></param>
         /// <param name="targetIdField"></param>
         /// <returns></returns>
-        public async Task SyncDataToDbAsync(string table, IEnumerable<JToken> sourceRecords, string[] ignoreFields, string sourceIdField = "", string targetIdField = "", string db = "")
+        public async Task SyncDataToDbAsync(string table, IEnumerable<object> sourceRecords, string[] ignoreFields, string sourceIdField = "", string targetIdField = "", string db = "")
         {
             await SyncDatabaseAsync(table, sourceRecords, ignoreFields: ignoreFields, sourceIdField: sourceIdField, targetIdField: targetIdField, db);
         }
@@ -692,7 +697,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="db"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        private async Task SyncDatabaseAsync(string table, IEnumerable<JToken> sourceRecords, string[] ignoreFields, string sourceIdField = "", string targetIdField = "", string db = "")
+        private async Task SyncDatabaseAsync(string table, IEnumerable<object> sourceRecords, string[] ignoreFields, string sourceIdField = "", string targetIdField = "", string db = "")
         {
             //conn.ConnectionString: "server=127.0.0.1;port=3306;database=engine;user id=root;allowuservariables=True"
             //conn.ConnectionTimeout: 15
@@ -718,7 +723,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="logger"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static async Task SyncDatabaseAsync(string connectionString, string table, IEnumerable<JToken> sourceRecords, string[] ignoreFields, string sourceIdField = "", string targetIdField = "", string db = "", ILogger? logger = null)
+        public static async Task SyncDatabaseAsync(string connectionString, string table, IEnumerable<object> sourceRecords, string[] ignoreFields, string sourceIdField = "", string targetIdField = "", string db = "", ILogger? logger = null)
         {
             using var conn = GetDbConnection(connectionString);
             if (!string.IsNullOrWhiteSpace(db) && conn.Database != db)
@@ -739,7 +744,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="logger"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static async Task SyncDatabaseAsync(IDbConnection conn, string table, IEnumerable<JToken> sourceRecords, string[] ignoreFields, string sourceIdField = "", ILogger? logger = null)
+        public static async Task SyncDatabaseAsync(IDbConnection conn, string table, IEnumerable<object> sourceRecords, string[] ignoreFields, string sourceIdField = "", ILogger? logger = null)
         {
             var varFlag = GetDbParameterFlag(conn.ConnectionString);
             // 先获取数据
@@ -1417,7 +1422,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// <param name="filters"></param>
         /// <param name="orderRules">排序规则</param>
         /// <returns></returns>
-        public static async Task<PagedData> GetPagedDataAsync(string table, int pageIndex, int pageSize, IDbConnection dbConn, DataFilter? filters, List<OrderRule>? orderRules)
+        public static async Task<PagedData<T>> QueryPagedDataAsync<T>(string table, int pageIndex, int pageSize, IDbConnection dbConn, DataFilter? filters, List<OrderRule>? orderRules)
         {
             // TODO: 数据库类型 作为公共属性
             var dbType = GetDbType(dbConn.ConnectionString);
@@ -1425,10 +1430,18 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             string sql = GetPagedSql(dbConn.Database, table, dbType, pageIndex, pageSize, filters, orderRules, out string condition, out Dictionary<string, object> parameters);
 
             string allCountSqlTxt = $"select count(*) from {table} where 1=1 {condition}";
-            var data = await dbConn.QueryAsync(sql, parameters);
             var allCount = await dbConn.ExecuteScalarAsync<int>(allCountSqlTxt, parameters);
-            var dataReader = await dbConn.ExecuteReaderAsync(sql, parameters);
-            return new PagedData { Data = data, DataReader = dataReader, Count = allCount };
+            IEnumerable<T> data;
+            if (typeof(T) == typeof(IDictionary<string, object>))
+            {
+                data = (await dbConn.QueryAsync(sql, parameters)).Cast<T>();
+            }
+            else
+            {
+                data = await dbConn.QueryAsync<T>(sql, parameters);
+            }
+            using var dataReader = await dbConn.ExecuteReaderAsync(sql, parameters);
+            return new PagedData<T> { Data = data, Count = allCount, TotalPages = (allCount + pageSize - 1) / pageSize };
         }
 
         /// <summary>
@@ -1818,7 +1831,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                     parameters.Add(parameterName, GetColumnValue(columnValue, columnType));
                 }
             }
-            else if (record is Dictionary<string, object> recordDictionary)
+            else if (record is IDictionary<string, object> recordDictionary)
             {
                 foreach (var k in recordDictionary.Keys)
                 {
@@ -1900,7 +1913,6 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// <summary>
         /// 生成删除已存在的数据的SQL语句信息
         /// </summary>
-        /// <param name="dataItem"></param>
         /// <param name="table"></param>
         /// <param name="primaryKeys"></param>
         /// <param name="targetPkValues"></param>
@@ -1909,7 +1921,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// <param name="random"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static string GenerateDeleteExistSql(DataRow dataItem, string table, string[] primaryKeys, string[] targetPkValues, Dictionary<string, object?> parameters, string dbVarFlag, int random = 0)
+        public static string GenerateDeleteExistSql(string table, string[] primaryKeys, string[] targetPkValues, Dictionary<string, object?> parameters, string dbVarFlag, int random = 0)
         {
             if (primaryKeys.Length == 0)
             {
@@ -1991,9 +2003,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             }
 
             int pageIndex = 1;
-            DataTable sourceDataTable = new(sourceTableName);
 
-            
             #region 获取目标表的数据
             
             // : @
@@ -2008,19 +2018,18 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             while (true)
             {
                 #region 获取源表数据
+                IEnumerable<IDictionary<string, object>> datalist = Enumerable.Empty<IDictionary<string, object>>();
                 try
                 {
-                    sourceDataTable.Clear();
                     List<OrderRule> orderRules = primaryKeys.Select(x => new OrderRule { OrderField = x, IsAsc = true }).ToList();
-                    var srouceTableDataReader = (await GetPagedDataAsync(sourceTableStatement, pageIndex, 3000, sourceConn, filter, orderRules)).DataReader ?? throw new Exception($"源表{sourceTableName}的数据读取器为空");
-                    sourceDataTable.Load(srouceTableDataReader);
+                    datalist = (await QueryPagedDataAsync<IDictionary<string, object>>(sourceTableStatement, pageIndex, 3000, sourceConn, filter, orderRules)).Data;
                 }
                 catch (Exception ex)
                 {
                     LoggerHelper.LogInformation($"查询数据出错sourceTable: {sourceTableName}");
                     LoggerHelper.LogInformation(ex.ToString());
                 }
-                if (sourceDataTable.Rows.Count == 0)
+                if (!datalist.Any())
                 {
                     yield break;
                 }
@@ -2037,7 +2046,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                 var random = 1;
                 
                 // 为数据源中的每一条数据生成对应的insert语句的部分
-                foreach (DataRow dataItem in sourceDataTable.Rows)
+                foreach (IDictionary<string, object> dataItem in datalist)
                 {
                     var dataItemPkValues = primaryKeys.Select(x => dataItem[x].ToString()).ToArray();
                     string dataItemPkValue = string.Join(',', dataItemPkValues);
@@ -2045,7 +2054,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                     if (targetPkValues.Count > 0 && targetPkValues.Contains(dataItemPkValue))
                     {
                         // ,@Id1
-                        string deleteSqlCurrentRecordPart = GenerateDeleteExistSql(dataItem, targetTableStatement, primaryKeys, dataItemPkValues, deleteExistParameters, dbVarFlag, random);
+                        string deleteSqlCurrentRecordPart = GenerateDeleteExistSql(targetTableStatement, primaryKeys, dataItemPkValues, deleteExistParameters, dbVarFlag, random);
                         deleteExistSqlBuilder.Append(deleteSqlCurrentRecordPart);
                     }
 

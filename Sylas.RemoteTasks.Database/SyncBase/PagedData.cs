@@ -16,7 +16,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <summary>
         /// 数据
         /// </summary>
-        public IEnumerable<object> Data { get; set; } = Enumerable.Empty<object>();
+        public IEnumerable<object> Data { get; set; } = [];
         /// <summary>
         /// 数据读取器
         /// </summary>
@@ -40,6 +40,6 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <summary>
         /// 数据
         /// </summary>
-        public IEnumerable<T> Data { get; set; } = Enumerable.Empty<T>();
+        public IEnumerable<T> Data { get; set; } = [];
     }
 }

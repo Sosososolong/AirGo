@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
+using System.Text.Json;
 
 namespace Sylas.RemoteTasks.Utils.Extensions
 {
@@ -62,6 +63,15 @@ namespace Sylas.RemoteTasks.Utils.Extensions
                 else if (first is IDictionary<string, object>)
                 {
                     batchDictionaries = objects.Cast<IDictionary<string, object>>();
+                }
+                else if (first is JsonElement)
+                {
+                    batchDictionaries = objects.Cast<JsonElement>().Select(x =>
+                    {
+                        var rawText = x.GetRawText();
+                        var dictionary = JsonConvert.DeserializeObject<Dictionary<string, object>>(rawText) ?? throw new Exception("JsonElement转换为字典失败");
+                        return dictionary;
+                    });
                 }
                 else
                 {

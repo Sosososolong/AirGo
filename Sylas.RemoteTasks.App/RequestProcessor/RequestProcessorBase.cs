@@ -66,7 +66,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
             if (!string.IsNullOrWhiteSpace(bodyJson) && _requestConfig.RequestMethod.Equals("post", StringComparison.CurrentCultureIgnoreCase))
             {
                 var resolvedBodyJson = TmplHelper.ResolveExpressionValue(bodyJson, dataContextDictionary);
-                var bodyParams = JsonConvert.DeserializeObject<JToken>(resolvedBodyJson.ToString() ?? "");
+                var bodyParams = JsonConvert.DeserializeObject<Dictionary<string, object>>(resolvedBodyJson?.ToString() ?? "");
                 _requestConfig.BodyDictionary = bodyParams;
             }
             return [CloneRequestConfig()];
@@ -235,11 +235,11 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
         async Task<Dictionary<string, object?>> RequestAndBuildDataContextAsync(List<string> dataContextTmpls, ILogger<RequestProcessorBase> logger)
         {
             logger?.LogDebug($"{nameof(RequestAndBuildDataContextAsync)}, 应用参数, 准备发送请求: {_requestConfig.Url}{Environment.NewLine}Query:{JsonConvert.SerializeObject(_requestConfig.QueryDictionary)}{Environment.NewLine}Body:{JsonConvert.SerializeObject(_requestConfig.BodyDictionary)}");
-            IEnumerable<JToken>? data = null;
+            IEnumerable<object>? data = null;
             try
             {
                 DataContext["$QueryDictionary"] = _requestConfig.QueryDictionary ?? new Dictionary<string, object>();
-                DataContext["$BodyDictionary"] = _requestConfig.BodyDictionary ?? new JObject();
+                DataContext["$BodyDictionary"] = _requestConfig.BodyDictionary ?? new Dictionary<string, object>();
                 data = await RemoteHelpers.FetchAllDataFromApiAsync(_requestConfig) ?? throw new Exception($"查询记录失败, Query String: {JsonConvert.SerializeObject(_requestConfig.QueryDictionary)}{Environment.NewLine}PayLoad {JsonConvert.SerializeObject(_requestConfig.QueryDictionary)}");
             }
             catch (Exception)

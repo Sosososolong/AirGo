@@ -2,9 +2,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Sylas.RemoteTasks.Database;
 using Sylas.RemoteTasks.Database.SyncBase;
-using Sylas.RemoteTasks.Test.AppSettingsOptions;
 using Sylas.RemoteTasks.Utils;
 using System.Text;
 using Xunit.Abstractions;
@@ -35,27 +33,6 @@ namespace Sylas.RemoteTasks.Test.Remote
                 , "syncoc"
                 , ["username", "email", "phone"]);
             _outputHelper.WriteLine($"已经脱敏{affectedRows}条数据");
-        }
-
-        /// <summary>
-        /// 从配置文件调用API
-        /// </summary>
-        /// <returns></returns>
-        /// <exception cref="Exception"></exception>
-        [Fact]
-        public async Task FetchDataModelByConfigAsync()
-        {
-            var configFileRelativePath = _configuration["SyncFromApiToDbOptions:FetchDataModelParameters"] ?? throw new Exception("API请求参数没有配置");
-            var configFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, configFileRelativePath);
-            var configContent = File.ReadAllText(configFile);
-            var config = JsonConvert.DeserializeObject<RequestConfig>(configContent) ?? throw new Exception("API请求参数格式不正确");
-
-            var configData = await RemoteHelpers.FetchAllDataFromApiAsync(config);
-            var targetDbConnectionString = _configuration["SyncFromApiToDbOptions:TargetDbConnectionString"];
-            Assert.NotNull(targetDbConnectionString);
-            Assert.True(configData is not null);
-            var conn = DatabaseInfo.GetDbConnection(targetDbConnectionString);
-            await DatabaseHelper.SyncDataAsync(conn, "devdatamodel", configData?.ToList() ?? [], [], []);
         }
 
         /// <summary>
@@ -100,7 +77,7 @@ namespace Sylas.RemoteTasks.Test.Remote
         {
             string dir1 = "D:/.NET/Id/Id.SiteManagement/Id.sitemanagement.core/Entities";
             string dir2 = "D:/.NET/Id/Id.portal.api/Id.portal.core/Entities";
-            string[] dirs = new string[] { dir1, dir2 };
+            string[] dirs = [dir1, dir2];
             StringBuilder fileContentBuilder = new();
             foreach (var dir in dirs)
             {
@@ -125,74 +102,6 @@ namespace Sylas.RemoteTasks.Test.Remote
             Assert.True(DateTimeHelper.FormatSeconds(62.235) == "1分2秒");
             Assert.True(DateTimeHelper.FormatSeconds(60 * 60 + 62.235) == "1时1分2秒");
             Assert.True(DateTimeHelper.FormatSeconds(24 * 60 * 60 + 60 * 60 + 62.235) == "1天1时1分2秒");
-        }
-
-        /// <summary>
-        /// 同步数据库, 一张表
-        /// </summary>
-        /// <returns></returns>
-        /// <exception cref="Exception"></exception>
-        [Fact]
-        public async Task SyncFromDBToDBSingleTable()
-        {
-            var syncFromDbToDbOptions = _configuration.GetSection(SyncFromDbToDbOptions.Key).Get<SyncFromDbToDbOptions>() ?? throw new Exception($"请在配置文件中添加同步的数据库配置");
-
-            await DatabaseInfo.SyncDatabaseByConnectionStringsAsync(syncFromDbToDbOptions.SourceConnectionString, syncFromDbToDbOptions.TargetConnectionString, syncFromDbToDbOptions.SourceDb, syncFromDbToDbOptions.SourceTable);
-        }
-
-        /// <summary>
-        /// 同步数据库, 指定库的所有表
-        /// </summary>
-        /// <returns></returns>
-        /// <exception cref="Exception"></exception>
-        [Fact]
-        async Task SyncFromDBToDB_AllTables()
-        {
-            #region 参数
-            var sourceConnectionString = _configuration["SyncFromDbToDbOptions:SourceConnectionString"] ?? throw new Exception($"请在配置文件中添加源数据库连接字符串");
-            var targetConnectionString = _configuration["SyncFromDbToDbOptions:TargetConnectionString"] ?? throw new Exception($"请在配置文件中添加目标数据库连接字符串");
-            // 生成SQL: 获取所有表SqlGetDbTablesInfo -> 生成SQL: 获取表全名GetTableFullName -> 生成SQL: 获取表数据GetQuerySql
-            #endregion
-
-            await DatabaseInfo.SyncDatabaseByConnectionStringsAsync(sourceConnectionString, targetConnectionString);
-        }
-
-        /// <summary>
-        /// 从json数据导入数据
-        /// </summary>
-        /// <returns></returns>
-        [Fact]
-        public async Task SyncJsonData()
-        {
-            string dataDir = "D:/.NET/Id/routine/db/数据库结构同步数据迁移/org datasource json";
-            string connectionString = "Server=127.0.0.1;Port=3306;Stmt=;Database=id_org_xtie;Uid=root;Pwd=123456;Allow User Variables=true;sslMode=None";
-            var files = Directory.GetFiles(dataDir);
-            foreach (var file in files)
-            {
-                var f = file.Replace('\\', '/');
-                string table = f[(f.LastIndexOf('/') + 1)..].Replace(".json", "");
-
-                string dataSourceFile = f;
-                string dataSourceIdField = "id";
-                if (table == "userroles")
-                {
-                    dataSourceIdField = "UserId,RoleId";
-                }
-
-                string dataSourceJson = File.ReadAllText(f);
-
-                IEnumerable<JToken> dataList;
-                if (dataSourceJson.StartsWith('{'))
-                {
-                    dataList = JsonConvert.DeserializeObject<JObject>(dataSourceJson)?["RECORDS"] ?? throw new Exception("");
-                }
-                else
-                {
-                    dataList = JsonConvert.DeserializeObject<List<JToken>>(dataSourceJson) ?? throw new Exception("获取json数据源失败");
-                }
-
-                await DatabaseInfo.SyncDatabaseAsync(connectionString, table, dataList, [], dataSourceIdField, dataSourceIdField, "", null);
-            }
         }
     }
 }

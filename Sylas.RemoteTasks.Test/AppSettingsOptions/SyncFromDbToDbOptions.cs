@@ -1,17 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Sylas.RemoteTasks.Test.AppSettingsOptions
+﻿namespace Sylas.RemoteTasks.Test.AppSettingsOptions
 {
     public class SyncFromDbToDbOptions
     {
         public const string Key = nameof(SyncFromDbToDbOptions);
-        public string SourceDb { get; set; }
-        public string SourceTable { get; set; }
-        public string SourceConnectionString { get; set; }
-        public string TargetConnectionString { get; set; }
+        public string SourceConnectionString { get; set; } = string.Empty;
+        public string SourceDb { get; set; } = string.Empty;
+        public string SourceTable { get; set; } = string.Empty;
+        public string TargetConnectionString { get; set; } = string.Empty;
+        public string TargetDb { get; set; } = string.Empty;
+        public string TargetTable { get; set; } = string.Empty;
     }
 }

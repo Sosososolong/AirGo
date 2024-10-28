@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Sylas.RemoteTasks.Utils.Extensions;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -124,10 +125,10 @@ namespace Sylas.RemoteTasks.Utils
             for (int i = parametersRange.Item1; i <= parametersRange.Item2; i++)
             {
                 var requestParameters = allInstanceParameters[i];
-                List<JToken>? result = null;
+                List<object>? result = null;
                 try
                 {
-                    result = await RemoteHelpers.FetchAllDataFromApiAsync(url, "接口测试请求失败", requestParameters, string.Empty, false, null, res => res["code"]?.ToString() == "1", res => res["data"], httpClient, "", "", false, "get", authorizationHeaderToken: authorizationHeaderToken);
+                    result = await RemoteHelpers.FetchAllDataFromApiAsync(url, "接口测试请求失败", requestParameters, string.Empty, false, null, res => res.GetPropertyValue("code").ToString() == "1", res => res.GetPropertyValue("data"), httpClient, "", "", false, "get", authorizationHeaderToken: authorizationHeaderToken);
                 }
                 catch (Exception ex)
                 {
@@ -137,10 +138,8 @@ namespace Sylas.RemoteTasks.Utils
                 responseInfo.Clear();
                 foreach (var data in result)
                 {
-                    if (data is JObject dataObj)
-                    {
-                        responseInfo.Append(dataObj[responseIdentityField]?.ToString() + ",");
-                    }
+                    string identity = data.GetPropertyValue(responseIdentityField).ToString() + ",";
+                    responseInfo.Append(identity);
                 }
 
                 var requestParametersJson = JsonConvert.SerializeObject(requestParameters);
