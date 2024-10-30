@@ -6,12 +6,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MySql.Data.MySqlClient;
-using MySqlX.XDevAPI.Relational;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Npgsql;
 using Oracle.ManagedDataAccess.Client;
-using Org.BouncyCastle.Crypto;
 using Sylas.RemoteTasks.App.RegexExp;
 using Sylas.RemoteTasks.Utils;
 using Sylas.RemoteTasks.Utils.Extensions;
@@ -21,11 +19,8 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
-using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Text;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
@@ -319,13 +314,13 @@ namespace Sylas.RemoteTasks.Database.SyncBase
 
             var start = DateTime.Now;
             await Console.Out.WriteLineAsync("执行SQL语句" + Environment.NewLine + allCountSqlTxt);
-            
+
             var allCount = await conn.ExecuteScalarAsync<int>(allCountSqlTxt, parameters);
-            
+
             var t1 = DateTime.Now;
             await Console.Out.WriteLineAsync($"耗时: {(t1 - start).TotalMilliseconds}/ms");
             await Console.Out.WriteLineAsync("执行SQL语句" + Environment.NewLine + sql);
-            
+
             IEnumerable<T> data;
             data = await conn.QueryAsync<T>(sql, parameters);
 
@@ -559,7 +554,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
 
                 #region 表名信息
                 string tableName = table.Split('.').Last();
-                
+
                 string tableNameStatement = GetTableStatement(tableName, targetDbType);
                 string sourceTableStatement = GetTableStatement(tableName, sourceDbType);
                 if (targetDbType == DatabaseType.SqlServer)
@@ -1020,7 +1015,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             }
             else
             {
-                inserts = [ JObject.FromObject(data).ToObject<Dictionary<string, object>>() ?? throw new Exception("数据转字典失败") ];
+                inserts = [JObject.FromObject(data).ToObject<Dictionary<string, object>>() ?? throw new Exception("数据转字典失败")];
             }
 
             var dbType = GetDbType(conn.ConnectionString);
@@ -1040,7 +1035,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
 
             var insertValuesStatementBuilder = new StringBuilder();
             int recordIndex = 0;
-            
+
             var parameters = new Dictionary<string, object?>();
             string? batchInsertSql;
             foreach (Dictionary<string, object> insert in inserts)
@@ -1138,7 +1133,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             var tableCount = await conn.ExecuteScalarAsync<int>(checkSql);
             return tableCount > 0;
         }
-        
+
         private static void ValideParameter(string parameter)
         {
             if (parameter.Contains('-') || parameter.Contains('\''))
@@ -1147,127 +1142,127 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             }
         }
 
-//        public static string GetPagedSql(string db, string table, DatabaseType dbType, int pageIndex, int pageSize, string? orderField, bool isAsc, DataFilter? filters, out string queryCondition, out Dictionary<string, object> queryConditionParameters)
-//        {
-//            string orderClause = string.Empty;
-//            if (!string.IsNullOrWhiteSpace(orderField))
-//            {
-//                ValideParameter(orderField);
-//                orderClause = $" order by {orderField} {(isAsc ? "asc" : "desc")}";
-//            }
-//            string parameterFlag = dbType == DatabaseType.Oracle || dbType == DatabaseType.Dm ? ":" : "@";
+        //        public static string GetPagedSql(string db, string table, DatabaseType dbType, int pageIndex, int pageSize, string? orderField, bool isAsc, DataFilter? filters, out string queryCondition, out Dictionary<string, object> queryConditionParameters)
+        //        {
+        //            string orderClause = string.Empty;
+        //            if (!string.IsNullOrWhiteSpace(orderField))
+        //            {
+        //                ValideParameter(orderField);
+        //                orderClause = $" order by {orderField} {(isAsc ? "asc" : "desc")}";
+        //            }
+        //            string parameterFlag = dbType == DatabaseType.Oracle || dbType == DatabaseType.Dm ? ":" : "@";
 
-//            #region 处理过滤条件
-//            queryCondition = string.Empty;
-//            queryConditionParameters = [];
-//            if (filters != null)
-//            {
-//                if (filters.FilterItems != null && filters.FilterItems.Count() > 0)
-//                {
-//                    var filterItems = filters.FilterItems;
-//                    foreach (var filterField in filterItems)
-//                    {
-//                        if (filterField.FieldName is null || filterField.CompareType is null || filterField.Value is null || string.IsNullOrWhiteSpace(filterField.Value.ToString()))
-//                        {
-//                            continue;
-//                        }
-//                        var key = filterField.FieldName;
-//                        if (!queryConditionParameters.ContainsKey(key))
-//                        {
-//                            var compareType = filterField.CompareType;
-//                            var compareTypes = new List<string> { ">", "<", "=", ">=", "<=", "!=", "include", "in" };
-//                            if (!compareTypes.Contains(compareType))
-//                            {
-//                                throw new ArgumentException("过滤条件比较类型不正确");
-//                            }
-//                            var val = filterField?.Value ?? string.Empty;
-//                            ValideParameter(key);
-//                            if (compareType == "in")
-//                            {
-//                                IEnumerable<object> valList = val is IEnumerable vals ? vals.Cast<object>() : val.ToString().Split(',');
-                                
-//                                queryCondition += $" and {key} in(";
-//                                int valListIndex = 0;
-//                                foreach (var valItem in valList)
-//                                {
-//                                    var paramName = valListIndex == 0 ? key : $"{key}{valListIndex}";
-//                                    queryCondition += $"{parameterFlag}{paramName},";
-//                                    queryConditionParameters.Add(paramName, valItem);
-//                                    valListIndex++;
-//                                }
-//                                queryCondition = queryCondition.TrimEnd(',');
-//                                queryCondition += ")";
-//                            }
-//                            else
-//                            {
-//                                if (compareType == "include")
-//                                {
-//                                    queryCondition += $" and {key} like CONCAT(CONCAT('%', {parameterFlag}{key}), '%')";
-//                                }
-//                                else
-//                                {
-//                                    queryCondition += $" and {key}{compareType}{parameterFlag}{key}";
-//                                }
-//                                queryConditionParameters.Add(key, val);
-//                            }
-//                        }
-//                    }
-//                }
-//                if (filters.Keywords != null && filters.Keywords.Fields != null && filters.Keywords.Fields.Length > 0 && !string.IsNullOrWhiteSpace(filters.Keywords.Value))
-//                {
-//                    var keyWordsCondition = string.Empty;
-//                    foreach (var keyWordsField in filters.Keywords.Fields)
-//                    {
-//                        string varName = $"keyWords{keyWordsField}";
-//                        if (!queryConditionParameters.ContainsKey(varName))
-//                        {
-//                            if (dbType == DatabaseType.MySql)
-//                            {
-//                                keyWordsCondition += $" or {keyWordsField} like CONCAT(CONCAT('%', {parameterFlag}{varName}), '%')";
-//                            }
-//                            else if (dbType == DatabaseType.SqlServer)
-//                            {
-//                                keyWordsCondition += $" or {keyWordsField} like '%'+{parameterFlag}{varName}+'%'";
-//                            }
-//                            else
-//                            {
-//                                keyWordsCondition += $" or {keyWordsField} like '%'||{parameterFlag}{varName}||'%'";
-//                            }
-//                            queryConditionParameters.Add(varName, filters.Keywords.Value);
-//                        }
-//                    }
-//                    if (!string.IsNullOrEmpty(keyWordsCondition))
-//                    {
-//                        queryCondition += $" and ({keyWordsCondition[4..]})";
-//                    }
-//                }
-//            }
-//            #endregion
+        //            #region 处理过滤条件
+        //            queryCondition = string.Empty;
+        //            queryConditionParameters = [];
+        //            if (filters != null)
+        //            {
+        //                if (filters.FilterItems != null && filters.FilterItems.Count() > 0)
+        //                {
+        //                    var filterItems = filters.FilterItems;
+        //                    foreach (var filterField in filterItems)
+        //                    {
+        //                        if (filterField.FieldName is null || filterField.CompareType is null || filterField.Value is null || string.IsNullOrWhiteSpace(filterField.Value.ToString()))
+        //                        {
+        //                            continue;
+        //                        }
+        //                        var key = filterField.FieldName;
+        //                        if (!queryConditionParameters.ContainsKey(key))
+        //                        {
+        //                            var compareType = filterField.CompareType;
+        //                            var compareTypes = new List<string> { ">", "<", "=", ">=", "<=", "!=", "include", "in" };
+        //                            if (!compareTypes.Contains(compareType))
+        //                            {
+        //                                throw new ArgumentException("过滤条件比较类型不正确");
+        //                            }
+        //                            var val = filterField?.Value ?? string.Empty;
+        //                            ValideParameter(key);
+        //                            if (compareType == "in")
+        //                            {
+        //                                IEnumerable<object> valList = val is IEnumerable vals ? vals.Cast<object>() : val.ToString().Split(',');
 
-//            string baseSqlTxt = $"select * from {table} where 1=1 {queryCondition}";
+        //                                queryCondition += $" and {key} in(";
+        //                                int valListIndex = 0;
+        //                                foreach (var valItem in valList)
+        //                                {
+        //                                    var paramName = valListIndex == 0 ? key : $"{key}{valListIndex}";
+        //                                    queryCondition += $"{parameterFlag}{paramName},";
+        //                                    queryConditionParameters.Add(paramName, valItem);
+        //                                    valListIndex++;
+        //                                }
+        //                                queryCondition = queryCondition.TrimEnd(',');
+        //                                queryCondition += ")";
+        //                            }
+        //                            else
+        //                            {
+        //                                if (compareType == "include")
+        //                                {
+        //                                    queryCondition += $" and {key} like CONCAT(CONCAT('%', {parameterFlag}{key}), '%')";
+        //                                }
+        //                                else
+        //                                {
+        //                                    queryCondition += $" and {key}{compareType}{parameterFlag}{key}";
+        //                                }
+        //                                queryConditionParameters.Add(key, val);
+        //                            }
+        //                        }
+        //                    }
+        //                }
+        //                if (filters.Keywords != null && filters.Keywords.Fields != null && filters.Keywords.Fields.Length > 0 && !string.IsNullOrWhiteSpace(filters.Keywords.Value))
+        //                {
+        //                    var keyWordsCondition = string.Empty;
+        //                    foreach (var keyWordsField in filters.Keywords.Fields)
+        //                    {
+        //                        string varName = $"keyWords{keyWordsField}";
+        //                        if (!queryConditionParameters.ContainsKey(varName))
+        //                        {
+        //                            if (dbType == DatabaseType.MySql)
+        //                            {
+        //                                keyWordsCondition += $" or {keyWordsField} like CONCAT(CONCAT('%', {parameterFlag}{varName}), '%')";
+        //                            }
+        //                            else if (dbType == DatabaseType.SqlServer)
+        //                            {
+        //                                keyWordsCondition += $" or {keyWordsField} like '%'+{parameterFlag}{varName}+'%'";
+        //                            }
+        //                            else
+        //                            {
+        //                                keyWordsCondition += $" or {keyWordsField} like '%'||{parameterFlag}{varName}||'%'";
+        //                            }
+        //                            queryConditionParameters.Add(varName, filters.Keywords.Value);
+        //                        }
+        //                    }
+        //                    if (!string.IsNullOrEmpty(keyWordsCondition))
+        //                    {
+        //                        queryCondition += $" and ({keyWordsCondition[4..]})";
+        //                    }
+        //                }
+        //            }
+        //            #endregion
 
-//            #region 不同数据库对应的SQL语句
-//            string sql = dbType switch
-//            {
-//                DatabaseType.Oracle => $@"select * from 
-//	(
-//	select t.*,rownum no from 
-//		(
-//		{baseSqlTxt} {orderClause}
-//		) t 
-//	)
-//where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
-//                DatabaseType.MySql => $@"{baseSqlTxt} {orderClause} limit {(pageIndex - 1) * pageSize},{pageSize}",
-//                DatabaseType.SqlServer => $"{baseSqlTxt} {(string.IsNullOrEmpty(orderClause) ? "order by id desc" : orderClause)} OFFSET ({pageIndex}-1)*{pageSize} ROWS FETCH NEXT {pageSize} ROW ONLY",
-//                DatabaseType.Sqlite => $@"{baseSqlTxt} {orderClause} limit {pageSize} offset {(pageIndex - 1) * pageSize}",
-//                DatabaseType.Pg => $@"{baseSqlTxt} {orderClause} limit {pageSize} offset {(pageIndex - 1) * pageSize}",
-//                _ => throw new Exception("未知的数据库类型")
+        //            string baseSqlTxt = $"select * from {table} where 1=1 {queryCondition}";
 
-//            };
-//            #endregion
+        //            #region 不同数据库对应的SQL语句
+        //            string sql = dbType switch
+        //            {
+        //                DatabaseType.Oracle => $@"select * from 
+        //	(
+        //	select t.*,rownum no from 
+        //		(
+        //		{baseSqlTxt} {orderClause}
+        //		) t 
+        //	)
+        //where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
+        //                DatabaseType.MySql => $@"{baseSqlTxt} {orderClause} limit {(pageIndex - 1) * pageSize},{pageSize}",
+        //                DatabaseType.SqlServer => $"{baseSqlTxt} {(string.IsNullOrEmpty(orderClause) ? "order by id desc" : orderClause)} OFFSET ({pageIndex}-1)*{pageSize} ROWS FETCH NEXT {pageSize} ROW ONLY",
+        //                DatabaseType.Sqlite => $@"{baseSqlTxt} {orderClause} limit {pageSize} offset {(pageIndex - 1) * pageSize}",
+        //                DatabaseType.Pg => $@"{baseSqlTxt} {orderClause} limit {pageSize} offset {(pageIndex - 1) * pageSize}",
+        //                _ => throw new Exception("未知的数据库类型")
 
-//            return sql;
-//        }
+        //            };
+        //            #endregion
+
+        //            return sql;
+        //        }
         /// <summary>
         /// 获取分页查询的SQL语句
         /// </summary>
@@ -1455,7 +1450,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             var columnBuilder = new StringBuilder();
             var colCodes = colInfos.Select(x => x.ColumnCode);
             colCodes = GetTableStatements(colCodes, dbtype);
-            
+
             return string.Join(',', colCodes);
         }
         /// <summary>
@@ -1588,7 +1583,8 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             }
             if (pks.Length > 1)
             {
-                return dbType switch {
+                return dbType switch
+                {
                     var type when type == DatabaseType.Oracle || type == DatabaseType.Dm => $"BEGIN{Environment.NewLine}{statement}{Environment.NewLine}END;",
                     DatabaseType.MySql => $"SET foreign_key_checks=0;{Environment.NewLine}{statement}{Environment.NewLine}SET foreign_key_checks=1;",
                     _ => statement
@@ -1899,11 +1895,11 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             string createSql = dbType switch
             {
                 DatabaseType.MySql => $@"CREATE TABLE {tableStatement} ({Environment.NewLine}{columnsAssignment}{Environment.NewLine}{primaryKeyAssignment}{Environment.NewLine}) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;",
-                
+
                 DatabaseType.Oracle => $@"CREATE TABLE {tableStatement} ({Environment.NewLine}{columnsAssignment}{Environment.NewLine}{primaryKeyAssignment})".ToUpper(),
 
                 DatabaseType.Pg => $@"CREATE TABLE {tableStatement} ({Environment.NewLine}{columnsAssignment}{Environment.NewLine}{primaryKeyAssignment})",
-                
+
                 // sqlserver
                 _ => $@"CREATE TABLE {tableStatement} ({Environment.NewLine}{columnsAssignment}{Environment.NewLine}){Environment.NewLine};{Environment.NewLine}{primaryKeyAssignment}"
             };
@@ -2005,10 +2001,10 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             int pageIndex = 1;
 
             #region 获取目标表的数据
-            
+
             // : @
             var dbVarFlag = GetDbParameterFlag(targetConn.ConnectionString);
-            
+
             // columnsStatement =           "Name, Age"
             string columnsStatement = GetFieldsStatement(colInfos, targetDbType);
             #endregion
@@ -2041,10 +2037,10 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                 // sql语句参数
                 Dictionary<string, object?> parameters = [];
                 Dictionary<string, object?> deleteExistParameters = [];
-                
+
                 // 参数名后缀(第一条数据的Name字段, 参数名为Name1, 第二条为Name2, ...)
                 var random = 1;
-                
+
                 // 为数据源中的每一条数据生成对应的insert语句的部分
                 foreach (IDictionary<string, object> dataItem in datalist)
                 {
@@ -2165,7 +2161,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
 
             if (sourceArray.Count() == 0 && targetArray.Count() != 0)
             {
-                return new DataComparedResult { ExistInTargetOnly = [..targetArray] };
+                return new DataComparedResult { ExistInTargetOnly = [.. targetArray] };
             }
 
             if (sourceArray.Count() != 0 && targetArray.Count() == 0)

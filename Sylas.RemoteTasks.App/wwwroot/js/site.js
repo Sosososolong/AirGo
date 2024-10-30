@@ -185,17 +185,65 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableContainerS
             await targetTable.renderBody(data);
 
             // 更新分页导航
-            pagination.empty();
-            pagination.append('<li class="page-item ' + (targetTable.pageIndex == 1 ? 'disabled' : '') + '"><a class="page-link" href="#" data-page="' + (targetTable.pageIndex - 1) + '">Previous</a></li>');
-            for (var i = 1; i <= targetTable.totalPages; i++) {
-                pagination.append('<li class="page-item ' + (i == targetTable.pageIndex ? 'active' : '') + '"><a class="page-link" href="#" data-page="' + i + '">' + i + '</a></li>');
-            }
-            pagination.append('<li class="page-item ' + (targetTable.pageIndex == targetTable.totalPages ? 'disabled' : '') + '"><a class="page-link" href="#" data-page="' + (targetTable.pageIndex + 1) + '">Next</a></li>');
+            renderPageBar();
 
             // 记录Id主键字段是否是整型
             if (data.length > 0 && isNaN(data[0].id) && targetTable.primaryKeyIsInt) {
                 targetTable.primaryKeyIsInt = false;
             }
+        }
+        function renderPageBar() {
+            pagination.empty();
+            const maxPage = 10;
+            let firstPage;
+            let lastPage;
+            const halfPage = Math.floor(maxPage / 2);
+            const rightPage = maxPage - halfPage - 1;
+            const totalPage = targetTable.totalPages;
+
+            if (totalPage > maxPage) {
+                firstPage = pageIndex - halfPage;
+                lastPage = pageIndex + rightPage;
+
+                if (firstPage <= 0) {
+                    // 需要向右偏移至1(即firstPage + rightOffset = 1), 计算偏移
+                    const rightOffset = 1 - firstPage;
+
+                    firstPage += rightOffset;
+                    lastPage += rightOffset;
+                    // 防止lastPage超出totalPage
+                    lastPage = lastPage > totalPage ? totalPage : lastPage;
+                }
+                if (lastPage > totalPage) {
+                    // 需要向左偏移至totalPage(即lastPage - leftOffset = totalPage)
+                    const leftOffset = lastPage - totalPage;
+
+                    lastPage -= leftOffset;
+                    firstPage -= leftOffset;
+                    // 防止firstPage小于1
+                    firstPage = firstPage < 1 ? 1 : firstPage;
+                }
+            }
+            else {
+                firstPage = 1;
+                lastPage = totalPage;
+            }
+
+            pagination.append('<li class="page-item ' + (targetTable.pageIndex == 1 ? 'disabled' : '') + '"><a class="page-link" href="#" data-page="' + (targetTable.pageIndex - 1) + '">Previous</a></li>');
+            if (firstPage > 1) {
+                pagination.append(`<li class="page-item"><a class="page-link" href="#" data-page="1">1</a></li> <li class="page-item disabled"><a class="page-link" href="#">...</a></li>`);
+                // 额外显示第一页占据了两个位置, 所以第一页再向后偏移两个
+                firstPage += 2;
+            }
+            for (var i = firstPage; i <= lastPage; i++) {
+                pagination.append('<li class="page-item ' + (i == targetTable.pageIndex ? 'active' : '') + '"><a class="page-link" href="#" data-page="' + i + '">' + i + '</a></li>');
+            }
+            if (lastPage < totalPage) {
+                pagination.append(`<li class="page-item disabled"><a class="page-link" href="#">...</a></li> <li class="page-item"><a class="page-link" href="#" data-page="${totalPage}">${totalPage}</a></li>`);
+                // 额外显示最后一页占据了两个位置, 所以最后一页再向左偏移两个
+                lastPage -= 2;
+            }
+            pagination.append('<li class="page-item ' + (targetTable.pageIndex == targetTable.totalPages ? 'disabled' : '') + '"><a class="page-link" href="#" data-page="' + (targetTable.pageIndex + 1) + '">Next</a></li>');
         }
         
         var response = await fetchData(apiUrl, method, this.pageIndex, this.pageSize, targetTable.dataFilter, this.orderRules, this.tableId);
