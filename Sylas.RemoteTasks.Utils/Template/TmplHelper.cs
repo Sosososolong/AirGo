@@ -7,6 +7,7 @@ using Sylas.RemoteTasks.Utils.Template.Parser;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace Sylas.RemoteTasks.Utils.Template
@@ -458,28 +459,32 @@ namespace Sylas.RemoteTasks.Utils.Template
                         }
                         result.AddRange(newResults);
                     }
-                    else if (tmplValue is not string)
+                    else if (tmplValue is JsonElement || tmplValue is string)
                     {
+                        return tmplWithParser.Replace(exp, tmplValue.ToString()).Replace(_doubleFlag, "$");
+                    }
+                    else
+                    {
+                        // tmplWithParser中只有一个表达式
                         if (stringTmplMatches.Count == 1)
                         {
-                            if (tmplWithParser != stringTmplMatch.Value)
+                            // tmplWithParser: 源模板, 例如: .*${name}.*
+                            // stringTmplMatch.Value: tmplWithParser中的表达式${name}
+                            //   -> 两者相等, 说明tmplWithParser中只有一个表达式, 直接返回解析后的值
+                            if (tmplWithParser == stringTmplMatch.Value)
                             {
-                                // 如何源模板中除了表达式还有普通字符串, 那么直接将对象转为字符串替换表达式
-                                return tmplWithParser.Replace(stringTmplMatch.Value, tmplValue.ToString());
+                                return tmplValue;
                             }
                             else
                             {
-                                return tmplValue;
+                                // 不相等, 将源模板中的表达式替换为解析后的值
+                                return tmplWithParser.Replace(stringTmplMatch.Value, tmplValue.ToString());
                             }
                         }
                         else
                         {
                             result.Add(tmplValue);
                         }
-                    }
-                    else
-                    {
-                        tmplWithParser = tmplWithParser.Replace(exp, tmplValue.ToString()).Replace(_doubleFlag, "$");
                     }
                 }
             }

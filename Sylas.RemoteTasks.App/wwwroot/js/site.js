@@ -179,6 +179,7 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableContainerS
                 return;
             }
             var data = response.data.data;
+            // 暂时没用上
             var totalCount = response.data.count;
             targetTable.totalPages = response.data.totalPages;
             // 将数据添加到表格中
@@ -648,6 +649,50 @@ async function fetchData(url, method, pageIndex, pageSize, dataFilter, orderRule
             finallyAction();
         }
     }
+}
+
+async function httpRequestAsync(url, spinnerEle = null, method = 'POST', body = '', contentType = '') {
+    try {
+        showSpinner(spinnerEle);
+        if (!contentType && method.toUpperCase() === 'POST') {
+            contentType = 'application/json';
+        }
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': contentType,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: body
+        })
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                showWarningBox('身份已过期, 请点击确定刷新页面', () => location.reload());
+                return;
+            }
+        }
+
+        var rspJson = await response.json();
+
+        return rspJson;
+    } catch (e) {
+        showErrorBox(e.message);
+    } finally {
+        closeSpinner(spinnerEle);
+    };
+}
+
+async function httpRequestDataAsync(url, spinnerEle = null, method = 'POST', body = '', contentType = '') {
+    var response = await httpRequestAsync(url, spinnerEle, method, body, contentType);
+    if (!response) {
+        showErrorBox('请求无响应');
+    } else if (response.code === 1) {
+        return response.data;
+    } else {
+        showErrorBox(rspData.errMsg ? rspData.errMsg : "请求失败");
+    }
+    return null;
 }
 
 function showAddPannel(table) {

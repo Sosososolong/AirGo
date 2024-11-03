@@ -126,7 +126,7 @@ namespace Sylas.RemoteTasks.App.RegexExp
         public static readonly Regex RefedPrimaryField = new ("\\{\\{\\$primary\\.(\\w+)\\}\\}");
 
         /// <summary>
-        /// 字符串模板, 如: "ID为{id}, 姓名为{name}"
+        /// 带变量的字符串模板, 比如变量name为动态的, 可以表示为{{name}}, 或者${name}, 或者$name, 或者XxxParser[...]
         /// </summary>
         /// <returns></returns>
         public static readonly Regex StringTmpl = new ("(?<name>\\{{2}\\s*.+\\}{2})|(?<name>\\$[^\\{]+)|(?<name>\\$\\{.+?\\})|(?<name>(?<parser>\\w+Parser)\\[\\${0,1}\\{{0,1}\\w+(\\[\\d+\\])*(\\.\\w+)*.*\\}{0,1}\\])");

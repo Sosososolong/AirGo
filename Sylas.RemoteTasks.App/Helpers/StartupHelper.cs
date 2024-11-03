@@ -1,4 +1,5 @@
 ﻿using IdentityModel;
+using IdentityServer4.AccessTokenValidation;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
@@ -183,7 +184,13 @@ namespace Sylas.RemoteTasks.App.Helpers
                     OnMessageReceived = OnMessageReceived,
                     OnRedirectToIdentityProvider = n => OnRedirectToIdentityProvider(n),
                     OnTokenResponseReceived = n => OnTokenResponseReceived(n),
-                    OnUserInformationReceived = n => OnUserInformationReceived(n)
+                    OnUserInformationReceived = n => OnUserInformationReceived(n),
+                    OnAuthenticationFailed = n =>
+                    {
+                        n.Response.Redirect("/Home/Error");
+                        n.HandleResponse();
+                        return Task.CompletedTask;
+                    }
                 };
                 options.CallbackPath = "/signin-oidc";
             })
@@ -195,19 +202,55 @@ namespace Sylas.RemoteTasks.App.Helpers
                 // 即api resource secret
                 options.ApiSecret = apiSecret;
                 options.RequireHttpsMetadata = requireHttpsMetadata;
+                options.JwtBearerEvents.OnTokenValidated = async context =>
+                {
+                    var claimsIdentity = context.Principal?.Identity as ClaimsIdentity; // 即控制器的属性User的属性Identity
+
+                    if (claimsIdentity is not null)
+                    {
+                        // 将 nameidentifier 改为 sub
+                        var nameIdentifierClaim = claimsIdentity.FindFirst(ClaimTypes.NameIdentifier);
+                        if (nameIdentifierClaim != null)
+                        {
+                            claimsIdentity.RemoveClaim(nameIdentifierClaim);
+                            claimsIdentity.AddClaim(new Claim("sub", nameIdentifierClaim.Value));
+                        }
+
+                        // 添加 role 声明, 某些授权的Policy是根据role判断的
+                        var roleClaims = claimsIdentity.FindAll(ClaimTypes.Role).ToList();
+                        foreach (var roleClaim in roleClaims)
+                        {
+                            claimsIdentity.AddClaim(new Claim(JwtClaimTypes.Role, roleClaim.Value));
+                        }
+                    }
+
+                    await Task.CompletedTask;
+                };
+
+                //options.EnableCaching = true;
+                //options.CacheDuration = TimeSpan.FromMinutes(3);
+                //options.SupportedTokens = SupportedTokens.Both;
             });
         }
         private static Task OnRedirectToIdentityProvider(RedirectContext redirectContext)
         {
-            // X-Scheme
-            string scheme = redirectContext.Request.Headers["X-Scheme"].ToString() ?? redirectContext.Request.Scheme;
-            if (string.IsNullOrEmpty(scheme))
+            if (redirectContext.Request.Headers.XRequestedWith == "XMLHttpRequest")
             {
-                scheme = redirectContext.Request.Scheme;
+                redirectContext.Response.StatusCode = 401;
+                redirectContext.HandleResponse();
             }
-            var host = $"{scheme}://{redirectContext.Request.Host.Value}";
-            redirectContext.ProtocolMessage.RedirectUri = $"{host}/signin-oidc";
-            redirectContext.ProtocolMessage.PostLogoutRedirectUri = $"{host}/signout-callback-oidc";
+            else
+            {
+                // X-Scheme
+                string scheme = redirectContext.Request.Headers["X-Scheme"].ToString() ?? redirectContext.Request.Scheme;
+                if (string.IsNullOrEmpty(scheme))
+                {
+                    scheme = redirectContext.Request.Scheme;
+                }
+                var host = $"{scheme}://{redirectContext.Request.Host.Value}";
+                redirectContext.ProtocolMessage.RedirectUri = $"{host}/signin-oidc";
+                redirectContext.ProtocolMessage.PostLogoutRedirectUri = $"{host}/signout-callback-oidc";
+            }
             return Task.CompletedTask;
         }
         private static Task OnMessageReceived(MessageReceivedContext context)
@@ -228,8 +271,8 @@ namespace Sylas.RemoteTasks.App.Helpers
             if (context.User != null)
             {
                 context.Options.ClaimActions.Clear();
-                // 从user数据拿属性添加到Claims中
-                context.Options.ClaimActions.MapJsonKey("name", "UserAccount"); //给name单独映射
+                // 从user数据拿属性添加到Claims中, "要添加的Claim Type" => "Claim Value取用户信息中的xx属性"
+                context.Options.ClaimActions.MapJsonKey("name", "name");
                 context.Options.ClaimActions.MapJsonKey("scope", "scope");
                 context.Options.ClaimActions.MapJsonKey("role", "role");
                 context.Options.ClaimActions.MapCustomJson("userInfo", JsonClaimValueTypes.Json, user =>

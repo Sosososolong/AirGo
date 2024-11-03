@@ -1306,7 +1306,10 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                     var filterItems = filters.FilterItems;
                     foreach (var filterField in filterItems)
                     {
-                        if (filterField.FieldName is null || filterField.CompareType is null || filterField.Value is null || string.IsNullOrWhiteSpace(filterField.Value.ToString()))
+                        if (string.IsNullOrWhiteSpace(filterField.FieldName)
+                            || string.IsNullOrWhiteSpace(filterField.CompareType)
+                            || filterField.Value is null
+                            || string.IsNullOrWhiteSpace(filterField.Value.ToString()))
                         {
                             continue;
                         }

@@ -152,29 +152,14 @@
             backdrop: 'static',
             keyboard: false
         });
-        /**
-         * msg 提示内容
-         * title 标题
-         * buttons: [{ 
-         *   class: 按钮样式: secondary, primary, success, danger, warning
-         *   content: 按钮上的显示文本内容
-         * }]
-         */
-        //function showMsgBox(msg = '操作成功', title = '提示', buttons = [{ class: 'success', content: '确定' }]) {
-        //    $('#msgBox .modal-title').text(title);
-        //    $('#msgBox .modal-body').text(msg);
-        //    if (Array.isArray(buttons) && buttons.length > 0 && buttons[0].class && buttons[0].content) {
-        //        for (let i = 0; i < buttons.length; i++) {
-        //            $('#msgBox .modal-footer').html(`<button type="button" class="btn btn-${buttons[i].class}" data-bs-dismiss="modal">${buttons[i].content}</button>`)
-        //        }
-        //    }
-        //    msgBox.show();
-        //}
 
-        function showMsgBox(msg, onClose) {
-            $('#msgBox .modal-title').text('提示');
+        function showBox(msg, onClose, title = '提示', titleClass = '', confirmBtnContent = '确定', confirmBtnClass = 'btn-success') {
+            $('#msgBox .modal-title').text(title);
+            if (titleClass) {
+                $('#msgBox .modal-title').parent().addClass(titleClass);
+            }
             $('#msgBox .modal-body').text(msg);
-            $('#msgBox .modal-footer').html(`<button type="button" class="btn btn-success" data-bs-dismiss="modal" onclick="">确定</button>`);
+            $('#msgBox .modal-footer').html(`<button type="button" class="btn ${confirmBtnClass}" data-bs-dismiss="modal" onclick="">${confirmBtnContent}</button>`);
             if (onClose && typeof onClose === 'function') {
                 let confirmBtn = document.querySelector('#msgBox button[data-bs-dismiss="modal"]');
                 function onCloseFunc() {
@@ -185,12 +170,16 @@
             }
             msgBox.show();
         }
+        function showMsgBox(msg, onClose) {
+            showBox(msg, onClose, '提示', 'bg-success');
+        }
 
-        function showErrorBox(errMsg) {
-            $('#msgBox .modal-title').text('错误');
-            $('#msgBox .modal-body').text(errMsg);
-            $('#msgBox .modal-footer').html(`<button type="button" class="btn btn-danger" data-bs-dismiss="modal">关闭</button>`)
-            msgBox.show();
+        function showWarningBox(msg, onClose) {
+            showBox(msg, onClose, '请注意', 'bg-warning', '确定', 'btn-warning');
+        }
+
+        function showErrorBox(errMsg, onClose) {
+            showBox(errMsg, onClose, '错误', 'bg-danger text-white', '关闭', 'btn-danger');
         }
 
         function showConfirmBox(confirmMsg, callback) {

@@ -350,7 +350,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         }
         #endregion
 
-        public async Task<IActionResult> SyncDbs(string sourceConnectionString, string sourceDatabase, string sourceTable, string targetConnectionString)
+        public async Task<IActionResult> SyncDbs(string sourceConnectionString = "", string sourceDatabase = "", string sourceTable = "", string targetConnectionString = "")
         {
             sourceTable ??= "";
             if (!string.IsNullOrWhiteSpace($"{sourceConnectionString}{sourceDatabase}{sourceTable}{targetConnectionString}"))

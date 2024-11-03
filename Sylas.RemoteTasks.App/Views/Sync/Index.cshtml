@@ -51,7 +51,8 @@
                 const processorId = row[idFieldName];
                 const tableStepsId = `tableStepsForProcessor${processorId}`;
                 let steps = row.steps;
-                if (!steps || !(steps.length) || $(`#${tableStepsId}`).length) {
+                const tableLength = $(`#${tableStepsId}`).length;
+                if (!steps || !(steps.length) || tableLength) {
                     return;
                 }
                 await createTable(
@@ -137,7 +138,7 @@
                                 {
                                     fieldName: 'stepId',
                                     compareType: '=',
-                                    value: stepId.toString()
+                                    value: stepId
                                 }
                             ],
                             loadingData,

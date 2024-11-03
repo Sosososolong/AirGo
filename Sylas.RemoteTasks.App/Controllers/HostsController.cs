@@ -1,10 +1,9 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.RemoteHostModule;
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
-using Sylas.RemoteTasks.App.Study;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils;
+using Sylas.RemoteTasks.Utils.CommandExecutor;
 using Sylas.RemoteTasks.Utils.Dto;
 
 namespace Sylas.RemoteTasks.App.Controllers
@@ -41,6 +40,25 @@ namespace Sylas.RemoteTasks.App.Controllers
             var result = new RequestResult<PagedData<AnythingSetting>>(anythingSettings);
             return Ok(result);
         }
+        /// <summary>
+        /// 根据id查询命令配置和解析后的命令信息
+        /// </summary>
+        /// <returns></returns>
+        public async Task<RequestResult<object>> AnythingSettingAndInfoAsync(int id)
+        {
+            if (id <= 0)
+            {
+                return RequestResult<object>.Error("id不能为空");
+            }
+            var anythingSetting = await anythingService.GetAnythingSettingByIdAsync(id);
+            if (anythingSetting is null)
+            {
+                return RequestResult<object>.Error($"未找到id为{id}的操作对象");
+            }
+            var anythingInfo = await anythingService.GetAnythingInfoBySettingAndCommandAsync(id);
+
+            return RequestResult<object>.Success(new { AnythingSetting = anythingSetting, AnythingInfo = anythingInfo });
+        }
 
         /// <summary>
         /// 显示所有命令
@@ -51,7 +69,25 @@ namespace Sylas.RemoteTasks.App.Controllers
             var anythingInfos = await anythingService.GetAllAnythingInfosAsync();
             return View(anythingInfos);
         }
-        
+        /// <summary>
+        /// 根据id获取操作对象AnythingInfo
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        //public async Task<RequestResult<AnythingInfo>> AnythingInfoAsync(int id)
+        //{
+        //    if (id <= 0)
+        //    {
+        //        return RequestResult<AnythingInfo>.Error("id不能为空");
+        //    }
+        //    var anythingInfo = await anythingService.GetAnythingInfoBySettingAndCommandAsync(id);
+        //    if (anythingInfo is null)
+        //    {
+        //        return RequestResult<AnythingInfo>.Error($"未找到id为{id}的操作对象");
+        //    }
+        //    return RequestResult<AnythingInfo>.Success(anythingInfo);
+        //}
+
         /// <summary>
         /// 对指定对象anything执行指定的命令command
         /// </summary>
@@ -61,7 +97,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         public async Task<IActionResult> ExecuteCommandAsync([FromBody] CommandInfoInDto commandInfoInDto)
         {
             var commandResult = await anythingService.ExecuteAsync(commandInfoInDto);
-            return Ok(commandResult);
+            return Ok(RequestResult<CommandResult>.Success(commandResult));
         }
         /// <summary>
         /// 添加一条AnythingSetting记录

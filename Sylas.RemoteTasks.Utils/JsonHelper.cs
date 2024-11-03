@@ -46,36 +46,15 @@ namespace Sylas.RemoteTasks.Utils
         /// 获取JsonElement对象的属性值
         /// </summary>
         /// <param name="root"></param>
-        /// <param name="configPath"></param>
+        /// <param name="pathSegments"></param>
         /// <returns></returns>
         /// <exception cref="InvalidOperationException"></exception>
-        public static JsonElement GetDataElement(JsonElement root, string configPath)
+        public static JsonElement GetDataElement(JsonElement root, string[] pathSegments)
         {
-            if (string.IsNullOrWhiteSpace(configPath))
-            {
-                return root;
-            }
-            string[] pathSegments = configPath.Split(':', '.');
             JsonElement currentElement = root;
 
             foreach (string segment in pathSegments)
             {
-                // 不区分大小写
-                //bool found = false;
-                //foreach (var item in currentElement.EnumerateObject())
-                //{
-                //    if (item.Name.Equals(segment, StringComparison.OrdinalIgnoreCase))
-                //    {
-                //        currentElement = item.Value;
-                //        found = true;
-                //        break;
-                //    }
-                //}
-                //if (!found)
-                //{
-                //    currentElement = default;
-                //}
-
                 // 区分大小写
                 if (currentElement.TryGetProperty(segment, out JsonElement nextElement))
                 {
@@ -90,13 +69,29 @@ namespace Sylas.RemoteTasks.Utils
             return currentElement;
         }
         /// <summary>
+        /// 获取JsonElement对象的属性值
+        /// </summary>
+        /// <param name="root"></param>
+        /// <param name="configPath"></param>
+        /// <returns></returns>
+        /// <exception cref="InvalidOperationException"></exception>
+        public static JsonElement GetDataElement(JsonElement root, string configPath)
+        {
+            if (string.IsNullOrWhiteSpace(configPath))
+            {
+                return root;
+            }
+            string[] pathSegments = configPath.Split(new char[] { ':', '.' }, StringSplitOptions.RemoveEmptyEntries);
+            return GetDataElement(root, pathSegments);
+        }
+        /// <summary>
         /// 将JsonElement转换为Dictionary
         /// </summary>
         /// <param name="element"></param>
         /// <returns></returns>
-        public static Dictionary<string, object> JsonElementToDictionary(JsonElement element)
+        public static Dictionary<string, object?> JsonElementToDictionary(JsonElement element)
         {
-            var dictionary = new Dictionary<string, object>();
+            var dictionary = new Dictionary<string, object?>();
 
             foreach (JsonProperty property in element.EnumerateObject())
             {
@@ -109,6 +104,7 @@ namespace Sylas.RemoteTasks.Utils
                     JsonValueKind.True => true,
                     JsonValueKind.False => false,
                     JsonValueKind.Null => null,
+                    JsonValueKind.Undefined => null,
                     _ => property.Value.GetRawText()
                 };
             }

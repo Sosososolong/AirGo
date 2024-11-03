@@ -62,13 +62,13 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
             }
 
             var propsValue = specifiedRecordFieldValueExpression.Groups["props"].Value;
+            
+            var props = propsValue.Split('.', StringSplitOptions.RemoveEmptyEntries);
             if (propertyValue is JsonElement jsonElement)
             {
-                var result = JsonHelper.GetDataElement(jsonElement, propsValue);
-                new ParseResult(true, [key], result);
+                var result = JsonHelper.GetDataElement(jsonElement, props);
+                return new ParseResult(true, [key], result);
             }
-
-            var props = propsValue.Split('.', StringSplitOptions.RemoveEmptyEntries);
             foreach (var p in props)
             {
                 if (propertyValue is null || string.IsNullOrWhiteSpace(propertyValue.ToString()))

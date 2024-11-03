@@ -80,8 +80,8 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(AuthorizationConstants.AdministrationPolicy,
         policy =>
             policy.RequireAssertion(context => context.User.HasClaim(c =>
-                    ((c.Type == JwtClaimTypes.Role && c.Value == adminApiConfiguration.AdministrationRole) ||
-                    (c.Type == $"client_{JwtClaimTypes.Role}" && c.Value == adminApiConfiguration.AdministrationRole))
+                    (c.Type == JwtClaimTypes.Role && c.Value == adminApiConfiguration.AdministrationRole) ||
+                    (c.Type == $"client_{JwtClaimTypes.Role}" && c.Value == adminApiConfiguration.AdministrationRole)
                 ) && context.User.HasClaim(c => c.Type == JwtClaimTypes.Scope && c.Value == adminApiConfiguration.OidcApiName)
             ));
 });
