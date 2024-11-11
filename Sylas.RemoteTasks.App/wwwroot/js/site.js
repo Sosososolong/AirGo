@@ -690,7 +690,7 @@ async function httpRequestDataAsync(url, spinnerEle = null, method = 'POST', bod
     } else if (response.code === 1) {
         return response.data;
     } else {
-        showErrorBox(rspData.errMsg ? rspData.errMsg : "请求失败");
+        showErrorBox(response.errMsg ? response.errMsg : "请求失败");
     }
     return null;
 }

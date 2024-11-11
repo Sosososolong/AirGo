@@ -137,6 +137,9 @@ async function showDetails(ele, id) {
                 commandState += `<p class="card-text">${stateArr[j]}</p>`
             }
 
+            let commandTxt = command.CommandTxt;
+            commandTxt = commandTxt.split(';');
+            commandTxt = commandTxt.join('<br />');
             commandsHtml += `
         <p class="card-text">
             <button type="button"
@@ -146,7 +149,7 @@ async function showDetails(ele, id) {
             </button>
         </p>
         <p class="card-text">
-            ${command.CommandTxt}
+            ${commandTxt}
         </p>
         <div style="font-size:12px; margin-left:30px; color:green;">${commandState}</div>
         `;

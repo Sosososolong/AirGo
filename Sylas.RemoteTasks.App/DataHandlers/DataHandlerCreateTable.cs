@@ -26,7 +26,7 @@ namespace Sylas.RemoteTasks.App.DataHandlers
 
             var json = JsonConvert.SerializeObject(colInfos);
             var columnInfos = JsonConvert.DeserializeObject<List<ColumnInfo>>(json) ?? throw new Exception($"数据库{db}数据表{table}字段集合获取失败");
-            await _databaseInfo.CreateTableIfNotExistAsync(db, table, columnInfos, tableRecords);
+            await _databaseInfo.CreateTableIfNotExistAsync(table, columnInfos, db);
         }
     }
 }

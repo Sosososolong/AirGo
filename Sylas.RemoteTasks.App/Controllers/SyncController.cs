@@ -363,7 +363,7 @@ namespace Sylas.RemoteTasks.App.Controllers
                 {
                     foreach (var t in sourceTable.Split(','))
                     {
-                        await DatabaseInfo.SyncDatabaseByConnectionStringsAsync(sourceConnectionString, targetConnectionString, sourceDatabase, t);
+                        await DatabaseInfo.TransferDataAsync(sourceConnectionString, targetConnectionString, sourceDatabase, t);
                     }
                     ViewBag.Message = "同步成功";
                 }

@@ -69,31 +69,6 @@ namespace Sylas.RemoteTasks.Test.Remote
                     );
         }
         /// <summary>
-        /// 将指定目录下的所有文件写入一个文件中
-        /// </summary>
-        /// <returns></returns>
-        [Fact]
-        public void ReadFiles()
-        {
-            string dir1 = "D:/.NET/Id/Id.SiteManagement/Id.sitemanagement.core/Entities";
-            string dir2 = "D:/.NET/Id/Id.portal.api/Id.portal.core/Entities";
-            string[] dirs = [dir1, dir2];
-            StringBuilder fileContentBuilder = new();
-            foreach (var dir in dirs)
-            {
-                var files = FileHelper.FindFilesRecursive(dir, file => file.EndsWith(".cs"));
-                foreach (var file in files)
-                {
-                    var filename = file.Replace('\\', '/').Replace(dir, string.Empty);
-                    //fileContentBuilder.AppendLine(filename);
-                    fileContentBuilder.AppendLine(File.ReadAllText(file));
-                    fileContentBuilder.AppendLine();
-                }
-            }
-            File.WriteAllText(@"D:\.NET\id\routine\txt\siteportalentities.txt", fileContentBuilder.ToString());
-
-        }
-        /// <summary>
         /// 将比较大的秒的值格式化为x天x时x分x秒的格式
         /// </summary>
         [Fact]

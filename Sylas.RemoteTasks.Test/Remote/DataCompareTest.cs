@@ -179,7 +179,7 @@ namespace Sylas.RemoteTasks.Test.Remote
             #endregion
 
             var before = DateTime.Now;
-            var result = await DatabaseInfo.CompareRecordsAsync(source, target, [], "Id");
+            var result = await DatabaseInfo.CompareRecordsAsync(source, target, "Id");
             var end = DateTime.Now;
             // 老版本使用NewtonSoft的IEnumerable<JObject>: 20s
             // 新版本使用IEnumerable<IDictionary<string, obejct>>: 2s, 内存占用减少近一半

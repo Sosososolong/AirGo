@@ -340,7 +340,7 @@ public class DatabaseProvider : IDatabaseProvider
             await conn.ChangeDatabaseAsync(db);
         }
 
-        string pagedSql = DatabaseInfo.GetPagedSql(conn.Database, table, DatabaseInfo.GetDbType(ConnectionString), search.PageSize, search.PageSize, search.Filter, search.Rules, out string condition, out Dictionary<string, object> conditionParameters);
+        string pagedSql = DatabaseInfo.GetPagedSql(table, DatabaseInfo.GetDbType(ConnectionString), search.PageSize, search.PageSize, search.Filter, search.Rules, out string condition, out Dictionary<string, object> conditionParameters);
         string allCountSqlTxt = $"select count(*) from {conn.Database}.{table} where 1=1 {condition}";
 
         var dataSet = await QueryAsync(pagedSql, conditionParameters);

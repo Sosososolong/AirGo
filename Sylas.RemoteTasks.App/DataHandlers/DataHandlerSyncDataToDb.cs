@@ -40,14 +40,19 @@ namespace Sylas.RemoteTasks.App.DataHandlers
             }
 
             // 数据库连接字符串中, sqlserver, oracle, sqite包含"Data Source=xxx"; mysql, mslocaldb包含"Server=xxx"
-            if (_connectionStringSubStrings.Any(x => targetDb.Contains(x, StringComparison.OrdinalIgnoreCase)))
+            if (!string.IsNullOrWhiteSpace(targetDb))
             {
-                await _databaseInfo.SyncDataToDbWithTargetConnectionStringAsync(table, enumerableData, [], sourceIdField: idField, targetIdField: idField, targetDb);
+                if (_connectionStringSubStrings.Any(x => targetDb.Contains(x, StringComparison.OrdinalIgnoreCase)))
+                {
+                    _databaseInfo.SetDb(targetDb);
+                }
+                else
+                {
+                    _databaseInfo.ChangeDatabase(targetDb);
+                }
             }
-            else
-            {
-                await _databaseInfo.SyncDataToDbAsync(table, enumerableData, [], sourceIdField: idField, targetIdField: idField, targetDb);
-            }
+
+            await _databaseInfo.TransferDataAsync(enumerableData, table, idField: idField);
         }
     }
 }

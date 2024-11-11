@@ -31,4 +31,10 @@
     <ProjectReference Include="..\Sylas.RemoteTasks.Utils\Sylas.RemoteTasks.Utils.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Reference Include="DmProvider">
+      <HintPath>..\..\..\..\Users\Wu Qianlin\.nuget\packages\dmprovider\1.1.0.11058\lib\netstandard2.0\DmProvider.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
 </Project>

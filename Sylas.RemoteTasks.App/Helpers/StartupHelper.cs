@@ -181,16 +181,10 @@ namespace Sylas.RemoteTasks.App.Helpers
 
                 options.Events = new OpenIdConnectEvents
                 {
-                    OnMessageReceived = OnMessageReceived,
-                    OnRedirectToIdentityProvider = n => OnRedirectToIdentityProvider(n),
                     OnTokenResponseReceived = n => OnTokenResponseReceived(n),
                     OnUserInformationReceived = n => OnUserInformationReceived(n),
-                    OnAuthenticationFailed = n =>
-                    {
-                        n.Response.Redirect("/Home/Error");
-                        n.HandleResponse();
-                        return Task.CompletedTask;
-                    }
+                    OnMessageReceived = OnMessageReceived,
+                    OnRedirectToIdentityProvider = n => OnRedirectToIdentityProvider(n)
                 };
                 options.CallbackPath = "/signin-oidc";
             })

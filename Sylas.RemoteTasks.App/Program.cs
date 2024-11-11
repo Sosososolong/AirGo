@@ -1,7 +1,6 @@
 using IdentityModel;
 using Sylas.RemoteTasks.App.BackgroundServices;
 using Sylas.RemoteTasks.App.Database;
-using Sylas.RemoteTasks.App.DatabaseManager;
 using Sylas.RemoteTasks.App.DataHandlers;
 using Sylas.RemoteTasks.App.ExceptionHandlers;
 using Sylas.RemoteTasks.App.Helpers;
