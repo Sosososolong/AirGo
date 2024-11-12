@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json.Linq;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
@@ -51,8 +52,9 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
                 {
                     propertyValue = listData[indexVal];
                 }
-                else if(currentData is IEnumerable<object> ienumerableData)
+                else if(currentData is not string && currentData is IEnumerable ienumerableCollection)
                 {
+                    IEnumerable<object> ienumerableData = ienumerableCollection.Cast<object>();
                     propertyValue = ienumerableData.ToList()[indexVal];
                 }
                 else
@@ -89,7 +91,15 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
                 {
                     if (propertyValue is not JObject pObj)
                     {
-                        pObj = propertyValue is IEnumerable<object> records ? JObject.FromObject(records.FirstOrDefault()) : JObject.FromObject(propertyValue);
+                        if (propertyValue is not string && propertyValue is IEnumerable recordCollection)
+                        {
+                            var records = recordCollection.Cast<object>();
+                            pObj = JObject.FromObject(records.FirstOrDefault());
+                        }
+                        else
+                        {
+                            pObj = JObject.FromObject(propertyValue);
+                        }
                     }
                     var resolvedValue = pObj.Properties().FirstOrDefault(x => string.Equals(x.Name, p, StringComparison.OrdinalIgnoreCase))?.Value ?? throw new Exception($"无法找到属性{p}");
                     if (resolvedValue.Type == JTokenType.String)

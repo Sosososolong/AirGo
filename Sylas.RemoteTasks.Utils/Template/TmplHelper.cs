@@ -5,6 +5,7 @@ using Sylas.RemoteTasks.App.RegexExp;
 using Sylas.RemoteTasks.Utils.Extensions.Text;
 using Sylas.RemoteTasks.Utils.Template.Parser;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
@@ -347,9 +348,14 @@ namespace Sylas.RemoteTasks.Utils.Template
                             throw new Exception($"for循环脚本解析错误: {line}");
                         }
                         var expObj = ResolveExpressionValue(exp, dataContext);
-                        if (expObj is not IEnumerable<object> expList)
+                        IEnumerable<object> expList;
+                        if (expObj is not IEnumerable expCollection)
                         {
                             throw new Exception($"表达式\"{exp}\"的值无法迭代: {JsonConvert.SerializeObject(expObj)}");
+                        }
+                        else
+                        {
+                            expList = expCollection.Cast<object>();
                         }
 
                         Dictionary<string, object> tempDC = [];
@@ -386,7 +392,7 @@ namespace Sylas.RemoteTasks.Utils.Template
                     }
 
                     object targetObj = ResolveExpressionValue(expression, dataContext);
-                    if (targetObj is not IEnumerable<object> targetCollection)
+                    if (targetObj is not IEnumerable)
                     {
                         throw new Exception("for循环模板迭代对象不可迭代");
                     }
@@ -441,8 +447,13 @@ namespace Sylas.RemoteTasks.Utils.Template
                     {
                         continue;
                     }
-                    if (tmplValue is IEnumerable<object> arrayValue)
+                    if (tmplValue is JsonElement || tmplValue is string)
                     {
+                        return tmplWithParser.Replace(exp, tmplValue.ToString()).Replace(_doubleFlag, "$");
+                    }
+                    else if (tmplValue is IEnumerable array)
+                    {
+                        var arrayValue = array.Cast<object>();
                         List<object> newResults = [];
                         foreach (var valueItem in arrayValue)
                         {
@@ -458,10 +469,6 @@ namespace Sylas.RemoteTasks.Utils.Template
                             }
                         }
                         result.AddRange(newResults);
-                    }
-                    else if (tmplValue is JsonElement || tmplValue is string)
-                    {
-                        return tmplWithParser.Replace(exp, tmplValue.ToString()).Replace(_doubleFlag, "$");
                     }
                     else
                     {

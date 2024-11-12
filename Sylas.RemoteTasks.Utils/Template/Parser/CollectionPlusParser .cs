@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json.Linq;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -36,14 +37,26 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
                     throw new Exception($"PlusOperatorParser异常, DataContext中未找到右边表达式{right}");
                 }
 
-                if (currentDataLeft is not IEnumerable<object> currentDataLeftArr)
+                IEnumerable<object> currentDataLeftArr;
+                if (currentDataLeft is not IEnumerable currentDataLeftCollection)
                 {
                     currentDataLeftArr = [currentDataLeft];
                 }
-                if (currentDataRight is not IEnumerable<object> currentDataRightArr)
+                else
+                {
+                    currentDataLeftArr = currentDataLeftCollection.Cast<object>();
+                }
+
+                IEnumerable<object> currentDataRightArr;
+                if (currentDataRight is not IEnumerable<object> currentDataRightCollection)
                 {
                     currentDataRightArr = [currentDataRight];
                 }
+                else
+                {
+                    currentDataRightArr = currentDataRightCollection.Cast<object>();
+                }
+
                 var resultDataList = currentDataLeftArr.ToList();
                 resultDataList.AddRange(currentDataRightArr);
 

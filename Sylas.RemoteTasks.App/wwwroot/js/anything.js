@@ -56,14 +56,16 @@ const ths = [
 ]
 const idFieldName = "id";
 
+// 用于存储卡片状态
+const cardsStatus = [];
 function buildDataView(data) {
     let container = document.createElement('div');
 
     container.classList.add('row');
     container.innerHTML = `<div class="col-sm-6 cards-container"></div><div class="col-sm-6 data-right-pannel"></div>`;
-    let cardsHtlm = '';
+    let cardsHtml = '';
     data.forEach((record, index) => {
-        cardsHtlm += (`
+        cardsHtml += (`
                 <div class="card mb-2">
                     <!--Header-->
                     <div class="card-header d-flex justify-content-between" id="heading-${record.title}">
@@ -84,8 +86,12 @@ function buildDataView(data) {
                         </div>
                     </div>
                 </div>`);
+        cardsStatus.push({
+            id: record.id,
+            isShown: false
+        })
     });
-    container.querySelector('.cards-container').innerHTML = cardsHtlm;
+    container.querySelector('.cards-container').innerHTML = cardsHtml;
     return container;
 }
 
@@ -119,8 +125,9 @@ function onDataLoaded(row) {
 }
 async function showDetails(ele, id) {
     const card = ele.closest('.card');
-    const collapsePannel = card.querySelector('.card-body').parentNode;
-    if (!bootstrap.Collapse.getInstance(collapsePannel)._isShown()) {
+
+    const cardStatus = currentCard = cardsStatus.find(x => x.id == id)
+    if (!cardStatus.isShown) {
         var data = await httpRequestDataAsync(`/Hosts/AnythingSettingAndInfo?id=${id}`, ele);
         let anythingSetting = data.anythingSetting;
         let anythingInfo = data.anythingInfo;
@@ -156,5 +163,8 @@ async function showDetails(ele, id) {
         }
 
         card.querySelector('.card-body').innerHTML = commandsHtml;
+        cardStatus.isShown = true;
+    } else {
+        cardStatus.isShown = false;
     }
 }

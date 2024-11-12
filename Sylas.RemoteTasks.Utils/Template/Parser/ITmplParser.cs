@@ -2,6 +2,7 @@
 using Renci.SshNet.Security;
 using Sylas.RemoteTasks.Utils.Extensions;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -40,8 +41,9 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
             bool selectSelf = string.Equals(prop, "SELF", StringComparison.OrdinalIgnoreCase);
 
             // 1. 理想情况: 因为我希望数据处理的输入输出都是基础类型,对象用字典,集合用字典集合表示这样的常见类型, 所以这里的集合很可能是一个集合字典
-            if (keyVal is IEnumerable<object> valueList)
+            if (keyVal is not string && keyVal is IEnumerable valueCollection)
             {
+                var valueList = valueCollection.Cast<object>();
                 if (!valueList.Any())
                 {
                     return new ParseResult(true, [key], new List<object>());

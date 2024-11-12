@@ -11,6 +11,8 @@
 	<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 	<!--添加该配置才会生成注释文件, 默认无注释-->
 	<GenerateDocumentationFile>true</GenerateDocumentationFile>
+	<!--包自述文件-->
+	<PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -22,6 +24,13 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
 	<PackageReference Include="SSH.NET" Version="2024.1.0" />
 	<PackageReference Include="System.Text.Json" Version="8.0.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
   </ItemGroup>
 
 </Project>

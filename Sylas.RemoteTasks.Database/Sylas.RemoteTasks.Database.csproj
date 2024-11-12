@@ -6,11 +6,13 @@
 	<LangVersion>Latest</LangVersion>
 
 	<!--版本号-->
-	<Version>1.0.11</Version>
+	<Version>1.0.12</Version>
 	<!--添加该配置, 在编译时进行打包-->
 	<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 	<!--添加该配置才会生成注释文件, 默认无注释-->
 	<GenerateDocumentationFile>true</GenerateDocumentationFile>
+	<!--包自述文件-->
+	<PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -35,6 +37,13 @@
     <Reference Include="DmProvider">
       <HintPath>..\..\..\..\Users\Wu Qianlin\.nuget\packages\dmprovider\1.1.0.11058\lib\netstandard2.0\DmProvider.dll</HintPath>
     </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
   </ItemGroup>
 
 </Project>

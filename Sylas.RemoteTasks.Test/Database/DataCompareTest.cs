@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Xunit.Abstractions;
 
-namespace Sylas.RemoteTasks.Test.Remote
+namespace Sylas.RemoteTasks.Test.Database
 {
     public class DataCompareTest(ITestOutputHelper outputHelper, TestFixture fixture) : IClassFixture<TestFixture>
     {

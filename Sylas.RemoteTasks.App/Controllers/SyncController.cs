@@ -350,10 +350,10 @@ namespace Sylas.RemoteTasks.App.Controllers
         }
         #endregion
 
-        public async Task<IActionResult> SyncDbs(string sourceConnectionString = "", string sourceDatabase = "", string sourceTable = "", string targetConnectionString = "")
+        public async Task<IActionResult> SyncDbs(string sourceConnectionString = "", string sourceTable = "", string targetConnectionString = "")
         {
             sourceTable ??= "";
-            if (!string.IsNullOrWhiteSpace($"{sourceConnectionString}{sourceDatabase}{sourceTable}{targetConnectionString}"))
+            if (!string.IsNullOrWhiteSpace($"{sourceConnectionString}{sourceTable}{targetConnectionString}"))
             {
                 if (string.IsNullOrWhiteSpace(sourceConnectionString) || string.IsNullOrWhiteSpace(targetConnectionString))
                 {
@@ -363,7 +363,7 @@ namespace Sylas.RemoteTasks.App.Controllers
                 {
                     foreach (var t in sourceTable.Split(','))
                     {
-                        await DatabaseInfo.TransferDataAsync(sourceConnectionString, targetConnectionString, sourceDatabase, t);
+                        await DatabaseInfo.TransferDataAsync(sourceConnectionString, targetConnectionString, t);
                     }
                     ViewBag.Message = "同步成功";
                 }

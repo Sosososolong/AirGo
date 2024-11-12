@@ -2,6 +2,7 @@
 using Newtonsoft.Json;
 using Sylas.RemoteTasks.Utils.Extensions;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
@@ -79,8 +80,13 @@ namespace Sylas.RemoteTasks.Utils
                     {
                         return [];
                     }
-                    else if (result is IEnumerable<object> resultList)
+                    else if (result is string)
                     {
+                        throw new Exception(result.ToString());
+                    }
+                    else if (result is IEnumerable resultObj)
+                    {
+                        var resultList = resultObj.Cast<object>();
                         return resultList;
                     }
                     else if (result is JsonElement resultJsonEle)

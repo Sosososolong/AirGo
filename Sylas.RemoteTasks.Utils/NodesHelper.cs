@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json.Linq;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -332,8 +333,9 @@ namespace Sylas.RemoteTasks.Utils
                 yield return item;
                 var itemProperty = item.Keys.FirstOrDefault(x => string.Equals(x, childrenField, StringComparison.OrdinalIgnoreCase)) ?? throw new Exception($"子节点集合字段[{childrenField}]错误");
                 var children = item[itemProperty];
-                if (children is not null && children is IEnumerable<object> childrenList)
+                if (children is not null && children is IEnumerable childrenData)
                 {
+                    var childrenList = childrenData.Cast<object>();
                     foreach (var childItem in GetAll(childrenList.Cast<IDictionary<string, object>>(), childrenField))
                     {
                         yield return childItem;

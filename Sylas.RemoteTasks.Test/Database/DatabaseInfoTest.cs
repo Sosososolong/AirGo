@@ -1,14 +1,11 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using Dapper;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Newtonsoft.Json.Linq;
-using Newtonsoft.Json;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Test.AppSettingsOptions;
 using Xunit.Abstractions;
-using Dapper;
-using MySqlX.XDevAPI.Relational;
 
-namespace Sylas.RemoteTasks.Test.Remote
+namespace Sylas.RemoteTasks.Test.Database
 {
     public class DatabaseInfoTest : IClassFixture<TestFixture>
     {
@@ -42,7 +39,7 @@ namespace Sylas.RemoteTasks.Test.Remote
         {
             var syncFromDbToDbOptions = _configuration.GetSection(SyncFromDbToDbOptions.Key).Get<SyncFromDbToDbOptions>() ?? throw new Exception($"请在配置文件中添加同步的数据库配置");
 
-            await DatabaseInfo.TransferDataAsync(syncFromDbToDbOptions.SourceConnectionString, syncFromDbToDbOptions.TargetConnectionString, syncFromDbToDbOptions.SourceDb, syncFromDbToDbOptions.SourceTable);
+            await DatabaseInfo.TransferDataAsync(syncFromDbToDbOptions.SourceConnectionString, syncFromDbToDbOptions.TargetConnectionString, syncFromDbToDbOptions.SourceTable);
         }
 
         /// <summary>

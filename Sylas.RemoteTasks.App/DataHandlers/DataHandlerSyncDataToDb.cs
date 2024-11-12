@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json.Linq;
 using Sylas.RemoteTasks.Database.SyncBase;
+using System.Collections;
 
 namespace Sylas.RemoteTasks.App.DataHandlers
 {
@@ -34,9 +35,14 @@ namespace Sylas.RemoteTasks.App.DataHandlers
             }
 
             // BOOKMARK: Tmpl 获取数据源的时候(Http请求获取数据), 默认使用object接收数据
-            if (dataSource is not IEnumerable<object> enumerableData)
+            IEnumerable<object> enumerableData;
+            if (dataSource is not IEnumerable enumerableObj)
             {
                 enumerableData = [dataSource];
+            }
+            else
+            {
+                enumerableData = enumerableObj.Cast<object>();
             }
 
             // 数据库连接字符串中, sqlserver, oracle, sqite包含"Data Source=xxx"; mysql, mslocaldb包含"Server=xxx"

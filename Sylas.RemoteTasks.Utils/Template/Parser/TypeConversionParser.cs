@@ -1,6 +1,7 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -30,10 +31,6 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
                 var dataContextKey = dataContext.Keys.FirstOrDefault(x => x.TrimStart('$').Equals(key, StringComparison.OrdinalIgnoreCase)) ?? throw new Exception($"{nameof(TypeConversionParser)} 数据上下中未发现数据{key}"); ;
                 var keyVal = dataContext[dataContextKey];
                 var type = expression.Groups["type"].Value;
-                if (keyVal is IEnumerable<object> keyVals)
-                {
-                    keyVal = keyVals.FirstOrDefault();
-                }
                 if (keyVal is string keyValString)
                 {
                     if (string.Equals(type, "List", StringComparison.OrdinalIgnoreCase))
@@ -49,6 +46,10 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
                     {
                         throw new NotImplementedException("当前类型转换未实现");
                     }
+                }
+                else if (keyVal is IEnumerable keyValCollection)
+                {
+                    keyVal = keyValCollection.Cast<object>().FirstOrDefault();
                 }
                 else
                 {

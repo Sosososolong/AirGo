@@ -299,7 +299,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="search">查询参数</param>
         /// <param name="db">指定要切换查询的数据库, 不指定使用Default配置的数据库</param>
         /// <returns></returns>
-        public async Task<PagedData<T>> QueryPagedDataAsync<T>(string table, DataSearch? search, string db = "") where T : new()
+        public async Task<PagedData<T>> QueryPagedDataAsync<T>(string table, DataSearch? search, string db = "")
         {
             search ??= new();
 
@@ -313,7 +313,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
 
             string sql = GetPagedSql(table, dbType, search.PageIndex, search.PageSize, search.Filter, search.Rules, out string condition, out Dictionary<string, object> parameters);
 
-            string allCountSqlTxt = $"select count(*) from {table} where 1=1 {condition}";
+            string allCountSqlTxt = $"select count(*) from {table}{condition}";
 
             var start = DateTime.Now;
             await Console.Out.WriteLineAsync("执行SQL语句" + Environment.NewLine + allCountSqlTxt);
@@ -325,7 +325,18 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             await Console.Out.WriteLineAsync("执行SQL语句" + Environment.NewLine + sql);
 
             IEnumerable<T> data;
-            data = await conn.QueryAsync<T>(sql, parameters);
+            if (typeof(T) == typeof(IDictionary<string, object>))
+            {
+                data = (await conn.QueryAsync(sql, parameters)).Cast<T>();
+            }
+            else if (typeof(IDictionary<string, object>).IsAssignableFrom(typeof(T)))
+            {
+                throw new Exception($"不支持字典类型{typeof(T).Name}, 请替换为IDictionary<string, object>");
+            }
+            else
+            {
+                data = await conn.QueryAsync<T>(sql, parameters);
+            }
 
             await Console.Out.WriteLineAsync($"耗时: {(DateTime.Now - t1).TotalMilliseconds}/ms{Environment.NewLine}");
 
@@ -375,7 +386,6 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             }
 
             trans.Commit();
-            conn.Close();
             return res;
         }
         /// <summary>
@@ -1001,9 +1011,9 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         public static async Task<List<SqlInfo>> GetInsertSqlInfosAsync(object dataSource, string targetTableName, IDbConnection targetConn)
         {
             IEnumerable<IDictionary<string, object>> sourceRecords;
-            if (dataSource is IEnumerable<object> dataList)
+            if (dataSource is IEnumerable dataList)
             {
-                sourceRecords = dataList.CastToDictionaries();
+                sourceRecords = dataList.Cast<object>().CastToDictionaries();
             }
             else
             {
@@ -1170,7 +1180,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 IEnumerable<IDictionary<string, object>> datalist = [];
                 try
                 {
-                    List<OrderRule> orderRules = sourcePrimaryKeys.Select(x => new OrderRule { OrderField = x, IsAsc = true }).ToList();
+                    List<OrderField> orderRules = sourcePrimaryKeys.Select(x => new OrderField { FieldName = x, IsAsc = true }).ToList();
                     datalist = (await QueryPagedDataAsync<IDictionary<string, object>>(sourceTableStatement, pageIndex, 3000, sourceConn, filter, orderRules)).Data;
                 }
                 catch (Exception ex)
@@ -1363,16 +1373,16 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <returns></returns>
         /// <exception cref="ArgumentException"></exception>
         /// <exception cref="Exception"></exception>
-        public static string GetPagedSql(string table, DatabaseType dbType, int pageIndex, int pageSize, DataFilter? filters, List<OrderRule>? orderRules, out string queryCondition, out Dictionary<string, object> queryConditionParameters)
+        public static string GetPagedSql(string table, DatabaseType dbType, int pageIndex, int pageSize, DataFilter? filters, List<OrderField>? orderRules, out string queryCondition, out Dictionary<string, object> queryConditionParameters)
         {
             #region 排序表达式
-            orderRules ??= [new()];
+            orderRules ??= [new() { FieldName = "id", IsAsc = false }];
 
             string orderClause = string.Empty;
             foreach (var orderRule in orderRules)
             {
-                ValideParameter(orderRule.OrderField);
-                orderClause += $"{orderRule.OrderField} {(orderRule.IsAsc ? "asc" : "desc")},";
+                ValideParameter(orderRule.FieldName);
+                orderClause += $"{orderRule.FieldName} {(orderRule.IsAsc ? "asc" : "desc")},";
             }
             if (!string.IsNullOrWhiteSpace(orderClause))
             {
@@ -1381,108 +1391,26 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             #endregion
 
             #region 处理过滤条件
-            string parameterFlag = dbType == DatabaseType.Oracle || dbType == DatabaseType.Dm ? ":" : "@";
             queryCondition = string.Empty;
             queryConditionParameters = [];
-            if (filters != null)
+            if (filters is not null)
             {
-                if (filters.FilterItems != null && filters.FilterItems.Count() > 0)
+                if (filters.FilterItems is not null)
                 {
-                    var filterItems = filters.FilterItems;
-                    foreach (var filterField in filterItems)
+                    IEnumerable<object> filterItems = filters.FilterItems.Where(x => !string.IsNullOrWhiteSpace(x.FieldName)).Cast<object>();
+                    var filterGroup = new FilterGroup(filterItems, SqlLogic.And)
+                    .AddKeywordsQuerying(filters.Keywords.Fields, filters.Keywords.Value);
+                    var sqlInfo = filterGroup.BuildConditions(dbType);
+                    if (!string.IsNullOrWhiteSpace(sqlInfo.Sql))
                     {
-                        if (string.IsNullOrWhiteSpace(filterField.FieldName)
-                            || string.IsNullOrWhiteSpace(filterField.CompareType)
-                            || filterField.Value is null
-                            || string.IsNullOrWhiteSpace(filterField.Value.ToString()))
-                        {
-                            continue;
-                        }
-                        var key = filterField.FieldName;
-                        if (!queryConditionParameters.ContainsKey(key))
-                        {
-                            var compareType = filterField.CompareType;
-                            var compareTypes = new List<string> { ">", "<", "=", ">=", "<=", "!=", "include", "in" };
-                            if (!compareTypes.Contains(compareType))
-                            {
-                                throw new ArgumentException("过滤条件比较类型不正确");
-                            }
-                            var val = filterField?.Value ?? string.Empty;
-                            ValideParameter(key);
-                            if (compareType == "in")
-                            {
-                                IEnumerable<object> valList = val is not string && val is IEnumerable vals ? vals.Cast<object>() : val.ToString().Split(',');
-
-                                queryCondition += $" and {key} in(";
-                                int valListIndex = 0;
-                                foreach (var valItem in valList)
-                                {
-                                    var paramName = valListIndex == 0 ? key : $"{key}{valListIndex}";
-                                    queryCondition += $"{parameterFlag}{paramName},";
-                                    queryConditionParameters.Add(paramName, valItem);
-                                    valListIndex++;
-                                }
-                                queryCondition = queryCondition.TrimEnd(',');
-                                queryCondition += ")";
-                            }
-                            else
-                            {
-                                if (compareType == "include")
-                                {
-                                    if (dbType == DatabaseType.MySql)
-                                    {
-                                        queryCondition += $" and {key} like CONCAT(CONCAT('%', {parameterFlag}{key}), '%')";
-                                    }
-                                    else if (dbType == DatabaseType.SqlServer)
-                                    {
-                                        queryCondition += $" and {key} like '%' + {parameterFlag}{key} + '%'";
-                                    }
-                                    else
-                                    {
-                                        queryCondition += $" and {key} like '%' || {parameterFlag}{key} || '%'";
-                                    }
-                                }
-                                else
-                                {
-                                    queryCondition += $" and {key}{compareType}{parameterFlag}{key}";
-                                }
-                                queryConditionParameters.Add(key, val);
-                            }
-                        }
-                    }
-                }
-                if (filters.Keywords != null && filters.Keywords.Fields != null && filters.Keywords.Fields.Length > 0 && !string.IsNullOrWhiteSpace(filters.Keywords.Value))
-                {
-                    var keyWordsCondition = string.Empty;
-                    foreach (var keyWordsField in filters.Keywords.Fields)
-                    {
-                        string varName = $"keyWords{keyWordsField}";
-                        if (!queryConditionParameters.ContainsKey(varName))
-                        {
-                            if (dbType == DatabaseType.MySql)
-                            {
-                                keyWordsCondition += $" or {keyWordsField} like CONCAT(CONCAT('%', {parameterFlag}{varName}), '%')";
-                            }
-                            else if (dbType == DatabaseType.SqlServer)
-                            {
-                                keyWordsCondition += $" or {keyWordsField} like '%'+{parameterFlag}{varName}+'%'";
-                            }
-                            else
-                            {
-                                keyWordsCondition += $" or {keyWordsField} like '%'||{parameterFlag}{varName}||'%'";
-                            }
-                            queryConditionParameters.Add(varName, filters.Keywords.Value);
-                        }
-                    }
-                    if (!string.IsNullOrEmpty(keyWordsCondition))
-                    {
-                        queryCondition += $" and ({keyWordsCondition[4..]})";
+                        queryCondition = $" WHERE {sqlInfo.Sql}";
+                        queryConditionParameters = sqlInfo.Parameters;
                     }
                 }
             }
             #endregion
 
-            string baseSqlTxt = $"select * from {table} where 1=1 {queryCondition}";
+            string baseSqlTxt = $"select * from {table}{queryCondition}";
 
             #region 不同数据库对应的SQL语句
             string sql = dbType switch
@@ -1513,6 +1441,25 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             return sql;
         }
         /// <summary>
+        /// 获取分页查询的SQL语句 - 多表联查
+        /// </summary>
+        /// <param name="queryTablesDto"></param>
+        /// <param name="parameters"></param>
+        /// <returns></returns>
+        public static string GetPagedSql(QueryTablesInDto queryTablesDto, out Dictionary<string, object> parameters)
+        {
+            SqlInfo querySqlInfo = QuerySqlBuilder
+                .UseDatabase(DatabaseType.MySql)
+                .Select(queryTablesDto.Select.TableName)
+                .LeftJoins(queryTablesDto.LeftJoins)
+                .Where(queryTablesDto.Where)
+                .OrderBy([.. queryTablesDto.OrderBy])
+                .Page(new())
+                .Build();
+            parameters = querySqlInfo.Parameters;
+            return querySqlInfo.Sql;
+        }
+        /// <summary>
         /// 数据库分页数据
         /// </summary>
         /// <param name="table"></param>
@@ -1522,14 +1469,14 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// <param name="filters"></param>
         /// <param name="orderRules">排序规则</param>
         /// <returns></returns>
-        public static async Task<PagedData<T>> QueryPagedDataAsync<T>(string table, int pageIndex, int pageSize, IDbConnection dbConn, DataFilter? filters, List<OrderRule>? orderRules)
+        public static async Task<PagedData<T>> QueryPagedDataAsync<T>(string table, int pageIndex, int pageSize, IDbConnection dbConn, DataFilter? filters, List<OrderField>? orderRules)
         {
             // TODO: 数据库类型 作为公共属性
             var dbType = GetDbType(dbConn.ConnectionString);
 
             string sql = GetPagedSql(table, dbType, pageIndex, pageSize, filters, orderRules, out string condition, out Dictionary<string, object> parameters);
 
-            string allCountSqlTxt = $"select count(*) from {table} where 1=1 {condition}";
+            string allCountSqlTxt = $"select count(*) from {table}{condition}";
             var allCount = await dbConn.ExecuteScalarAsync<int>(allCountSqlTxt, parameters);
             IEnumerable<T> data;
             if (typeof(T) == typeof(IDictionary<string, object>))
@@ -1550,7 +1497,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// <param name="colInfos"></param>
         /// <param name="dbtype"></param>
         /// <returns></returns>
-        public static string GetFieldsStatement(IEnumerable<ColumnInfo> colInfos, DatabaseType dbtype)
+        static string GetFieldsStatement(IEnumerable<ColumnInfo> colInfos, DatabaseType dbtype)
         {
             var columnBuilder = new StringBuilder();
             var colCodes = colInfos.Select(x => x.ColumnCode);
@@ -1565,7 +1512,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// <param name="type"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static object? GetColumnValue(object value, string type)
+        static object? GetColumnValue(object value, string type)
         {
             if (value.GetType().Name == "DBNull")
             {
@@ -1604,7 +1551,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// <param name="pv"></param>
         /// <param name="col"></param>
         /// <returns></returns>
-        public static dynamic? GetColumnValue(object pv, ColumnInfo? col)
+        static dynamic? GetColumnValue(object pv, ColumnInfo? col)
         {
             dynamic? pVal = null;
             // 实际是字节数组这里获得的是字节数组转换为base64字符串的结果
@@ -1756,7 +1703,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// <param name="sourceColumnMapToTargetColumn">数据源字段名与目标表字段的映射</param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static string GenerateRecordValuesStatement(object record, IEnumerable<ColumnInfo> colInfos, Dictionary<string, object?> parameters, string dbVarFlag, int random = 0, Dictionary<string, ColumnInfo>? sourceColumnMapToTargetColumn = null)
+        static string GenerateRecordValuesStatement(object record, IEnumerable<ColumnInfo> colInfos, Dictionary<string, object?> parameters, string dbVarFlag, int random = 0, Dictionary<string, ColumnInfo>? sourceColumnMapToTargetColumn = null)
         {
             var valueBuilder = new StringBuilder();
             if (record is DataRow dataItem)
@@ -2227,24 +2174,6 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                 }
             }
             return [];
-        }
-
-        /// <summary>
-        /// 将数据库中的数据和指定的数据集合进行对比
-        /// </summary>
-        /// <param name="conn"></param>
-        /// <param name="table"></param>
-        /// <param name="sourceIdentityField"></param>
-        /// <param name="targetIdentityField"></param>
-        /// <param name="targetJsonInfo"></param>
-        /// <returns></returns>
-        /// <exception cref="Exception"></exception>
-        public static async Task<DataComparedResult> CompareRecordsFromDbWithDataAsync(IDbConnection conn, string table, string sourceIdentityField, string targetIdentityField, DataInJson targetJsonInfo)
-        {
-            var sourceRecordsDynamic = await conn.QueryAsync($"select * from {table}");
-            var sourceRecords = sourceRecordsDynamic.Select(x => JObject.FromObject(x) ?? throw new Exception("数据库数据异常, 数据转换失败")).ToList();
-            var targetRecords = FileHelper.GetRecords(targetJsonInfo.FilePath, targetJsonInfo.DataFields);
-            return await CompareRecordsAsync(sourceRecords, targetRecords, sourceIdentityField);
         }
 
         /// <summary>

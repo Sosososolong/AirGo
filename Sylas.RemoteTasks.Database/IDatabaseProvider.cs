@@ -16,7 +16,7 @@ namespace Sylas.RemoteTasks.Database
         /// <param name="search">分页查询参数</param>
         /// <param name="db">指定要切换查询的数据库, 不指定使用Default配置的数据库</param>
         /// <returns></returns>
-        Task<PagedData<T>> QueryPagedDataAsync<T>(string table, DataSearch search, string db = "") where T : new();
+        Task<PagedData<T>> QueryPagedDataAsync<T>(string table, DataSearch search, string db = "");
         /// <summary>
         /// 分页查询指定数据表, 可使用数据库连接字符串connectionString参数指定连接的数据库
         /// </summary>
