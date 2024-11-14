@@ -1069,10 +1069,21 @@ namespace Sylas.RemoteTasks.App.Controllers
         }
 
         /// <summary>
+        /// 动态向指定表中添加数据
+        /// </summary>
+        /// <param name="db"></param>
+        /// <param name="table"></param>
+        /// <param name="records"></param>
+        /// <returns></returns>
+        public async Task<RequestResult<bool>> PostAsync([FromServices] DatabaseInfo db, [FromBody] PostDto postDto)
+        {
+            var res = await db.InsertDataAsync(postDto.Target, postDto.Records);
+            return RequestResult<bool>.Success(res > 0);
+        }
+        /// <summary>
         /// 动态局部更新
         /// </summary>
-        /// <param name="serviceProvider"></param>
-        /// <param name="memoryCache"></param>
+        /// <param name="db"></param>
         /// <param name="patchDto"></param>
         /// <returns></returns>
         public async Task<RequestResult<bool>> PatchAsync([FromServices] DatabaseInfo db, [FromBody] PatchDto patchDto)
@@ -1084,7 +1095,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// <summary>
         /// 动态查询接口
         /// </summary>
-        /// <param name="repositoryDynamic"></param>
+        /// <param name="db"></param>
         /// <param name="searchDynamic"></param>
         /// <returns></returns>
         public async Task<RequestResult<PagedData<dynamic>>> GetAsync([FromServices] DatabaseInfo db, [FromBody] DataSearchDynamic searchDynamic)

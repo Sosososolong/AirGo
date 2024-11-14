@@ -166,7 +166,7 @@ namespace Sylas.RemoteTasks.App.Infrastructure
     /// <summary>
     /// 局部更新Dto
     /// </summary>
-    public class PatchDto()
+    public class PatchDto
     {
         /// <summary>
         /// 要更新的表名
@@ -176,5 +176,16 @@ namespace Sylas.RemoteTasks.App.Infrastructure
         /// 要更新的字段
         /// </summary>
         public Dictionary<string, string> Fields { get; set; } = [];
+    }
+    public class  PostDto
+    {
+        /// <summary>
+        /// 指定要插入数据的表
+        /// </summary>
+        public string Target { get; set; } = string.Empty;
+        /// <summary>
+        /// 要插入的数据
+        /// </summary>
+        public IEnumerable<Dictionary<string, string>> Records { get; set; } = [];
     }
 }

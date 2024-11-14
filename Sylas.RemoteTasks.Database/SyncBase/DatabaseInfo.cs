@@ -624,6 +624,19 @@ namespace Sylas.RemoteTasks.Database.SyncBase
 
             return res > 0;
         }
+        /// <summary>
+        /// 向指定数据表添加指定的数据
+        /// </summary>
+        /// <param name="table"></param>
+        /// <param name="records"></param>
+        /// <returns></returns>
+        public async Task<int> InsertDataAsync(string table, IEnumerable<Dictionary<string, string>> records)
+        {
+            using var conn = GetDbConnection(_connectionString);
+            
+            return await InsertDataAsync(conn, table, records);
+        }
+
         static readonly string[] _notExistKeywords = ["does not exist", "doesn't exist", "不存在", "无效的表", "/对象名.+无效/", "no such table", "Invalid object name"];
         /// <summary>
         /// 判断异常是否是表不存在异常
@@ -886,23 +899,124 @@ namespace Sylas.RemoteTasks.Database.SyncBase
 
             await InsertDataAsync(targetConn, targetTable, inserts);
         }
-
+        /// <summary>
+        /// 将数据添加到表中
+        /// </summary>
+        /// <param name="connectionString"></param>
+        /// <param name="table"></param>
+        /// <param name="records"></param>
+        /// <returns></returns>
+        public static async Task<int> InsertDataAsync(string connectionString, string table, IEnumerable<IDictionary<string, object>> records)
+        {
+            using var conn = GetDbConnection(connectionString);
+            return await InsertDataAsync(conn, table, records);
+        }
         /// <summary>
         /// 将数据添加到表中
         /// </summary>
         /// <param name="conn"></param>
         /// <param name="table"></param>
-        /// <param name="inserts"></param>
+        /// <param name="records"></param>
         /// <returns></returns>
-        public static async Task InsertDataAsync(IDbConnection conn, string table, IEnumerable<IDictionary<string, object>> inserts)
+        public static async Task<int> InsertDataAsync(IDbConnection conn, string table, IEnumerable<Dictionary<string, string>> records)
         {
-            var insertSqlInfos = await GetInsertSqlInfosAsync(inserts, table, conn);
+            var t1 = DateTime.Now;
+            // 检查字段值类型是否需要转换
+            List<Dictionary<string, object>> list = [];
+            var tableFieldsConverter = await GetTableFieldsConverterAsync(conn, table);
+            foreach (var record in records)
+            {
+                Dictionary<string, object> dataItem = [];
+                foreach (var item in record)
+                {
+                    var fieldToConvert = tableFieldsConverter.Keys.ToList().FirstOrDefault(x => x.Equals(item.Key, StringComparison.OrdinalIgnoreCase));
+                    if (fieldToConvert is not null)
+                    {
+                        dataItem.Add(item.Key, tableFieldsConverter[fieldToConvert](item.Value));
+                    }
+                    else
+                    {
+                        dataItem.Add(item.Key, item.Value);
+                    }
+                }
+                list.Add(dataItem);
+            }
+            LoggerHelper.LogInformation($"字段类型转换耗时: {(DateTime.Now - t1).TotalMilliseconds}/ms");
+            return await InsertDataAsync(conn, table, list);
+        }
+        /// <summary>
+        /// 将数据添加到表中
+        /// </summary>
+        /// <param name="conn"></param>
+        /// <param name="table"></param>
+        /// <param name="records"></param>
+        /// <returns></returns>
+        public static async Task<int> InsertDataAsync(IDbConnection conn, string table, IEnumerable<IDictionary<string, object>> records)
+        {
+            if (!records.Any())
+            {
+                return 0;
+            }
+            var t1 = DateTime.Now;
+            #region 补充可能缺失的主键字段和创建时间字段
+            var first = records.First();
+            var recordKeys = first.Keys.ToArray();
+            var colInfos = await GetTableColumnsInfoAsync(conn, table);
+
+            var createTimeColInfo = colInfos.FirstOrDefault(x => x.ColumnCode.Contains("create", StringComparison.OrdinalIgnoreCase) && x.ColumnCode.Contains("time", StringComparison.OrdinalIgnoreCase));
+            var updateTimeColInfo = colInfos.FirstOrDefault(x => x.ColumnCode.Contains("update", StringComparison.OrdinalIgnoreCase) && x.ColumnCode.Contains("time", StringComparison.OrdinalIgnoreCase));
+
+            if (!first.Keys.Any(x => x.Equals("id", StringComparison.OrdinalIgnoreCase)) || string.IsNullOrWhiteSpace(first.First(x => x.Key.Equals("id")).Value?.ToString()))
+            {
+                var pkColInfos = colInfos.Where(x => x.IsPK == 1);
+                foreach (var record in records)
+                {
+                    // 为每条数据的所有字符串类型的主键赋值
+                    foreach (var pkColInfo in pkColInfos)
+                    {
+                        string? pkKey = recordKeys.FirstOrDefault(x => x.Equals(pkColInfo.ColumnCode));
+                        if (pkKey is null || string.IsNullOrWhiteSpace($"{record[pkKey]}"))
+                        {
+                            if (pkColInfo.ColumnCSharpType == "string")
+                            {
+                                record[pkColInfo.ColumnCode] = $"{DateTime.Now:yyyyMMddHHmmssFFFFFFF}";
+                            }
+                        }
+                    }
+
+                    if (createTimeColInfo is not null)
+                    {
+                        var recordCreateTimeKey = first.Keys.FirstOrDefault(x => x.Equals(createTimeColInfo.ColumnCode, StringComparison.OrdinalIgnoreCase));
+                        string recordKey = recordCreateTimeKey is null ? createTimeColInfo.ColumnCode : recordCreateTimeKey;
+                        record[recordKey] = DateTime.Now;
+                    }
+
+                    if (updateTimeColInfo is not null)
+                    {
+                        var recordupdateTimeKey = first.Keys.FirstOrDefault(x => x.Equals(updateTimeColInfo.ColumnCode, StringComparison.OrdinalIgnoreCase));
+                        string recordKey = recordupdateTimeKey is null ? updateTimeColInfo.ColumnCode : recordupdateTimeKey;
+                        record[recordKey] = DateTime.Now;
+                    }
+                }
+            }
+            #endregion
+
+            var t2 = DateTime.Now;
+            LoggerHelper.LogInformation($"处理主键字段,创建时间,更新时间字段耗时:{(t2 - t1).TotalMilliseconds}/ms");
+
+            var insertSqlInfos = await GetInsertSqlInfosAsync(records, table, conn);
+            var t3 = DateTime.Now;
+            LoggerHelper.LogInformation($"获取insert SQL语句耗时: {(t3 - t2).TotalMilliseconds}/ms");
+
+            int affectedRows = 0;
             foreach (var sqlInfo in insertSqlInfos)
             {
                 int inserted = 0;
                 try
                 {
                     inserted = await conn.ExecuteAsync(sqlInfo.Sql, sqlInfo.Parameters);
+                    LoggerHelper.LogInformation($"执行insert SQL语句耗时:{(DateTime.Now - t3).TotalSeconds}/ms");
+                    affectedRows += inserted;
                 }
                 catch (Exception)
                 {
@@ -915,6 +1029,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 LogData(null, table, inserted, sqlInfo);
                 #endregion
             }
+            return affectedRows;
         }
         /// <summary>
         /// 从源数据库中查询数据并插入到目标数据库中
@@ -925,11 +1040,11 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="targetTable">目标库对应的表</param>
         /// <param name="targetConn">目标库的数据库连接对象</param>
         /// <returns></returns>
-        public static async Task InsertDataAsync(IDbConnection sourceConn, string sourceQuerySql, object? sourceQueryParameters, string targetTable, IDbConnection targetConn)
+        public static async Task<int> InsertDataAsync(IDbConnection sourceConn, string sourceQuerySql, object? sourceQueryParameters, string targetTable, IDbConnection targetConn)
         {
             var records = await sourceConn.QueryAsync(sourceQuerySql, sourceQueryParameters);
             var inserts = records.Cast<IDictionary<string, object>>();
-            await InsertDataAsync(targetConn, targetTable, inserts);
+            return await InsertDataAsync(targetConn, targetTable, inserts);
         }
         /// <summary>
         /// 从源数据库中查询数据并插入到目标数据库中
@@ -940,13 +1055,13 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="targetTable">目标库对应的表</param>
         /// <param name="targetConnectionString">目标库的数据库连接字符串</param>
         /// <returns></returns>
-        public static async Task InsertDataAsync(string sourceConnectionString, string sourceQuerySql, object? sourceQueryParameters, string targetTable, string targetConnectionString)
+        public static async Task<int> InsertDataAsync(string sourceConnectionString, string sourceQuerySql, object? sourceQueryParameters, string targetTable, string targetConnectionString)
         {
             using var sourceConn = GetDbConnection(sourceConnectionString);
             var records = await sourceConn.QueryAsync(sourceQuerySql, sourceQueryParameters);
             var inserts = records.Cast<IDictionary<string, object>>();
             using var targetConn = GetDbConnection(targetConnectionString);
-            await InsertDataAsync(targetConn, targetTable, inserts);
+            return await InsertDataAsync(targetConn, targetTable, inserts);
         }
 
         /// <summary>
@@ -1196,8 +1311,16 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             Dictionary<string, ColumnInfo> sourceColumnMapToTargetColumn = [];
             GetSourceColumnTargetColumnMap(firstRecord, targetTableColumns, sourceColumnMapToTargetColumn);
 
+            // 让数据的字段(比如id字段可能是后加的在最后一个)和目标表的字段一一对应; 这样根据目标表字段获取字段表达式和根据数据构建的值表达式就能一一对应上
+            List<ColumnInfo> validColInfos = [];
+            foreach (var recordKey in firstRecord.Keys)
+            {
+                var recordColInfo = targetTableColumns.FirstOrDefault(x => x.ColumnCode.Equals(recordKey, StringComparison.OrdinalIgnoreCase)) ?? throw new Exception($"数据包含不存在的字段:{recordKey}");
+                validColInfos.Add(recordColInfo);
+            }
+
             // 1. 获取字段部分
-            var insertFieldsStatement = GetFieldsStatement(targetTableColumns, dbType);
+            var insertFieldsStatement = GetFieldsStatement(validColInfos, dbType);
 
             var insertValuesStatementBuilder = new StringBuilder();
             int recordIndex = 0;
@@ -2704,6 +2827,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                 "double" => typeof(double),
                 "decimal" => typeof(decimal),
                 "datetime" => typeof(DateTime),
+                "byte[]" => typeof(byte[]),
                 _ => throw new Exception($"不支持的数据类型: {csharpType}")
             };
         }
