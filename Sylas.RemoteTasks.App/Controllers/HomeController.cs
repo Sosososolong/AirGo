@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using RazorEngine.Templating;
@@ -13,6 +14,7 @@ using Sylas.RemoteTasks.Utils.Constants;
 using Sylas.RemoteTasks.Utils.Dto;
 using System.Data;
 using System.Diagnostics;
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -1064,6 +1066,35 @@ namespace Sylas.RemoteTasks.App.Controllers
             }
             var tables = await DatabaseInfo.GetAllTablesAsync(connectionString);
             return Ok(new RequestResult<IEnumerable<dynamic>>(tables));
+        }
+
+        /// <summary>
+        /// 动态局部更新
+        /// </summary>
+        /// <param name="serviceProvider"></param>
+        /// <param name="memoryCache"></param>
+        /// <param name="patchDto"></param>
+        /// <returns></returns>
+        public async Task<RequestResult<bool>> PatchAsync([FromServices] DatabaseInfo db, [FromBody] PatchDto patchDto)
+        {
+            var res = await db.UpdateAsync(patchDto.Target, patchDto.Fields);
+            return RequestResult<bool>.Success(res);
+        }
+
+        /// <summary>
+        /// 动态查询接口
+        /// </summary>
+        /// <param name="repositoryDynamic"></param>
+        /// <param name="searchDynamic"></param>
+        /// <returns></returns>
+        public async Task<RequestResult<PagedData<dynamic>>> GetAsync([FromServices] DatabaseInfo db, [FromBody] DataSearchDynamic searchDynamic)
+        {
+            if (string.IsNullOrWhiteSpace(searchDynamic.TableName))
+            {
+                return RequestResult<PagedData<dynamic>>.Error("表名不能为空");
+            }
+            var page = await db.QueryPagedDataAsync<dynamic>(searchDynamic.TableName, searchDynamic);
+            return RequestResult<PagedData<dynamic>>.Success(page);
         }
     }
 }

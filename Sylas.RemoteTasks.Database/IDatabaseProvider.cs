@@ -1,4 +1,5 @@
 ﻿using Sylas.RemoteTasks.Database.SyncBase;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -58,5 +59,14 @@ namespace Sylas.RemoteTasks.Database
         /// <param name="connectionString"></param>
         /// <returns></returns>
         Task<int> ExecuteScalarWithConnectionStringAsync(string sql, Dictionary<string, object> parameters, string connectionString);
+        /// <summary>
+        /// 动态更新一条数据
+        /// </summary>
+        /// <param name="tableName"></param>
+        /// <param name="idAndUpdatingFields"></param>
+        /// <param name="idFieldName"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        Task<bool> UpdateAsync(string tableName, Dictionary<string, string> idAndUpdatingFields, string idFieldName = "");
     }
 }

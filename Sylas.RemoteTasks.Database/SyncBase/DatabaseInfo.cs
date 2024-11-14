@@ -7,10 +7,12 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MySql.Data.MySqlClient;
+using MySql.Data.MySqlClient.X.XDevAPI.Common;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Npgsql;
 using Oracle.ManagedDataAccess.Client;
+using Org.BouncyCastle.Asn1.X509;
 using Sylas.RemoteTasks.App.RegexExp;
 using Sylas.RemoteTasks.Utils;
 using Sylas.RemoteTasks.Utils.Extensions;
@@ -365,6 +367,10 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <returns></returns>
         public async Task<int> ExecuteSqlAsync(string sql, object parameters, string db = "")
         {
+            if (sql.Contains('@') && (_dbType == DatabaseType.Oracle || _dbType == DatabaseType.Dm))
+            {
+                sql = sql.Replace('@', ':');
+            }
             using var conn = GetDbConnection(_connectionString);
             if (!string.IsNullOrWhiteSpace(db))
             {
@@ -463,7 +469,161 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             _connectionString = connectionString;
             return await ExecuteSqlAsync(sql, parameters);
         }
+        /// <summary>
+        /// 动态更新一条数据
+        /// </summary>
+        /// <param name="tableName"></param>
+        /// <param name="idAndUpdatingFields"></param>
+        /// <param name="idFieldName"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        public async Task<bool> UpdateAsync(string tableName, Dictionary<string, string> idAndUpdatingFields, string idFieldName = "")
+        {
+            if ((!string.IsNullOrWhiteSpace(idFieldName) && !idAndUpdatingFields.ContainsKey(idFieldName)) || !idAndUpdatingFields.Keys.Any(x => x.Equals("id", StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new Exception("更新数据id不能为空");
+            }
+            return await UpdateAsync(_connectionString, tableName, idAndUpdatingFields, idFieldName);
+        }
+        static readonly ConcurrentDictionary<string, ConcurrentDictionary<string, Func<string, object>>> _tableAndStringFieldsConverter = [];
+        /// <summary>
+        /// 获取表字段转换器, 可以将表字段的字符串值形式转换为对应的数据类型(如int, long, float, double, decimal, datetime)
+        /// </summary>
+        /// <param name="conn"></param>
+        /// <param name="tableName"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        static async Task<ConcurrentDictionary<string, Func<string, object>>> GetTableFieldsConverterAsync(IDbConnection conn, string tableName)
+        {
+            string tableKey = $"{conn.ConnectionString}_{tableName}";
+            if (_tableAndStringFieldsConverter.TryGetValue(tableKey, out var stringFieldsConvert))
+            {
+                return stringFieldsConvert;
+            }
+            var colInfos = await GetTableColumnsInfoAsync(conn, tableName);
+            ConcurrentDictionary<string, Func<string, object>> fieldsConverter = [];
+            foreach (var colInfo in colInfos)
+            {
+                if (colInfo.ColumnCSharpType == "string")
+                {
+                    continue;
+                }
+                
+                if (!string.IsNullOrWhiteSpace(colInfo.ColumnCSharpType))
+                {
+                    Type columnType = GetCSharpType(colInfo.ColumnCSharpType);
+                    var converter = ExpressionBuilder.CreateStringConverter(columnType);
 
+                    fieldsConverter.TryAdd(colInfo.ColumnCode, converter);
+                }
+            }
+            _tableAndStringFieldsConverter.TryAdd(tableKey, fieldsConverter);
+            return fieldsConverter;
+        }
+        /// <summary>
+        /// 动态更新一条数据
+        /// </summary>
+        /// <param name="connectionString"></param>
+        /// <param name="tableName"></param>
+        /// <param name="idAndUpdatingFields"></param>
+        /// <param name="idFieldName"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        public static async Task<bool> UpdateAsync(string connectionString, string tableName, Dictionary<string, string> idAndUpdatingFields, string idFieldName = "")
+        {
+            if ((!string.IsNullOrWhiteSpace(idFieldName) && !idAndUpdatingFields.ContainsKey(idFieldName)) || !idAndUpdatingFields.Keys.Any(x => x.Equals("id", StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new Exception("更新数据id不能为空");
+            }
+            var dbType = GetDbType(connectionString);
+            
+            using var conn = GetDbConnection(connectionString);
+
+            return await UpdateAsync(conn, tableName, idAndUpdatingFields, idFieldName);
+        }
+        static string[] GetTableIdFieldsFromParameters(string[] parameterKeys, string specifiedIdFieldName)
+        {
+            if (string.IsNullOrWhiteSpace(specifiedIdFieldName))
+            {
+                var idFieldNames = parameterKeys.Where(x => x.Equals("id", StringComparison.OrdinalIgnoreCase)).ToArray();
+                if (idFieldNames.Length > 0)
+                {
+                    return idFieldNames;
+                }
+            }
+            else
+            {
+                var specifiedIdFieldNames = specifiedIdFieldName.Split(',', ';').Where(x => !string.IsNullOrWhiteSpace(x)).ToArray();
+                bool allFieldNamesInParameters = specifiedIdFieldNames.Length > 0 && specifiedIdFieldNames.All(x => parameterKeys.Any(y => y.Equals(x, StringComparison.OrdinalIgnoreCase)));
+                if (allFieldNamesInParameters)
+                {
+                    return parameterKeys.Where(x => specifiedIdFieldNames.Contains(x, StringComparer.OrdinalIgnoreCase)).ToArray();
+                }
+            }
+            throw new Exception("id不能为空");
+        }
+
+        /// <summary>
+        /// 动态更新一条数据
+        /// </summary>
+        /// <param name="conn"></param>
+        /// <param name="tableName"></param>
+        /// <param name="idAndUpdatingFields"></param>
+        /// <param name="idFieldName"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        public static async Task<bool> UpdateAsync(IDbConnection conn, string tableName, Dictionary<string, string> idAndUpdatingFields, string idFieldName = "")
+        {
+            string[] idFields = GetTableIdFieldsFromParameters([.. idAndUpdatingFields.Keys], idFieldName);
+
+            DateTime start = DateTime.Now;
+            
+            // 检查参数值是否需要转换(不是字符串就需要转换)
+            Dictionary<string, object> parameters = [];
+            var tableFieldsConverter = await GetTableFieldsConverterAsync(conn, tableName);
+            foreach (var idOrUpdatingField in idAndUpdatingFields)
+            {
+                var fieldToConvert = tableFieldsConverter.Keys.ToList().FirstOrDefault(x => x.Equals(idOrUpdatingField.Key, StringComparison.OrdinalIgnoreCase));
+                if (fieldToConvert is not null)
+                {
+                    parameters.Add(idOrUpdatingField.Key, tableFieldsConverter[fieldToConvert](idOrUpdatingField.Value));
+                }
+                else
+                {
+                    parameters.Add(idOrUpdatingField.Key, idOrUpdatingField.Value);
+                }
+            }
+
+            var dbType = GetDbType(conn.ConnectionString);
+            var varFlag = GetDbParameterFlag(dbType);
+
+            string idCondition = string.Join(" and ", idFields.Select(x => $"{x}={varFlag}{x}"));
+            string setStatement = string.Join(',', idAndUpdatingFields.Keys.Where(x => !idFields.Contains(x)).Select(x => $"{x}={varFlag}{x}"));
+
+            if (string.IsNullOrWhiteSpace(setStatement))
+            {
+                throw new Exception("缺少更新的字段");
+            }
+
+            // 身为DateTime类型(非string类型)的UpdateTime字段肯定会在表字段类型转换器中
+            string? updateTimeField = GetUpdateTimeField([.. tableFieldsConverter.Keys]);
+            if (!string.IsNullOrWhiteSpace(updateTimeField))
+            {
+                setStatement += $",{updateTimeField}={varFlag}now";
+                parameters.Add("now", DateTime.Now);
+            }
+
+            string sql = $"update {tableName} set {setStatement} where {idCondition}";
+
+            var t1 = DateTime.Now;
+            LoggerHelper.LogInformation($"动态获取局部更新Sql语句{Environment.NewLine}{sql}{Environment.NewLine}和参数共耗时: {(t1 - start).TotalMilliseconds}/ms");
+
+            var res = await conn.ExecuteAsync(sql, parameters);
+
+            LoggerHelper.LogInformation($"执行更新的SQL语句: {sql}; 耗时: {(DateTime.Now - t1).TotalMilliseconds}/ms");
+
+            return res > 0;
+        }
         static readonly string[] _notExistKeywords = ["does not exist", "doesn't exist", "不存在", "无效的表", "/对象名.+无效/", "no such table", "Invalid object name"];
         /// <summary>
         /// 判断异常是否是表不存在异常
@@ -2326,6 +2486,16 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             /// </summary>
             public Dictionary<string, object> TargetRecord { get; set; } = [];
         }
+
+        /// <summary>
+        /// 获取数据表的更新时间字段
+        /// </summary>
+        /// <param name="fields"></param>
+        /// <returns></returns>
+        static string? GetUpdateTimeField(IEnumerable<string> fields)
+        {
+            return fields.FirstOrDefault(x => x.Contains("update", StringComparison.OrdinalIgnoreCase) && x.Contains("time", StringComparison.OrdinalIgnoreCase));
+        }
         /// <summary>
         /// 获取数据表的字段信息
         /// </summary>
@@ -2333,6 +2503,10 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// <returns></returns>
         public async Task<IEnumerable<ColumnInfo>> GetTableColumnsInfoAsync(string tableName)
         {
+            if (_tableColumnsInfo.TryGetValue(getTableKey(_connectionString, tableName), out var tableInfo))
+            {
+                return tableInfo;
+            }
             using var conn = GetDbConnection(_connectionString);
             return await GetTableColumnsInfoAsync(conn, tableName);
         }
@@ -2344,9 +2518,16 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// <returns></returns>
         public static async Task<IEnumerable<ColumnInfo>> GetTableColumnsInfoAsync(string connectionString, string tableName)
         {
+            if (_tableColumnsInfo.TryGetValue(getTableKey(connectionString, tableName), out var tableInfo))
+            {
+                return tableInfo;
+            }
             using var conn = GetDbConnection(connectionString);
             return await GetTableColumnsInfoAsync(conn, tableName);
         }
+        
+        static readonly ConcurrentDictionary<string, IEnumerable<ColumnInfo>> _tableColumnsInfo = [];
+        static Func<string, string, string> getTableKey = (string connectionStrin, string tableName) => $"{connectionStrin}_{tableName}";
         /// <summary>
         /// 获取数据库表结构
         /// </summary>
@@ -2355,6 +2536,11 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// <returns></returns>
         public static async Task<IEnumerable<ColumnInfo>> GetTableColumnsInfoAsync(IDbConnection conn, string tableName)
         {
+            string tableKey = getTableKey(conn.ConnectionString, tableName);
+            if (_tableColumnsInfo.TryGetValue(tableKey, out var tableInfo))
+            {
+                return tableInfo;
+            }
             tableName = GetTableOriginName(tableName);
 
             string sql;
@@ -2502,9 +2688,25 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             }
             // ColumnLength: Oracle如果是Number类型, ColumnLength值可能是"10,0"
             AnalysisColumnCSharpType(result);
+
+            _tableColumnsInfo.TryAdd(tableKey, result);
             return result;
         }
 
+        static Type GetCSharpType(string csharpType)
+        {
+            return csharpType switch
+            {
+                "bool" => typeof(bool),
+                "int" => typeof(int),
+                "long" => typeof(long),
+                "float" => typeof(float),
+                "double" => typeof(double),
+                "decimal" => typeof(decimal),
+                "datetime" => typeof(DateTime),
+                _ => throw new Exception($"不支持的数据类型: {csharpType}")
+            };
+        }
         static readonly string[] _dbTypeKeywordsDateTime = ["time", "date", "text(6)"];
         static readonly string[] _dbTypeKeywordsBytes = ["lob", "binary", "bytea"];
         static readonly string[] _dbTypeKeywordsInt = ["int", "number"];

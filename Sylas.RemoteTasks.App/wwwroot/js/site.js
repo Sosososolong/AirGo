@@ -653,7 +653,9 @@ async function fetchData(url, method, pageIndex, pageSize, dataFilter, orderRule
 
 async function httpRequestAsync(url, spinnerEle = null, method = 'POST', body = '', contentType = '') {
     try {
-        showSpinner(spinnerEle);
+        if (spinnerEle) {
+            showSpinner(spinnerEle);
+        }
         if (!contentType && method.toUpperCase() === 'POST') {
             contentType = 'application/json';
         }
@@ -669,7 +671,13 @@ async function httpRequestAsync(url, spinnerEle = null, method = 'POST', body = 
         if (!response.ok) {
             if (response.status === 401) {
                 showWarningBox('身份已过期, 请点击确定刷新页面', () => location.reload());
-                return;
+                return null;
+            }
+            else if (response.status === 404) {
+                showErrorBox('接口不存在, 请确认请求方式和参数');
+                return null;
+            } else {
+                showErrorBox(`请求异常:${response.statusText}`);
             }
         }
 
@@ -678,19 +686,39 @@ async function httpRequestAsync(url, spinnerEle = null, method = 'POST', body = 
         return rspJson;
     } catch (e) {
         showErrorBox(e.message);
+        return null;
     } finally {
-        closeSpinner(spinnerEle);
+        if (spinnerEle) {
+            closeSpinner(spinnerEle);
+        }
     };
 }
 
-async function httpRequestDataAsync(url, spinnerEle = null, method = 'POST', body = '', contentType = '') {
+const errorHandlerType = {
+    showError: 0,
+    returnErrorMessage: 1
+}
+/**
+ * 根据平台的接口响应数据的格式, 获取请求数据(根据自定义协议如code值判断请求是否成功, 失败情况下显示错误提示框或者返回错误信息)
+ * @param {any} url
+ * @param {any} spinnerEle
+ * @param {any} method
+ * @param {any} body
+ * @param {any} contentType
+ * @returns
+ */
+async function httpRequestDataAsync(url, spinnerEle = null, method = 'POST', body = '', contentType = '', errorHandlerTypeVal = 0) {
     var response = await httpRequestAsync(url, spinnerEle, method, body, contentType);
-    if (!response) {
-        showErrorBox('请求无响应');
-    } else if (response.code === 1) {
-        return response.data;
-    } else {
-        showErrorBox(response.errMsg ? response.errMsg : "请求失败");
+    if (response) {
+        if (response.code === 1) {
+            return response.data;
+        } else {
+            if (errorHandlerTypeVal === errorHandlerType.returnErrorMessage) {
+                return `<span class="text-warning">${response.errMsg}</span>`;
+            } else {
+                showErrorBox(response.errMsg ? response.errMsg : "请求失败");
+            }
+        }   
     }
     return null;
 }
@@ -948,41 +976,63 @@ async function deleteData(eventTrigger) {
 async function execute(eventTrigger, callback = null, useSpinner = true) {
     const isEle = eventTrigger instanceof HTMLElement;
     let tableId = isEle ? eventTrigger.getAttribute('data-table-id') : eventTrigger['dataTableId'];
-    let table = tableId ? tables[tableId] : tables[0];
+    let table = tableId ? tables[tableId] : null;
     let dataContent = isEle ? eventTrigger.getAttribute('data-content') : eventTrigger['dataContent'];
+    if (dataContent && dataContent.indexOf('formItemIds') > -1) {
+        const regex = /\s*formItemIds\s*:\s*/;
+        const formItemIds = dataContent.replace(regex, '');
+        const formItemIdArr = formItemIds.split(';');
+        const dataContentObj = {};
+        // 使用formItemIdArr对应的表单项name和value, 构建dataContentObj对象
+        formItemIdArr.forEach(formItemId => {
+            if (formItemId) {
+                const formItem = document.querySelector(`#${formItemId}`);
+                dataContentObj[formItem.name] = formItem.value;
+            }
+        });
+        dataContent = JSON.stringify(dataContentObj);
+    }
 
     let url = isEle ? eventTrigger.getAttribute('data-execute-url') : eventTrigger['dataExecuteUrl'];
     let method = isEle ? eventTrigger.getAttribute('data-method') : eventTrigger['dataMethod'];
     let response = null;
-    if (useSpinner) {
-        showSpinner();
-    }
-    try {
-        response = await $.ajax({
-            url: url,
-            method: method,
-            data: dataContent.toString(),
-            contentType: 'application/json',
-            dataType: 'json',
-        });
-    } catch (e) {
-        showErrorBox('操作失败');
-        console.log(e);
-    } finally {
-        if (useSpinner) {
-            closeSpinner();
+    const spinnerEle = useSpinner ? eventTrigger : null;
+    response = await httpRequestAsync(url, eventTrigger, method, dataContent, 'application/json');
+    //if (useSpinner) {
+    //    showSpinner();
+    //}
+    //try {
+        
+    //    response = await $.ajax({
+    //        url: url,
+    //        method: method,
+    //        data: dataContent.toString(),
+    //        contentType: 'application/json',
+    //        dataType: 'json',
+    //    });
+    //} catch (e) {
+    //    showErrorBox('操作失败');
+    //    console.log(e);
+    //} finally {
+    //    if (useSpinner) {
+    //        closeSpinner();
+    //    }
+    //}
+    if (response) {
+        if (callback) {
+            callback(response);
+            return;
         }
-    }
 
-    if (callback) {
-        callback(response);
-        return;
-    }
-
-    if (response && (response.isSuccess || response.data)) {
-        showMsgBox('操作成功', () => table.loadData());
-    } else {
-        showErrorBox(response.errMsg, '错误提示', [{ class: 'error', content: '关闭' }]);
+        if (response.isSuccess || response.data) {
+            showMsgBox('操作成功', () => {
+                if (table) {
+                    table.loadData();
+                }
+            });
+        } else {
+            showErrorBox(response.errMsg, '错误提示', [{ class: 'error', content: '关闭' }]);
+        }
     }
 }
 
@@ -1071,4 +1121,56 @@ function textareaDbClicked(ele) {
     ele.closest('.modal-dialog').classList.add('modal-fullscreen');
     // 添加一个返回原始大小的按钮
     ele.insertAdjacentHTML('afterend', `<button type="button" class="btn btn-primary mt-3" onclick="document.querySelector('#${ele.id}').closest('.modal-dialog').classList.remove('modal-fullscreen');this.remove()">返回</button>`);
+}
+
+let inputingInterval = 0;
+/**
+ * 输入框输入事件, 延迟触发事件处理函数(延迟时间内再次触发, 则会重置延迟时间)
+ * @param {any} input
+ */
+function inputing(input, inputHandler) {
+    if (inputingInterval) {
+        clearTimeout(inputingInterval);
+    }
+    inputingInterval = setTimeout(() => {
+        if (inputHandler && inputHandler instanceof Function) {
+            inputHandler(input);
+        }
+    }, 500);
+}
+
+/**
+ * 创建一个数据面板
+ */
+function newDataPannel(pannelId, pannelClass, innerHtml) {
+    // 展示properties
+    const propertiesPannel = document.createElement('div');
+    propertiesPannel.id = pannelId;
+
+    propertiesPannel.classList.add('data-pannel')
+
+    if (pannelClass instanceof Array) {
+        pannelClass.forEach(x => propertiesPannel.classList.add(x));
+    } else {
+        propertiesPannel.classList.add(pannelClass);
+    }
+
+    propertiesPannel.clientWidth = '100%';
+    propertiesPannel.clientHeight = '100%';
+    propertiesPannel.innerHTML = innerHtml;
+    document.querySelector('body').appendChild(propertiesPannel);
+}
+/**
+ * 移除数据面板
+ */
+function removeDataPannel(pannelId) {
+    if (pannelId) {
+        const dataPannel = document.querySelector('#' + pannelId);
+        if (dataPannel) {
+            dataPannel.remove();
+        }
+    } else {
+        const dataPannels = document.querySelectorAll('.data-pannel');
+        dataPannels.forEach(x => x.remove());
+    }
 }

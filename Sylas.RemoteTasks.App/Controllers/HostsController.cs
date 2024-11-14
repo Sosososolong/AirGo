@@ -69,24 +69,6 @@ namespace Sylas.RemoteTasks.App.Controllers
             var anythingInfos = await anythingService.GetAllAnythingInfosAsync();
             return View(anythingInfos);
         }
-        /// <summary>
-        /// 根据id获取操作对象AnythingInfo
-        /// </summary>
-        /// <param name="id"></param>
-        /// <returns></returns>
-        //public async Task<RequestResult<AnythingInfo>> AnythingInfoAsync(int id)
-        //{
-        //    if (id <= 0)
-        //    {
-        //        return RequestResult<AnythingInfo>.Error("id不能为空");
-        //    }
-        //    var anythingInfo = await anythingService.GetAnythingInfoBySettingAndCommandAsync(id);
-        //    if (anythingInfo is null)
-        //    {
-        //        return RequestResult<AnythingInfo>.Error($"未找到id为{id}的操作对象");
-        //    }
-        //    return RequestResult<AnythingInfo>.Success(anythingInfo);
-        //}
 
         /// <summary>
         /// 对指定对象anything执行指定的命令command
@@ -134,7 +116,18 @@ namespace Sylas.RemoteTasks.App.Controllers
             return Json(await anythingService.DeleteAnythingSettingByIdAsync(id));
         }
         /// <summary>
-        /// 服务器和应用状态数据
+        /// 解析一个命令模板
+        /// </summary>
+        /// <param name="id">命令所属AnythingSetting的Id, 需要根据它的Properties解析命令中的模板</param>
+        /// <param name="command">带模板字符串的命令</param>
+        /// <returns></returns>
+        public async Task<RequestResult<string>> ResolveCommandSetttingAsync(int id, string command)
+        {
+            return await anythingService.ResolveCommandSettingAsync(id, command);
+        }
+
+        /// <summary>
+        /// 服务器和应用状态数据面板
         /// </summary>
         /// <returns></returns>
         public async Task<IActionResult> ServerAndAppStatus()

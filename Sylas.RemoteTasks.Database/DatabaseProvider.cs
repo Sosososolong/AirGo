@@ -1,16 +1,15 @@
-﻿using System.Data.Common;
-using System.Data;
-using System.Data.SqlClient;
-using Sylas.RemoteTasks.Database;
-using Microsoft.Extensions.Configuration;
-using System;
-using System.Threading.Tasks;
-using System.Collections.Generic;
-using System.Linq;
-using Sylas.RemoteTasks.Database.SyncBase;
-using Sylas.RemoteTasks.Utils.Extensions;
-using Sylas.RemoteTasks.Utils;
+﻿using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json.Linq;
+using Sylas.RemoteTasks.Database;
+using Sylas.RemoteTasks.Database.SyncBase;
+using Sylas.RemoteTasks.Utils;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Data.Common;
+using System.Data.SqlClient;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace Sylas.RemoteTasks.App.Database;
 
@@ -83,7 +82,7 @@ public class DatabaseProvider : IDatabaseProvider
         {
             throw new Exception("ConnectionString Empty");
         }
-        
+
         DbCommand command = SqlClientFactory.Instance.CreateCommand();
         PrepareCommand(connection, command, null, commandType, commandText, dbParameters, out bool mustCloseConn);
         using DbDataAdapter adapter = SqlClientFactory.Instance.CreateDataAdapter();
@@ -161,8 +160,8 @@ public class DatabaseProvider : IDatabaseProvider
         }
     }
 
-    
-    
+
+
     /// <summary>
     /// 
     /// </summary>
@@ -179,12 +178,12 @@ public class DatabaseProvider : IDatabaseProvider
         }
 
         DbParameter[] dbPparameters = parameters.Select(x => CreateDbParameter(x.Key, x.Value)).ToArray();
-        
+
         if (!string.IsNullOrWhiteSpace(db))
         {
             return await ExecuteQuerySqlAsync(sqlStr, dbPparameters, db);
         }
-        
+
         return await ExecuteQuerySqlAsync(sqlStr, dbPparameters);
     }
     /// <summary>
@@ -208,12 +207,9 @@ public class DatabaseProvider : IDatabaseProvider
         {
             ConnectionString = connectionString;
         }
-        
+
         return await ExecuteQuerySqlAsync(sqlStr, dbPparameters);
     }
-
-
-
 
     private async Task<DataSet> ExecuteQuerySqlAsync(string sqlStr, DbParameter[] parameters, string db = "")
     {
@@ -362,7 +358,7 @@ public class DatabaseProvider : IDatabaseProvider
         }
         var allCount = Convert.ToInt32(allCountDataSet.Tables[0].Rows[0][0]);
 
-        
+
         return new PagedData<T> { Data = result, Count = allCount, TotalPages = (allCount + search.PageSize - 1) / search.PageSize };
     }
     /// <summary>
@@ -434,5 +430,18 @@ public class DatabaseProvider : IDatabaseProvider
     {
         var dataSet = await QueryAsyncWithConnectionString(sql, parameters, connectionString);
         return Convert.ToInt32(dataSet.Tables[0].Rows[0][0]);
+    }
+
+    /// <summary>
+    /// 动态更新一条数据
+    /// </summary>
+    /// <param name="tableName"></param>
+    /// <param name="idAndUpdatingFields"></param>
+    /// <param name="idFieldName"></param>
+    /// <returns></returns>
+    /// <exception cref="Exception"></exception>
+    public async Task<bool> UpdateAsync(string tableName, Dictionary<string, string> idAndUpdatingFields, string idFieldName = "")
+    {
+        return await DatabaseInfo.UpdateAsync(ConnectionString, tableName, idAndUpdatingFields, idFieldName);
     }
 }

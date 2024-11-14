@@ -65,17 +65,23 @@ function buildDataView(data) {
     container.innerHTML = `<div class="col-sm-6 cards-container"></div><div class="col-sm-6 data-right-pannel"></div>`;
     let cardsHtml = '';
     data.forEach((record, index) => {
+        const collapseBtnId = `collapseBtn${record.id}`;
+        cardsStatus.push({
+            id: record.id,
+            isShown: false,
+            collapseBtnId
+        });
         cardsHtml += (`
                 <div class="card mb-2">
                     <!--Header-->
                     <div class="card-header d-flex justify-content-between" id="heading-${record.title}">
                         <h5 class="card-title mb-0" onclick="showDetails(this, ${record.id})">
-                            <button class="btn btn-link btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#collapse${record.title}" aria-expanded="false" aria-controls="collapse${record.title}">
+                            <button id="${collapseBtnId}" class="btn btn-link btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#collapse${record.title}" aria-expanded="false" aria-controls="collapse${record.title}">
                                 ${record.title}
                             </button>
                         </h5>
                         <div>
-                            <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="${record.id}" data-fetch-url="${apiUrl}" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
+                            <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="${record.id}" data-fetch-url="${apiUrl}" data-method="POST" onclick="showUpdatePannel(this)">更新</button>
                             <button type="button" class="btn btn-primary btn-sm d-none" data-table-id="${tableId}" data-content="&quot;${record.id}&quot;" data-execute-url="/Study/DeleteQuestion" data-method="POST" onclick="showConfirmBox('确定删除? 此操作无法撤销!', () => execute(this))">删除</button>
                         </div>
                     </div>
@@ -86,10 +92,6 @@ function buildDataView(data) {
                         </div>
                     </div>
                 </div>`);
-        cardsStatus.push({
-            id: record.id,
-            isShown: false
-        })
     });
     container.querySelector('.cards-container').innerHTML = cardsHtml;
     return container;
@@ -128,43 +130,88 @@ async function showDetails(ele, id) {
 
     const cardStatus = currentCard = cardsStatus.find(x => x.id == id)
     if (!cardStatus.isShown) {
-        var data = await httpRequestDataAsync(`/Hosts/AnythingSettingAndInfo?id=${id}`, ele);
-        let anythingSetting = data.anythingSetting;
-        let anythingInfo = data.anythingInfo;
-
-        const commandsArr = JSON.parse(anythingSetting.commands);
-        let commandsHtml = '';
-        for (let i = 0; i < commandsArr.length; i++) {
-            const command = commandsArr[i];
-            const commandInfo = anythingInfo.commands[i];
-
-            let commandState = '';
-            const stateArr = commandInfo.executedState.split('\n');
-            for (var j = 0; j < stateArr.length; j++) {
-                commandState += `<p class="card-text">${stateArr[j]}</p>`
+        cardsStatus.forEach(x => {
+            if (x.isShown) {
+                document.querySelector(`#${x.collapseBtnId}`).click();
             }
+        })
+        var data = await httpRequestDataAsync(`/Hosts/AnythingSettingAndInfo?id=${id}`, ele);
+        if (data) {
+            let anythingSetting = data.anythingSetting;
+            let anythingInfo = data.anythingInfo;
 
-            let commandTxt = command.CommandTxt;
-            commandTxt = commandTxt.split(';');
-            commandTxt = commandTxt.join('<br />');
-            commandsHtml += `
-        <p class="card-text">
-            <button type="button"
-                    class="btn btn-primary" ${(commandInfo.executedState ? " disabled" : "")}
-                    onclick="executeCommand(${id}, '${command.Name}', this)">
-                ${command.Name}
-            </button>
+            const commandsArr = JSON.parse(anythingSetting.commands);
+            let commandsHtml = '';
+            for (let i = 0; i < commandsArr.length; i++) {
+                const command = commandsArr[i];
+                const commandInfo = anythingInfo.commands[i];
+
+                let commandState = '';
+                const stateArr = commandInfo.executedState.split('\n');
+                for (var j = 0; j < stateArr.length; j++) {
+                    commandState += `<p class="card-text">${stateArr[j]}</p>`
+                }
+
+                let commandTxt = command.CommandTxt;
+                commandTxt = commandTxt.split(';');
+                const commandLength = commandTxt.length;
+                for (var j = 0; j < commandLength; j++) {
+                    commandTxt[j] = commandTxt[j].trim();
+                }
+                commandTxt = commandTxt.join('\n');
+                commandsHtml += `
+        <div class="input-group mb-3">
+            <textarea class="form-control form-control-sm" rows="${commandLength}" aria-label="command setting" aria-describedby="button-cmd-${id}" anything-id="${id}" oninput="inputing(this, resolveCmdSettingAsync)">${commandTxt}</textarea>
+        </div>
+        
+        <p style="font-size:12px;color:gray;">
+            ${commandInfo.commandTxt}
         </p>
-        <p class="card-text">
-            ${commandTxt}
-        </p>
+        <button class="btn btn-sm btn-primary mb-4 ${(commandInfo.executedState ? " disabled" : "")}" type="button" onclick="executeCommand(${id}, '${command.Name}', this)" id="button-cmd-${id}">${command.Name}</button>
         <div style="font-size:12px; margin-left:30px; color:green;">${commandState}</div>
         `;
-        }
+            }
 
-        card.querySelector('.card-body').innerHTML = commandsHtml;
-        cardStatus.isShown = true;
+            card.querySelector('.card-body').innerHTML = commandsHtml;
+            cardStatus.isShown = true;
+
+            // 创建变量properties展示修改面板
+            let resolvedProperties = '';
+            for (var key in anythingInfo.properties) {
+                if (anythingInfo.properties.hasOwnProperty(key)) {
+                    resolvedProperties += `<div>${key}: ${anythingInfo.properties[key]}</div>`;
+                }
+            }
+            const dataPannelHtml = `<h5 class="text-primary">环境变量</h5>
+            <textarea id='properties-${id}' name="properties" rows="6" class="form-control mb-2">${anythingSetting.properties}</textarea><input type="hidden" type="number" id="setting-id-${id}" name="id" value="${id}">
+            <div class="d-flex justify-content-end">
+                <button type="button" class="btn btn-primary btn-sm" data-content="formItemIds:properties-${id};setting-id-${id}" data-execute-url="/Hosts/UpdateAnythingSetting" data-method="POST" onclick="showConfirmBox('确定更新变量吗?', () => execute(this))">更新变量</button>
+            </div>
+            <div style="color:white;">${resolvedProperties}</div>`;
+            newDataPannel(`data-pannel-${id}`, 'right-data-pannel', dataPannelHtml);
+            // 更新选中状态
+            ele.style.backgroundColor = 'rgba(250, 129, 90, 0.7)';
+            ele.style.backdropFilter = 'blur(20rpx)';
+        }
     } else {
         cardStatus.isShown = false;
+        // 移除变量properties展示面板
+        removeDataPannel(`data-pannel-${id}`);
+        // 更新选中状态
+        ele.style.backgroundColor = '';
+        ele.style.backdropFilter = '';
+    }
+}
+
+/**
+ * 解析命令设置
+ * @param {any} input
+ */
+async function resolveCmdSettingAsync(input) {
+    const id = input.getAttribute('anything-id');
+    const cmdSetting = input.value;
+    var data = await httpRequestDataAsync(`/Hosts/ResolveCommandSettting?id=${id}&command=${cmdSetting}`, input, 'POST', '', '', errorHandlerType.returnErrorMessage);
+    if (data) {
+        input.parentElement.nextElementSibling.innerHTML = data;
     }
 }

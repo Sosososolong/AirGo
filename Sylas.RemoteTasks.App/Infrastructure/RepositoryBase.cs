@@ -2,8 +2,6 @@
 using Sylas.RemoteTasks.App.Database;
 using Sylas.RemoteTasks.Database;
 using Sylas.RemoteTasks.Database.SyncBase;
-using Sylas.RemoteTasks.Utils.Extensions;
-using System.Reflection;
 using System.Text.RegularExpressions;
 
 namespace Sylas.RemoteTasks.App.Infrastructure
@@ -91,9 +89,9 @@ namespace Sylas.RemoteTasks.App.Infrastructure
             await Console.Out.WriteLineAsync($"仓储获取Update语句信息耗时: {(DateTime.Now - start).TotalMilliseconds}/ms");
             return await _db.ExecuteSqlAsync(sql, parameters);
         }
-        
+
         /// <summary>
-        /// 更新记录信息
+        /// 更新记录信息 - 局部更新
         /// </summary>
         /// <param name="dbConnectionString"></param>
         /// <returns></returns>
@@ -163,5 +161,20 @@ namespace Sylas.RemoteTasks.App.Infrastructure
             return await _db.ExecuteSqlAsync(sql, new Dictionary<string, object> { { "id", id } });
         }
         #endregion
+    }
+
+    /// <summary>
+    /// 局部更新Dto
+    /// </summary>
+    public class PatchDto()
+    {
+        /// <summary>
+        /// 要更新的表名
+        /// </summary>
+        public string Target { get; set; } = string.Empty;
+        /// <summary>
+        /// 要更新的字段
+        /// </summary>
+        public Dictionary<string, string> Fields { get; set; } = [];
     }
 }

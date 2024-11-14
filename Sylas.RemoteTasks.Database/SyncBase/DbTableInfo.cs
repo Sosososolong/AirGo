@@ -9,7 +9,7 @@ using System.Reflection;
 namespace Sylas.RemoteTasks.Database.SyncBase
 {
     /// <summary>
-    /// 一个描述数据表的对象
+    /// 一个描述数据表的对象, T为实体类
     /// </summary>
     /// <typeparam name="T"></typeparam>
     public class DbTableInfo<T>
@@ -75,6 +75,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             #endregion
 
             #region 获取insert语句和update语句
+            // 这里参数标识符暂时就使用'@'符号(这里不确定数据库类型), 真正执行的时候会根据数据库类型进行替换
             // TODO: 根据特性标签获取一个或者多个主键字段
             var primaryKeyProp = properties.FirstOrDefault(x => x.Name.ToLower() == "id") ?? throw new Exception($"{entityType.Name}没有找到Id字段");
             var otherPropertyNames = allPropertyNames.Where(x => !x.Equals("id", StringComparison.CurrentCultureIgnoreCase));

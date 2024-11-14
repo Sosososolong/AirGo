@@ -27,3 +27,19 @@ tbody {
     font-size: 12px;
     color: #333;
 }
+
+.right-data-pannel {
+    position: fixed;
+    right: 5%;
+    top: 10%;
+    width: 40%;
+    height: 80%;
+    overflow-y: auto;
+    /*background-color: #f8f9fa;*/
+    padding: 10px;
+    border-radius: 5px;
+    /*°ëÍ¸Ã÷*/
+    opacity: 1;
+    background: rgba(250, 129, 90, 0.7);
+    backdrop-filter: blur(20rpx);
+}

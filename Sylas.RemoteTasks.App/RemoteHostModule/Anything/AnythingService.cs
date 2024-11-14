@@ -155,20 +155,11 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         /// <exception cref="Exception"></exception>
         async Task<AnythingInfo> BuildAnythingInfoAsync(AnythingSetting anythingSetting)
         {
-            #region 解析Properties
-            var properties = JsonConvert.DeserializeObject<Dictionary<string, object>>(anythingSetting.Properties) ?? [];
-            properties.ResolveSelfTmplValues();
-            if (!properties.ContainsKey(nameof(anythingSetting.Name)))
-            {
-                properties[nameof(anythingSetting.Name)] = anythingSetting.Name;
-            }
-            if (!properties.ContainsKey(nameof(anythingSetting.Title)))
-            {
-                properties[nameof(anythingSetting.Title)] = anythingSetting.Title;
-            }
+            #region 解析Properties, 添加Name和Title
+            var properties = ResolveProperties(anythingSetting);
             #endregion
 
-            #region 解析Executor对象和构造函数参数
+            #region 解析Executor对象和构造函数参数(使用Properties解析参数)
             AnythingExecutor? anythingExecutor;
             if (anythingSetting.Executor == 0)
             {
@@ -245,6 +236,47 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             #endregion
 
             return anythingInfo;
+        }
+        /// <summary>
+        /// 解析模板变量Properties
+        /// </summary>
+        /// <param name="anythingSetting"></param>
+
+        public Dictionary<string, object> ResolveProperties(AnythingSetting anythingSetting)
+        {
+            var properties = JsonConvert.DeserializeObject<Dictionary<string, object>>(anythingSetting.Properties) ?? [];
+            properties.ResolveSelfTmplValues();
+            if (!properties.ContainsKey(nameof(anythingSetting.Name)))
+            {
+                properties[nameof(anythingSetting.Name)] = anythingSetting.Name;
+            }
+            if (!properties.ContainsKey(nameof(anythingSetting.Title)))
+            {
+                properties[nameof(anythingSetting.Title)] = anythingSetting.Title;
+            }
+            return properties;
+        }
+
+        /// <summary>
+        /// 解析一个命令配置
+        /// </summary>
+        /// <param name="settingId"></param>
+        /// <param name="commandSetting"></param>
+        /// <returns></returns>
+        public async Task<RequestResult<string>> ResolveCommandSettingAsync(int settingId, string commandSetting)
+        {
+            var anythingSetting = (await GetAnythingSettingByIdAsync(settingId));
+            if (anythingSetting is null)
+            {
+                return RequestResult<string>.Error($"未找到id为{settingId}的操作对象");
+            }
+            var properties = ResolveProperties(anythingSetting);
+            var commandResolved = TmplHelper.ResolveExpressionValue(commandSetting, properties)?.ToString();
+            if (string.IsNullOrWhiteSpace(commandResolved))
+            {
+                return RequestResult<string>.Error($"解析命令\"{commandSetting}\"异常");
+            }
+            return RequestResult<string>.Success(commandResolved);
         }
     }
 }
