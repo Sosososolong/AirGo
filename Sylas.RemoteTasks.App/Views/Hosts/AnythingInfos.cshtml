@@ -3,54 +3,6 @@
 @{
     ViewData["Title"] = "Anything ...";
 }
-@* <div class="my-4">
-    <div class="row">
-        @foreach (var anything in Model)
-        {
-            <div class="row flex-row justify-content-around">
-                <div class="col-md-12 mb-4">
-                    <div class="card">
-                        @{
-                            string title = anything.Name.Replace(".", string.Empty);
-                        }
-                        <div class="card-header" id="heading-@(title)">
-                            <h5 class="card-title mb-0">
-                                <button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#collapse0@(title)" aria-expanded="false" aria-controls="collapse0@(title)">
-                                    @(anything.Name)
-                                </button>
-                            </h5>
-                        </div>
-                        <div id="collapse0@(title)" class="collapse" aria-labelledby="heading-@(title)" data-bs-parent="#accordion">
-                            <div class="card-body">
-                                @foreach (var anythingCommand in anything.Commands)
-                                {
-                                    <p class="card-text">
-                                        <button type="button"
-                                                class="btn btn-primary" @(!string.IsNullOrWhiteSpace(anythingCommand.ExecutedState) ? " disabled" : "")
-                                                onclick="executeCommand('@(anything.SettingId)', '@(anythingCommand.Name)', this)">
-                                            @(anythingCommand.Name)
-                                        </button>
-                                    </p>
-                                    <p class="card-text">
-                                        @(anythingCommand.CommandTxt)
-                                    </p>
-                                    <div style="font-size:12px; margin-left:30px; color:green;">
-                                        @foreach (var state in anythingCommand.ExecutedState.Split('\n'))
-                                        {
-                                            <p class="card-text">
-                                                @(state)
-                                            </p>
-                                        }
-                                    </div>
-                                }
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        }
-    </div>
-</div> *@
 
 <div id="anythingContainer"></div>
 

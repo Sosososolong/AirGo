@@ -436,12 +436,20 @@ namespace Sylas.RemoteTasks.Utils.Template
             var stringTmplMatches = RegexConst.StringTmpl.Matches(tmplWithParser);
 
             List<object> result = [];
+            List<string> resolvedExp = [];
             foreach (var stringTmplMatch in stringTmplMatches.Cast<Match>())
             {
                 var stringTmplGroups = stringTmplMatch.Groups;
                 if (stringTmplGroups.Count > 1)
                 {
                     string exp = stringTmplGroups["name"].Value;
+
+                    if (resolvedExp.Count > 0 && resolvedExp.Contains(stringTmplMatch.Value))
+                    {
+                        continue;
+                    }
+                    resolvedExp.Add(exp);
+
                     var tmplValue = ResolveFromDictionary(exp, dataContextDictionary);
                     if (tmplValue is null)
                     {
@@ -449,7 +457,9 @@ namespace Sylas.RemoteTasks.Utils.Template
                     }
                     if (tmplValue is JsonElement || tmplValue is string)
                     {
-                        return tmplWithParser.Replace(exp, tmplValue.ToString()).Replace(_doubleFlag, "$");
+                        // 有可能只是不断地替换表达式, 直到没有表达式为止, 那么最终result为空, 返回值为最终的tmplWithParser
+                        tmplWithParser = tmplWithParser.Replace(exp, tmplValue.ToString()).Replace(_doubleFlag, "$");
+                        continue;
                     }
                     else if (tmplValue is IEnumerable array)
                     {
@@ -485,7 +495,7 @@ namespace Sylas.RemoteTasks.Utils.Template
                             else
                             {
                                 // 不相等, 将源模板中的表达式替换为解析后的值
-                                return tmplWithParser.Replace(stringTmplMatch.Value, tmplValue.ToString());
+                                tmplWithParser = tmplWithParser.Replace(stringTmplMatch.Value, tmplValue.ToString());
                             }
                         }
                         else
