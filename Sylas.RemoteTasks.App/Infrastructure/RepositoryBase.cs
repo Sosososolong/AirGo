@@ -186,6 +186,17 @@ namespace Sylas.RemoteTasks.App.Infrastructure
         /// <summary>
         /// 要插入的数据
         /// </summary>
-        public IEnumerable<Dictionary<string, string>> Records { get; set; } = [];
+        public IEnumerable<Dictionary<string, object>> Records { get; set; } = [];
+    }
+    public class DeleteDto
+    {
+        /// <summary>
+        /// 指定要插入数据的表
+        /// </summary>
+        public string Target { get; set; } = string.Empty;
+        /// <summary>
+        /// 要插入的数据
+        /// </summary>
+        public IEnumerable<string> Ids { get; set; } = [];
     }
 }

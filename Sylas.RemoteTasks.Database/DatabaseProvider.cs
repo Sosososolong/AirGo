@@ -170,7 +170,7 @@ public class DatabaseProvider : IDatabaseProvider
     /// <param name="db"></param>
     /// <returns></returns>
     /// <exception cref="Exception"></exception>
-    public async Task<DataSet> QueryAsync(string sqlStr, Dictionary<string, object> parameters, string db = "")
+    public async Task<DataSet> QueryAsync(string sqlStr, Dictionary<string, object?> parameters, string db = "")
     {
         if (string.IsNullOrWhiteSpace(ConnectionString))
         {
@@ -256,7 +256,7 @@ public class DatabaseProvider : IDatabaseProvider
     /// <param name="paramName">参数名称</param>
     /// <param name="paramValue">参数的值</param>
     /// <returns></returns>
-    public DbParameter CreateDbParameter(string paramName, object paramValue)
+    public DbParameter CreateDbParameter(string paramName, object? paramValue)
     {
         SqlParameter parameter = new()
         {
@@ -337,7 +337,7 @@ public class DatabaseProvider : IDatabaseProvider
             await conn.ChangeDatabaseAsync(db);
         }
 
-        string pagedSql = DatabaseInfo.GetPagedSql(table, DatabaseInfo.GetDbType(ConnectionString), search.PageSize, search.PageSize, search.Filter, search.Rules, out string condition, out Dictionary<string, object> conditionParameters);
+        string pagedSql = DatabaseInfo.GetPagedSql(table, DatabaseInfo.GetDbType(ConnectionString), search.PageSize, search.PageSize, search.Filter, search.Rules, out string condition, out Dictionary<string, object?> conditionParameters);
         string allCountSqlTxt = $"select count(*) from {conn.Database}.{table}{condition}";
 
         var dataSet = await QueryAsync(pagedSql, conditionParameters);
@@ -387,7 +387,7 @@ public class DatabaseProvider : IDatabaseProvider
     /// <returns></returns>
     public async Task<int> ExecuteSqlAsync(string sql, object parameters, string db = "")
     {
-        var dataSet = await QueryAsync(sql, parameters as Dictionary<string, object> ?? new Dictionary<string, object>(), db);
+        var dataSet = await QueryAsync(sql, parameters as Dictionary<string, object?> ?? [], db);
         return Convert.ToInt32(dataSet.Tables[0].Rows[0][0]);
     }
     /// <summary>
@@ -397,7 +397,7 @@ public class DatabaseProvider : IDatabaseProvider
     /// <param name="parameters"></param>
     /// <param name="db"></param>
     /// <returns></returns>
-    public async Task<int> ExecuteSqlsAsync(IEnumerable<string> sqls, Dictionary<string, object> parameters, string db = "")
+    public async Task<int> ExecuteSqlsAsync(IEnumerable<string> sqls, Dictionary<string, object?> parameters, string db = "")
     {
         var affectedRows = 0;
         foreach (var sql in sqls)
@@ -414,7 +414,7 @@ public class DatabaseProvider : IDatabaseProvider
     /// <param name="parameters"></param>
     /// <param name="db"></param>
     /// <returns></returns>
-    public async Task<int> ExecuteScalarAsync(string sql, Dictionary<string, object> parameters, string db = "")
+    public async Task<int> ExecuteScalarAsync(string sql, Dictionary<string, object?> parameters, string db = "")
     {
         var dataSet = await QueryAsync(sql, parameters, db);
         return Convert.ToInt32(dataSet.Tables[0].Rows[0][0]);

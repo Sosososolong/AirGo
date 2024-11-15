@@ -85,7 +85,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="varFlag"></param>
         /// <param name="parameters"></param>
         /// <returns></returns>
-        public string BuildConditionStatement(string varFlag, Dictionary<string, object> parameters)
+        public string BuildConditionStatement(string varFlag, Dictionary<string, object?> parameters)
         {
             if (Value is null)
             {

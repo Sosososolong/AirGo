@@ -67,7 +67,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         public SqlInfo BuildConditions(DatabaseType dataBaseType = DatabaseType.MySql)
         {
             string varFlag = new DatabaseType[] { DatabaseType.Oracle, DatabaseType.Dm }.Contains(dataBaseType) ? ":" : "@";
-            Dictionary<string, object> parameters = [];
+            Dictionary<string, object?> parameters = [];
             StringBuilder conditionBuilder = new();
             BuildConditionsRecursively(FilterItems, FilterItemsLogicType);
             string condition = conditionBuilder.ToString();

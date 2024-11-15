@@ -45,7 +45,7 @@ namespace Sylas.RemoteTasks.Database
         /// <param name="parameters"></param>
         /// <param name="db"></param>
         /// <returns></returns>
-        Task<int> ExecuteSqlsAsync(IEnumerable<string> sqls, Dictionary<string, object> parameters, string db = "");
+        Task<int> ExecuteSqlsAsync(IEnumerable<string> sqls, Dictionary<string, object?> parameters, string db = "");
         /// <summary>
         /// 执行SQL语句并返回唯一一个值 - 可使用db参数指定切换到当前连接的用户有权限的其他数据库
         /// </summary>
@@ -53,7 +53,7 @@ namespace Sylas.RemoteTasks.Database
         /// <param name="parameters"></param>
         /// <param name="db"></param>
         /// <returns></returns>
-        Task<int> ExecuteScalarAsync(string sql, Dictionary<string, object> parameters, string db = "");
+        Task<int> ExecuteScalarAsync(string sql, Dictionary<string, object?> parameters, string db = "");
         /// <summary>
         /// 执行增删改的SQL语句 - 可使用数据库连接字符串指定数据库
         /// </summary>

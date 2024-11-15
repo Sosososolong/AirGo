@@ -79,7 +79,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
         public async Task<int> AddAsync(HttpRequestProcessorCreateDto processor)
         {
             string sql = $"insert into {HttpRequestProcessor.TableName} (Name, Title, Url, Headers, Remark, StepCirleRunningWhenLastStepHasData) values(@Name, @Title, @Url, @Headers, @Remark, @StepCirleRunningWhenLastStepHasData);SELECT last_insert_rowid();";
-            var parameters = new Dictionary<string, object>
+            var parameters = new Dictionary<string, object?>
             {
                 { "Name", processor.Name },
                 { "Title", processor.Title },
@@ -151,7 +151,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                 $"DELETE FROM {HttpRequestProcessorStep.TableName} WHERE ProcessorId=@id",
                 $"DELETE FROM {HttpRequestProcessor.TableName} WHERE Id=@id",
             },
-            new Dictionary<string, object> { { "id", id } });
+            new Dictionary<string, object?> { { "id", id } });
             return deleted;
         }
 
@@ -227,7 +227,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
         public async Task<int> AddStepAsync(HttpRequestProcessorStepCreateDto step)
         {
             string sql = $"insert into {HttpRequestProcessorStep.TableName} (parameters, RequestBody, dataContextBuilder, remark, processorId, presetDataContext) values(@parameters, @RequestBody, @dataContextBuilder, @remark, @processorId, @presetDataContext);SELECT last_insert_rowid();";
-            var parameters = new Dictionary<string, object>
+            var parameters = new Dictionary<string, object?>
             {
                 { "parameters", step.Parameters },
                 { "RequestBody", step.RequestBody },

@@ -103,13 +103,13 @@ namespace Sylas.RemoteTasks.App.Controllers
             //    db.CreateDbParameter("pageIndex", 1),
             //    db.CreateDbParameter("pageSize", 10)
             //};
-            new Dictionary<string, object> {
+            new Dictionary<string, object?> {
                 { "pageIndex", 1 }, { "pageSize", 10 }
             };
 
             DataSet set = await _db.QueryAsync(sql, parameters);
             DataTable dataTable = set.Tables[0];
-            List<string> columnNames = new();
+            List<string> columnNames = [];
             foreach (DataColumn column in dataTable.Columns)
             {
                 columnNames.Add(column.ColumnName);
@@ -287,7 +287,7 @@ namespace Sylas.RemoteTasks.App.Controllers
                 return Content($"sql语句: {sql}中, 没有@pageIndex和@pageSize参数");
             }
             var parameters =
-                new Dictionary<string, object> {
+                new Dictionary<string, object?> {
                     { "pageIndex", 1 }, { "pageSize", 10 }
                 };
 
@@ -568,23 +568,17 @@ namespace Sylas.RemoteTasks.App.Controllers
             //string sql = Request.Query["sql"];
             //string connectionString = DemonProvider.ConnectionString = Request.Query["connectionString"];
 
-            if (sql.ToUpper().IndexOf("@pageIndex".ToUpper()) == -1 || sql.ToLower().IndexOf("@pageSize".ToLower()) == -1)
+            if (!sql.Contains("@pageIndex", StringComparison.CurrentCultureIgnoreCase) || !sql.Contains("@pageSize", StringComparison.CurrentCultureIgnoreCase))
             {
                 return Content($"sql语句: {sql}中, 没有@pageIndex和@pageSize参数");
             }
-            var parameters =
-            //    new DbParameter[2]
-            //{
-            //    db.CreateDbParameter("pageIndex", 1),
-            //    db.CreateDbParameter("pageSize", 10)
-            //};
-            new Dictionary<string, object> {
+            var parameters = new Dictionary<string, object?> {
                 { "pageIndex", 1 }, { "pageSize", 10 }
             };
 
             DataSet set = await _db.QueryAsync(sql, parameters);
             DataTable dataTable = set.Tables[0];
-            List<string> columnNames = new();
+            List<string> columnNames = [];
             foreach (DataColumn column in dataTable.Columns)
             {
                 columnNames.Add(column.ColumnName);
@@ -592,7 +586,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             StringBuilder sb = new();
             // 假设SQL查询结果中, 主键在第二列(第一列是为排序添加的RowNumber序号)
             string primaryKey = columnNames[1];
-            List<string> orderByDirectionFields = new();
+            List<string> orderByDirectionFields = [];
             foreach (string colName in columnNames)
             {
                 if (colName is null)
@@ -1075,10 +1069,10 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// <param name="table"></param>
         /// <param name="records"></param>
         /// <returns></returns>
-        public async Task<RequestResult<bool>> PostAsync([FromServices] DatabaseInfo db, [FromBody] PostDto postDto)
+        public async Task<RequestResult<int>> PostAsync([FromServices] DatabaseInfo db, [FromBody] PostDto postDto)
         {
             var res = await db.InsertDataAsync(postDto.Target, postDto.Records);
-            return RequestResult<bool>.Success(res > 0);
+            return RequestResult<int>.Success(res);
         }
         /// <summary>
         /// 动态局部更新
@@ -1106,6 +1100,22 @@ namespace Sylas.RemoteTasks.App.Controllers
             }
             var page = await db.QueryPagedDataAsync<dynamic>(searchDynamic.TableName, searchDynamic);
             return RequestResult<PagedData<dynamic>>.Success(page);
+        }
+        /// <summary>
+        /// 动态删除数据
+        /// </summary>
+        /// <param name="db"></param>
+        /// <param name="dto"></param>
+        /// <returns></returns>
+        public async Task<RequestResult<int>> DeleteAsync([FromServices] DatabaseInfo db, [FromBody] DeleteDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Target))
+            {
+                return RequestResult<int>.Error("表名不能为空");
+            }
+
+            int deleted = await db.DeleteAsync(dto.Target, dto.Ids);
+            return RequestResult<int>.Success(deleted);
         }
     }
 }

@@ -37,7 +37,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// </summary>
         public List<QueryTable> QueryTables { get; set; } = [];
 
-        private readonly Dictionary<string, object> _parameters = [];
+        private readonly Dictionary<string, object?> _parameters = [];
         /// <summary>
         /// 条件组 - 用来描述一个查询语句的所有条件
         /// </summary>

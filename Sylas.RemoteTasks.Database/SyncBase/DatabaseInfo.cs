@@ -13,6 +13,7 @@ using Newtonsoft.Json.Linq;
 using Npgsql;
 using Oracle.ManagedDataAccess.Client;
 using Org.BouncyCastle.Asn1.X509;
+using Org.BouncyCastle.Crypto;
 using Sylas.RemoteTasks.App.RegexExp;
 using Sylas.RemoteTasks.Utils;
 using Sylas.RemoteTasks.Utils.Extensions;
@@ -24,6 +25,7 @@ using System.Data;
 using System.Data.SqlClient;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
@@ -313,7 +315,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
 
             var dbType = GetDbType(conn.ConnectionString);
 
-            string sql = GetPagedSql(table, dbType, search.PageIndex, search.PageSize, search.Filter, search.Rules, out string condition, out Dictionary<string, object> parameters);
+            string sql = GetPagedSql(table, dbType, search.PageIndex, search.PageSize, search.Filter, search.Rules, out string condition, out Dictionary<string, object?> parameters);
 
             string allCountSqlTxt = $"select count(*) from {table}{condition}";
 
@@ -401,7 +403,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="parameters"></param>
         /// <param name="db"></param>
         /// <returns></returns>
-        public async Task<int> ExecuteSqlsAsync(IEnumerable<string> sqls, Dictionary<string, object> parameters, string db = "")
+        public async Task<int> ExecuteSqlsAsync(IEnumerable<string> sqls, Dictionary<string, object?> parameters, string db = "")
         {
             using var conn = GetDbConnection(_connectionString);
             if (!string.IsNullOrWhiteSpace(db))
@@ -434,7 +436,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="parameters"></param>
         /// <param name="db"></param>
         /// <returns></returns>
-        public async Task<int> ExecuteScalarAsync(string sql, Dictionary<string, object> parameters, string db = "")
+        public async Task<int> ExecuteScalarAsync(string sql, Dictionary<string, object?> parameters, string db = "")
         {
             using var conn = GetDbConnection(_connectionString);
             if (!string.IsNullOrWhiteSpace(db))
@@ -484,6 +486,16 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 throw new Exception("更新数据id不能为空");
             }
             return await UpdateAsync(_connectionString, tableName, idAndUpdatingFields, idFieldName);
+        }
+        /// <summary>
+        /// 删除指定表的指定记录
+        /// </summary>
+        /// <param name="tableName"></param>
+        /// <param name="ids"></param>
+        /// <returns></returns>
+        public async Task<int> DeleteAsync(string tableName, IEnumerable<object> ids)
+        {
+            return await DeleteAsync(_connectionString, tableName, ids);
         }
         static readonly ConcurrentDictionary<string, ConcurrentDictionary<string, Func<string, object>>> _tableAndStringFieldsConverter = [];
         /// <summary>
@@ -562,7 +574,17 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             }
             throw new Exception("id不能为空");
         }
-
+        /// <summary>
+        /// 查找表主键
+        /// </summary>
+        /// <param name="conn"></param>
+        /// <param name="tableName"></param>
+        /// <returns></returns>
+        static async Task<IEnumerable<ColumnInfo>> GetTablePkColInfosAsync(IDbConnection conn, string tableName)
+        {
+            var colInfos = await GetTableColumnsInfoAsync(conn, tableName);
+            return colInfos.Where(x => x.IsPK == 1);
+        }
         /// <summary>
         /// 动态更新一条数据
         /// </summary>
@@ -624,13 +646,63 @@ namespace Sylas.RemoteTasks.Database.SyncBase
 
             return res > 0;
         }
+
+        /// <summary>
+        /// 批量删除指定表的指定记录
+        /// </summary>
+        /// <param name="connectionString"></param>
+        /// <param name="tableName"></param>
+        /// <param name="ids"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        public static async Task<int> DeleteAsync(string connectionString, string tableName, IEnumerable<object> ids)
+        {
+            using var conn = GetDbConnection(connectionString);
+            var pkColInfos = await GetTablePkColInfosAsync(conn, tableName);
+            if (pkColInfos.Count() != 1)
+            {
+                throw new Exception(tableName + "表没有主键或者主键不唯一");
+            }
+            var pkColInfo = pkColInfos.First();
+            var pkColName = pkColInfo.ColumnCode;
+            var dbType = GetDbType(conn.ConnectionString);
+            var varFlag = GetDbParameterFlag(dbType);
+
+            Dictionary<string, object> parameters = [];
+            List<Tuple<string, Dictionary<string, object>>> statementAndParamsList = [];
+            int i = -1;
+            StringBuilder statementBuilder = new();
+            foreach (var id in ids)
+            {
+                i++;
+                statementBuilder.Append($"{varFlag}id{i},");
+                parameters.Add($"id{i}", pkColInfo.ColumnCSharpType == "string" ? id.ToString() : Convert.ToInt64(id));
+                if ((i + 1) > 0 && (i + 1) % 500 == 0)
+                {
+                    statementAndParamsList.Add(Tuple.Create(statementBuilder.ToString().TrimEnd(','), parameters));
+                    statementBuilder.Clear();
+                    parameters = [];
+                }
+            }
+            if (parameters.Count > 0)
+            {
+                statementAndParamsList.Add(Tuple.Create(statementBuilder.ToString().TrimEnd(','), parameters));
+            }
+            int deleted = 0;
+            foreach (var item in statementAndParamsList)
+            {
+                var sql = $"delete from {tableName} where {pkColName} in ({item.Item1})";
+                deleted += await conn.ExecuteAsync(sql, item.Item2);
+            }
+            return deleted;
+        }
         /// <summary>
         /// 向指定数据表添加指定的数据
         /// </summary>
         /// <param name="table"></param>
         /// <param name="records"></param>
         /// <returns></returns>
-        public async Task<int> InsertDataAsync(string table, IEnumerable<Dictionary<string, string>> records)
+        public async Task<int> InsertDataAsync(string table, IEnumerable<Dictionary<string, object>> records)
         {
             using var conn = GetDbConnection(_connectionString);
             
@@ -918,59 +990,46 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="table"></param>
         /// <param name="records"></param>
         /// <returns></returns>
-        public static async Task<int> InsertDataAsync(IDbConnection conn, string table, IEnumerable<Dictionary<string, string>> records)
-        {
-            var t1 = DateTime.Now;
-            // 检查字段值类型是否需要转换
-            List<Dictionary<string, object>> list = [];
-            var tableFieldsConverter = await GetTableFieldsConverterAsync(conn, table);
-            foreach (var record in records)
-            {
-                Dictionary<string, object> dataItem = [];
-                foreach (var item in record)
-                {
-                    var fieldToConvert = tableFieldsConverter.Keys.ToList().FirstOrDefault(x => x.Equals(item.Key, StringComparison.OrdinalIgnoreCase));
-                    if (fieldToConvert is not null)
-                    {
-                        dataItem.Add(item.Key, tableFieldsConverter[fieldToConvert](item.Value));
-                    }
-                    else
-                    {
-                        dataItem.Add(item.Key, item.Value);
-                    }
-                }
-                list.Add(dataItem);
-            }
-            LoggerHelper.LogInformation($"字段类型转换耗时: {(DateTime.Now - t1).TotalMilliseconds}/ms");
-            return await InsertDataAsync(conn, table, list);
-        }
-        /// <summary>
-        /// 将数据添加到表中
-        /// </summary>
-        /// <param name="conn"></param>
-        /// <param name="table"></param>
-        /// <param name="records"></param>
-        /// <returns></returns>
         public static async Task<int> InsertDataAsync(IDbConnection conn, string table, IEnumerable<IDictionary<string, object>> records)
         {
             if (!records.Any())
             {
                 return 0;
             }
+
             var t1 = DateTime.Now;
-            #region 补充可能缺失的主键字段和创建时间字段
+            #region 处理数据 - 类型转换, 检查是否需要补充主键字段, 给创建/更新时间字段赋值
+            List<Dictionary<string, object>> list = [];
+            var tableFieldsConverter = await GetTableFieldsConverterAsync(conn, table);
+
             var first = records.First();
             var recordKeys = first.Keys.ToArray();
             var colInfos = await GetTableColumnsInfoAsync(conn, table);
 
             var createTimeColInfo = colInfos.FirstOrDefault(x => x.ColumnCode.Contains("create", StringComparison.OrdinalIgnoreCase) && x.ColumnCode.Contains("time", StringComparison.OrdinalIgnoreCase));
             var updateTimeColInfo = colInfos.FirstOrDefault(x => x.ColumnCode.Contains("update", StringComparison.OrdinalIgnoreCase) && x.ColumnCode.Contains("time", StringComparison.OrdinalIgnoreCase));
-
-            if (!first.Keys.Any(x => x.Equals("id", StringComparison.OrdinalIgnoreCase)) || string.IsNullOrWhiteSpace(first.First(x => x.Key.Equals("id")).Value?.ToString()))
+            foreach (var record in records)
             {
-                var pkColInfos = colInfos.Where(x => x.IsPK == 1);
-                foreach (var record in records)
+                // 1.先处理数据类型转换, 得到新的数据dataItem
+                Dictionary<string, object> dataItem = [];
+                list.Add(dataItem);
+                foreach (var item in record)
                 {
+                    var fieldToConvert = tableFieldsConverter.Keys.ToList().FirstOrDefault(x => x.Equals(item.Key, StringComparison.OrdinalIgnoreCase));
+                    if (fieldToConvert is not null)
+                    {
+                        dataItem.Add(item.Key, tableFieldsConverter[fieldToConvert]($"{item.Value}"));
+                    }
+                    else
+                    {
+                        dataItem.Add(item.Key, $"{item.Value}");
+                    }
+                }
+
+                // 2. 处理主键字段
+                if (!recordKeys.Any(x => x.Equals("id", StringComparison.OrdinalIgnoreCase)) || string.IsNullOrWhiteSpace(first.First(x => x.Key.Equals("id")).Value?.ToString()))
+                {
+                    var pkColInfos = colInfos.Where(x => x.IsPK == 1);
                     // 为每条数据的所有字符串类型的主键赋值
                     foreach (var pkColInfo in pkColInfos)
                     {
@@ -979,32 +1038,34 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                         {
                             if (pkColInfo.ColumnCSharpType == "string")
                             {
-                                record[pkColInfo.ColumnCode] = $"{DateTime.Now:yyyyMMddHHmmssFFFFFFF}";
+                                dataItem[pkColInfo.ColumnCode] = $"{DateTime.Now:yyyyMMddHHmmssFFFFFFF}";
                             }
                         }
                     }
+                }
 
-                    if (createTimeColInfo is not null)
-                    {
-                        var recordCreateTimeKey = first.Keys.FirstOrDefault(x => x.Equals(createTimeColInfo.ColumnCode, StringComparison.OrdinalIgnoreCase));
-                        string recordKey = recordCreateTimeKey is null ? createTimeColInfo.ColumnCode : recordCreateTimeKey;
-                        record[recordKey] = DateTime.Now;
-                    }
+                // 3. 处理创建时间字段
+                if (createTimeColInfo is not null)
+                {
+                    var recordCreateTimeKey = first.Keys.FirstOrDefault(x => x.Equals(createTimeColInfo.ColumnCode, StringComparison.OrdinalIgnoreCase));
+                    string recordKey = recordCreateTimeKey is null ? createTimeColInfo.ColumnCode : recordCreateTimeKey;
+                    dataItem[recordKey] = DateTime.Now;
+                }
 
-                    if (updateTimeColInfo is not null)
-                    {
-                        var recordupdateTimeKey = first.Keys.FirstOrDefault(x => x.Equals(updateTimeColInfo.ColumnCode, StringComparison.OrdinalIgnoreCase));
-                        string recordKey = recordupdateTimeKey is null ? updateTimeColInfo.ColumnCode : recordupdateTimeKey;
-                        record[recordKey] = DateTime.Now;
-                    }
+                // 4. 更新时间字段
+                if (updateTimeColInfo is not null)
+                {
+                    var recordupdateTimeKey = first.Keys.FirstOrDefault(x => x.Equals(updateTimeColInfo.ColumnCode, StringComparison.OrdinalIgnoreCase));
+                    string recordKey = recordupdateTimeKey is null ? updateTimeColInfo.ColumnCode : recordupdateTimeKey;
+                    dataItem[recordKey] = DateTime.Now;
                 }
             }
             #endregion
 
             var t2 = DateTime.Now;
-            LoggerHelper.LogInformation($"处理主键字段,创建时间,更新时间字段耗时:{(t2 - t1).TotalMilliseconds}/ms");
+            LoggerHelper.LogInformation($"处理数据的类型转换, 主键字段, 创建时间, 更新时间字段耗时:{(t2 - t1).TotalMilliseconds}/ms");
 
-            var insertSqlInfos = await GetInsertSqlInfosAsync(records, table, conn);
+            var insertSqlInfos = await GetInsertSqlInfosAsync(list, table, conn);
             var t3 = DateTime.Now;
             LoggerHelper.LogInformation($"获取insert SQL语句耗时: {(t3 - t2).TotalMilliseconds}/ms");
 
@@ -1656,7 +1717,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <returns></returns>
         /// <exception cref="ArgumentException"></exception>
         /// <exception cref="Exception"></exception>
-        public static string GetPagedSql(string table, DatabaseType dbType, int pageIndex, int pageSize, DataFilter? filters, List<OrderField>? orderRules, out string queryCondition, out Dictionary<string, object> queryConditionParameters)
+        public static string GetPagedSql(string table, DatabaseType dbType, int pageIndex, int pageSize, DataFilter? filters, List<OrderField>? orderRules, out string queryCondition, out Dictionary<string, object?> queryConditionParameters)
         {
             #region 排序表达式
             orderRules ??= [new() { FieldName = "id", IsAsc = false }];
@@ -1729,7 +1790,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// <param name="queryTablesDto"></param>
         /// <param name="parameters"></param>
         /// <returns></returns>
-        public static string GetPagedSql(QueryTablesInDto queryTablesDto, out Dictionary<string, object> parameters)
+        public static string GetPagedSql(QueryTablesInDto queryTablesDto, out Dictionary<string, object?> parameters)
         {
             SqlInfo querySqlInfo = QuerySqlBuilder
                 .UseDatabase(DatabaseType.MySql)
@@ -1757,7 +1818,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             // TODO: 数据库类型 作为公共属性
             var dbType = GetDbType(dbConn.ConnectionString);
 
-            string sql = GetPagedSql(table, dbType, pageIndex, pageSize, filters, orderRules, out string condition, out Dictionary<string, object> parameters);
+            string sql = GetPagedSql(table, dbType, pageIndex, pageSize, filters, orderRules, out string condition, out Dictionary<string, object?> parameters);
 
             string allCountSqlTxt = $"select count(*) from {table}{condition}";
             var allCount = await dbConn.ExecuteScalarAsync<int>(allCountSqlTxt, parameters);
@@ -1895,13 +1956,13 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// 获取批量删除的SQL语句
         /// </summary>
         /// <param name="table"></param>
-        /// <param name="statement"></param>
+        /// <param name="deleteStatement"></param>
         /// <param name="pks"></param>
         /// <param name="dbType"></param>
         /// <returns></returns>
-        public static string GetBatchDeleteSql(string table, string statement, string[] pks, DatabaseType dbType)
+        public static string GetBatchDeleteSql(string table, string deleteStatement, string[] pks, DatabaseType dbType)
         {
-            if (string.IsNullOrWhiteSpace(statement))
+            if (string.IsNullOrWhiteSpace(deleteStatement))
             {
                 return string.Empty;
             }
@@ -1909,17 +1970,17 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             {
                 return dbType switch
                 {
-                    var type when type == DatabaseType.Oracle || type == DatabaseType.Dm => $"BEGIN{Environment.NewLine}{statement}{Environment.NewLine}END;",
-                    DatabaseType.MySql => $"SET foreign_key_checks=0;{Environment.NewLine}{statement}{Environment.NewLine}SET foreign_key_checks=1;",
-                    _ => statement
+                    var type when type == DatabaseType.Oracle || type == DatabaseType.Dm => $"BEGIN{Environment.NewLine}{deleteStatement}{Environment.NewLine}END;",
+                    DatabaseType.MySql => $"SET foreign_key_checks=0;{Environment.NewLine}{deleteStatement}{Environment.NewLine}SET foreign_key_checks=1;",
+                    _ => deleteStatement
                 };
             }
             else
             {
                 return dbType switch
                 {
-                    DatabaseType.MySql => $"SET foreign_key_checks=0;{Environment.NewLine}delete from {table} where {pks.First()} in({statement.Trim(',', '\r', '\n', ';')});{Environment.NewLine}SET foreign_key_checks=1;",
-                    _ => $"delete from {table} where {pks.First()} in({statement.Trim(',', '\r', '\n', ';')})",
+                    DatabaseType.MySql => $"SET foreign_key_checks=0;{Environment.NewLine}delete from {table} where {pks.First()} in({deleteStatement.Trim(',', '\r', '\n', ';')});{Environment.NewLine}SET foreign_key_checks=1;",
+                    _ => $"delete from {table} where {pks.First()} in({deleteStatement.Trim(',', '\r', '\n', ';')})",
                 };
             }
         }
