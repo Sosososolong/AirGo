@@ -1174,3 +1174,14 @@ function removeDataPannel(pannelId) {
         dataPannels.forEach(x => x.remove());
     }
 }
+
+/**
+ * 修剪消息长度, 将消息缩短到指定长度
+ * @param {any} msg
+ * @param {any} maxLength
+ * @returns
+ */
+function trimMsg(msg, maxLength = 50) {
+    const half = maxLength / 2;
+    return msg.substring(0, half) + '...' + msg.substring(msg.length - half)
+}

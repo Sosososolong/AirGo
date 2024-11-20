@@ -1,15 +1,52 @@
-﻿async function executeCommand(settingId, commandName, executeBtn) {
+﻿async function executeCommand(settingId, commandName, executeBtn, overrideMsg = true) {
     const requestBody = JSON.stringify({ settingId, commandName });
     const data = await httpRequestDataAsync('/Hosts/ExecuteCommand', executeBtn, 'POST', requestBody);
     if (data) {
+        const rigthPannel = document.querySelector('.data-right-pannel');
         if (data.succeed) {
             if (data.message) {
-                showMsgBox("操作成功" + ": " + data.message);
+                const msgs = data.message.split('\n');
+                let msgHtml = '';
+                msgs.forEach(msg => {
+                    if (msg && msg.length > 50) {
+                        msg = trimMsg(msg, 50);
+                    }
+                    msgHtml += `<div style="color:green;">${commandName}: ${msg}</div>`
+                })
+                if (overrideMsg) {
+                    rigthPannel.innerHTML = msgHtml;
+                }
+                else {
+                    rigthPannel.innerHTML += msgHtml;
+                }
+                //showMsgBox("操作成功" + ": " + data.message);
             } else {
-                showMsgBox("操作成功");
+                rigthPannel.innerHTML += `<p style="color:green;">${commandName}: 操作成功</p>`;
             }
         } else {
-            showErrorBox(data.message ? data.message : '操作失败');
+            const errMsg = data.message ? data.message : '操作失败';
+            if (overrideMsg) {
+                rigthPannel.innerHTML = `<p style="color:red;">${commandName}: ${trimMsg(errMsg, 50)}</p>`
+            } else {
+                rigthPannel.innerHTML += `<p style="color:red;">${commandName}: ${trimMsg(errMsg, 50)}</p>`
+            }
+            //showErrorBox(errMsg);
+        }
+    }
+}
+
+async function executeCommands(trigger) {
+    const commandCheckboxes = document.querySelectorAll('.command-checkbox:checked');
+    if (commandCheckboxes && commandCheckboxes.length > 0) {
+        document.querySelector('.data-right-pannel').innerHTML = '';
+    } else {
+        showErrorBox("请选择需要执行的命令");
+    }
+    for (var i = 0; i < commandCheckboxes.length; i++) {
+        if (commandCheckboxes[i].checked) {
+            const anythingId = commandCheckboxes[i].getAttribute("data-id");
+            const commandName = commandCheckboxes[i].getAttribute("data-command-name");
+            await executeCommand(anythingId, commandName, trigger, false);
         }
     }
 }
@@ -27,7 +64,6 @@ function searchItems(searchDropdown) {
         }
     });
 }
-
 
 // 数据查询接口
 const apiUrl = "/Hosts/AnythingSettings";
@@ -85,6 +121,7 @@ function buildDataView(data) {
                         <div>
                             <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="${record.id}" data-fetch-url="${apiUrl}" data-method="POST" onclick="showUpdatePannel(this)">更新</button>
                             <button type="button" class="btn btn-primary btn-sm" onclick="addCommand(this, ${record.id}, '${record.title}')">添加命令</button>
+                            <button type="button" class="btn btn-primary btn-sm" onclick="executeCommands(this)">运行</button>
                             <button type="button" class="btn btn-primary btn-sm d-none" data-table-id="${tableId}" data-content="&quot;${record.id}&quot;" data-execute-url="/Study/DeleteQuestion" data-method="POST" onclick="showConfirmBox('确定删除? 此操作无法撤销!', () => execute(this))">删除</button>
                         </div>
                     </div>
@@ -167,13 +204,18 @@ async function loadCommandsAsync(ele, id) {
                 commandTxt = commandTxt.join('\n');
                 commandsHtml += `<div style="${commandItemStyle}" class="command-item" draggable="true">
             <div class="input-group mb-3">
+                <div class="input-group-text">
+                  <input class="form-check-input mt-0 command-checkbox" type="checkbox" value="" aria-label="Checkbox for following text input" data-id="${id}" data-command-name="${command.Name}">
+                </div>
                 <textarea class="form-control form-control-sm" rows="${commandLength}" aria-label="command setting" aria-describedby="button-cmd-${id}" anything-id="${id}" oninput="inputing(this, resolveCmdSettingAsync)">${commandTxt}</textarea>
             </div>
-        
-            <div style="font-size:12px;color:gray;margin-bottom:10px">
+
+            <button class="btn btn-sm btn-primary mb-2 ${(commandInfo && commandInfo.executedState ? " disabled" : "")}" type="button" onclick="executeCommand(${id}, '${command.Name}', this)" id="button-cmd-${id}">${command.Name}</button>
+
+            <div style="font-size:12px;color:gray;padding-bottom:10px">
                 ${!commandInfo || !commandInfo.commandTxt ? '' : commandInfo.commandTxt.split(';').join('<br/>')}
             </div>
-            <button class="btn btn-sm btn-primary mb-4 ${(commandInfo && commandInfo.executedState ? " disabled" : "")}" type="button" onclick="executeCommand(${id}, '${command.Name}', this)" id="button-cmd-${id}">${command.Name}</button>
+
             <div style="font-size:12px; margin-left:30px; color:green;">${commandState}</div>
         </div>`;
             }
@@ -189,7 +231,7 @@ async function loadCommandsAsync(ele, id) {
                 }
             }
             const dataPannelHtml = `<h5 class="text-white">环境变量</h5>
-            <textarea id='properties-${id}' name="properties" rows="6" class="form-control mb-2">${anythingSetting.properties}</textarea><input type="hidden" type="number" id="setting-id-${id}" name="id" value="${id}">
+            <textarea id='properties-${id}' placeholder="设置变量" style="background-color:rgba(255,255,255,0)" name="properties" rows="6" class="form-control mb-2">${anythingSetting.properties}</textarea><input type="hidden" type="number" id="setting-id-${id}" name="id" value="${id}">
             <div class="d-flex justify-content-end">
                 <button type="button" class="btn btn-primary btn-sm" data-content="formItemIds:properties-${id};setting-id-${id}" data-execute-url="${apiUpdateUrl}" data-method="POST" onclick="showConfirmBox('确定更新变量吗?', () => execute(this))">更新变量</button>
             </div>
