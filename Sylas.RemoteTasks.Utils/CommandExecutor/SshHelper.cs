@@ -187,7 +187,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         /// <param name="privateKey"></param>
         public SshHelper(string host, int port, string username, string privateKey)
         {
-            Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 创建了一个SshHelper对象");
+            Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 开始创建一个SshHelper对象");
             Host = host;
             Port = port == 0 ? 22 : port;
             UserName = username;

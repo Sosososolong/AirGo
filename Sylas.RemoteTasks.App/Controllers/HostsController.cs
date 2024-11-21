@@ -64,10 +64,9 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// 显示所有命令
         /// </summary>
         /// <returns></returns>
-        public async Task<IActionResult> AnythingInfosAsync()
+        public IActionResult AnythingInfosAsync()
         {
-            var anythingInfos = await anythingService.GetAllAnythingInfosAsync();
-            return View(anythingInfos);
+            return View();
         }
 
         /// <summary>

@@ -774,6 +774,10 @@ async function handleDataForm(table, eventTrigger) {
 
     const currentForm = document.querySelector(`#${table.tableId}Form`);
     let showMessage = null;
+
+    if (table.onDataReloading && typeof table.onDataReloading === 'function') {
+        table.onDataReloading();
+    }
     if (currentForm.querySelector('input[type="file"]')) {
         var formData = new FormData(currentForm);
         checkFormData(formData);
@@ -815,6 +819,7 @@ async function handleDataForm(table, eventTrigger) {
 
         let data = getFormData(formItemIds);
         let dataJsonString = JSON.stringify(data);
+
         try {
             response = await $.ajax({
                 url: url,
@@ -839,11 +844,18 @@ async function handleDataForm(table, eventTrigger) {
             showMessage();
         }
     }
-
+    
     function showResultBox(response) {
         if (response && (response.code === 1 || response.isSuccess)) {
             table.modal.hide();
-            showMsgBox('操作成功', () => table.loadData());
+            showMsgBox('操作成功', reloadTableData);
+
+            function reloadTableData() {
+                table.loadData();
+                if (table.onDataReloaded && typeof table.onDataReloaded === 'function') {
+                    setTimeout(table.onDataReloaded, 500)
+                }
+            }
         } else {
             if (response) {
                 showErrorBox(response.errMsg, '错误提示', [{ class: 'error', content: '关闭' }]);
@@ -875,10 +887,14 @@ function getFormData(formItemIds) {
 /**
  * 显示更新数据面板: 分页查询接口, 使用id作为条件查询出当前数据, 再把当前数据的属性值复制到对应的表单项上
  * @param {any} eventTrigger 触发事件的元素, 可以获取元素上的自定义属性值
+ * @param {Function} onDataReloading 重新加载数据前需要执行的逻辑
+ * @param {Function} onDataReloaded 重新加载数据后需要执行的逻辑
  */
-async function showUpdatePannel(eventTrigger) {
+async function showUpdatePannel(eventTrigger, onDataReloading, onDataReloaded) {
     let tableId = eventTrigger.getAttribute('data-table-id');
     let table = tables[tableId];
+    table.onDataReloading = onDataReloading;
+    table.onDataReloaded = onDataReloaded;
     const dataIdStr = eventTrigger.getAttribute('data-id');
     let dataId = table.primaryKeyIsInt ? Number(dataIdStr) : dataIdStr;
     let fetchUrl = eventTrigger.getAttribute('data-fetch-url');

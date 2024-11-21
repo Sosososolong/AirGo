@@ -43,3 +43,31 @@ tbody {
     background: rgba(250, 129, 90, 0.7);
     backdrop-filter: blur(20rpx);
 }
+.arrow-up {
+    width: 0;
+    height: 0;
+    border-width: 10px;
+    border-style: solid;
+    border-color: transparent transparent var(--bs-blue) transparent;
+}
+.arrow-right {
+    width: 0;
+    height: 0;
+    border-width: 10px;
+    border-style: solid;
+    border-color: transparent var(--bs-blue) transparent transparent;
+}
+.arrow-down {
+    width: 0;
+    height: 0;
+    border-width: 10px;
+    border-style: solid;
+    border-color: var(--bs-blue) transparent transparent transparent;
+}
+.arrow-left {
+    width: 0;
+    height: 0;
+    border-width: 10px;
+    border-style: solid;
+    border-color: transparent transparent transparent var(--bs-blue);
+}

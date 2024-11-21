@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Sylas.RemoteTasks.Utils.Dto;
+using System;
 using System.Threading.Tasks;
 
 namespace Sylas.RemoteTasks.Utils.CommandExecutor
@@ -19,16 +20,25 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         /// 根据命令执行器名称创建一个命令执行器
         /// </summary>
         /// <param name="executorName"></param>
-        /// <param name="exceptionMsg"></param>
         /// <param name="args"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static ICommandExecutor Create(string executorName, object[] args, string exceptionMsg)
+        public static RequestResult<ICommandExecutor> Create(string executorName, object[] args)
         {
             var t = ReflectionHelper.GetTypeByClassName(executorName);
             var instance = ReflectionHelper.CreateInstance(t, args);
-            var anythingCommandExecutor = instance as ICommandExecutor ?? throw new Exception(exceptionMsg);
-            return anythingCommandExecutor;
+            try
+            {
+                if (instance is not ICommandExecutor anythingCommandExecutor)
+                {
+                    return RequestResult<ICommandExecutor>.Error($"对象无法转换为ICommandExecutor");
+                }
+                return RequestResult<ICommandExecutor>.Success(anythingCommandExecutor);
+            }
+            catch (Exception ex)
+            {
+                return RequestResult<ICommandExecutor>.Error(ex.Message);
+            }
         }
     }
 }

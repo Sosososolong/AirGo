@@ -3,6 +3,7 @@ using Newtonsoft.Json;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils.CommandExecutor;
+using Sylas.RemoteTasks.Utils.Constants;
 using Sylas.RemoteTasks.Utils.Dto;
 using Sylas.RemoteTasks.Utils.Template;
 
@@ -202,14 +203,15 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
                 }
             }
 
-            var anythingCommandExecutor = ICommandExecutor.Create(executorName, args, "从模板生成ICommandExecutor失败");
+            var result = ICommandExecutor.Create(executorName, args);
+            if (result.Code != 1)
+            {
+                throw new Exception(result.ErrMsg);
+            }
+            var anythingCommandExecutor = result.Data ?? throw new Exception("无法解析命令执行器");
             #endregion
 
             #region 解析出AnythingInfo
-            // 根据Properties解析其他模板
-            //anythingSetting.Name = TmplHelper.ResolveExpressionValue(anythingSetting.Name, properties)?.ToString() ?? throw new Exception($"Name {anythingSetting.Name} 解析失败");
-            //anythingSetting.Title = TmplHelper.ResolveExpressionValue(anythingSetting.Title, properties)?.ToString() ?? throw new Exception($"Title {anythingSetting.Title} 解析失败");
-
             // 解析CommandTxt中的模板
             var commands = JsonConvert.DeserializeObject<List<CommandInfo>>(anythingSetting.Commands) ?? [];
             foreach (var anythingCommand in commands)
@@ -217,10 +219,9 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
                 anythingCommand.CommandTxt = TmplHelper.ResolveExpressionValue(anythingCommand.CommandTxt, properties)?.ToString() ?? throw new Exception($"解析命令\"{anythingCommand.CommandTxt}\"异常");
                 if (!string.IsNullOrWhiteSpace(anythingCommand.ExecutedState))
                 {
-                    //anythingCommand.ExecutedState = TmplHelper.ResolveExpressionValue(anythingCommand.ExecutedState, properties)?.ToString() ?? throw new Exception($"解析命令\"{anythingCommand.ExecutedState}\"异常");
                     var start = DateTime.Now;
                     anythingCommand.ExecutedState = (await anythingCommandExecutor.ExecuteAsync(anythingCommand.ExecutedState)).Message;
-                    Console.WriteLine($"检测命令是否可用: {(DateTime.Now - start).TotalMilliseconds}/ms");
+                    Console.WriteLine($"获取命令状态耗时: {(DateTime.Now - start).TotalMilliseconds}/ms");
                 }
             }
 
@@ -253,6 +254,15 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             if (!properties.ContainsKey(nameof(anythingSetting.Title)))
             {
                 properties[nameof(anythingSetting.Title)] = anythingSetting.Title;
+            }
+            
+            if (!properties.ContainsKey(nameof(PathConstants.DefaultSshPrivateKeyFileEd25519)))
+            {
+                properties[nameof(PathConstants.DefaultSshPrivateKeyFileEd25519)] = PathConstants.DefaultSshPrivateKeyFileEd25519;
+            }
+            if (!properties.ContainsKey(nameof(PathConstants.DefaultSshPrivateKeyFileRsa)))
+            {
+                properties[nameof(PathConstants.DefaultSshPrivateKeyFileRsa)] = PathConstants.DefaultSshPrivateKeyFileRsa;
             }
             return properties;
         }
