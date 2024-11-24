@@ -111,7 +111,7 @@ function buildDataView(data) {
         cardsHtml += (`
                 <div class="card mb-2">
                     <!--Header-->
-                    <div class="card-header d-flex justify-content-between" id="heading-${record.title}">
+                    <div class="card-header d-flex justify-content-between" style="flex-wrap: wrap;" id="heading-${record.title}">
                         <h5 class="card-title mb-0" onclick="loadCommandsAsync(this, ${record.id})">
                             <button id="${collapseBtnId}" class="btn btn-link btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#collapse${record.id}" aria-expanded="false" aria-controls="collapse${record.id}">
                                 ${record.title}

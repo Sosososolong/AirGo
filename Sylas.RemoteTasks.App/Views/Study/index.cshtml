@@ -6,7 +6,7 @@
         box-shadow: 0px 0px 10px 5px rgba(0, 0, 0, 0.5);
     }
 </style>
-<div>
+<div ondblclick="prependErrors()">
     <h1>Study</h1>
     <div id="questions"></div>
 </div>
@@ -114,12 +114,40 @@
                 if (response && response.data) {
                     isAnswerCorrectMarkSpan.textContent = '√';
                     isAnswerCorrectMarkSpan.style = 'color:green;margin-left:5px;display:inline-block;';
+                    isAnswerCorrectMarkSpan.classList.remove('uncorrect');
+                    isAnswerCorrectMarkSpan.classList.add('correct');
                 } else {
                     isAnswerCorrectMarkSpan.textContent = 'x';
                     isAnswerCorrectMarkSpan.style = 'color:brown;margin-left:5px;display:inline-block;';
+                    isAnswerCorrectMarkSpan.classList.remove('correct');
+                    isAnswerCorrectMarkSpan.classList.add('uncorrect');
                     showRemark(input);
                 }
             }
+        }
+
+        let lastPrepended = null;
+        function prependErrors() {
+            document.querySelectorAll('.uncorrect').forEach(x => {
+                // const firstQuestion = lastPrepended ? lastPrepended : document.querySelector('.question');
+                // const questionEle = x.closest('.question');
+                // if (firstQuestion.querySelector('.is-answer-correct').classList.contains('correct')) {
+                //     firstQuestion.insertAdjacentElement('beforebegin', questionEle)
+                // } else {
+                //     firstQuestion.insertAdjacentElement('afterend', questionEle);
+                // }
+                const questionEle = x.closest('.question');
+                if (!lastPrepended) {
+                    const firstQuestion = document.querySelector('.question');
+                    if (firstQuestion !== questionEle) {
+                        firstQuestion.insertAdjacentElement('beforebegin', questionEle);
+                    }
+                } else {
+                    lastPrepended.insertAdjacentElement('afterend', questionEle);
+                }
+                lastPrepended = questionEle;
+            });
+            lastPrepended = null;
         }
     </script>
 }
