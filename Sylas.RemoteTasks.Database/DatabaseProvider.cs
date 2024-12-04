@@ -440,8 +440,29 @@ public class DatabaseProvider : IDatabaseProvider
     /// <param name="idFieldName"></param>
     /// <returns></returns>
     /// <exception cref="Exception"></exception>
-    public async Task<bool> UpdateAsync(string tableName, Dictionary<string, string> idAndUpdatingFields, string idFieldName = "")
+    public async Task<bool> UpdateAsync(string tableName, Dictionary<string, object> idAndUpdatingFields, string idFieldName = "")
     {
         return await DatabaseInfo.UpdateAsync(ConnectionString, tableName, idAndUpdatingFields, idFieldName);
+    }
+    /// <summary>
+    /// 向指定数据表添加指定的数据
+    /// </summary>
+    /// <param name="table"></param>
+    /// <param name="records"></param>
+    /// <returns></returns>
+    public async Task<int> InsertDataAsync(string table, IEnumerable<Dictionary<string, object>> records)
+    {
+        return await DatabaseInfo.InsertDataAsync(ConnectionString, table, records);
+    }
+    /// <summary>
+    /// 如果表不存在则创建表
+    /// </summary>
+    /// <param name="tableName"></param>
+    /// <param name="colInfos"></param>
+    /// <param name="db"></param>
+    /// <returns></returns>
+    public async Task CreateTableIfNotExistAsync(string tableName, IEnumerable<ColumnInfo> colInfos, string db = "")
+    {
+        await DatabaseInfo.CreateTableIfNotExistAsync(ConnectionString, tableName, colInfos, db);
     }
 }

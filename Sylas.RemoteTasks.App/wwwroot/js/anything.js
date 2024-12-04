@@ -5,13 +5,13 @@
         const rigthPannel = document.querySelector('.data-right-pannel');
         if (data.succeed) {
             if (data.message) {
-                const msgs = data.message.split('\n');
-                let msgHtml = '';
+                const msgs = data.message.split('\n').filter(x => x);
+                let msgHtml = `<div style="color:green;">${commandName}:</div>`;
                 msgs.forEach(msg => {
                     if (msg && msg.length > 50) {
                         msg = trimMsg(msg, 50);
                     }
-                    msgHtml += `<div style="color:green;">${commandName}: ${msg}</div>`
+                    msgHtml += `<div style="color:gray; margin-left:20px;">${msg}</div>`
                 })
                 if (overrideMsg) {
                     rigthPannel.innerHTML = msgHtml;
@@ -76,20 +76,11 @@ const ths = [
     { name: 'properties', title: '环境变量', multiLines: true },
     { name: 'name', title: '名称', searchedByKeywords: true },
     { name: 'title', title: '标题', searchedByKeywords: true },
-    { name: 'executor', title: '执行者' },
+    { name: 'executor', title: '执行者', type: 'dataSource|dataSourceApi=/Hosts/Executors?pageIndex=1&pageSize=1000|displayField=name' },
     { name: 'commands', title: '命令', multiLines: true },
 
     { name: 'createTime', title: '创建时间' },
     { name: 'updateTime', title: '更新时间' },
-
-    // { name: 'typeId', title: '题目类型', type: 'dataSource|dataSourceApi=/Study/GetQuestionTypes?pageIndex=1&pageSize=1000|displayField=name' },
-
-    // 操作栏 
-    // {
-    //     name: '', title: '操作', type: 'button', tmpl: `
-    //                     <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="{{id}}" data-fetch-url="${apiUrl}" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
-    //                     <button type="button" class="btn btn-primary btn-sm d-none" data-table-id="${tableId}" data-content="&quot;{{id}}&quot;" data-execute-url="/Study/DeleteQuestion" data-method="POST" onclick="showConfirmBox('确定删除? 此操作无法撤销!', () => execute(this))">删除</button>`
-    // }
 ]
 const idFieldName = "id";
 // 用于存储卡片状态
@@ -152,7 +143,7 @@ createTable(
     null,                       // 初始化数据(有的话就渲染此数据, 不会请求接口)
     onDataLoaded,               // 订阅数据渲染完成事件
     '',                         // 对数据表添加父元素, 使用{{tableHtml}}变量代表整个数据表html
-    { url: 'Hosts/AddAnythingSetting', method: 'POST', updateUrl: apiUpdateUrl, updateMethod: 'POST' },   // 添加修改数据表单弹窗; url为添加数据的url(修改的url放到修改按钮上); method也是请求添加数据接口的请求方法
+    { url: '/Hosts/AddAnythingSetting', method: 'POST', updateUrl: apiUpdateUrl, updateMethod: 'POST' },   // 添加修改数据表单弹窗; url为添加数据的url(修改的url放到修改按钮上); method也是请求添加数据接口的请求方法
     true,
     'h1',
     buildDataView,
@@ -165,7 +156,7 @@ createTable(
 function onDataLoaded(row) {
     return;
 }
-const multiCommandItemsStyle = 'background-color:#eee;padding:10px 30px 0 10px;margin-bottom:10px;position:relative;';
+const multiCommandItemsStyle = 'background-color:#eee;padding:10px 30px 0 10px;margin-bottom:10px;position:relative;border-radius:5px;';
 const sigleCommandItemStyle = 'position:relative;';
 async function loadCommandsAsync(ele, id) {
     const card = ele.closest('.card');
@@ -198,12 +189,18 @@ async function loadCommandsAsync(ele, id) {
                 }
                 // 命令内容, 可能有多条脚本, 一个脚本一行显示到textarea中
                 let commandTxt = command.CommandTxt;
-                commandTxt = commandTxt.split(';');
-                const commandLength = commandTxt.length;
-                for (var j = 0; j < commandLength; j++) {
-                    commandTxt[j] = commandTxt[j].trim();
+                let commandLength = 1;
+                if (commandTxt.indexOf('\n') > -1) {
+                    commandLength = commandTxt.split('\n').length;
+                } else {
+                    commandTxtArr = commandTxt.split(';');
+                    commandLength = commandTxtArr.length;
+                    for (var j = 0; j < commandLength; j++) {
+                        commandTxtArr[j] = commandTxtArr[j].trim();
+                    }
+                    commandTxt = commandTxtArr.join('\n');
                 }
-                commandTxt = commandTxt.join('\n');
+
                 commandsHtml += `<div style="${commandItemStyle}" class="command-item" style="padding-right:10px;" draggable="true">
             <div class="input-group mb-3">
                 <div class="input-group-text">
@@ -215,7 +212,7 @@ async function loadCommandsAsync(ele, id) {
             <button class="btn btn-sm btn-primary mb-2 ${(commandInfo && commandInfo.executedState ? " disabled" : "")}" type="button" onclick="executeCommand(${id}, '${command.Name}', this)" id="button-cmd-${id}">${command.Name}</button>
 
             <div style="font-size:12px;color:gray;padding-bottom:10px" class="command-resolved">
-                ${!commandInfo || !commandInfo.commandTxt ? '' : commandInfo.commandTxt.split(';').join('<br/>')}
+                ${ !commandInfo || !commandInfo.commandTxt ? '' : commandInfo.commandTxt.split(';').join('<br/>').replace(/</g, '&lt;').replace(/>/g, '&gt;') }
             </div>
 
             <div style="font-size:12px; margin-left:30px; color:green;">${commandState}</div>
@@ -235,12 +232,17 @@ async function loadCommandsAsync(ele, id) {
                     resolvedProperties += `<div>${key}: ${anythingInfo.properties[key]}</div>`;
                 }
             }
-            const dataPannelHtml = `<h4 class="text-white mb-4">环境变量</h4>
-            <textarea id='properties-${id}' placeholder="设置变量" style="background-color:rgba(255,255,255,0);color:white;" name="properties" rows="6" class="form-control mb-2">${anythingSetting.properties}</textarea><input type="hidden" type="number" id="setting-id-${id}" name="id" value="${id}">
-            <div class="d-flex justify-content-end">
-                <button type="button" class="btn btn-primary btn-sm" data-content="formItemIds:properties-${id};setting-id-${id}" data-execute-url="${apiUpdateUrl}" data-method="POST" onclick="showConfirmBox('确定更新变量吗?', () => execute(this))">更新变量</button>
+            const dataPannelHtml = `<div class="d-flex justify-content-between">
+                <h4 class="text-white mb-4 data-pannel-title">环境变量</h4>
+                <div style="color:white;font-size:24px;cursor:pointer;padding: 0 10px;line-height:12px;" onclick="resizeDataPannel(event, ${id})">-</div>
             </div>
-            <div style="color:gray;">${resolvedProperties}</div>`;
+            <div class="data-pannel-body">
+                <textarea id='properties-${id}' placeholder="设置变量" style="background-color:rgba(255,255,255,0);color:white;" name="properties" rows="6" class="form-control mb-2">${anythingSetting.properties}</textarea><input type="hidden" type="number" id="setting-id-${id}" name="id" value="${id}">
+                <div class="d-flex justify-content-end">
+                    <button type="button" class="btn btn-primary btn-sm" data-content="formItemIds:properties-${id};setting-id-${id}" data-execute-url="${apiUpdateUrl}" data-method="POST" onclick="showConfirmBox('确定更新变量吗?', () => execute(this))">更新变量</button>
+                </div>
+                <div style="color:gray;">${resolvedProperties}</div>
+            </div>`;
             newDataPannel(`data-pannel-${id}`, 'right-data-pannel', dataPannelHtml);
             // 更新选中状态
             ele.parentElement.style.backgroundColor = 'rgba(250, 129, 90, 0.7)';
@@ -258,6 +260,31 @@ async function loadCommandsAsync(ele, id) {
     }
 }
 
+const resizeDataPannel = (e, id) => {
+    const trigger = e.target;
+    const triggerSymbol = trigger.textContent;
+    const dataPannel = document.querySelector(`#data-pannel-${id}`);
+
+    dataPannel.style.transition = 'all 0.3s';
+    if (triggerSymbol === '-') {
+        dataPannel.querySelector('.data-pannel-title').style.display = 'none';
+        dataPannel.querySelector('.data-pannel-body').style.display = 'none';
+        trigger.innerText = '+';
+        dataPannel.style.width = '50px';
+        dataPannel.style.height = '50px';
+
+        trigger.style.lineHeight = '24px';
+    } else {
+        dataPannel.querySelector('.data-pannel-title').style.display = 'block';
+        dataPannel.querySelector('.data-pannel-body').style.display = 'block';
+        trigger.innerText = '-';
+        dataPannel.style.width = '';
+        dataPannel.style.height = '';
+
+        trigger.style.lineHeight = '12px';
+    }
+}
+
 /**
  * 解析命令设置
  * @param {any} input
@@ -265,7 +292,6 @@ async function loadCommandsAsync(ele, id) {
 async function resolveCmdSettingAsync(input) {
     const id = input.getAttribute('anything-id');
     let cmdTxt = input.value;
-    cmdTxt = cmdTxt.split('\n').join(';');
 
     // 先更新cardStatus中的commandArray
     const cardStatus = cardsStatus.find(x => x.id == id);
@@ -274,9 +300,11 @@ async function resolveCmdSettingAsync(input) {
     command.CommandTxt = cmdTxt;
 
     // 在解析命令内容
-    var data = await httpRequestDataAsync(`/Hosts/ResolveCommandSettting?id=${id}&command=${cmdTxt}`, input, 'POST', '', '', errorHandlerType.returnErrorMessage);
+    const bodyObj = { id, cmdTxt };
+    const body = JSON.stringify(bodyObj);
+    var data = await httpRequestDataAsync(`/Hosts/ResolveCommandSettting`, input, 'POST', body, '', errorHandlerType.returnErrorMessage);
     if (data) {
-        input.closest('.command-item').querySelector('.command-resolved').innerHTML = data.split(';').join('<br/>');
+        input.closest('.command-item').querySelector('.command-resolved').innerText = data.split(';').join('<br/>');
     }
 }
 

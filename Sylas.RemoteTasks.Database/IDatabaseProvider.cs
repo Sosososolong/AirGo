@@ -1,9 +1,6 @@
-﻿using Newtonsoft.Json;
-using Sylas.RemoteTasks.Database.SyncBase;
-using Sylas.RemoteTasks.Utils;
+﻿using Sylas.RemoteTasks.Database.SyncBase;
 using System;
 using System.Collections.Generic;
-using System.Data;
 using System.Threading.Tasks;
 
 namespace Sylas.RemoteTasks.Database
@@ -70,6 +67,21 @@ namespace Sylas.RemoteTasks.Database
         /// <param name="idFieldName"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        Task<bool> UpdateAsync(string tableName, Dictionary<string, string> idAndUpdatingFields, string idFieldName = "");
+        Task<bool> UpdateAsync(string tableName, Dictionary<string, object> idAndUpdatingFields, string idFieldName = "");
+        /// <summary>
+        /// 向指定数据表添加指定的数据
+        /// </summary>
+        /// <param name="table"></param>
+        /// <param name="records"></param>
+        /// <returns></returns>
+        Task<int> InsertDataAsync(string table, IEnumerable<Dictionary<string, object>> records);
+        /// <summary>
+        /// 如果表不存在则创建表
+        /// </summary>
+        /// <param name="tableName"></param>
+        /// <param name="colInfos"></param>
+        /// <param name="db"></param>
+        /// <returns></returns>
+        Task CreateTableIfNotExistAsync(string tableName, IEnumerable<ColumnInfo> colInfos, string db = "");
     }
 }

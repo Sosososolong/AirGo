@@ -70,6 +70,17 @@ namespace Sylas.RemoteTasks.App.Controllers
         }
 
         /// <summary>
+        /// 查询命令执行器列表
+        /// </summary>
+        /// <param name="search"></param>
+        /// <returns></returns>
+        public async Task<IActionResult> Executors(int pageIndex, int pageSize)
+        {
+            var pageData = await anythingService.ExecutorsAsync(new DataSearch { PageIndex = pageIndex == 0 ? 1 : pageIndex, PageSize = pageSize == 0 ? 20 : pageSize });
+            return Ok(RequestResult<PagedData<AnythingExecutor>>.Success(pageData));
+        }
+
+        /// <summary>
         /// 对指定对象anything执行指定的命令command
         /// </summary>
         /// <param name="anything"></param>
@@ -117,12 +128,11 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// <summary>
         /// 解析一个命令模板
         /// </summary>
-        /// <param name="id">命令所属AnythingSetting的Id, 需要根据它的Properties解析命令中的模板</param>
-        /// <param name="command">带模板字符串的命令</param>
+        /// <param name="dto">dto.Id:命令所属AnythingSetting的Id, 需要根据它的Properties解析命令中的模板; dto.CmdTxt:要解析的命令脚本</param>
         /// <returns></returns>
-        public async Task<RequestResult<string>> ResolveCommandSetttingAsync(int id, string command)
+        public async Task<RequestResult<string>> ResolveCommandSetttingAsync([FromBody] CommandResolveDto dto)
         {
-            return await anythingService.ResolveCommandSettingAsync(id, command);
+            return await anythingService.ResolveCommandSettingAsync(dto);
         }
 
         /// <summary>

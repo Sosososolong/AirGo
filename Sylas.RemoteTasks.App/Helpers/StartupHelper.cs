@@ -1,17 +1,13 @@
 ﻿using IdentityModel;
-using IdentityServer4.AccessTokenValidation;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
-using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Sylas.RemoteTasks.App.Database;
 using Sylas.RemoteTasks.App.RemoteHostModule;
 using Sylas.RemoteTasks.Database;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils;
-using System.Configuration;
-using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 

@@ -226,11 +226,22 @@ namespace Sylas.RemoteTasks.Utils
         /// <returns>转换函数</returns>
         public static Func<string, object> CreateStringConverter(Type type)
         {
-            // 构建这样的lambda表达式result: Func<string, object> result = input => Convert.ChangeType(input, type)
-            var param = Expression.Parameter(typeof(string), "input");
-            var body = Expression.Convert(Expression.Call(typeof(Convert), "ChangeType", null, param, Expression.Constant(type)), typeof(object));
-            var lambda = Expression.Lambda<Func<string, object>>(body, param);
-            return lambda.Compile();
+            if (type.Equals("Byte[]"))
+            {
+                return input => Convert.FromBase64String(input);
+            }
+            else if (type.Name.Equals("Boolean"))
+            {
+                return input => !string.IsNullOrWhiteSpace(input) && !input.Equals("0");
+            }
+            else
+            {
+                // 构建这样的lambda表达式result: Func<string, object> result = input => Convert.ChangeType(input, type)
+                var param = Expression.Parameter(typeof(string), "input");
+                var body = Expression.Convert(Expression.Call(typeof(Convert), "ChangeType", null, param, Expression.Constant(type)), typeof(object));
+                var lambda = Expression.Lambda<Func<string, object>>(body, param);
+                return lambda.Compile();
+            }
         }
     }
 }

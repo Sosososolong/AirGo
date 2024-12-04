@@ -65,6 +65,7 @@ builder.Services.AddTransient<RequestProcessorService>();
 
 // 后台任务
 builder.Services.AddHostedService<PublishService>();
+builder.Services.AddHostedService<ServerRegistrationService>();
 
 // BOOKMARK: Action过滤器
 builder.Services.AddScoped<CustomActionFilter>();

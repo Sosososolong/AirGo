@@ -1,10 +1,12 @@
 ﻿using Renci.SshNet;
 using Sylas.RemoteTasks.App.RegexExp;
 using Sylas.RemoteTasks.Utils.Extensions;
+using Sylas.RemoteTasks.Utils.FileOp;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection.Metadata;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -35,23 +37,6 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         {
             if (!_sshConnectionPool.TryTake(out SshClient? connection))
             {
-                //lock (_syncLock)
-                //{
-                //    if (_currentConnections < _maxConnections)
-                //    {
-                //        Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 创建了SshClient");
-                //        connection = new SshClient(Host, Port, UserName, _privateKeyFiles);
-                //        await connection.ConnectAsync();
-                //        // 创建时不需要添加到池中, 用完返回进池就可以了
-                //        //_sshConnectionPool.Add(connection);
-                //        _currentConnections++;
-                //    }
-                //    else
-                //    {
-                //        throw new InvalidOperationException("Reached maximum number of connections.");
-                //    }
-                //}
-
                 await _semaphoneSlimLock.WaitAsync();
                 // finally保证异常时也会-1
                 try
@@ -251,7 +236,40 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
             else
             {
                 var conn = await GetConnectionAsync();
+                string remoteTempScriptsDir;
+                string remoteTempScriptFile = string.Empty;
+                if (command.Contains('\n'))
+                {
+                    string tempFileName = $"temp{DateTime.Now:yyyyMMddHHmmssfffffff}";
+                    remoteTempScriptsDir = $"temp";
+                    remoteTempScriptFile = $"{remoteTempScriptsDir}/{tempFileName}";
+                    string localTmpFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, tempFileName);
+                    LoggerHelper.LogInformation($"local temp file: {localTmpFile}");
+                    await File.WriteAllTextAsync(localTmpFile, command);
+
+                    try
+                    {
+                        await UploadAsync(localTmpFile, remoteTempScriptsDir, null, null);
+                        conn.RunCommand($"chmod +x {remoteTempScriptFile}");
+                    }
+                    catch (Exception)
+                    {
+                        throw;
+                    }
+                    finally
+                    {
+                        File.Delete(localTmpFile);
+                    }
+
+                    command = remoteTempScriptFile;
+                }
                 var sshCommand = conn.RunCommand(command);
+                LoggerHelper.LogInformation($"运行命令: {command}; 执行结果: [{sshCommand.Result}]{Environment.NewLine} 错误信息:[{sshCommand.Error}]");
+                if (!string.IsNullOrWhiteSpace(remoteTempScriptFile) && string.IsNullOrEmpty(sshCommand.Error))
+                {
+                    // 只有脚本执行成功, 代码才会走到这里删除远程临时脚本文件
+                    conn.RunCommand($"rm -f {remoteTempScriptFile}");
+                }
                 ReturnConnection(conn);
                 return sshCommand;
             }
@@ -311,7 +329,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                 else if (File.Exists(local))
                 {
                     #region 上传文件
-                    string localFileName = local.Split('/').Last();
+                    string localFileName = local.Replace('\\', '/').Split('/').Last();
                     using var fs = File.OpenRead(local);
                     if (conn.Exists(remote))
                     {
@@ -476,8 +494,9 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
             var output = cmd?.Result ?? "";
             var error = cmd?.Error ?? "";
 
-            if (string.IsNullOrWhiteSpace(error))
+            if (!string.IsNullOrWhiteSpace(output))
             {
+                output = string.IsNullOrWhiteSpace(error) ? output : $"{output}{Environment.NewLine}[ERR]{Environment.NewLine}{error}";
                 return new(true, output);
             }
             return new(false, error);

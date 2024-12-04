@@ -7,13 +7,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MySql.Data.MySqlClient;
-using MySql.Data.MySqlClient.X.XDevAPI.Common;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Npgsql;
 using Oracle.ManagedDataAccess.Client;
-using Org.BouncyCastle.Asn1.X509;
-using Org.BouncyCastle.Crypto;
 using Sylas.RemoteTasks.App.RegexExp;
 using Sylas.RemoteTasks.Utils;
 using Sylas.RemoteTasks.Utils.Extensions;
@@ -25,7 +22,6 @@ using System.Data;
 using System.Data.SqlClient;
 using System.Linq;
 using System.Text;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
@@ -68,6 +64,10 @@ namespace Sylas.RemoteTasks.Database.SyncBase
     {
         private string _connectionString;
         private DatabaseType _dbType;
+        /// <summary>
+        /// 数据库类型
+        /// </summary>
+        public DatabaseType DbType => _dbType;
         private string _varFlag;
         private readonly ILogger _logger;
         /// <summary>
@@ -367,7 +367,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="parameters"></param>
         /// <param name="db"></param>
         /// <returns></returns>
-        public async Task<int> ExecuteSqlAsync(string sql, object parameters, string db = "")
+        public async Task<int> ExecuteSqlAsync(string sql, object? parameters = null, string db = "")
         {
             if (sql.Contains('@') && (_dbType == DatabaseType.Oracle || _dbType == DatabaseType.Dm))
             {
@@ -479,7 +479,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="idFieldName"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public async Task<bool> UpdateAsync(string tableName, Dictionary<string, string> idAndUpdatingFields, string idFieldName = "")
+        public async Task<bool> UpdateAsync(string tableName, Dictionary<string, object> idAndUpdatingFields, string idFieldName = "")
         {
             if ((!string.IsNullOrWhiteSpace(idFieldName) && !idAndUpdatingFields.ContainsKey(idFieldName)) || !idAndUpdatingFields.Keys.Any(x => x.Equals("id", StringComparison.OrdinalIgnoreCase)))
             {
@@ -520,11 +520,11 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 {
                     continue;
                 }
-                
+
                 if (!string.IsNullOrWhiteSpace(colInfo.ColumnCSharpType))
                 {
                     Type columnType = GetCSharpType(colInfo.ColumnCSharpType);
-                    var converter = ExpressionBuilder.CreateStringConverter(columnType);
+                    Func<string, object> converter = ExpressionBuilder.CreateStringConverter(columnType);
 
                     fieldsConverter.TryAdd(colInfo.ColumnCode, converter);
                 }
@@ -541,14 +541,14 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="idFieldName"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static async Task<bool> UpdateAsync(string connectionString, string tableName, Dictionary<string, string> idAndUpdatingFields, string idFieldName = "")
+        public static async Task<bool> UpdateAsync(string connectionString, string tableName, Dictionary<string, object> idAndUpdatingFields, string idFieldName = "")
         {
             if ((!string.IsNullOrWhiteSpace(idFieldName) && !idAndUpdatingFields.ContainsKey(idFieldName)) || !idAndUpdatingFields.Keys.Any(x => x.Equals("id", StringComparison.OrdinalIgnoreCase)))
             {
                 throw new Exception("更新数据id不能为空");
             }
             var dbType = GetDbType(connectionString);
-            
+
             using var conn = GetDbConnection(connectionString);
 
             return await UpdateAsync(conn, tableName, idAndUpdatingFields, idFieldName);
@@ -594,12 +594,12 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="idFieldName"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static async Task<bool> UpdateAsync(IDbConnection conn, string tableName, Dictionary<string, string> idAndUpdatingFields, string idFieldName = "")
+        public static async Task<bool> UpdateAsync(IDbConnection conn, string tableName, Dictionary<string, object> idAndUpdatingFields, string idFieldName = "")
         {
             string[] idFields = GetTableIdFieldsFromParameters([.. idAndUpdatingFields.Keys], idFieldName);
 
             DateTime start = DateTime.Now;
-            
+
             // 检查参数值是否需要转换(不是字符串就需要转换)
             Dictionary<string, object> parameters = [];
             var tableFieldsConverter = await GetTableFieldsConverterAsync(conn, tableName);
@@ -608,7 +608,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 var fieldToConvert = tableFieldsConverter.Keys.ToList().FirstOrDefault(x => x.Equals(idOrUpdatingField.Key, StringComparison.OrdinalIgnoreCase));
                 if (fieldToConvert is not null)
                 {
-                    parameters.Add(idOrUpdatingField.Key, tableFieldsConverter[fieldToConvert](idOrUpdatingField.Value));
+                    parameters.Add(idOrUpdatingField.Key, tableFieldsConverter[fieldToConvert](idOrUpdatingField.Value.ToString()));
                 }
                 else
                 {
@@ -705,7 +705,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         public async Task<int> InsertDataAsync(string table, IEnumerable<Dictionary<string, object>> records)
         {
             using var conn = GetDbConnection(_connectionString);
-            
+
             return await InsertDataAsync(conn, table, records);
         }
 
@@ -742,6 +742,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 _ = await conn.ExecuteAsync(createSql);
             }
         }
+
         /// <summary>
         /// 如果表不存在则创建表
         /// </summary>
@@ -2709,7 +2710,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             using var conn = GetDbConnection(connectionString);
             return await GetTableColumnsInfoAsync(conn, tableName);
         }
-        
+
         static readonly ConcurrentDictionary<string, IEnumerable<ColumnInfo>> _tableColumnsInfo = [];
         static Func<string, string, string> getTableKey = (string connectionStrin, string tableName) => $"{connectionStrin}_{tableName}";
         /// <summary>
@@ -2908,6 +2909,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                     _ when string.IsNullOrWhiteSpace(col.ColumnType) => "",
                     _ when _dbTypeKeywordsDateTime.Any(x => col.ColumnType.Contains(x, StringComparison.OrdinalIgnoreCase)) => "datetime",
                     _ when col.ColumnType.Contains("bit", StringComparison.OrdinalIgnoreCase) => "bool",
+                    _ when col.ColumnType.Contains("bool", StringComparison.OrdinalIgnoreCase) => "bool",
 
                     _ when col.ColumnType.Contains("number", StringComparison.OrdinalIgnoreCase)
                         && (col.ColumnLength == "," || (col.ColumnLength is not null && col.ColumnLength.Contains(',')

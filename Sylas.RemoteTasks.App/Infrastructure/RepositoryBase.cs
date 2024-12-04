@@ -175,7 +175,7 @@ namespace Sylas.RemoteTasks.App.Infrastructure
         /// <summary>
         /// 要更新的字段
         /// </summary>
-        public Dictionary<string, string> Fields { get; set; } = [];
+        public Dictionary<string, object> Fields { get; set; } = [];
     }
     public class  PostDto
     {

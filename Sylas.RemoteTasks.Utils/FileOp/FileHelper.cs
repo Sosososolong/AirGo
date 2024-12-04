@@ -14,7 +14,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
-namespace Sylas.RemoteTasks.Utils;
+namespace Sylas.RemoteTasks.Utils.FileOp;
 /// <summary>
 /// 文件操作帮助类
 /// </summary>
@@ -542,13 +542,13 @@ public partial class FileHelper
         return records;
     }
     /// <summary>
-    /// 从文件中根据指定的正则表达式搜索出对象集合, 对象的属性为指定正则表达式的分组名
+    /// 分组正则搜索文件, 搜索结果的每一项的分组名作为属性, 分组搜索结果为属性值构建对象集合
     /// </summary>
-    /// <param name="filePath"></param>
-    /// <param name="targetPattern"></param>
+    /// <param name="filePath">要搜索的文件</param>
+    /// <param name="targetPattern">含分组的正则表达式</param>
     /// <returns></returns>
     /// <exception cref="Exception"></exception>
-    public static async Task SearchTxt(string filePath, string targetPattern)
+    public static async Task<List<Dictionary<string, string>>> SearchTxtAsync(string filePath, string targetPattern)
     {
         var groupNamesPattern = RegexConst.PatternGroup.Matches(targetPattern);
         var groupNames = new List<string>();
@@ -606,10 +606,7 @@ public partial class FileHelper
         Debug.WriteLine($"耗时 {minutes} minutes");
 #endif
 
-        // TODO: 目前时写入到文件中, 考虑根据参数直接返回结果或者写入文件
-        string dir = Path.GetDirectoryName(filePath) ?? throw new Exception($"获取josn文件的目录失败");
-        var resultFile = Path.Combine(dir, "SearchResult.json");
-        await File.WriteAllTextAsync(resultFile, JsonConvert.SerializeObject(searchedResult));
+        return searchedResult;
     }
 }
 

@@ -9,9 +9,9 @@ using Sylas.RemoteTasks.App.Models;
 using Sylas.RemoteTasks.App.Snippets;
 using Sylas.RemoteTasks.Database.CodeGenerator;
 using Sylas.RemoteTasks.Database.SyncBase;
-using Sylas.RemoteTasks.Utils;
 using Sylas.RemoteTasks.Utils.Constants;
 using Sylas.RemoteTasks.Utils.Dto;
+using Sylas.RemoteTasks.Utils.FileOp;
 using System.Data;
 using System.Diagnostics;
 using System.Reflection;
@@ -1074,6 +1074,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             var res = await db.InsertDataAsync(postDto.Target, postDto.Records);
             return RequestResult<int>.Success(res);
         }
+
         /// <summary>
         /// 动态局部更新
         /// </summary>
@@ -1082,6 +1083,11 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// <returns></returns>
         public async Task<RequestResult<bool>> PatchAsync([FromServices] DatabaseInfo db, [FromBody] PatchDto patchDto)
         {
+            //Dictionary<string, object> idAndUpdatingFields = [];
+            //foreach (var item in patchDto.Fields)
+            //{
+            //    idAndUpdatingFields.Add(item.Key, item.Value as object);
+            //}
             var res = await db.UpdateAsync(patchDto.Target, patchDto.Fields);
             return RequestResult<bool>.Success(res);
         }

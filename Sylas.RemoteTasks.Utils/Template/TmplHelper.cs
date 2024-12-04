@@ -505,7 +505,7 @@ namespace Sylas.RemoteTasks.Utils.Template
                     }
                 }
             }
-            return result.Count > 0 ? result : tmplWithParser;
+            return result.Count > 0 ? result : tmplWithParser.Replace(_doubleFlag, "$");
 
             object ResolveFromDictionary(string tmplExpressionWithParser, Dictionary<string, object> dataContext)
             {

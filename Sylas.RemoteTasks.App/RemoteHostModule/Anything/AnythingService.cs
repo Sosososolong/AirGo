@@ -15,7 +15,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
     /// <param name="repository"></param>
     /// <param name="executorRepository"></param>
     /// <param name="memoryCache"></param>
-    public class AnythingService(RepositoryBase<AnythingSetting> repository, RepositoryBase<AnythingExecutor> executorRepository, IMemoryCache memoryCache)
+    public class AnythingService(RepositoryBase<AnythingSetting> repository, RepositoryBase<AnythingExecutor> executorRepository, RepositoryBase<AnythingCommand> commandRepository, IMemoryCache memoryCache)
     {
         /// <summary>
         /// 查询
@@ -26,21 +26,6 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         {
             search ??= new();
             var recordPage = await repository.GetPageAsync(search);
-            //foreach (var record in recordPage.Data)
-            //{
-                //var properties = JsonConvert.DeserializeObject<Dictionary<string, object>>(record.Properties) ?? [];
-                //properties.ResolveSelfTmplValues();
-                //if (!properties.ContainsKey(nameof(record.Name)))
-                //{
-                //    properties[nameof(record.Name)] = record.Name;
-                //}
-                //if (!properties.ContainsKey(nameof(record.Title)))
-                //{
-                //    properties[nameof(record.Title)] = record.Title;
-                //}
-                //record.Commands = TmplHelper.ResolveExpressionValue(record.Commands, properties)?.ToString() ?? throw new Exception($"Commands {record.Commands} 解析失败");
-                //record.Properties = JsonConvert.SerializeObject(properties);
-            //}
             return recordPage;
         }
 
@@ -63,6 +48,17 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         public async Task<OperationResult> AddAnythingSettingAsync(AnythingSetting anythingSetting)
         {
             var added = await repository.AddAsync(anythingSetting);
+            if (!string.IsNullOrWhiteSpace(anythingSetting.Commands))
+            {
+                var commands = JsonConvert.DeserializeObject<List<CommandInfo>>(anythingSetting.Commands);
+                if (commands is not null)
+                {
+                    foreach (var command in commands)
+                    {
+                        await _commandRepository.AddAsync(command.ToCommandEntity(anythingSetting.Id));
+                    }
+                }
+            }
             return added > 0 ? new OperationResult(true) : new OperationResult(false, "Affected rows: 0");
         }
 
@@ -74,6 +70,14 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         public async Task<OperationResult> DeleteAnythingSettingByIdAsync(int id)
         {
             var added = await repository.DeleteAsync(id);
+            
+            var pageData = await _commandRepository.GetPageAsync(new DataSearch(1, 10, new DataFilter() { FilterItems = [new(nameof(AnythingCommand.AnythingId), "=", id)] }));
+            var commandIds = pageData.Data.Select(x => x.Id);
+            foreach (var commandId in commandIds)
+            {
+                await _commandRepository.DeleteAsync(commandId);
+            }
+
             return added > 0 ? new OperationResult(true) : new OperationResult(false, "Affected rows: 0");
         }
 
@@ -89,6 +93,8 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         }
 
         const string _cacheKeyAllAnythingInfos = "AllAnythingInfos";
+        private readonly RepositoryBase<AnythingCommand> _commandRepository = commandRepository;
+
         /// <summary>
         /// 获取所有的AnythingInfo, 用于展示操作对象信息和相应的可执行命令
         /// </summary>
@@ -112,6 +118,16 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             var cacheEntryOptions = new MemoryCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromMinutes(60 * 8));
             memoryCache.Set(_cacheKeyAllAnythingInfos, anythingInfos, cacheEntryOptions);
             return anythingInfos;
+        }
+        /// <summary>
+        /// 获取命令执行器列表
+        /// </summary>
+        /// <param name="search"></param>
+        /// <returns></returns>
+        public async Task<PagedData<AnythingExecutor>> ExecutorsAsync(DataSearch search)
+        {
+            var pageData = await executorRepository.GetPageAsync(search);
+            return pageData;
         }
         /// <summary>
         /// 执行命令
@@ -157,7 +173,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         async Task<AnythingInfo> BuildAnythingInfoAsync(AnythingSetting anythingSetting)
         {
             #region 解析Properties, 添加Name和Title
-            var properties = ResolveProperties(anythingSetting);
+            var properties = GetAllProperties(anythingSetting);
             #endregion
 
             #region 解析Executor对象和构造函数参数(使用Properties解析参数)
@@ -239,11 +255,11 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             return anythingInfo;
         }
         /// <summary>
-        /// 解析模板变量Properties
+        /// 获取模板变量Properties
         /// </summary>
         /// <param name="anythingSetting"></param>
 
-        public Dictionary<string, object> ResolveProperties(AnythingSetting anythingSetting)
+        public Dictionary<string, object> GetAllProperties(AnythingSetting anythingSetting)
         {
             var properties = JsonConvert.DeserializeObject<Dictionary<string, object>>(anythingSetting.Properties) ?? [];
             properties.ResolveSelfTmplValues();
@@ -273,18 +289,18 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         /// <param name="settingId"></param>
         /// <param name="commandSetting"></param>
         /// <returns></returns>
-        public async Task<RequestResult<string>> ResolveCommandSettingAsync(int settingId, string commandSetting)
+        public async Task<RequestResult<string>> ResolveCommandSettingAsync(CommandResolveDto dto)
         {
-            var anythingSetting = (await GetAnythingSettingByIdAsync(settingId));
+            var anythingSetting = (await GetAnythingSettingByIdAsync(dto.Id));
             if (anythingSetting is null)
             {
-                return RequestResult<string>.Error($"未找到id为{settingId}的操作对象");
+                return RequestResult<string>.Error($"未找到id为{dto.Id}的操作对象");
             }
-            var properties = ResolveProperties(anythingSetting);
-            var commandResolved = TmplHelper.ResolveExpressionValue(commandSetting, properties)?.ToString();
+            var properties = GetAllProperties(anythingSetting);
+            var commandResolved = TmplHelper.ResolveExpressionValue(dto.CmdTxt, properties)?.ToString();
             if (string.IsNullOrWhiteSpace(commandResolved))
             {
-                return RequestResult<string>.Error($"解析命令\"{commandSetting}\"异常");
+                return RequestResult<string>.Error($"解析命令[{dto.CmdTxt}]异常");
             }
             return RequestResult<string>.Success(commandResolved);
         }
