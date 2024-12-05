@@ -1,5 +1,6 @@
 ﻿using Sylas.RemoteTasks.Database;
 using Sylas.RemoteTasks.Database.SyncBase;
+using System.DirectoryServices.ActiveDirectory;
 using System.Net;
 using System.Text.RegularExpressions;
 
@@ -12,7 +13,6 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
     /// <param name="logger"></param>
     public class ServerRegistrationService(IServiceScopeFactory scopeFactory, ILogger<ServerRegistrationService> logger) : BackgroundService
     {
-        const string _key = "serverips:mywebapp";
         string _hostName = string.Empty;
         List<string> _serverIpList = [];
         string _serverips = string.Empty;

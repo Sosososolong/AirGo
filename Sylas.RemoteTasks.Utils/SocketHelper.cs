@@ -7,6 +7,8 @@ using System.Net.NetworkInformation;
 using System.Net;
 using System.Text.RegularExpressions;
 using System.Linq;
+using System.Text;
+using Microsoft.Extensions.Logging;
 
 namespace Sylas.RemoteTasks.Utils
 {
@@ -120,6 +122,169 @@ namespace Sylas.RemoteTasks.Utils
         {
             using UdpClient client = new(new IPEndPoint(localIpAddress, 0));
             await client.SendAsync(magicPacket, magicPacket.Length, multicastIpAddress.ToString(), 9);
+        }
+        #endregion
+
+        #region 发送数据
+        /// <summary>
+        /// 发送文本数据
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="msg"></param>
+        /// <returns></returns>
+        public static async Task SendTextAsync(this Socket source, string msg)
+        {
+            await source.SendAsync(Encoding.UTF8.GetBytes(msg).AsMemory(), SocketFlags.None);
+        }
+
+        /// <summary>
+        /// 将字节数组还原为文本
+        /// </summary>
+        /// <param name="bytes">字节数组</param>
+        /// <param name="byteCount">字节数组中有效的字节长度</param>
+        /// <returns></returns>
+        public static string GetText(this byte[] bytes, int byteCount)
+        {
+            return Encoding.UTF8.GetString(bytes, 0, byteCount).Replace("\0", string.Empty);
+        }
+
+        /// <summary>
+        /// socket接收所有文本
+        /// </summary>
+        /// <param name="socket"></param>
+        /// <param name="buffer"></param>
+        /// <param name="isEndFlag"></param>
+        /// <param name="receiveZeroByteErrMsg"></param>
+        /// <param name="logger"></param>
+        /// <param name="afterSocketDisposed">关闭socket后的逻辑</param>
+        /// <returns></returns>
+        public static async Task<string> ReceiveAllTextAsync(this Socket socket, byte[] buffer, Func<byte[], bool> isEndFlag, string receiveZeroByteErrMsg = "", ILogger? logger = null, Action? afterSocketDisposed = null)
+        {
+            string text = string.Empty;
+            byte[]? lastBytes = null;
+            int readCount = 0;
+            while (true)
+            {
+                readCount++;
+                if (readCount % 100 == 0)
+                {
+                    Log(logger, $"接受文本信息: 第{readCount}次", LogLevel.Critical);
+                }
+                int receivedLength = await socket.ReceiveAsync(buffer, SocketFlags.None);
+                if (receivedLength == 0)
+                {
+                    if (!string.IsNullOrWhiteSpace(receiveZeroByteErrMsg))
+                    {
+                        Log(logger, receiveZeroByteErrMsg, LogLevel.Error);
+                    }
+                    
+                    socket.Close();
+                    socket.Dispose();
+                    if (afterSocketDisposed is not null)
+                    {
+                        afterSocketDisposed();
+                    }
+                    return string.Empty;
+                }
+                else
+                {
+                    if (receivedLength < 6)
+                    {
+                        if (lastBytes is null)
+                        {
+                            Log(logger, "接收到的所有字节不足6个(结束符)", LogLevel.Error);
+                            return string.Empty;
+                        }
+                        // 上一次已经传过来了prefixPartLength位结束符
+                        int prefixPartLength = 6 - receivedLength;
+                        var prefixPart = lastBytes.Skip(lastBytes.Length - (prefixPartLength)).Take(prefixPartLength);
+                        var last6Bytes = prefixPart.Concat(buffer.Take(receivedLength)).ToArray();
+                        if (isEndFlag(last6Bytes))
+                        {
+                            // 去掉上一次传过来的结束符
+                            text = text[..^prefixPartLength];
+                            return text;
+                        }
+                        else
+                        {
+                            Log(logger, $"最后6个字节{string.Join(',', last6Bytes)}不是结束符", LogLevel.Error);
+                            return string.Empty;
+                        }
+                    }
+                    else
+                    {
+                        var last6Bytes = buffer.Skip(receivedLength - 6).Take(6).ToArray();
+                        if (isEndFlag(last6Bytes))
+                        {
+                            text += buffer.GetText(receivedLength - 6);
+                            Log(logger, $"成功获取文本信息:{text}", LogLevel.Critical);
+                            return text;
+                        }
+                        else
+                        {
+                            text += buffer.GetText(receivedLength);
+                        }
+                    }
+                }
+            }
+        }
+        #endregion
+
+        #region Common
+        static void Log(ILogger? logger, string msg, LogLevel logLevel)
+        {
+            if (logger is null)
+            {
+                switch (logLevel)
+                {
+                    //case LogLevel.Trace:
+                    //    break;
+                    //case LogLevel.Debug:
+                    //    break;
+                    case LogLevel.Information:
+                        LoggerHelper.LogInformation(msg);
+                        break;
+                    //case LogLevel.Warning:
+                    //    break;
+                    case LogLevel.Error:
+                        LoggerHelper.LogError(msg);
+                        break;
+                    case LogLevel.Critical:
+                        LoggerHelper.LogCritical(msg);
+                        break;
+                    //case LogLevel.None:
+                    //    break;
+                    default:
+                        LoggerHelper.LogInformation(msg);
+                        break;
+                }
+            }
+            else
+            {
+                switch (logLevel)
+                {
+                    //case LogLevel.Trace:
+                    //    break;
+                    //case LogLevel.Debug:
+                    //    break;
+                    case LogLevel.Information:
+                        logger.LogInformation(msg);
+                        break;
+                    //case LogLevel.Warning:
+                    //    break;
+                    case LogLevel.Error:
+                        logger.LogError(msg);
+                        break;
+                    case LogLevel.Critical:
+                        logger.LogCritical(msg);
+                        break;
+                    //case LogLevel.None:
+                    //    break;
+                    default:
+                        logger.LogInformation(msg);
+                        break;
+                }
+            }
         }
         #endregion
     }

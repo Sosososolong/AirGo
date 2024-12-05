@@ -1,11 +1,14 @@
 ﻿using Microsoft.Extensions.Caching.Memory;
 using Newtonsoft.Json;
+using Sylas.RemoteTasks.App.BackgroundServices;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.Database.SyncBase;
+using Sylas.RemoteTasks.Utils;
 using Sylas.RemoteTasks.Utils.CommandExecutor;
 using Sylas.RemoteTasks.Utils.Constants;
 using Sylas.RemoteTasks.Utils.Dto;
 using Sylas.RemoteTasks.Utils.Template;
+using System.Net;
 
 namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
 {
@@ -143,9 +146,31 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             {
                 throw new Exception("Anything Executor Error");
             }
+            if (!string.IsNullOrWhiteSpace(commandInfo.Domain) && commandInfo.Domain != Dns.GetHostName())
+            {
+                string requestId = Guid.NewGuid().ToString();
+                CommandTasks.Enqueue(new CommandInfoTaskDto { RequestId = requestId, Domain = commandInfo.Domain, SettingId = dto.SettingId, CommandName = dto.CommandName });
+                for (int i = 0; i < 100; i++)
+                {
+                    if (RemoteCommandResults.TryGetValue(requestId, out CommandResult? value))
+                    {
+                        LoggerHelper.LogCritical($"AnythingService: 获取到命令执行的结果:{JsonConvert.SerializeObject(value)}");
+                        RemoteCommandResults.Remove(requestId);
+                        return value;
+                    }
+                    await Task.Delay(1000);
+                    if ((i + 1) % 10 == 0)
+                    {
+                        LoggerHelper.LogInformation("AnythingService: 等待命令返回结果...");
+                    }
+                }
+                return new CommandResult(false, "执行时间过长, 请稍后查看执行结果");
+            }
             CommandResult cr = await anythingInfo.CommandExecutor.ExecuteAsync(commandInfo.CommandTxt);
             return cr;
         }
+        public static readonly Queue<CommandInfoTaskDto> CommandTasks = new();
+        public static readonly Dictionary<string, CommandResult> RemoteCommandResults = [];
         /// <summary>
         /// 根据settingId和commandName获取对应的AnythingInfo
         /// </summary>
