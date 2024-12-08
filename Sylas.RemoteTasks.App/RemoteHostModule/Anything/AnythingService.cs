@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Caching.Memory;
 using Newtonsoft.Json;
+using Org.BouncyCastle.Asn1.Ocsp;
 using Sylas.RemoteTasks.App.BackgroundServices;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.Database.SyncBase;
@@ -8,6 +9,7 @@ using Sylas.RemoteTasks.Utils.CommandExecutor;
 using Sylas.RemoteTasks.Utils.Constants;
 using Sylas.RemoteTasks.Utils.Dto;
 using Sylas.RemoteTasks.Utils.Template;
+using System.Collections.Concurrent;
 using System.Net;
 
 namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
@@ -148,29 +150,95 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             }
             if (!string.IsNullOrWhiteSpace(commandInfo.Domain) && commandInfo.Domain != Dns.GetHostName())
             {
-                string requestId = Guid.NewGuid().ToString();
-                CommandTasks.Enqueue(new CommandInfoTaskDto { RequestId = requestId, Domain = commandInfo.Domain, SettingId = dto.SettingId, CommandName = dto.CommandName });
-                for (int i = 0; i < 100; i++)
+                string commandTaskNo = Guid.NewGuid().ToString();
+                var commandTaskDto = new CommandInfoTaskDto { CommandExecuteNo = commandTaskNo, Domain = commandInfo.Domain, SettingId = dto.SettingId, CommandName = dto.CommandName };
+
+                #region 将任务信息添加到domain对应队列中
+                if (!_serverNodeQueues.TryGetValue(commandInfo.Domain, out Queue<CommandInfoTaskDto>? cmdTasks) || cmdTasks is null)
                 {
-                    if (RemoteCommandResults.TryGetValue(requestId, out CommandResult? value))
-                    {
-                        LoggerHelper.LogCritical($"AnythingService: 获取到命令执行的结果:{JsonConvert.SerializeObject(value)}");
-                        RemoteCommandResults.Remove(requestId);
-                        return value;
-                    }
-                    await Task.Delay(1000);
-                    if ((i + 1) % 10 == 0)
-                    {
-                        LoggerHelper.LogInformation("AnythingService: 等待命令返回结果...");
-                    }
+                    cmdTasks = new Queue<CommandInfoTaskDto>();
+                    _serverNodeQueues[commandInfo.Domain] = cmdTasks;
                 }
-                return new CommandResult(false, "执行时间过长, 请稍后查看执行结果");
+                cmdTasks.Enqueue(commandTaskDto);
+                #endregion
+
+                return await GetCommandResultAsync(commandTaskNo);
             }
             CommandResult cr = await anythingInfo.CommandExecutor.ExecuteAsync(commandInfo.CommandTxt);
+            if (!string.IsNullOrWhiteSpace(dto.CommandExecuteNo))
+            {
+                cr.CommandExecuteNo = dto.CommandExecuteNo;
+            }
             return cr;
         }
-        public static readonly Queue<CommandInfoTaskDto> CommandTasks = new();
-        public static readonly Dictionary<string, CommandResult> RemoteCommandResults = [];
+        //public static readonly BlockingCollection<CommandInfoTaskDto> CommandTaskCollection = [];
+        static readonly Dictionary<string, CommandResult> _remoteCommandResults = [];
+        static readonly Dictionary<string, Queue<CommandInfoTaskDto>> _serverNodeQueues = [];
+        
+        /// <summary>
+        /// 获取命令任务
+        /// </summary>
+        /// <param name="domain"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        public static async Task<CommandInfoTaskDto> GetCommandTaskAsync(string domain)
+        {
+            int i = 0;
+            while (true)
+            {
+                i++;
+                bool writeLog = i % 3600 == 0;
+                if (writeLog)
+                {
+                    LoggerHelper.LogInformation($"Center Server: 读取{domain}队列中的任务, 第{i}次");
+                }
+                if (!_serverNodeQueues.TryGetValue(domain, out Queue<CommandInfoTaskDto>? queue) || queue is null)
+                {
+                    if (writeLog)
+                    {
+                        LoggerHelper.LogInformation($"Center Server: {domain}对应的队列还未创建");
+                    }
+                    await Task.Delay(1000);
+                    continue;
+                }
+                if (queue.TryDequeue(out CommandInfoTaskDto? commandTask))
+                {
+                    return commandTask!;
+                }
+                await Task.Delay(1000);
+            }
+        }
+        /// <summary>
+        /// 设置命令执行的结果
+        /// </summary>
+        /// <param name="cmdExeNo"></param>
+        /// <param name="commandResult"></param>
+        public static void SetCommandResult(string cmdExeNo, CommandResult commandResult)
+        {
+            _remoteCommandResults[cmdExeNo] = commandResult;
+        }
+        static async Task<CommandResult> GetCommandResultAsync(string cmdExeNo)
+        {
+            for (int i = 0; i < 100; i++)
+            {
+                if (_remoteCommandResults.TryGetValue(cmdExeNo, out CommandResult? value))
+                {
+                    LoggerHelper.LogCritical($"AnythingService: 获取到命令[{cmdExeNo}]执行的结果:{JsonConvert.SerializeObject(value)}");
+                    _remoteCommandResults.Remove(cmdExeNo);
+                    return value;
+                }
+                await Task.Delay(1000);
+                if ((i + 1) % 10 == 0)
+                {
+                    LoggerHelper.LogInformation($"AnythingService: 等待命令[{cmdExeNo}]返回结果..., 结果容器长度{_remoteCommandResults.Count}");
+                    foreach (var item in _remoteCommandResults)
+                    {
+                        LoggerHelper.LogInformation($"AnythingService: {item.Key}: {item.Value.Message}");
+                    }
+                }
+            }
+            return new CommandResult(false, "执行时间过长, 请稍后查看执行结果");
+        }
         /// <summary>
         /// 根据settingId和commandName获取对应的AnythingInfo
         /// </summary>
