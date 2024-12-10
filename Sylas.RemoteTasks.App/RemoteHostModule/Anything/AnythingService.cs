@@ -1,7 +1,5 @@
 ﻿using Microsoft.Extensions.Caching.Memory;
 using Newtonsoft.Json;
-using Org.BouncyCastle.Asn1.Ocsp;
-using Sylas.RemoteTasks.App.BackgroundServices;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils;
@@ -9,7 +7,6 @@ using Sylas.RemoteTasks.Utils.CommandExecutor;
 using Sylas.RemoteTasks.Utils.Constants;
 using Sylas.RemoteTasks.Utils.Dto;
 using Sylas.RemoteTasks.Utils.Template;
-using System.Collections.Concurrent;
 using System.Net;
 
 namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
@@ -75,7 +72,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         public async Task<OperationResult> DeleteAnythingSettingByIdAsync(int id)
         {
             var added = await repository.DeleteAsync(id);
-            
+
             var pageData = await _commandRepository.GetPageAsync(new DataSearch(1, 10, new DataFilter() { FilterItems = [new(nameof(AnythingCommand.AnythingId), "=", id)] }));
             var commandIds = pageData.Data.Select(x => x.Id);
             foreach (var commandId in commandIds)
@@ -174,38 +171,43 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         //public static readonly BlockingCollection<CommandInfoTaskDto> CommandTaskCollection = [];
         static readonly Dictionary<string, CommandResult> _remoteCommandResults = [];
         static readonly Dictionary<string, Queue<CommandInfoTaskDto>> _serverNodeQueues = [];
-        
+
         /// <summary>
         /// 获取命令任务
         /// </summary>
         /// <param name="domain"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static async Task<CommandInfoTaskDto> GetCommandTaskAsync(string domain)
+        public static async Task<CommandInfoTaskDto?> GetCommandTaskAsync(string domain, CancellationToken cancellationToken = default)
         {
             int i = 0;
             while (true)
             {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    LoggerHelper.LogCritical("AnythingService GetCommandTaskAsync: 任务取消, 停止检查队列!");
+                    return null;
+                }
                 i++;
                 bool writeLog = i % 3600 == 0;
                 if (writeLog)
                 {
-                    LoggerHelper.LogInformation($"Center Server: 读取{domain}队列中的任务, 第{i}次");
+                    LoggerHelper.LogInformation($"AnythingService GetCommandTaskAsync: 读取{domain}队列中的任务, 第{i}次");
                 }
                 if (!_serverNodeQueues.TryGetValue(domain, out Queue<CommandInfoTaskDto>? queue) || queue is null)
                 {
                     if (writeLog)
                     {
-                        LoggerHelper.LogInformation($"Center Server: {domain}对应的队列还未创建");
+                        LoggerHelper.LogInformation($"AnythingService GetCommandTaskAsync: {domain}对应的队列还未创建");
                     }
-                    await Task.Delay(1000);
+                    await Task.Delay(1000, CancellationToken.None);
                     continue;
                 }
                 if (queue.TryDequeue(out CommandInfoTaskDto? commandTask))
                 {
                     return commandTask!;
                 }
-                await Task.Delay(1000);
+                await Task.Delay(1000, CancellationToken.None);
             }
         }
         /// <summary>
@@ -219,7 +221,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         }
         static async Task<CommandResult> GetCommandResultAsync(string cmdExeNo)
         {
-            for (int i = 0; i < 100; i++)
+            for (int i = 0; i < 20; i++)
             {
                 if (_remoteCommandResults.TryGetValue(cmdExeNo, out CommandResult? value))
                 {
@@ -364,7 +366,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             {
                 properties[nameof(anythingSetting.Title)] = anythingSetting.Title;
             }
-            
+
             if (!properties.ContainsKey(nameof(PathConstants.DefaultSshPrivateKeyFileEd25519)))
             {
                 properties[nameof(PathConstants.DefaultSshPrivateKeyFileEd25519)] = PathConstants.DefaultSshPrivateKeyFileEd25519;

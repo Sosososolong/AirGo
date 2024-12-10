@@ -132,9 +132,9 @@ namespace Sylas.RemoteTasks.Utils
         /// <param name="source"></param>
         /// <param name="msg"></param>
         /// <returns></returns>
-        public static async Task SendTextAsync(this Socket source, string msg)
+        public static async Task<int> SendTextAsync(this Socket source, string msg)
         {
-            await source.SendAsync(Encoding.UTF8.GetBytes(msg).AsMemory(), SocketFlags.None);
+            return await source.SendAsync(Encoding.UTF8.GetBytes(msg).AsMemory(), SocketFlags.None);
         }
 
         /// <summary>
@@ -227,6 +227,45 @@ namespace Sylas.RemoteTasks.Utils
                     }
                 }
             }
+        }
+        /// <summary>
+        /// 检查客户端是否请求关闭连接
+        /// </summary>
+        /// <param name="socket"></param>
+        /// <param name="realLength"></param>
+        /// <param name="bufferParameters"></param>
+        /// <returns></returns>
+        public static async Task<bool> CheckIsCloseMsgAsync(this Socket socket, int realLength, byte[] bufferParameters)
+        {
+            if (realLength == 0)
+            {
+                socket.Close();
+                socket.Dispose();
+                return true;
+            }
+            // '-': 45; '1': 49.    "-1": [45,49]
+            if (realLength == 2 && bufferParameters[0] == 45 && bufferParameters[1] == 49)
+            {
+                // 收到"-1", 发送"-1"(通知客户端可关闭连接)后关闭连接(客户端先关闭socket可能会抛异常; 所以客户端通知服务端关闭连接(-1)后, 服务端发送最后一条消息然后先关闭socket连接, 客户端等待此消息后再关闭连接)
+                await socket.SendTextAsync("-1");
+                socket.Close();
+                socket.Dispose();
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// 是否是心跳消息
+        /// </summary>
+        /// <param name="realLength"></param>
+        /// <param name="buffer"></param>
+        /// <returns></returns>
+        public static bool CheckIsKeepAliveMsg(int realLength, byte[] buffer)
+        {
+            return realLength == 10
+                && buffer[0] == 107 && buffer[1] == 101 && buffer[2] == 101 && buffer[3] == 112 && buffer[4] == 45
+                && buffer[5] == 97 && buffer[6] == 108 && buffer[7] == 105 && buffer[8] == 118 && buffer[9] == 101;
         }
         #endregion
 

@@ -1,10 +1,7 @@
-﻿using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
-using Sylas.RemoteTasks.App.RemoteHostModule;
+﻿using Newtonsoft.Json;
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
 using Sylas.RemoteTasks.Utils;
 using Sylas.RemoteTasks.Utils.CommandExecutor;
-using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -16,9 +13,11 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
         private const int _bufferSize = 1024 * 1024;
         private readonly byte _zeroByteValue = Encoding.UTF8.GetBytes("0").First();
         private const string _endFlag = "000000";
-        const int _serverPort = 8989;
+        int _tcpPort = 8989;
+        int _centerServerPort = 8989;
 
         private readonly Dictionary<string, Socket> _serverNodeSockets = [];
+        static int _threadNumber = 0;
 
         protected override Task ExecuteAsync(CancellationToken stoppingToken)
         {
@@ -27,7 +26,8 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                 // 指定socket对象为IPV4的,流传输,TCP协议
                 var tcpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
                 IPAddress iPAddress = IPAddress.Parse("0.0.0.0");
-                var iPEndPoint = new IPEndPoint(iPAddress, _serverPort);
+                var iPEndPoint = new IPEndPoint(iPAddress, _tcpPort);
+                logger.LogInformation("TCP Service: 开始绑定端口{port}", _tcpPort);
 
                 tcpSocket.Bind(iPEndPoint);
                 tcpSocket.Listen(128);
@@ -35,14 +35,21 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                 //var configure = ServiceLocator.Instance.GetService<IConfiguration>();
                 var serverSaveFileDir = configuration?["Upload:SaveDir"];
 
+                int socketNumber = 0;
                 while (true)
                 {
                     // 无限循环等待客户端的连接
                     var socketForClient = tcpSocket.Accept();
+                    logger.LogInformation("接收到新的客户端请求");
+                    socketNumber++;
 
                     #region 连接到客户端就交给子线程处理, 然后马上继续循环过来等待其他客户端连接
                     Task.Factory.StartNew(async () =>
                     {
+                        _threadNumber++;
+                        int threadNumber = _threadNumber;
+                        string threadSocketNo = $"THREAD{threadNumber}_SOCKET{socketNumber}";
+                        logger.LogInformation("开启新线程服务于当前客户端, Thread Socket No: {threadSocketNo}", threadSocketNo);
                         byte[] buffer = new byte[_bufferSize];
 
                         // 参数协议: 第一次发的数据确定任务及参数
@@ -53,7 +60,7 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                         while (true)
                         {
                             // 准备接收客户端新的消息, 先发送一条"ready_for_new"; 服务端已经准备好处理新文件了(或让指定的服务节点执行一个新的命令);
-                            logger.LogInformation("TCP Service[{thread}]: READY 准备接收新的任务(文件流或命令任务)", Environment.CurrentManagedThreadId);
+                            logger.LogInformation("TCP Service[{thread}]: READY 准备接收新的任务(文件流或命令任务)", threadSocketNo);
                             await socketForClient.SendTextAsync("ready_for_new");
 
                             int realLength = await socketForClient.ReceiveAsync(bufferParameters, SocketFlags.None);
@@ -65,14 +72,9 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                                 break;
                             }
 
-                            // '-': 45; '1': 49.    "-1": [45,49]
-                            if (realLength == 2 && bufferParameters[0] == 45 && bufferParameters[1] == 49)
+                            if (await socketForClient.CheckIsCloseMsgAsync(realLength, bufferParameters))
                             {
-                                // 收到"-1", 发送"-1"(通知客户端可关闭连接)后关闭连接(客户端先关闭socket可能会抛异常; 所以客户端通知服务端关闭连接(-1)后, 服务端发送最后一条消息然后先关闭socket连接, 客户端等待此消息后再关闭连接)
                                 logger.LogCritical("接收到客户端关闭连接通知, 关闭socket连接");
-                                await socketForClient.SendTextAsync("-1");
-                                socketForClient.Close();
-                                socketForClient.Dispose();
                                 break;
                             }
                             // 获取客户端传过来的字节数组放到bufferParameters中, 字节数组bufferParameters剩余的位置将会用0填充, 0经UTF-8反编码为字符串即"\0"
@@ -192,7 +194,7 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                             else if (type == "2")
                             {
                                 string childServerNodeDomain = parametersArray[1];
-                                logger.LogCritical("Center Server[{thread}]: 接收到来自客户端新的连接", Environment.CurrentManagedThreadId);
+                                logger.LogCritical("Center Server[{thread}]: 接收到来自客户端新的连接", threadSocketNo);
 
                                 var centerServer = configuration?.GetValue<string>("CenterServer");
                                 if (string.IsNullOrWhiteSpace(centerServer))
@@ -202,11 +204,21 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                                     string key = childServerNodeDomain;
                                     _serverNodeSockets[key] = socketForClient;
 
-                                    logger.LogCritical("Center Server[{thread}]: 开启两个子线程, 担任命令发送器和命令接收器", Environment.CurrentManagedThreadId);
-                                    Task cmdSenderTask = SendCommandTaskAsync(socketForClient, childServerNodeDomain);
-                                    Task cmdReceiverTask = ReceiveCommandResultAsync(socketForClient, childServerNodeDomain);
-                                    await Task.WhenAny(cmdSenderTask, cmdReceiverTask);
-                                    logger.LogCritical("Center Server[{thread}]: 命令发送器或者命令接收器已经停止!", Environment.CurrentManagedThreadId);
+                                    logger.LogCritical("Center Server[{thread}]: 开启两个子线程, 担任命令发送器和命令接收器", threadSocketNo);
+
+                                    CancellationTokenSource cts = new();
+                                    cts.Token.Register(() => logger.LogCritical("Center Server: Command Sender&Receiver Leaved!"));
+                                    _threadNumber++;
+                                    Task cmdSender = SendCommandTaskAsync(socketForClient, childServerNodeDomain, $"THREAD{_threadNumber}_SOCKET{socketNumber}", cts.Token);
+                                    _threadNumber++;
+                                    Task cmdReceiver = ReceiveCommandResultAsync(socketForClient, childServerNodeDomain, $"THREAD{_threadNumber}_SOCKET{socketNumber}", cts.Token);
+
+                                    // 当因为socket连接问题导致cmdSender或者cmdReceiver其中一个异常结束了, 那么应该使两个都结束, 特别是cmdSender会干扰新的线程
+                                    // 如果旧的cmdSender存在, 它会抢先读取命令任务队列中新的任务, 然后发送给客户端(socket已经释放发送会失败), 新的cmdSend则因为没有读取到队列中的任务导致新的任务发放失败
+                                    // 旧的cmdSender读取发放任务会异常一次, 然后cmdSender会结束, 后面就会正常了
+                                    await Task.WhenAny(cmdSender, cmdReceiver);
+                                    cts.Cancel();
+                                    logger.LogCritical("Center Server[{thread}]: 命令发送器或者命令接收器已经停止!", threadSocketNo);
                                     stopThread = true;
                                 }
                                 else
@@ -215,7 +227,7 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                                     // 当前子服务器应该使用程序启动时连接到服务端的socket, 对应中心服务器的socketForClient
                                 }
                             }
-                            logger.LogCritical("TCP Service[{thread}]: need break thread: {stopThread};", Environment.CurrentManagedThreadId, stopThread);
+                            logger.LogCritical("TCP Service[{thread}]: need break thread: {stopThread};", threadSocketNo, stopThread);
                             if (stopThread)
                             {
                                 break;
@@ -234,23 +246,28 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
         /// 命令任务发送器, 通知子节点执行指定的命令
         /// </summary>
         /// <returns></returns>
-        async Task SendCommandTaskAsync(Socket socketForClient, string childServerNodeDomain)
+        async Task SendCommandTaskAsync(Socket socketForClient, string childServerNodeDomain, string threadSocketNo = "", CancellationToken cancellationToken = default)
         {
             try
             {
                 while (true)
                 {
                     // 一直不断地读取给当前domain的命令执行任务
-                    var commandInfoTaskDto = await AnythingService.GetCommandTaskAsync(childServerNodeDomain);
-                    logger.LogCritical("Center Server - Command Sender[{thread}]: 队列中读取到一条给自服务节点{childServerNodeDomain}的命令任务: {CommandName}", Environment.CurrentManagedThreadId, childServerNodeDomain, commandInfoTaskDto.CommandName);
+                    var commandInfoTaskDto = await AnythingService.GetCommandTaskAsync(childServerNodeDomain, cancellationToken);
+                    if (commandInfoTaskDto is null)
+                    {
+                        logger.LogCritical("Center Server - Command Sender[{ThreadNumber}]: 队列中读取到的命令任务为null, 终止当前命令发送器", threadSocketNo);
+                        break;
+                    }
+                    logger.LogCritical("Center Server - Command Sender[{ThreadNumber}]: 队列中读取到一条给自服务节点{childServerNodeDomain}的命令任务: {CommandName}", threadSocketNo, childServerNodeDomain, commandInfoTaskDto.CommandName);
                     // 处理一条命令
-                    await socketForClient.SendTextAsync($"{commandInfoTaskDto.SettingId};;;;{commandInfoTaskDto.CommandName};;;;{commandInfoTaskDto.CommandExecuteNo}{_endFlag}");
-                    logger.LogCritical("Center Server - Command Sender[{thread}]: 成功向子节点{Domain}发送命令的执行任务", Environment.CurrentManagedThreadId, childServerNodeDomain);
+                    var sendResult = await socketForClient.SendTextAsync($"{commandInfoTaskDto.SettingId};;;;{commandInfoTaskDto.CommandName};;;;{commandInfoTaskDto.CommandExecuteNo}{_endFlag}");
+                    logger.LogCritical("Center Server - Command Sender[{ThreadNumber}]: 成功向子节点{Domain}发送命令的执行任务-{sendResult}", threadSocketNo, childServerNodeDomain, sendResult);
                 }
             }
             catch (Exception ex)
             {
-                logger.LogError("Center Server: 命令任务发送器工作异常: {ex}", ex.ToString());
+                logger.LogError("Center Server: 命令发送器工作异常: {ex}", ex.ToString());
                 throw;
             }
         }
@@ -261,59 +278,77 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
         /// <param name="socketForClient"></param>
         /// <param name="childServerNodeDomain"></param>
         /// <returns></returns>
-        async Task ReceiveCommandResultAsync(Socket socketForClient, string childServerNodeDomain)
+        async Task ReceiveCommandResultAsync(Socket socketForClient, string childServerNodeDomain, string threadSocketNo = "", CancellationToken cancellationToken = default)
         {
             byte[] buffer = new byte[_bufferSize];
+            int logNo = 1;
             try
             {
                 while (true)
                 {
+                    logNo = 1; // 第二次循环过来logNo就不是1了, 初始化为1
                     string commandResultJson = string.Empty;
-                    logger.LogCritical("Center Server - CommandResult Receiver[{thread}]: 1. 开始等待子节点{Domain}返回命令的执行结果", Environment.CurrentManagedThreadId, childServerNodeDomain);
-                    int receivedLength = await socketForClient.ReceiveAsync(buffer, SocketFlags.None);
-                    logger.LogCritical("Center Server - CommandResult Receiver[{thread}]: 2. 成功获取子节点{Domain}返回命令的执行结果, 长度{length}", Environment.CurrentManagedThreadId, childServerNodeDomain, receivedLength);
+                    logger.LogInformation("Center Server - CommandResult Receiver[{thread}]: {logNo}. 开始等待子节点{Domain}返回命令的执行结果", threadSocketNo, logNo++, childServerNodeDomain);
+                    // 连接不通时会抛异常: SocketException (110): Connection timed out
+                    // 客户端突然关闭时: SocketException (104): Connection reset by peer
+                    int receivedLength = await socketForClient.ReceiveAsync(buffer, SocketFlags.None, cancellationToken);
+                    logger.LogInformation("Center Server - CommandResult Receiver[{thread}]: {logNo}. 成功获取子节点{Domain}返回命令的执行结果, 长度{length}", threadSocketNo, logNo++, childServerNodeDomain, receivedLength);
 
-                    if (receivedLength == 0)
+                    if (await socketForClient.CheckIsCloseMsgAsync(receivedLength, buffer))
                     {
-                        logger.LogError("Center Server - CommandResult Receiver[{thread}]: 3. 等待客户端返回命令处理结果的过程中, 接收到了0个字节! 将关闭与客户端的socket连接", childServerNodeDomain);
-                        socketForClient.Close();
-                        socketForClient.Dispose();
+                        logger.LogCritical("Center Server - CommandResult Receiver[{thread}]: {logNo}. 将关闭与客户端的socket连接, Received length:{length}", threadSocketNo, logNo++, receivedLength);
                         _serverNodeSockets.Remove(childServerNodeDomain);
-                        logger.LogCritical("Center Server - CommandResult Receiver[{thread}]: 4. 移除{domain}节点的socket连接", Environment.CurrentManagedThreadId, childServerNodeDomain);
                         break;
+                    }
+                    else if (SocketHelper.CheckIsKeepAliveMsg(receivedLength, buffer))
+                    {
+                        logger.LogInformation("Center Server - CommandResult Receiver[{thread}] 检测到心跳包, 继续等待下一个命令结果", threadSocketNo);
+                        continue;
                     }
                     else
                     {
                         commandResultJson += buffer.GetText(receivedLength);
-                        logger.LogCritical("Center Server - CommandResult Receiver[{thread}]: 4. 成功获取子节点{Domain}返回命令的执行结果文本: {text}", Environment.CurrentManagedThreadId, childServerNodeDomain, commandResultJson);
+                        logger.LogInformation("Center Server - CommandResult Receiver[{thread}]: {logNo}. 成功获取子节点{Domain}返回命令的执行结果文本: {text}", threadSocketNo, logNo++, childServerNodeDomain, commandResultJson);
                         if (receivedLength >= 6)
                         {
                             var last6Bytes = buffer.Skip(receivedLength - 6).Take(6).ToArray();
                             if (IsEndFlag(last6Bytes))
                             {
                                 commandResultJson = commandResultJson[..^6];
-                                logger.LogCritical("Center Server - CommandResult Receiver[{thread}]: 5. 命令执行结果json字符串去除结束标记:{result}", Environment.CurrentManagedThreadId, commandResultJson);
+                                logger.LogInformation("Center Server - CommandResult Receiver[{thread}]: {logNo}. 命令执行结果json字符串去除结束标记:{result}", threadSocketNo, logNo++, commandResultJson);
                                 var commandResult = JsonConvert.DeserializeObject<CommandResult>(commandResultJson) ?? new CommandResult(false, commandResultJson);
                                 AnythingService.SetCommandResult(commandResult.CommandExecuteNo, commandResult);
                             }
                         }
                     }
                 }
-                logger.LogCritical("Center Server - CommandResult Receiver[{thread}]: 6. 命令结果接收器结束", childServerNodeDomain);
+                logger.LogInformation("Center Server - CommandResult Receiver[{thread}]: {logNo}. 命令结果接收器结束", threadSocketNo, logNo++);
             }
             catch (Exception ex)
             {
-                logger.LogError("Center Server - CommandResult Receiver[{thread}]: 7. 命令结果接收器工作异常, {msg}", childServerNodeDomain, ex.ToString());
+                logger.LogError("Center Server - CommandResult Receiver[{thread}]: {logNo}. 命令结果接收器工作异常, {msg}", threadSocketNo, logNo++, ex.ToString());
                 throw;
             }
         }
-
+        Socket? _toCenterServerConn = null;
         public override Task StartAsync(CancellationToken cancellationToken)
         {
             var centerServer = configuration?.GetValue<string>("CenterServer");
+            
+            var tcpPort = configuration?.GetValue<int>("TcpPort");
+            if (tcpPort > 0)
+            {
+                _tcpPort = tcpPort.Value;
+            }
 
             if (!string.IsNullOrWhiteSpace(centerServer))
             {
+                var centerServerPort = configuration?.GetValue<int>("CenterServerPort");
+                if (centerServerPort > 0)
+                {
+                    _centerServerPort = centerServerPort.Value;
+                }
+
                 // TODO: Task.Factory.StartNew替换为Task.Run这里会失效(接收不到消息), 为什么?(服务端日志为"成功找到子节点{Domain}的连接"; 没有发送任务成功的日志:"成功向子节点{Domain}发送命令的执行任务", 是否是这里[客户端]意外关闭了)
                 // 服务子节点, 一直尝试接收命令执行任务
                 _ = Task.Factory.StartNew(async () =>
@@ -327,11 +362,24 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                     {
                         try
                         {
-                            await socket.ConnectAsync(centerServer, _serverPort);
+                            await socket.ConnectAsync(centerServer, _centerServerPort);
+                            _toCenterServerConn = socket;
 
                             string serverNodeConnectParams = $"2;;;;{Dns.GetHostName()}";
-                            logger.LogInformation("Server Node 子节点连接到中新服务器, 发送参数: {serverNodeConnectParams}", serverNodeConnectParams);
+                            logger.LogInformation("Server Node 子节点连接到中心服务器, 发送参数: {serverNodeConnectParams}", serverNodeConnectParams);
                             await socket.SendTextAsync(serverNodeConnectParams);
+                            CancellationTokenSource cts = new();
+                            cts.Token.Register(() => logger.LogCritical("Server Node: 与中心服务器连接断开!"));
+                            // 子线程发送心跳包
+                            _ = Task.Factory.StartNew(async () =>
+                            {
+                                while (true)
+                                {
+                                    await Task.Delay(1000 * 60);
+                                    logger.LogInformation("Server Node: 发送心跳包");
+                                    await socket.SendTextAsync("keep-alive");
+                                }
+                            }, cts.Token);
                             // 不断地: 接收命令->执行命令
                             while (true)
                             {
@@ -367,6 +415,7 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                                     logger.LogError("{message}", ex.Message);
                                     socket.Close();
                                     socket.Dispose();
+                                    cts.Cancel();
                                     throw;
                                 }
                             }
@@ -381,8 +430,20 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
 
                 logger.LogInformation("程序启动阶段, 已连接中心服务器");
             }
-            
+
             return base.StartAsync(cancellationToken);
+        }
+        
+        public override async Task StopAsync(CancellationToken cancellationToken)
+        {
+            if (_toCenterServerConn is not null)
+            {
+                await _toCenterServerConn.SendTextAsync("-1");
+                byte[] buffer = new byte[1024];
+                int received = await _toCenterServerConn.ReceiveAsync(buffer, SocketFlags.None);
+                logger.LogCritical("Child server node: 即将关闭应用, 发送断开连接的请求, 接收到服务端的返回信息({received}) - {byte0}{byte0}", received, buffer[0], buffer[1]);
+            }
+            await base.StopAsync(cancellationToken);
         }
 
         bool IsEndFlag(byte[] endFlag)
