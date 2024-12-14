@@ -16,8 +16,15 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
     /// </summary>
     /// <param name="repository"></param>
     /// <param name="executorRepository"></param>
+    /// <param name="commandRepository"></param>
+    /// <param name="logger"></param>
     /// <param name="memoryCache"></param>
-    public class AnythingService(RepositoryBase<AnythingSetting> repository, RepositoryBase<AnythingExecutor> executorRepository, RepositoryBase<AnythingCommand> commandRepository, IMemoryCache memoryCache)
+    public class AnythingService(
+        RepositoryBase<AnythingSetting> repository,
+        RepositoryBase<AnythingExecutor> executorRepository,
+        RepositoryBase<AnythingCommand> commandRepository,
+        ILogger<AnythingService> logger,
+        IMemoryCache memoryCache)
     {
         /// <summary>
         /// 查询
@@ -155,6 +162,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
                 {
                     cmdTasks = new Queue<CommandInfoTaskDto>();
                     _serverNodeQueues[commandInfo.Domain] = cmdTasks;
+                    logger.LogInformation("AnythingService ExecuteAsync: 添加命令任务到队列[{domain}]中", commandInfo.Domain);
                 }
                 cmdTasks.Enqueue(commandTaskDto);
                 #endregion
