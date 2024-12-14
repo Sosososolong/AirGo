@@ -9,6 +9,7 @@ using System.Text.RegularExpressions;
 using System.Linq;
 using System.Text;
 using Microsoft.Extensions.Logging;
+using System.Threading;
 
 namespace Sylas.RemoteTasks.Utils
 {
@@ -126,6 +127,7 @@ namespace Sylas.RemoteTasks.Utils
         #endregion
 
         #region 发送数据
+        private const string _heartbeatMsg = "keep-alive";
         /// <summary>
         /// 发送文本数据
         /// </summary>
@@ -135,6 +137,15 @@ namespace Sylas.RemoteTasks.Utils
         public static async Task<int> SendTextAsync(this Socket source, string msg)
         {
             return await source.SendAsync(Encoding.UTF8.GetBytes(msg).AsMemory(), SocketFlags.None);
+        }
+        /// <summary>
+        /// 通知服务端关闭并释放socket
+        /// </summary>
+        /// <param name="source"></param>
+        /// <returns></returns>
+        public static async Task<int> NotifyCloseAsync(this Socket source)
+        {
+            return await source.SendTextAsync("-1");
         }
 
         /// <summary>
@@ -154,15 +165,16 @@ namespace Sylas.RemoteTasks.Utils
         /// <param name="socket"></param>
         /// <param name="buffer"></param>
         /// <param name="isEndFlag"></param>
-        /// <param name="receiveZeroByteErrMsg"></param>
         /// <param name="logger"></param>
+        /// <param name="cancellationToken"></param>
         /// <param name="afterSocketDisposed">关闭socket后的逻辑</param>
         /// <returns></returns>
-        public static async Task<string> ReceiveAllTextAsync(this Socket socket, byte[] buffer, Func<byte[], bool> isEndFlag, string receiveZeroByteErrMsg = "", ILogger? logger = null, Action? afterSocketDisposed = null)
+        public static async Task<(string, int)> ReceiveAllTextAsync(this Socket socket, byte[] buffer, Func<byte[], bool> isEndFlag, ILogger? logger = null, Action? afterSocketDisposed = null, CancellationToken cancellationToken = default)
         {
             string text = string.Empty;
             byte[]? lastBytes = null;
             int readCount = 0;
+            int allReceivedLength = 0;
             while (true)
             {
                 readCount++;
@@ -170,30 +182,36 @@ namespace Sylas.RemoteTasks.Utils
                 {
                     Log(logger, $"接受文本信息: 第{readCount}次", LogLevel.Critical);
                 }
-                int receivedLength = await socket.ReceiveAsync(buffer, SocketFlags.None);
+                // 当cancellationToken被设为取消状态时, 这里会抛出OperationCanceledException
+                int receivedLength = await socket.ReceiveAsync(buffer, SocketFlags.None, cancellationToken);
+                allReceivedLength += receivedLength;
                 if (receivedLength == 0)
                 {
-                    if (!string.IsNullOrWhiteSpace(receiveZeroByteErrMsg))
-                    {
-                        Log(logger, receiveZeroByteErrMsg, LogLevel.Error);
-                    }
-                    
-                    socket.Close();
-                    socket.Dispose();
                     if (afterSocketDisposed is not null)
                     {
                         afterSocketDisposed();
                     }
-                    return string.Empty;
+                    return (string.Empty, 0);
+                }
+                else if (readCount == 1 && receivedLength < 100)
+                {
+                    text = buffer.GetText(receivedLength);
+                    if (text.EndsWith("000000"))
+                    {
+                        text = text[..^6];
+                    }
+                    text = RemoveMsgReadyPart(text);
+                    return (text, allReceivedLength);
                 }
                 else
                 {
                     if (receivedLength < 6)
                     {
+                        // 这里本不需要判断lastBytes是否为null: 总的如果小于6的话, 那么在receivedLength<100的条件下就已经处理了, 所以这里肯定不是第一次读取了, lastBytes肯定不为null
+                        // 但是不判断的话下面使用lastBytes的时候, 会警告lastBytes可能为null
                         if (lastBytes is null)
                         {
-                            Log(logger, "接收到的所有字节不足6个(结束符)", LogLevel.Error);
-                            return string.Empty;
+                            throw new Exception("接收到的所有字节不足6个(结束符)");
                         }
                         // 上一次已经传过来了prefixPartLength位结束符
                         int prefixPartLength = 6 - receivedLength;
@@ -203,12 +221,12 @@ namespace Sylas.RemoteTasks.Utils
                         {
                             // 去掉上一次传过来的结束符
                             text = text[..^prefixPartLength];
-                            return text;
+                            text = RemoveMsgReadyPart(text);
+                            return (text, allReceivedLength);
                         }
                         else
                         {
-                            Log(logger, $"最后6个字节{string.Join(',', last6Bytes)}不是结束符", LogLevel.Error);
-                            return string.Empty;
+                            throw new Exception($"最后6个字节{string.Join(',', last6Bytes)}不是结束符");
                         }
                     }
                     else
@@ -218,7 +236,8 @@ namespace Sylas.RemoteTasks.Utils
                         {
                             text += buffer.GetText(receivedLength - 6);
                             Log(logger, $"成功获取文本信息:{text}", LogLevel.Critical);
-                            return text;
+                            text = RemoveMsgReadyPart(text);
+                            return (text, allReceivedLength);
                         }
                         else
                         {
@@ -227,6 +246,15 @@ namespace Sylas.RemoteTasks.Utils
                     }
                 }
             }
+        }
+        static string RemoveMsgReadyPart(string msg)
+        {
+            const string readyMsg = "ready_for_new";
+            if (msg != readyMsg && msg.Length > readyMsg.Length && msg.StartsWith(readyMsg))
+            {
+                return msg.Replace(readyMsg, string.Empty);
+            }
+            return msg;
         }
         /// <summary>
         /// 检查客户端是否请求关闭连接
@@ -255,6 +283,15 @@ namespace Sylas.RemoteTasks.Utils
             return false;
         }
 
+        /// <summary>
+        /// 是否是心跳消息
+        /// </summary>
+        /// <param name="msg"></param>
+        /// <returns></returns>
+        public static bool CheckIsKeepAliveMsg(string msg)
+        {
+            return msg == _heartbeatMsg || msg.Replace(_heartbeatMsg, string.Empty).Length == 0;
+        }
         /// <summary>
         /// 是否是心跳消息
         /// </summary>

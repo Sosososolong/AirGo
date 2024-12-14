@@ -33,6 +33,7 @@ x64/
 *.tli 
 *.tlh 
 *.tmp 
+[Ll]ogs/
 *.log
 *.log.*
 *.vspscc
