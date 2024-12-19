@@ -2,6 +2,7 @@
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
 using Sylas.RemoteTasks.Utils;
 using Sylas.RemoteTasks.Utils.CommandExecutor;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -18,8 +19,9 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
         int _tcpPort = 8989;
         int _centerServerPort = 8989;
         private readonly string _domain = Dns.GetHostName();
+        private readonly ConcurrentDictionary<string, (Socket, string)> _childNodeSockets = new();
         /// <summary>
-        /// 记录最后一次心跳时间
+        /// 记录最后一次与中心服务器通讯的时间
         /// </summary>
         private DateTime _lastKeepAliveTime = DateTime.Now;
         /// <summary>
@@ -35,7 +37,6 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
         /// </summary>
         private readonly string _heartbeatLogsDirectory;
 
-        private readonly Dictionary<string, Socket> _serverNodeSockets = [];
         static int _threadNumber = 0;
 
         private readonly IConfiguration _configuration;
@@ -76,235 +77,6 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
             }
         }
 
-        //protected override Task ExecuteAsync(CancellationToken stoppingToken)
-        //{
-        //    _ = Task.Factory.StartNew(() =>
-        //    {
-        //        // 指定socket对象为IPV4的,流传输,TCP协议
-        //        var tcpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-        //        IPAddress iPAddress = IPAddress.Parse("0.0.0.0");
-        //        var iPEndPoint = new IPEndPoint(iPAddress, _tcpPort);
-        //        _logger.LogInformation("TCP Service: 开始绑定端口{iPAddress}:{port}", iPAddress, _tcpPort);
-
-        //        tcpSocket.Bind(iPEndPoint);
-        //        tcpSocket.Listen(128);
-
-        //        //var configure = ServiceLocator.Instance.GetService<IConfiguration>();
-        //        var serverSaveFileDir = _configuration?["Upload:SaveDir"];
-
-        //        int socketNumber = 0;
-        //        while (true)
-        //        {
-        //            // 无限循环等待客户端的连接
-        //            using var socketForClient = tcpSocket.Accept();
-        //            _logger.LogInformation("接收到新的客户端请求");
-        //            socketNumber++;
-
-        //            #region 连接到客户端就交给子线程处理, 然后马上继续循环过来等待其他客户端连接
-        //            Task.Factory.StartNew(async () =>
-        //            {
-        //                _threadNumber++;
-        //                int threadNumber = _threadNumber;
-        //                string threadSocketNo = $"THREAD{threadNumber}_SOCKET{socketNumber}";
-        //                _logger.LogInformation("开启新线程服务于当前客户端, Thread Socket No: {threadSocketNo}", threadSocketNo);
-        //                byte[] buffer = new byte[_bufferSize];
-
-        //                // 参数协议: 第一次发的数据确定任务及参数
-        //                byte[] bufferParameters = new byte[1024];
-
-        //                var uploadedFileCount = 1;
-        //                bool stopThread = false;
-        //                while (true)
-        //                {
-        //                    // 准备接收客户端新的消息, 先发送一条"ready_for_new"; 服务端已经准备好处理新文件了(或让指定的服务节点执行一个新的命令);
-        //                    _logger.LogInformation("TCP Service[{thread}]: READY 准备接收新的任务(文件流或命令任务)", threadSocketNo);
-        //                    await socketForClient.SendTextAsync("ready_for_new");
-
-        //                    int realLength = await socketForClient.ReceiveAsync(bufferParameters, SocketFlags.None);
-        //                    if (realLength <= 0)
-        //                    {
-        //                        _logger.LogInformation("接收到字节数为0, 关闭并释放socket连接");
-        //                        socketForClient.Close();
-        //                        socketForClient.Dispose();
-        //                        break;
-        //                    }
-
-        //                    if (await socketForClient.CheckIsCloseMsgAsync(realLength, bufferParameters))
-        //                    {
-        //                        _logger.LogCritical("接收到客户端关闭连接通知, 关闭socket连接");
-        //                        break;
-        //                    }
-        //                    // 获取客户端传过来的字节数组放到bufferParameters中, 字节数组bufferParameters剩余的位置将会用0填充, 0经UTF-8反编码为字符串即"\0"
-        //                    var parametersContent = bufferParameters.GetText(realLength); //Encoding.UTF8.GetString(bufferParameters, 0, realLength).Replace("\0", string.Empty);
-        //                    var parametersArray = parametersContent.Split(";;;;");
-        //                    var type = parametersArray[0];
-        //                    var fileName = string.Empty;
-        //                    var fileSaveDir = string.Empty;
-        //                    if (type == "1")
-        //                    {
-        //                        // type为1: 发送文件; 获取第二个参数为文件大小; 第三个参数即文件名; 第四个参数表示当前服务器保存文件的目录(不传的话服务器自己需要配置Upload:SaveDir)
-        //                        var fileSize = Convert.ToInt64(parametersArray[1]);
-        //                        fileName = parametersArray[2];
-        //                        if (string.IsNullOrWhiteSpace(fileName))
-        //                        {
-        //                            _logger.LogInformation($"TCP Service: ERROR 传输文件名为空, 文件传输提前结束");
-        //                            socketForClient.Close();
-        //                            socketForClient.Dispose();
-        //                            return;
-        //                        }
-
-        //                        // 优先取客户端配置
-        //                        fileSaveDir = parametersArray[3];
-        //                        if (string.IsNullOrWhiteSpace(fileSaveDir))
-        //                        {
-        //                            fileSaveDir = serverSaveFileDir;
-        //                        }
-
-        //                        if (string.IsNullOrWhiteSpace(fileSaveDir))
-        //                        {
-        //                            // 客户端和服务端都没有配置服务器保存文件的地址则抛出异常
-        //                            throw new Exception("请配置上传文件保存的位置");
-        //                        }
-        //                        var file = Path.GetFullPath(Path.Combine(fileSaveDir, fileName));
-        //                        var fileDir = Path.GetDirectoryName(file);
-        //                        if (string.IsNullOrWhiteSpace(fileDir))
-        //                        {
-        //                            throw new Exception($"获取文件[{file}]的目录失败");
-        //                        }
-        //                        if (!Directory.Exists(fileDir))
-        //                        {
-        //                            Directory.CreateDirectory(fileDir);
-        //                        }
-
-        //                        _logger.LogInformation("TCP Service: 首先从第一个包获取文件名: {fileName}; 保存路径: {file}; 文件大小: {fileSize} READY 提醒客户端可以正式发送文件的字节流了", fileName, file, fileSize);
-
-        //                        // 任务参数解析完毕, 客户端可以开始发送文件的字节了
-        //                        await socketForClient.SendTextAsync("ready_for_file_content");
-
-        //                        #region 从客户端接收文件的所有字节写入本地文件中
-        //                        using var fileStream = new FileStream(file, FileMode.Create);
-        //                        var allReceived = 0;
-        //                        while (true)
-        //                        {
-        //                            // 阻塞等待, 一直等到有字节发送过来或者客户端关闭socket连接
-        //                            realLength = socketForClient.Receive(buffer);
-
-        //                            if (realLength > 0)
-        //                            {
-        //                                allReceived += realLength;
-        //                                _logger.LogInformation("TCP Service: 共接收: {allReceived}, 当前接收: {realLength}", allReceived, realLength);
-        //                                // 文件已经全部接受到了, 检查结束符:"000000"
-        //                                if (allReceived <= fileSize)
-        //                                {
-        //                                    // 上传的文件字节都写入文件
-        //                                    await fileStream.WriteAsync(buffer.AsMemory(0, realLength));
-        //                                }
-        //                                else
-        //                                {
-        //                                    // 表示接收到的字节数超过文件大小的部分
-        //                                    var extraLength = allReceived - fileSize;
-        //                                    // 属于文件的有效字节数(其他的属于结束符)
-        //                                    var validLength = Convert.ToInt32(realLength - extraLength);
-        //                                    // 将最后一部分真正属于文件的字节(前validLength个字节)写入文件
-        //                                    await fileStream.WriteAsync(buffer.AsMemory(0, validLength));
-
-        //                                    byte[] endFlag = new byte[6];
-        //                                    if (extraLength >= 6)
-        //                                    {
-        //                                        // 当前已经接收到了完整的结束符, 提取结束符
-        //                                        endFlag = buffer.Skip(validLength).Take(6).ToArray();
-        //                                    }
-        //                                    else
-        //                                    {
-        //                                        // 当前没有接收到完整的结束符, 获取已经接收到的结束符的一部分(validLength后面的长度为extraLength的部分)
-        //                                        for (int i = 0; i < extraLength; i++)
-        //                                        {
-        //                                            endFlag[i] = buffer[validLength + i];
-        //                                        }
-
-        //                                        // 获取剩下的(已经获取到了extraLength, 剩下6-extraLength)结束符(结束符只有6位, 剩下的部分不足6位了, 肯定可以一次性获取)
-        //                                        realLength = socketForClient.Receive(buffer);
-        //                                        for (int i = 0; i < 6 - extraLength; i++)
-        //                                        {
-        //                                            endFlag[6 - extraLength + i] = buffer[i];
-        //                                        }
-        //                                    }
-        //                                    _logger.LogInformation("TCP Service: 当前文件上传结束: {end}", string.Join(',', endFlag));
-        //                                    if (IsEndFlag(endFlag))
-        //                                    {
-        //                                        // 接收到000000, 表示当前文件已经上传完毕
-        //                                        _logger.LogInformation("TCP Service: 收到客户端提醒: 第{fileNumber}文件数据已经全部上传完毕 {newLine}", uploadedFileCount++, Environment.NewLine);
-        //                                        // 文件接收结束
-        //                                        break;
-        //                                    }
-        //                                    else
-        //                                    {
-        //                                        _logger.LogError("TCP Service: 不是预期的文件上传结束标识");
-        //                                        // 子线程将关闭
-        //                                        throw new Exception("不是预期的文件上传结束标识");
-        //                                    }
-        //                                }
-        //                            }
-        //                        }
-        //                        #endregion
-        //                    }
-        //                    else if (type == "2")
-        //                    {
-        //                        string childServerNodeDomain = parametersArray[1];
-        //                        string childServerNodeSocketNo = "x";
-        //                        if (childServerNodeDomain.Contains('-'))
-        //                        {
-        //                            var domainAndSocketNo = childServerNodeDomain.Split('-');
-        //                            childServerNodeDomain = domainAndSocketNo[0];
-        //                            childServerNodeSocketNo = domainAndSocketNo[1];
-        //                        }
-        //                        _logger.LogCritical("Center Server[{thread}]: 接收到来自客户端新的连接", threadSocketNo);
-
-        //                        var centerServer = _configuration?.GetValue<string>("CenterServer");
-        //                        if (string.IsNullOrWhiteSpace(centerServer))
-        //                        {
-        //                            // 没有配置中心服务器地址, 说明就是中心服务器
-        //                            // 先将当前客户端添加到公共容器中, 供当前中心服务器调度
-        //                            string key = childServerNodeDomain;
-        //                            _serverNodeSockets[key] = socketForClient;
-
-        //                            _logger.LogCritical("Center Server[{thread}]: 开启两个子线程, 担任命令发送器和命令接收器", threadSocketNo);
-
-        //                            CancellationTokenSource cts = new();
-        //                            cts.Token.Register(() => _logger.LogCritical("Center Server: Command Sender&Receiver Leaved!"));
-        //                            _threadNumber++;
-        //                            Task cmdSender = SendCommandTaskAsync(socketForClient, childServerNodeDomain, childServerNodeSocketNo, cts.Token);
-        //                            _threadNumber++;
-        //                            Task cmdReceiver = ReceiveCommandResultAsync(socketForClient, childServerNodeDomain, childServerNodeSocketNo, cts.Token);
-
-        //                            // 当因为socket连接问题导致cmdSender或者cmdReceiver其中一个异常结束了, 那么应该使两个都结束, 特别是cmdSender会干扰新的线程
-        //                            // 如果旧的cmdSender存在, 它会抢先读取命令任务队列中新的任务, 然后发送给客户端(socket已经释放发送会失败), 新的cmdSend则因为没有读取到队列中的任务导致新的任务发放失败
-        //                            // 旧的cmdSender读取发放任务会异常一次, 然后cmdSender会结束, 后面就会正常了
-        //                            await Task.WhenAny(cmdSender, cmdReceiver);
-        //                            cts.Cancel();
-        //                            _logger.LogCritical("Center Server[{thread}]: 命令发送器或者命令接收器已经停止!", threadSocketNo);
-        //                            stopThread = true;
-        //                        }
-        //                        else
-        //                        {
-        //                            // socketForClient是中心服务器接收到子服务器(或其他客户端)主动链接过来的客户端专用socket, 如果当前是子节点服务器, 没有此socket, 无逻辑需要处理;
-        //                            // 当前子服务器应该使用程序启动时连接到服务端的socket, 对应中心服务器的socketForClient
-        //                        }
-        //                    }
-        //                    _logger.LogCritical("TCP Service[{thread}]: need break thread: {stopThread};", threadSocketNo, stopThread);
-        //                    if (stopThread)
-        //                    {
-        //                        break;
-        //                    }
-        //                }
-        //                _logger.LogInformation($"Center Server: TCP Service - client closed");
-        //            });
-        //            #endregion
-        //        }
-        //    }, stoppingToken);
-        //    _logger.LogInformation("TCP Service: 发布服务已经开启");
-        //    return Task.CompletedTask;
-        //}
         protected override Task ExecuteAsync(CancellationToken stoppingToken)
         {
             _ = Task.Factory.StartNew(() =>
@@ -493,10 +265,19 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                                 var centerServer = _configuration?.GetValue<string>("CenterServer");
                                 if (string.IsNullOrWhiteSpace(centerServer))
                                 {
+                                    // **关键**: 当有新的子节点连接过来时, 需要将老的socket连接释放掉, 只保留最新的与子节点的连接的socket对象(老的socket不一定会检测到异常关闭, 可能会一直存在, 那么就会导致消息还是发送给子节点老的socket连接, 导致子节点收不到消息)
+                                    _logger.LogInformation("Center Server[{thread}]: 接收到来自子节点{Domain}的连接{childNodeSocketNo}, 关闭并释放socket连接", threadSocketNo, childServerNodeDomain, childServerNodeSocketNo);
+                                    if (_childNodeSockets.TryGetValue(childServerNodeDomain, out var val))
+                                    {
+                                        _logger.LogInformation("Center Server[{thread}]: 已经存在与子节点{Domain}的连接{oldSocketNo}, 关闭并释放socket连接", threadSocketNo, childServerNodeDomain, val.Item2);
+                                        val.Item1.Close();
+                                        val.Item1.Dispose();
+                                    }
+                                    _childNodeSockets[childServerNodeDomain] = (socketForClient, childServerNodeSocketNo);
+
                                     // 没有配置中心服务器地址, 说明就是中心服务器
                                     // 先将当前客户端添加到公共容器中, 供当前中心服务器调度
                                     string key = childServerNodeDomain;
-                                    _serverNodeSockets[key] = socketForClient;
 
                                     _logger.LogCritical("Center Server[{thread}]: 开启两个子线程, 担任命令发送器和命令接收器", threadSocketNo);
 
@@ -587,17 +368,16 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                     // 连接不通时会抛异常: SocketException (110): Connection timed out
                     // 客户端突然关闭时: SocketException (104): Connection reset by peer
                     int receivedLength = await socketForClient.ReceiveAsync(buffer, SocketFlags.None, cancellationToken);
-                    _lastKeepAliveTime = DateTime.Now;
 
                     if (await socketForClient.CheckIsCloseMsgAsync(receivedLength, buffer))
                     {
                         _logger.LogCritical("Center Server - CommandResult Receiver[{threadNo}] <- {childServerNodeDomain}_Socket{childServerNodeSocketNo}: {logNo}. 接收到来自子节点的关闭信号, 将关闭与子节点的socket连接, Received length:{length}", threadNo, childServerNodeDomain, childServerNodeSocketNo, logNo++, receivedLength);
-                        _serverNodeSockets.Remove(childServerNodeDomain);
                         break;
                     }
                     else if (SocketHelper.CheckIsKeepAliveMsg(receivedLength, buffer))
                     {
                         await RecordHeartbeatsLogAsync($"Center Server - CommandResult Receiver[{threadNo}] <- {childServerNodeDomain}_Socket{childServerNodeSocketNo}: keep-alive", childServerNodeSocketNo);
+                        _lastKeepAliveTime = DateTime.Now;
                         await socketForClient.SendTextAsync(_heartbeatMsg);
                         continue;
                     }
@@ -683,10 +463,20 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                                         break;
                                     }
                                     await Task.Delay(1000 * _heartbeatFrequency);
-                                    await RecordHeartbeatsLogAsync($"Server Node({_domain}) - Socket{socketNo}: keep-alive ->");
                                     try
                                     {
-                                        await socket.SendTextAsync(_heartbeatMsg);
+                                        // 最后一次通讯时间到现在已经达到了心跳包的发送频率间隔(1s误差), 发送心跳包
+                                        var timeSpanSeconds = (DateTime.Now - _lastKeepAliveTime).TotalSeconds;
+                                        if (timeSpanSeconds >= _heartbeatFrequency - 1)
+                                        {
+                                            await socket.SendTextAsync(_heartbeatMsg);
+                                            _lastKeepAliveTime = DateTime.Now;
+                                            await RecordHeartbeatsLogAsync($"Server Node({_domain}) - Socket{socketNo}: keep-alive ->");
+                                        }
+                                        else
+                                        {
+                                            _logger.LogInformation("Server Node({domain} - Socket{socketNo}): 最后一次通讯时间{lasttime}到现在间隔{seconds}/s", _domain, socketNo, _lastKeepAliveTime.ToString("yyyy-MM-dd HH:mm:ss"), timeSpanSeconds);
+                                        }
                                     }
                                     catch (Exception ex)
                                     {
@@ -709,9 +499,13 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                                         _logger.LogCritical("Server Node({domain} - Socket{socketNo}): 心跳包检测器因收到取消信号而终止!", _domain, socketNo);
                                         break;
                                     }
-                                    if (_lastKeepAliveTime != DateTime.MinValue && (DateTime.Now - _lastKeepAliveTime).TotalMinutes > _heartbeatFrequency * 2)
+                                    if (_lastKeepAliveTime != DateTime.MinValue && (DateTime.Now - _lastKeepAliveTime).TotalSeconds > _heartbeatFrequency * 2)
                                     {
-                                        _logger.LogWarning("Server Node({domain} - Socket{socketNo}): 已经{minutes}分钟没有收到心跳包, 将重新建立与中心服务器的连接", _domain, socketNo, _heartbeatFrequency * 2);
+                                        _logger.LogWarning("Server Node({domain} - Socket{socketNo}): 已经{seconds}/s(LastKeepAliveTime:{LastKeepAliveTime})没有收到心跳包, 将重新建立与中心服务器的连接", _domain, socketNo, _heartbeatFrequency * 2, _lastKeepAliveTime.ToString("yyyy-MM-dd HH:mm:ss"));
+
+                                        // 释放socket连接, 否则ReceiveAsync会一直阻塞(释放了就会因抛异常而停止)
+                                        socket.Close();
+                                        socket.Dispose();
                                         _centerConnWorkersCts.Cancel();
                                         break;
                                     }
@@ -725,6 +519,8 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                             while (true)
                             {
                                 (string msgFromCenter, int msgLength) = await socket.ReceiveAllTextAsync(buffer, IsEndFlag, _logger);
+                                // 更新最后一次与中心服务器通讯时间
+                                _lastKeepAliveTime = DateTime.Now;
 
                                 if (msgLength == 0)
                                 {
@@ -740,7 +536,6 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                                     }
                                     else if (SocketHelper.CheckIsKeepAliveMsg(msgFromCenter))
                                     {
-                                        //_logger.LogInformation("Server Node({domain}): 接收到中心服务器心跳包, 继续等待下一个消息", _domain);
                                         await RecordHeartbeatsLogAsync($"Server Node({_domain}) - Socket{socketNo}: keep-alive <-");
                                         continue;
                                     }
@@ -770,7 +565,10 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                         }
                         catch (Exception ex)
                         {
-                            _centerConnWorkersCts.Cancel();
+                            if (!_centerConnWorkersCts.IsCancellationRequested)
+                            {
+                                _centerConnWorkersCts.Cancel();
+                            }
                             _logger.LogError("Server Node({domain} - Socket{socketNo}): 释放与中心服务器的socket, 稍后将重新连接中心服务器: {message}", _domain, socketNo, ex.ToString());
                             await Task.Delay(1000 * _reconnectFrequency);
                         }
