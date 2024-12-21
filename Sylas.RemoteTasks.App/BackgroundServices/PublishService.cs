@@ -475,7 +475,7 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                                         }
                                         else
                                         {
-                                            _logger.LogInformation("Server Node({domain} - Socket{socketNo}): 最后一次通讯时间{lasttime}到现在间隔{seconds}/s", _domain, socketNo, _lastKeepAliveTime.ToString("yyyy-MM-dd HH:mm:ss"), timeSpanSeconds);
+                                            _logger.LogInformation("Server Node({domain} - Socket{socketNo}): 最后一次通讯时间{lasttime}到现在间隔{seconds}/s, 无需发送心跳消息", _domain, socketNo, _lastKeepAliveTime.ToString("yyyy-MM-dd HH:mm:ss"), timeSpanSeconds);
                                         }
                                     }
                                     catch (Exception ex)
@@ -569,7 +569,7 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                             {
                                 _centerConnWorkersCts.Cancel();
                             }
-                            _logger.LogError("Server Node({domain} - Socket{socketNo}): 释放与中心服务器的socket, 稍后将重新连接中心服务器: {message}", _domain, socketNo, ex.ToString());
+                            _logger.LogError("Server Node({domain} - Socket{socketNo}): 释放与中心服务器({server}:{port})的socket, 稍后将重新连接中心服务器: {message}", _domain, socketNo, _centerServer, _centerServerPort, ex.ToString());
                             await Task.Delay(1000 * _reconnectFrequency);
                         }
                         finally
@@ -612,7 +612,14 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
         {
             string logFileName = string.IsNullOrWhiteSpace(domain) ? $"{DateTime.Now:yyyy-MM-dd}.log" : $"{DateTime.Now:yyyy-MM-dd}-{domain}.log";
             string logFilePath = Path.Combine(_heartbeatLogsDirectory, logFileName);
-            await File.AppendAllTextAsync(logFilePath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {msg}{Environment.NewLine}");
+            try
+            {
+                await File.AppendAllTextAsync(logFilePath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {msg}{Environment.NewLine}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogInformation("心跳日志异常:{err}", ex.Message);
+            }
         }
     }
 }

@@ -1,20 +1,10 @@
-﻿# FROM mcr.microsoft.com/dotnet/sdk:7.0
-FROM mcr.microsoft.com/dotnet/aspnet:7.0 AS runtime
+﻿# FROM mcr.microsoft.com/dotnet/sdk:9.0
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
 MAINTAINER iduo admin@iduo.cc
 
 RUN ln -s /lib/x86_64-linux-gnu/libdl-2.24.so /lib/x86_64-linux-gnu/libdl.so
 
-RUN echo  'deb http://mirrors.ustc.edu.cn/debian buster main contrib non-free \ndeb http://mirrors.ustc.edu.cn/debian buster-backports main contrib non-free \ndeb http://mirrors.ustc.edu.cn/debian buster-proposed-updates main contrib non-free \ndeb http://mirrors.ustc.edu.cn/debian-security buster/updates main contrib non-free' > /etc/apt/sources.list
-
-# RUN mv /etc/apt/sources.list /etc/apt/sources.list.bak && \
-#    echo "deb http://mirrors.aliyun.com/debian/ buster main non-free contrib" >>/etc/apt/sources.list && \
-#    echo "deb-src http://mirrors.aliyun.com/debian/ buster main non-free contrib" >>/etc/apt/sources.list && \
-#    echo "deb http://mirrors.aliyun.com/debian-security buster/updates main" >>/etc/apt/sources.list && \
-#    echo "deb-src http://mirrors.aliyun.com/debian-security buster/updates main" >>/etc/apt/sources.list && \
-#    echo "deb http://mirrors.aliyun.com/debian/ buster-updates main non-free contrib" >>/etc/apt/sources.list && \
-#    echo "deb-src http://mirrors.aliyun.com/debian/ buster-updates main non-free contrib" >>/etc/apt/sources.list && \
-#    echo "deb http://mirrors.aliyun.com/debian/ buster-backports main non-free contrib" >>/etc/apt/sources.list && \
-#    echo "deb-src http://mirrors.aliyun.com/debian/ buster-backports main non-free contrib" >>/etc/apt/sources.list
+RUN mv /etc/apt/sources.list /etc/apt/sources.list.bak; echo "deb https://mirrors.bfsu.edu.cn/debian/ bookworm main contrib non-free non-free-firmware" > /etc/apt/sources.list; echo "deb https://mirrors.bfsu.edu.cn/debian/ bookworm-updates main contrib non-free non-free-firmware" >> /etc/apt/sources.list; echo "deb https://mirrors.bfsu.edu.cn/debian/ bookworm-backports main contrib non-free non-free-firmware" >> /etc/apt/sources.list; echo "deb https://mirrors.bfsu.edu.cn/debian-security bookworm-security main contrib non-free non-free-firmware" /etc/apt/sources.list
 
 RUN apt-get update
 RUN apt-get install vim -y
@@ -22,7 +12,8 @@ RUN apt-get install vim -y
 
 ENV TZ "Asia/Shanghai"
 
-ENV ASPNETCORE_URLS="http://+:80;https://+:443" # ENV ASPNETCORE_URLS="http://+:5105;https://+:7166"
+# ENV ASPNETCORE_URLS="http://+:5105;https://+:7166"
+ENV ASPNETCORE_URLS="http://+:80;https://+:443"
 
 WORKDIR /app
 EXPOSE 80

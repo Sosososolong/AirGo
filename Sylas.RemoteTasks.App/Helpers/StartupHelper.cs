@@ -9,12 +9,21 @@ using Sylas.RemoteTasks.Database;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils;
 using System.IdentityModel.Tokens.Jwt;
+using System.Net;
 using System.Security.Claims;
 
 namespace Sylas.RemoteTasks.App.Helpers
 {
     public static class StartupHelper
     {
+        public static void AddConfiguration(this WebApplicationBuilder builder)
+        {
+            // 我实际用的真实的配置文件, 这个文件不会上传到git; 也可以在项目上右键 -> "管理用户机密" -> 添加真实的配置覆盖掉appsettings.json
+            builder.Configuration.AddJsonFile("TaskConfig.log.json", optional: true, reloadOnChange: true);
+            builder.Configuration.AddUserSecrets<Program>();
+            builder.Configuration.AddJsonFile("TaskImportantSettings.json", optional: true, reloadOnChange: true);
+        }
+
         public static void AddRemoteHostManager(this IServiceCollection services, IConfiguration configuration)
         {
             var remoteHosts = configuration.GetSection("Hosts").Get<List<RemoteHost>>() ?? [];
@@ -59,6 +68,22 @@ namespace Sylas.RemoteTasks.App.Helpers
 
             services.AddScoped<IDatabaseProvider, DatabaseProvider>();
             services.AddScoped<IDatabaseProvider, DatabaseInfo>();
+        }
+
+        public static void GetAppStatus(IConfiguration configuration)
+        {
+            string centerServer = configuration.GetValue<string>("CenterServer") ?? string.Empty;
+            AppStatus.CenterServer = centerServer;
+            
+            AppStatus.IsCenterServer = string.IsNullOrWhiteSpace(centerServer);
+
+            AppStatus.CenterWebServer = configuration.GetValue<string>("CenterWebServer");
+            if (!AppStatus.IsCenterServer && string.IsNullOrWhiteSpace(AppStatus.CenterWebServer))
+            {
+                throw new Exception("未配置中心服务器的web服务地址");
+            }
+
+            AppStatus.Domain = Dns.GetHostName();
         }
 
         public static void AddGlobalHotKeys(this IServiceCollection services, IConfiguration configuration)

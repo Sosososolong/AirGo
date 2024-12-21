@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Primitives;
 using Newtonsoft.Json;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.Database.SyncBase;
@@ -8,6 +9,9 @@ using Sylas.RemoteTasks.Utils.Constants;
 using Sylas.RemoteTasks.Utils.Dto;
 using Sylas.RemoteTasks.Utils.Template;
 using System.Net;
+using System.Net.Http;
+using System.Net.Http.Json;
+using System.Text;
 
 namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
 {
@@ -19,12 +23,16 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
     /// <param name="commandRepository"></param>
     /// <param name="logger"></param>
     /// <param name="memoryCache"></param>
+    /// <param name="httpClientFactory"></param>
+    /// <param name="httpContextAccessor"></param>
     public class AnythingService(
         RepositoryBase<AnythingSetting> repository,
         RepositoryBase<AnythingExecutor> executorRepository,
         RepositoryBase<AnythingCommand> commandRepository,
         ILogger<AnythingService> logger,
-        IMemoryCache memoryCache)
+        IMemoryCache memoryCache,
+        IHttpClientFactory httpClientFactory,
+        IHttpContextAccessor httpContextAccessor)
     {
         /// <summary>
         /// 查询
@@ -152,22 +160,57 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             {
                 throw new Exception("Anything Executor Error");
             }
-            if (!string.IsNullOrWhiteSpace(commandInfo.Domain) && commandInfo.Domain != Dns.GetHostName())
+            string commandTaskNo = string.IsNullOrWhiteSpace(dto.CommandExecuteNo) ? Guid.NewGuid().ToString() : dto.CommandExecuteNo;
+            if (!string.IsNullOrWhiteSpace(commandInfo.Domain) && commandInfo.Domain != AppStatus.Domain)
             {
-                string commandTaskNo = Guid.NewGuid().ToString();
-                var commandTaskDto = new CommandInfoTaskDto { CommandExecuteNo = commandTaskNo, Domain = commandInfo.Domain, SettingId = dto.SettingId, CommandName = dto.CommandName };
-
-                #region 将任务信息添加到domain对应队列中
-                if (!_serverNodeQueues.TryGetValue(commandInfo.Domain, out Queue<CommandInfoTaskDto>? cmdTasks) || cmdTasks is null)
+                if (AppStatus.IsCenterServer)
                 {
-                    cmdTasks = new Queue<CommandInfoTaskDto>();
-                    _serverNodeQueues[commandInfo.Domain] = cmdTasks;
-                    logger.LogInformation("AnythingService ExecuteAsync: 添加命令任务到队列[{domain}]中", commandInfo.Domain);
-                }
-                cmdTasks.Enqueue(commandTaskDto);
-                #endregion
+                    var commandTaskDto = new CommandInfoTaskDto { CommandExecuteNo = commandTaskNo, Domain = commandInfo.Domain, SettingId = dto.SettingId, CommandName = dto.CommandName };
 
-                return await GetCommandResultAsync(commandTaskNo);
+                    #region 将任务信息添加到domain对应队列中
+                    if (!_serverNodeQueues.TryGetValue(commandInfo.Domain, out Queue<CommandInfoTaskDto>? cmdTasks) || cmdTasks is null)
+                    {
+                        cmdTasks = new Queue<CommandInfoTaskDto>();
+                        _serverNodeQueues[commandInfo.Domain] = cmdTasks;
+                        logger.LogInformation("AnythingService ExecuteAsync: 添加命令任务到队列[{domain}]中", commandInfo.Domain);
+                    }
+                    cmdTasks.Enqueue(commandTaskDto);
+                    #endregion
+
+                    return await GetCommandResultAsync(commandTaskNo);
+                }
+                else
+                {
+                    using var client = httpClientFactory.CreateClient();
+                    if (httpContextAccessor.HttpContext!.Request.Headers.TryGetValue("Authorization", out var token))
+                    {
+                        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+                    }
+                    // 获取Cookie
+                    if (httpContextAccessor.HttpContext!.Request.Headers.TryGetValue("Cookie", out StringValues cookieValue))
+                    {
+                        client.DefaultRequestHeaders.Add("Cookies", cookieValue.ToString());
+                    }
+                    string mediaType = "application/json";
+                    string bodyContent = JsonConvert.SerializeObject(dto);
+                    HttpContent parameters = new StringContent(bodyContent, Encoding.UTF8, mediaType);
+                    var response = await client.PostAsJsonAsync($"{AppStatus.CenterWebServer!.TrimEnd('/')}/Hosts/ExecuteCommand", dto);
+                    if (response.StatusCode != HttpStatusCode.OK)
+                    {
+                        return new CommandResult(false, $"{commandInfo.Domain}命令需要转到中心服务器, 请求失败: {response.ReasonPhrase}");
+                    }
+                    var responseContent = await response.Content.ReadAsStringAsync();
+                    if (!responseContent.StartsWith('{'))
+                    {
+                        return new CommandResult(false, $"{commandInfo.Domain}命令需要转到中心服务器, 授权失败");
+                    }
+                    RequestResult<CommandResult>? requestResult = JsonConvert.DeserializeObject<RequestResult<CommandResult>>(responseContent);
+                    if (requestResult is null)
+                    {
+                        return new CommandResult(false, "请求中心服务器失败");
+                    }
+                    return requestResult.Data ?? new CommandResult(false, "中心服务器没有返回命令执行结果");
+                }
             }
             CommandResult cr = await anythingInfo.CommandExecutor.ExecuteAsync(commandInfo.CommandTxt);
             if (!string.IsNullOrWhiteSpace(dto.CommandExecuteNo))

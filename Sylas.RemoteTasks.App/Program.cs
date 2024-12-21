@@ -17,9 +17,11 @@ builder.WebHost.ConfigureKestrel((context, serverOptions) =>
     serverOptions.Limits.MaxRequestBodySize = null; // 上传文件无限制, 默认28.6M
 });
 
-// 我实际用的真实的配置文件, 这个文件不会上传到git; 也可以在项目上右键 -> "管理用户机密" -> 添加真实的配置覆盖掉appsettings.json
-builder.Configuration.AddJsonFile("TaskConfig.log.json", optional: true, reloadOnChange: true);
-builder.Configuration.AddUserSecrets<Program>();
+// 添加配置文件
+builder.AddConfiguration();
+
+// 读取服务器状态等信息
+StartupHelper.GetAppStatus(builder.Configuration);
 
 // 注册全局热键
 builder.Services.AddGlobalHotKeys(builder.Configuration);
