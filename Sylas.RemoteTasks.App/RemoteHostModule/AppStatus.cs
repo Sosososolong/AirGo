@@ -2,6 +2,7 @@
 {
     public class AppStatus
     {
+        public static int ProcessId { get; set; }
         public static string CenterServer { get; set; } = string.Empty;
         public static bool IsCenterServer { get; set; }
         public static string? CenterWebServer { get; set; } = string.Empty;

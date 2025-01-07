@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using Sylas.RemoteTasks.App.RemoteHostModule;
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
 using Sylas.RemoteTasks.Utils;
 using Sylas.RemoteTasks.Utils.CommandExecutor;
@@ -18,7 +19,11 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
         private readonly string _centerServer;
         int _tcpPort = 8989;
         int _centerServerPort = 8989;
-        private readonly string _domain = Dns.GetHostName();
+        private readonly string _domain = AppStatus.Domain;
+        /// <summary>
+        /// 同一台机器开启多个客户端时, 让服务端区分不同的进程(区分不同进程的socket连接, 不会错误释放相关socket连接)
+        /// </summary>
+        private readonly int _processId = AppStatus.ProcessId;
         private readonly ConcurrentDictionary<string, (Socket, string)> _childNodeSockets = new();
         /// <summary>
         /// 记录最后一次与中心服务器通讯的时间
@@ -331,13 +336,13 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                     var commandInfoTaskDto = await AnythingService.GetCommandTaskAsync(childServerNodeDomain, cancellationToken);
                     if (commandInfoTaskDto is null)
                     {
-                        _logger.LogCritical("Center Server - Command Sender[{threadNo}] -> {childServerNodeDomain}_Socket{childServerNodeSocketNo}: 队列中读取到的命令任务为null, 终止当前命令发送器", threadNo, childServerNodeDomain, childServerNodeSocketNo);
+                        _logger.LogCritical("Center Server - Command Sender[{threadNo}] -> {childServerNodeDomain}_Node-{childServerNodeSocketNo}: 队列中读取到的命令任务为null, 终止当前命令发送器", threadNo, childServerNodeDomain, childServerNodeSocketNo);
                         break;
                     }
-                    _logger.LogCritical("Center Server - Command Sender[{threadNo}] -> {childServerNodeDomain}_Socket{childServerNodeSocketNo}: 队列中读取到一条给自服务节点命令任务: {CommandName}", threadNo, childServerNodeDomain, childServerNodeSocketNo, commandInfoTaskDto.CommandName);
+                    _logger.LogCritical("Center Server - Command Sender[{threadNo}] -> {childServerNodeDomain}_Node-{childServerNodeSocketNo}: 队列中读取到一条给自服务节点命令任务: {CommandName}", threadNo, childServerNodeDomain, childServerNodeSocketNo, commandInfoTaskDto.CommandName);
                     // 处理一条命令
                     var sendResult = await socketForClient.SendTextAsync($"{commandInfoTaskDto.SettingId};;;;{commandInfoTaskDto.CommandName};;;;{commandInfoTaskDto.CommandExecuteNo}{_endFlag}");
-                    _logger.LogCritical("Center Server - Command Sender[{threadNo}] -> {childServerNodeDomain}_Socket{childServerNodeSocketNo}: 成功向子节点发送命令的执行任务({sendResult})", threadNo, childServerNodeDomain, childServerNodeSocketNo, sendResult);
+                    _logger.LogCritical("Center Server - Command Sender[{threadNo}] -> {childServerNodeDomain}_Node-{childServerNodeSocketNo}: 成功向子节点发送命令的执行任务({sendResult})", threadNo, childServerNodeDomain, childServerNodeSocketNo, sendResult);
                 }
             }
             catch (Exception ex)
@@ -359,7 +364,7 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
             int logNo = 1;
             try
             {
-                _logger.LogInformation("Center Server - CommandResult Receiver[{threadNo}] <- {childServerNodeDomain}_Socket{childServerNodeSocketNo}: 启动, 开始等待接收子节点{Domain}的消息", threadNo, childServerNodeDomain, childServerNodeSocketNo, childServerNodeDomain);
+                _logger.LogInformation("Center Server - CommandResult Receiver[{threadNo}] <- {childServerNodeDomain}_Node-{childServerNodeSocketNo}: 启动, 开始等待接收子节点{Domain}的消息", threadNo, childServerNodeDomain, childServerNodeSocketNo, childServerNodeDomain);
                 while (true)
                 {
                     logNo = 1; // 第二次循环过来logNo就不是1了, 初始化为1
@@ -371,12 +376,12 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
 
                     if (await socketForClient.CheckIsCloseMsgAsync(receivedLength, buffer))
                     {
-                        _logger.LogCritical("Center Server - CommandResult Receiver[{threadNo}] <- {childServerNodeDomain}_Socket{childServerNodeSocketNo}: {logNo}. 接收到来自子节点的关闭信号, 将关闭与子节点的socket连接, Received length:{length}", threadNo, childServerNodeDomain, childServerNodeSocketNo, logNo++, receivedLength);
+                        _logger.LogCritical("Center Server - CommandResult Receiver[{threadNo}] <- {childServerNodeDomain}_Node-{childServerNodeSocketNo}: {logNo}. 接收到来自子节点的关闭信号, 将关闭与子节点的socket连接, Received length:{length}", threadNo, childServerNodeDomain, childServerNodeSocketNo, logNo++, receivedLength);
                         break;
                     }
                     else if (SocketHelper.CheckIsKeepAliveMsg(receivedLength, buffer))
                     {
-                        await RecordHeartbeatsLogAsync($"Center Server - CommandResult Receiver[{threadNo}] <- {childServerNodeDomain}_Socket{childServerNodeSocketNo}: keep-alive", childServerNodeSocketNo);
+                        await RecordHeartbeatsLogAsync($"Center Server - CommandResult Receiver[{threadNo}] <- {childServerNodeDomain}_Node-{childServerNodeSocketNo}: keep-alive", childServerNodeSocketNo);
                         _lastKeepAliveTime = DateTime.Now;
                         await socketForClient.SendTextAsync(_heartbeatMsg);
                         continue;
@@ -384,26 +389,26 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                     else
                     {
                         commandResultJson += buffer.GetText(receivedLength);
-                        _logger.LogInformation("Center Server - CommandResult Receiver[{threadNo}] <- {childServerNodeDomain}_Socket{childServerNodeSocketNo}: {logNo}. 成功获取子返回命令的执行结果文本: {text}", threadNo, childServerNodeDomain, childServerNodeSocketNo, logNo++, commandResultJson);
+                        _logger.LogInformation("Center Server - CommandResult Receiver[{threadNo}] <- {childServerNodeDomain}_Node-{childServerNodeSocketNo}: {logNo}. 成功获取子返回命令的执行结果文本: {text}", threadNo, childServerNodeDomain, childServerNodeSocketNo, logNo++, commandResultJson);
                         if (receivedLength >= 6)
                         {
                             var last6Bytes = buffer.Skip(receivedLength - 6).Take(6).ToArray();
                             if (IsEndFlag(last6Bytes))
                             {
                                 commandResultJson = commandResultJson[..^6];
-                                _logger.LogInformation("Center Server - CommandResult Receiver[{threadNo}] <- {childServerNodeDomain}_Socket{childServerNodeSocketNo}: {logNo}. 命令执行结果json字符串去除结束标记:{result}", threadNo, childServerNodeDomain, childServerNodeSocketNo, logNo++, commandResultJson);
+                                _logger.LogInformation("Center Server - CommandResult Receiver[{threadNo}] <- {childServerNodeDomain}_Node-{childServerNodeSocketNo}: {logNo}. 命令执行结果json字符串去除结束标记:{result}", threadNo, childServerNodeDomain, childServerNodeSocketNo, logNo++, commandResultJson);
                                 var commandResult = JsonConvert.DeserializeObject<CommandResult>(commandResultJson) ?? new CommandResult(false, commandResultJson);
                                 AnythingService.SetCommandResult(commandResult.CommandExecuteNo, commandResult);
                             }
                         }
-                        _logger.LogInformation("Center Server - CommandResult Receiver[{threadNo}] <- {childServerNodeDomain}_Socket{childServerNodeSocketNo}: {logNo}. 命令处理完毕, 重新等待接收子节点的消息", threadNo, childServerNodeDomain, childServerNodeSocketNo, logNo++);
+                        _logger.LogInformation("Center Server - CommandResult Receiver[{threadNo}] <- {childServerNodeDomain}_Node-{childServerNodeSocketNo}: {logNo}. 命令处理完毕, 重新等待接收子节点的消息", threadNo, childServerNodeDomain, childServerNodeSocketNo, logNo++);
                     }
                 }
-                _logger.LogInformation("Center Server - CommandResult Receiver[{threadNo}] <- {childServerNodeDomain}_Socket{childServerNodeSocketNo}: {logNo}. 命令结果接收器结束", threadNo, childServerNodeDomain, childServerNodeSocketNo, logNo++);
+                _logger.LogInformation("Center Server - CommandResult Receiver[{threadNo}] <- {childServerNodeDomain}_Node-{childServerNodeSocketNo}: {logNo}. 命令结果接收器结束", threadNo, childServerNodeDomain, childServerNodeSocketNo, logNo++);
             }
             catch (Exception ex)
             {
-                _logger.LogError("Center Server - CommandResult Receiver[{threadNo}] <- {childServerNodeDomain}_Socket{childServerNodeSocketNo}: {logNo}. 命令结果接收器工作异常, {msg}", threadNo, childServerNodeDomain, childServerNodeSocketNo, logNo++, ex.ToString());
+                _logger.LogError("Center Server - CommandResult Receiver[{threadNo}] <- {childServerNodeDomain}_Node-{childServerNodeSocketNo}: {logNo}. 命令结果接收器工作异常, {msg}", threadNo, childServerNodeDomain, childServerNodeSocketNo, logNo++, ex.ToString());
                 throw;
             }
         }
@@ -429,7 +434,7 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                     while (true)
                     {
                         _socketNo++;
-                        int socketNo = _socketNo;
+                        string socketNo = $"Process{AppStatus.ProcessId}-Socket{_socketNo}";
                         // 重新连接时需要初始化最后一次心跳时间, 否则会导致心跳检测线程检测到心跳超时
                         _lastKeepAliveTime = DateTime.Now;
                         _toCenterServerConn = null;
@@ -439,7 +444,7 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                         {
                             // 当停止服务时, 如果此时StopAsync已经执行完毕, 那么这里_logger已经被释放, 这行代码会抛异常: Cannot access a disposed object. Object name: 'EventLogInternal'
                             // 所以停止服务时, 第一时间调用_toCenterConnWorkersCts.Cancel()来终止连接相关工作线程, 避免这里抛异常
-                            _logger.LogCritical("Server Node({domain}): 与中心服务器的连接异常, 终止连接相关的后台工作线程!", _domain);
+                            _logger.LogCritical("Server Node({domain} - {socketNo}): 触发任务取消: 将终止连接相关的后台工作线程!", _domain, socketNo);
                         });
 
                         try
@@ -448,7 +453,7 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                             _toCenterServerConn = socket;
 
                             string serverNodeConnectParams = $"2;;;;{_domain};;;;{socketNo}";
-                            _logger.LogInformation("Server Node({domain} - Socket{socketNo}): 子节点连接到中心服务器, 发送参数: {serverNodeConnectParams}", _domain, socketNo, serverNodeConnectParams);
+                            _logger.LogInformation("Server Node({domain} - {socketNo}): 子节点连接到中心服务器, 发送参数: {serverNodeConnectParams}", _domain, socketNo, serverNodeConnectParams);
                             await socket.SendTextAsync(serverNodeConnectParams);
 
                             #region 子线程发送心跳包
@@ -459,7 +464,7 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                                 {
                                     if (_centerConnWorkersCts.IsCancellationRequested)
                                     {
-                                        _logger.LogCritical("Server Node({domain} - Socket{socketNo}): 心跳包发送器因收到取消信号而终止!", _domain, socketNo);
+                                        _logger.LogCritical("Server Node({domain} - {socketNo}): 心跳包发送器因收到取消信号而终止!", _domain, socketNo);
                                         break;
                                     }
                                     await Task.Delay(1000 * _heartbeatFrequency);
@@ -471,16 +476,16 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                                         {
                                             await socket.SendTextAsync(_heartbeatMsg);
                                             _lastKeepAliveTime = DateTime.Now;
-                                            await RecordHeartbeatsLogAsync($"Server Node({_domain}) - Socket{socketNo}: keep-alive ->");
+                                            await RecordHeartbeatsLogAsync($"Server Node({_domain}) - {socketNo}: keep-alive ->");
                                         }
                                         else
                                         {
-                                            _logger.LogInformation("Server Node({domain} - Socket{socketNo}): 最后一次通讯时间{lasttime}到现在间隔{seconds}/s, 无需发送心跳消息", _domain, socketNo, _lastKeepAliveTime.ToString("yyyy-MM-dd HH:mm:ss"), timeSpanSeconds);
+                                            _logger.LogInformation("Server Node({domain} - {socketNo}): 最后一次通讯时间{lasttime}到现在间隔{seconds}/s, 无需发送心跳消息", _domain, socketNo, _lastKeepAliveTime.ToString("yyyy-MM-dd HH:mm:ss"), timeSpanSeconds);
                                         }
                                     }
                                     catch (Exception ex)
                                     {
-                                        _logger.LogError("Server Node({domain} - Socket{socketNo}): 心跳包发送失败, 稍后将重新连接中心服务器: {ex}", _domain, socketNo, ex.ToString());
+                                        _logger.LogError("Server Node({domain} - {socketNo}): 心跳包发送失败, 稍后将重新连接中心服务器: {ex}", _domain, socketNo, ex.ToString());
                                         _centerConnWorkersCts.Cancel();
                                         break;
                                     }
@@ -496,12 +501,12 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                                 {
                                     if (_centerConnWorkersCts.IsCancellationRequested)
                                     {
-                                        _logger.LogCritical("Server Node({domain} - Socket{socketNo}): 心跳包检测器因收到取消信号而终止!", _domain, socketNo);
+                                        _logger.LogCritical("Server Node({domain} - {socketNo}): 心跳包检测器因收到取消信号而终止!", _domain, socketNo);
                                         break;
                                     }
                                     if (_lastKeepAliveTime != DateTime.MinValue && (DateTime.Now - _lastKeepAliveTime).TotalSeconds > _heartbeatFrequency * 2)
                                     {
-                                        _logger.LogWarning("Server Node({domain} - Socket{socketNo}): 已经{seconds}/s(LastKeepAliveTime:{LastKeepAliveTime})没有收到心跳包, 将重新建立与中心服务器的连接", _domain, socketNo, _heartbeatFrequency * 2, _lastKeepAliveTime.ToString("yyyy-MM-dd HH:mm:ss"));
+                                        _logger.LogWarning("Server Node({domain} - {socketNo}): 已经{seconds}/s(LastKeepAliveTime:{LastKeepAliveTime})没有收到心跳包, 将重新建立与中心服务器的连接", _domain, socketNo, _heartbeatFrequency * 2, _lastKeepAliveTime.ToString("yyyy-MM-dd HH:mm:ss"));
 
                                         // 释放socket连接, 否则ReceiveAsync会一直阻塞(释放了就会因抛异常而停止)
                                         socket.Close();
@@ -524,7 +529,7 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
 
                                 if (msgLength == 0)
                                 {
-                                    _logger.LogError("Server Node({domain} - Socket{socketNo}): 接收到中心服务器消息长度为0", _domain, socketNo);
+                                    _logger.LogError("Server Node({domain} - {socketNo}): 接收到中心服务器消息长度为0", _domain, socketNo);
                                     break;
                                 }
                                 else
@@ -532,24 +537,24 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                                     string[] arr = msgFromCenter.Split(";;;;");
                                     if (msgFromCenter == "ready_for_new")
                                     {
-                                        _logger.LogCritical("Server Node({domain} - Socket{socketNo}): 接收到中心服务器消息ready_for_new", _domain, socketNo);
+                                        _logger.LogCritical("Server Node({domain} - {socketNo}): 接收到中心服务器消息ready_for_new", _domain, socketNo);
                                     }
                                     else if (SocketHelper.CheckIsKeepAliveMsg(msgFromCenter))
                                     {
-                                        await RecordHeartbeatsLogAsync($"Server Node({_domain}) - Socket{socketNo}: keep-alive <-");
+                                        await RecordHeartbeatsLogAsync($"Server Node({_domain}) - {socketNo}: keep-alive <-");
                                         continue;
                                     }
                                     else if (arr.Length < 3)
                                     {
-                                        _logger.LogError("Server Node({domain} - Socket{socketNo}): 参数不足{msg}", _domain, socketNo, msgFromCenter);
+                                        _logger.LogError("Server Node({domain} - {socketNo}): 参数不足{msg}", _domain, socketNo, msgFromCenter);
                                     }
                                     else if (!int.TryParse(arr[0], out int settingId))
                                     {
-                                        _logger.LogError("Server Node({domain} - Socket{socketNo}): settingId({settingIdStr})无法转换为整数", _domain, socketNo, arr[0]);
+                                        _logger.LogError("Server Node({domain} - {socketNo}): settingId({settingIdStr})无法转换为整数", _domain, socketNo, arr[0]);
                                     }
                                     else
                                     {
-                                        _logger.LogCritical("Server Node({domain} - Socket{socketNo}): 接收到来自中心服务器的命令任务: {anythingCommand}", _domain, socketNo, msgFromCenter);
+                                        _logger.LogCritical("Server Node({domain} - {socketNo}): 接收到来自中心服务器的命令任务: {anythingCommand}", _domain, socketNo, msgFromCenter);
                                         string commandName = arr[1];
                                         string commandExecuteNo = arr[2];
                                         using var scope = _scopeFactory.CreateScope();
@@ -569,12 +574,12 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                             {
                                 _centerConnWorkersCts.Cancel();
                             }
-                            _logger.LogError("Server Node({domain} - Socket{socketNo}): 释放与中心服务器({server}:{port})的socket, 稍后将重新连接中心服务器: {message}", _domain, socketNo, _centerServer, _centerServerPort, ex.ToString());
+                            _logger.LogError("Server Node({domain} - {socketNo}): 释放与中心服务器({server}:{port})的socket, 稍后将重新连接中心服务器: {message}", _domain, socketNo, _centerServer, _centerServerPort, ex.ToString());
                             await Task.Delay(1000 * _reconnectFrequency);
                         }
                         finally
                         {
-                            _logger.LogCritical("Server Node({domain} - Socket{socketNo}): finally 即将释放与中心服务器的连接", _domain, socketNo);
+                            _logger.LogCritical("Server Node({domain} - {socketNo}): finally 即将释放与中心服务器的连接", _domain, socketNo);
                         }
                     }
                 });

@@ -72,6 +72,8 @@ namespace Sylas.RemoteTasks.App.Helpers
 
         public static void GetAppStatus(IConfiguration configuration)
         {
+            AppStatus.ProcessId = Environment.ProcessId;
+
             string centerServer = configuration.GetValue<string>("CenterServer") ?? string.Empty;
             AppStatus.CenterServer = centerServer;
             

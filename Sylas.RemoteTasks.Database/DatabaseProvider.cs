@@ -220,14 +220,17 @@ public class DatabaseProvider : IDatabaseProvider
             await conn.ChangeDatabaseAsync(db);
         }
 
-        return ExecuteQuerySqlAsync(conn, sqlStr, parameters);
+        return await ExecuteQuerySqlAsync(conn, sqlStr, parameters);
     }
 
-    private DataSet ExecuteQuerySqlAsync(DbConnection conn, string sqlStr, DbParameter[] parameters)
+    private async Task<DataSet> ExecuteQuerySqlAsync(DbConnection conn, string sqlStr, DbParameter[] parameters)
     {
         DbCommand command = SqlClientFactory.Instance.CreateCommand();
 
-        conn.ConnectionString = SecurityHelper.AesDecrypt(ConnectionString);
+        if (!ConnectionString.Contains(' '))
+        {
+            conn.ConnectionString = await SecurityHelper.AesDecryptAsync(ConnectionString);
+        }
         conn.Open();
 
         command.Connection = conn;

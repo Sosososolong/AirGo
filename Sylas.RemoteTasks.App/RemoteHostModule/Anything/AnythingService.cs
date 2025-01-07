@@ -1,6 +1,8 @@
-﻿using Microsoft.Extensions.Caching.Memory;
+﻿using Microsoft.AspNetCore.Authentication;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Primitives;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils;
@@ -182,15 +184,21 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
                 else
                 {
                     using var client = httpClientFactory.CreateClient();
+                    string? accessToken = string.Empty;
                     if (httpContextAccessor.HttpContext!.Request.Headers.TryGetValue("Authorization", out var token))
                     {
-                        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+                        accessToken = token;
                     }
-                    // 获取Cookie
-                    if (httpContextAccessor.HttpContext!.Request.Headers.TryGetValue("Cookie", out StringValues cookieValue))
+                    else
                     {
-                        client.DefaultRequestHeaders.Add("Cookies", cookieValue.ToString());
+                        accessToken = (await httpContextAccessor.HttpContext!.AuthenticateAsync()).Properties?.GetString(".Token.access_token");
                     }
+
+                    if (!string.IsNullOrWhiteSpace(accessToken))
+                    {
+                        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+                    }
+
                     string mediaType = "application/json";
                     string bodyContent = JsonConvert.SerializeObject(dto);
                     HttpContent parameters = new StringContent(bodyContent, Encoding.UTF8, mediaType);

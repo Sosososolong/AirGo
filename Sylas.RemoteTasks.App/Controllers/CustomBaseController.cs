@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using IdentityServer4.AccessTokenValidation;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.Utils.Constants;
@@ -7,6 +8,7 @@ using System.Text;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {
+    //AuthenticationSchemes = IdentityServerAuthenticationDefaults.AuthenticationScheme, 
     [Authorize(Policy = AuthorizationConstants.AdministrationPolicy)]
     [ServiceFilter<MvcParameterFilter>]
 

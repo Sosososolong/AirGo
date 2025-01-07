@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace Sylas.RemoteTasks.Utils
 {
@@ -32,13 +33,13 @@ namespace Sylas.RemoteTasks.Utils
         /// <param name="original">明文</param>
         /// <param name="key">密钥</param>
         /// <returns></returns>
-        public static string AesEncrypt(string original, string key = "")
+        public static async Task<string> AesEncryptAsync(string original, string key = "")
         {
             // Create a new instance of the Aes class.
             using Aes myAes = CreateAes(key);
 
             // Encrypt the string to an array of bytes.
-            byte[] encrypted = EncryptStringToBytes_Aes(original, myAes);
+            byte[] encrypted = await EncryptStringToBytesByAesAsync(original, myAes);
 
             string encryptedString = Convert.ToBase64String(encrypted);
             return encryptedString;
@@ -49,14 +50,42 @@ namespace Sylas.RemoteTasks.Utils
         /// <param name="encrypedStr"></param>
         /// <param name="key">密钥</param>
         /// <returns></returns>
-        public static string AesDecrypt(string encrypedStr, string key = "")
+        public static async Task<string> AesDecryptAsync(string encrypedStr, string key = "")
         {
             var encrypedBytes = Convert.FromBase64String(encrypedStr);
             using Aes myAes = CreateAes(key);
             // Decrypt the bytes to a string.
-            string roundtrip = DecryptStringFromBytes_Aes(encrypedBytes, myAes);
+            string roundtrip = await DecryptBytesToStringByAes(encrypedBytes, myAes);
             return roundtrip;
 
+        }
+
+        /// <summary>
+        ///  AES加密
+        /// </summary>
+        /// <param name="original">明文</param>
+        /// <param name="key">密钥</param>
+        /// <returns></returns>
+        public static async Task<byte[]> AesEncryptAsync(byte[] original, string key = "")
+        {
+            // Create a new instance of the Aes class.
+            using Aes myAes = CreateAes(key);
+
+            byte[] encrypted = await EncryptBytesByAesAsync(original, myAes);
+            return encrypted;
+        }
+        /// <summary>
+        /// AES解密
+        /// </summary>
+        /// <param name="encrypedBytes"></param>
+        /// <param name="key">密钥</param>
+        /// <returns></returns>
+        public static async Task<byte[]> AesDecryptAsync(byte[] encrypedBytes, string key = "")
+        {
+            using Aes myAes = CreateAes(key);
+            // Decrypt the bytes to a string.
+            byte[] original = await DecryptBytesByAesAsync(encrypedBytes, myAes);
+            return original;
         }
 
         /// <summary>
@@ -85,7 +114,7 @@ namespace Sylas.RemoteTasks.Utils
             myAes.IV = Encoding.UTF8.GetBytes("xxxxxxxxxxxxx001");
             return myAes;
         }
-        static byte[] EncryptStringToBytes_Aes(string plainText, Aes aes)
+        static async Task<byte[]> EncryptStringToBytesByAesAsync(string plainText, Aes aes)
         {
             // Check arguments.
             if (plainText == null || plainText.Length <= 0)
@@ -101,7 +130,7 @@ namespace Sylas.RemoteTasks.Utils
             using (StreamWriter swEncrypt = new(csEncrypt))
             {
                 //Write all data to the stream.
-                swEncrypt.Write(plainText);
+                await swEncrypt.WriteAsync(plainText);
             }
             encrypted = msEncrypt.ToArray();
 
@@ -109,7 +138,7 @@ namespace Sylas.RemoteTasks.Utils
             return encrypted;
         }
 
-        static string DecryptStringFromBytes_Aes(byte[] cipherText, Aes aes)
+        static async Task<string> DecryptBytesToStringByAes(byte[] cipherText, Aes aes)
         {
             // Check arguments.
             if (cipherText == null || cipherText.Length <= 0)
@@ -130,11 +159,53 @@ namespace Sylas.RemoteTasks.Utils
 
                 // Read the decrypted bytes from the decrypting stream
                 // and place them in a string.
-                plaintext = srDecrypt.ReadToEnd();
+                plaintext = await srDecrypt.ReadToEndAsync();
             }
 
             return plaintext;
         }
 
+        static async Task<byte[]> EncryptBytesByAesAsync(byte[] original, Aes aes)
+        {
+            // Check arguments.
+            if (original == null || original.Length <= 0)
+                throw new ArgumentNullException("plainText");
+
+            // Create an encryptor to perform the stream transform.
+            ICryptoTransform encryptor = aes.CreateEncryptor(aes.Key, aes.IV);
+
+            using MemoryStream ms = new();
+            using (CryptoStream cs = new(ms, encryptor, CryptoStreamMode.Write))
+            {
+                await cs.WriteAsync(original, 0, original.Length);
+            }
+
+            // Return the encrypted bytes from the memory stream.
+            return ms.ToArray();
+        }
+        /// <summary>
+        /// AES解密字节数组
+        /// </summary>
+        /// <param name="encryptedBytes"></param>
+        /// <param name="aes"></param>
+        /// <returns></returns>
+        /// <exception cref="ArgumentNullException"></exception>
+        static async Task<byte[]> DecryptBytesByAesAsync(byte[] encryptedBytes, Aes aes)
+        {
+            // Check arguments.
+            if (encryptedBytes == null || encryptedBytes.Length <= 0)
+                throw new ArgumentNullException("cipherText");
+
+            // Create a decryptor to perform the stream transform.
+            ICryptoTransform decryptor = aes.CreateDecryptor(aes.Key, aes.IV);
+
+            using MemoryStream ms = new();
+            using (CryptoStream cs = new(ms, decryptor, CryptoStreamMode.Write))
+            {
+                await cs.WriteAsync(encryptedBytes, 0, encryptedBytes.Length);
+            }
+
+            return ms.ToArray();
+        }
     }
 }

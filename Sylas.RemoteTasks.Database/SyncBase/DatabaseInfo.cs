@@ -78,8 +78,8 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <exception cref="Exception"></exception>
         public DatabaseInfo(ILogger<DatabaseInfo> logger, IConfiguration configuration)
         {
-            _connectionString = configuration.GetConnectionString("Default") ?? throw new Exception("DatabaseInfo: 没有配置\"ConnectionStrings:Default\"数据库连接字符串");
-            CheckConnectionString(ref _connectionString);
+            _connectionString = configuration.GetConnectionString("Default") ?? throw new Exception("没有配置默认的数据库连接字符串");
+            _connectionString = CheckConnectionString(_connectionString);
             _logger = logger;
             _dbType = GetDbType(_connectionString);
             _varFlag = GetDbParameterFlag(_dbType);
@@ -96,12 +96,13 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// 检验连接字符串是否加密, 如果加密则解密
         /// </summary>
         /// <param name="connectionString"></param>
-        static void CheckConnectionString(ref string connectionString)
+        static string CheckConnectionString(string connectionString)
         {
             if (!Regex.IsMatch(connectionString, @"\s+"))
             {
-                connectionString = SecurityHelper.AesDecrypt(connectionString).RemoveConfusedChars();
+                connectionString = connectionString.RemoveConfusedChars();
             }
+            return connectionString;
         }
         /// <summary>
         /// 切换数据库 - 对指定的数据库连接对象切换到指定的数据库
@@ -206,7 +207,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <exception cref="Exception"></exception>
         public static DbConnectionDetail GetDbConnectionDetail(string connectionString)
         {
-            CheckConnectionString(ref connectionString);
+            connectionString = CheckConnectionString(connectionString);
             var match = RegexConst.ConnectionStringSqlite.Match(connectionString);
             if (match.Success)
             {
