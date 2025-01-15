@@ -1,8 +1,7 @@
-﻿using IdentityServer4.AccessTokenValidation;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Sylas.RemoteTasks.App.DatabaseManager;
 using Sylas.RemoteTasks.App.DatabaseManager.Models;
+using Sylas.RemoteTasks.App.Helpers;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.RegexExp;
 using Sylas.RemoteTasks.Database.SyncBase;
@@ -42,9 +41,6 @@ namespace Sylas.RemoteTasks.App.Controllers
             return Content(generatingInfo);
             //return Json(new JsonResultModel { Code = 1, Data = null, Message = generatingInfo });
         }
-
-
-
 
         public async Task<IActionResult> ChangeConnectionString(string slnDir, string host, DatabaseType databaseType)
         {
@@ -135,6 +131,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             result.AddRange(Directory.GetDirectories(path).Select(x => x.Replace('\\', '/')));
             return Ok(new OperationResult(true, result));
         }
+
         [Authorize(AuthenticationSchemes = IdentityServerAuthenticationDefaults.AuthenticationScheme, Policy = "sfapi.3")]
         public IActionResult TestApiScope3()
         {

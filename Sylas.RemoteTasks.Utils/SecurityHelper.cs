@@ -57,7 +57,6 @@ namespace Sylas.RemoteTasks.Utils
             // Decrypt the bytes to a string.
             string roundtrip = await DecryptBytesToStringByAes(encrypedBytes, myAes);
             return roundtrip;
-
         }
 
         /// <summary>
@@ -206,6 +205,23 @@ namespace Sylas.RemoteTasks.Utils
             }
 
             return ms.ToArray();
+        }
+
+        /// <summary>
+        /// 使用HmacSha256加密方式对数据进行签名
+        /// </summary>
+        /// <param name="secret">加密密钥</param>
+        /// <param name="message">需要签名的数据</param>
+        /// <returns></returns>
+        public static string HmacSha256Signature(this string message, string secret)
+        {
+            var encoding = new UTF8Encoding();
+            byte[] keyByte = encoding.GetBytes(secret);
+            using var hmacsha256 = new HMACSHA256(keyByte);
+            byte[] messageBytes = encoding.GetBytes(message);
+            byte[] hashmessage = hmacsha256.ComputeHash(messageBytes);
+            var signature = Convert.ToBase64String(hashmessage);
+            return signature;
         }
     }
 }

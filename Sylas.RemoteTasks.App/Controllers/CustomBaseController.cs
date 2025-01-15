@@ -1,5 +1,4 @@
-﻿using IdentityServer4.AccessTokenValidation;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.Utils.Constants;
@@ -94,7 +93,17 @@ namespace Sylas.RemoteTasks.App.Controllers
             var operationResult = await SaveUploadedFilesAsync(env);
             if (operationResult.IsSuccess && operationResult.Data is not null)
             {
-                currentFiles.AddRange(operationResult.Data.First().Split(';'));
+                foreach (var uploadedFileRelativePath in operationResult.Data.First().Split(';'))
+                {
+                    // currentFiles: [1.png]; uploadedFiledRelativePath为: /Static/Study/1.png就先移除1.png
+                    var sameFile = currentFiles.FirstOrDefault(uploadedFileRelativePath.EndsWith);
+                    if (!string.IsNullOrWhiteSpace(sameFile))
+                    {
+                        currentFiles.Remove(sameFile);
+                        
+                    }
+                    currentFiles.Add(uploadedFileRelativePath);
+                }
             }
             #endregion
 

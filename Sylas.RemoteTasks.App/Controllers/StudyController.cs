@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.Study;
 using Sylas.RemoteTasks.Database.SyncBase;
@@ -9,6 +10,7 @@ namespace Sylas.RemoteTasks.App.Controllers
 {
     public class StudyController(RepositoryBase<Question> questionRepository) : CustomBaseController
     {
+        [AllowAnonymous]
         public IActionResult Index()
         {
             return View();

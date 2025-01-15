@@ -599,10 +599,10 @@ ${formItemComponent}
 
 async function fetchData(url, method, pageIndex, pageSize, dataFilter, orderRules, renderElementId, finallyAction) {
     //showSpinner(renderElementId);
-    let overlay = null;
-    if (renderElementId) {
-        overlay = addOverlay(renderElementId);
-    }
+    //let overlay = null;
+    //if (renderElementId) {
+    //    overlay = addOverlay(renderElementId);
+    //}
     let search = {
     };
     if (pageIndex) {
@@ -618,20 +618,7 @@ async function fetchData(url, method, pageIndex, pageSize, dataFilter, orderRule
         search.rules = orderRules;
     }
     try {
-        let response = await $.ajax({
-            url: url,
-            method: method,
-            data: JSON.stringify(search),
-            //contentType: 'application/x-www-form-urlencoded',
-            contentType: 'application/json',
-            dataType: 'json',
-            //success: function (response) {
-            //    onSuccess(response)
-            //},
-            //error: function (jqXHR, textStatus, errorThrown) {
-            //    alert(errorThrown)
-            //}
-        });
+        let response = httpRequestAsync(url, document.querySelector(`#${renderElementId}`), method, JSON.stringify(search), 'application/json')
         return response;
     } catch (e) {
         if (e.status === 500) {
@@ -641,14 +628,27 @@ async function fetchData(url, method, pageIndex, pageSize, dataFilter, orderRule
         }
     } finally {
         //closeSpinner();
-        if (overlay) {
-            overlay.remove();
-        }
+        //if (overlay) {
+        //    overlay.remove();
+        //}
 
         if (finallyAction) {
             finallyAction();
         }
     }
+}
+
+function getAccessToken() {
+    const tokenKey = 'access_token';
+    const expiresTimeKey = 'access_token_expires_time';
+    const token = localStorage.getItem(tokenKey);
+    const expiresTime = localStorage.getItem(expiresTimeKey);
+    if (new Date() >= new Date(expiresTime)) {
+        localStorage.removeItem("tokenKey");
+        localStorage.removeItem("expiresTimeKey");
+        return '';
+    }
+    return token;
 }
 
 async function httpRequestAsync(url, spinnerEle = null, method = 'POST', body = '', contentType = '') {
@@ -659,11 +659,17 @@ async function httpRequestAsync(url, spinnerEle = null, method = 'POST', body = 
         if (!contentType && method.toUpperCase() === 'POST') {
             contentType = 'application/json';
         }
+        const accessToken = getAccessToken();
+        if (!accessToken) {
+            showWarningBox('身份已过期, 请重新登录', () => location.href = "/Home/Login");
+            return null;
+        }
         const response = await fetch(url, {
             method: method,
             headers: {
                 'Content-Type': contentType,
-                'X-Requested-With': 'XMLHttpRequest'
+                'X-Requested-With': 'XMLHttpRequest',
+                'authorization': `Bearer ${accessToken}`
             },
             body: body
         })
@@ -743,7 +749,7 @@ function showModal(table) {
 function checkFormData(formData) {
     const keys = [...formData.keys()]; // 获取所有字段的键
     for (const key of keys) {
-        if (!formData.get(key)) { // 如果字段值为空
+        if (formData.get(key) === null) { // 如果字段值为空
             formData.delete(key); // 删除该字段
         }
     }
@@ -781,10 +787,22 @@ async function handleDataForm(table, eventTrigger) {
     if (currentForm.querySelector('input[type="file"]')) {
         var formData = new FormData(currentForm);
         checkFormData(formData);
+
+        const accessToken = getAccessToken();
+        if (!accessToken) {
+            closeSpinner();
+            showWarningBox('身份已过期, 请重新登录', () => location.href = "/Home/Login");
+            return null;
+        }
         fetch(url, {
             // 你的服务器端接收上传的URL
             method: method,
-            body: formData
+            body: formData,
+            // Content-Type为multipart/form-data
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'authorization': `Bearer ${accessToken}`
+            },
         })
         .then(resp => {
             if (resp.ok) {
@@ -1068,8 +1086,13 @@ function showImages(event, imgContainer) {
         }
         // 缓存所有图片
         const urlsField = filesName.replace('_files', '');
-        const urls = document.querySelector(`input[name="${urlsField}"]`).value;
+        const imgField = document.querySelector(`input[name="${urlsField}"]`);
+        const urls = imgField.value;
         if (cachedFiles[filesName].findIndex(x => x.name === file.name && x.lastModified === file.lastModified && x.size === file.size) === -1 && urls.indexOf(file.name) === -1) {
+            // 1. 给"urlsField"添加文件名
+            imgField.value = imgField.value ? `${imgField.value};${file.name}` : file.name;
+
+            // 2. 给缓存添加文件对象
             cachedFiles[filesName].push(file);
             showImage(imgContainer, file);
         }
@@ -1113,18 +1136,25 @@ function deleteImg(node) {
     const imgUrl = node.previousElementSibling.getAttribute('src');
     // 遍历 cachedFiles 对象的每个属性, 更新字段所存的Url信息
     for (var key in cachedFiles) {
+        // key: imageUrl_files; imgField: imageUrl
+        const imgField = key.replace('_files', '');
         if (cachedFiles.hasOwnProperty(key)) {
             if (imgUrl.indexOf('blob:') === -1) {
-                const imgField = key.replace('_files', '');
                 const imgInput = document.querySelector(`input[name="${imgField}"]`);
                 imgInput.value = imgInput.value.replace(imgUrl + ';', '').replace(imgUrl, '');
             } else {
                 // 删除缓存的文件
                 const files = cachedFiles[key];
+                // imgName: xxx.png
                 const imgName = node.previousElementSibling.getAttribute('data-filename');
                 const index = files.findIndex(x => x.name === imgName);
                 if (index > -1) {
                     files.splice(index, 1);
+                }
+
+                const hiddenInput = document.querySelector(`input[name="${imgField}"]`);
+                if (hiddenInput.value === imgName) {
+                    hiddenInput.value = '';
                 }
             }
         }

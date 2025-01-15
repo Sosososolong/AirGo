@@ -1,0 +1,161 @@
+﻿@{
+    ViewData["Title"] = "Login";
+    Layout = null;
+}
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+</head>
+<style>
+    body {
+        background-size: 100% 100%;
+    }
+
+    h2 {
+        color: #ffffff90;
+        margin-top: 5%;
+    }
+
+    #login_box {
+        /*结尾的60表示不透明度*/
+        background-color: #00000060;
+        text-align: center;
+        border-radius: 10px;
+        padding: 50px;
+    }
+
+    .input-box {
+        margin-top: 5%;
+    }
+
+    span {
+        color: #fff;
+    }
+
+    .login-input {
+        margin-top: 50px;
+        border-radius: 10px;
+        border: 0;
+        text-align: center;
+        line-height: 30px;
+        font-size: 15px;
+        background-color: #00000060;
+        color: #fff;
+    }
+
+    #sign_up {
+        margin-top: 45%;
+        margin-left: 60%;
+    }
+
+    a {
+        color: #b94648;
+    }
+
+    .login-btn {
+        background-color: #1e71c1;
+        color: #fff;
+        padding: 5px 15px;
+        font-size: 15px;
+        margin-top: 50px;
+        border: none;
+        border-radius: 10px;
+    }
+</style>
+
+<div id="login_box">
+    <h2>LOGIN</h2>
+    <div class="input_box">
+        <input type="text" class="username login-input" placeholder="请输入用户名" />
+    </div>
+    <div class="input_box">
+        <input type="password" class="password login-input" placeholder="请输入密码" />
+    </div>
+    <button class="login-btn">登录</button>
+</div>
+
+<script>
+    initStyle();
+    window.addEventListener("resize", (event) => {
+        initStyle();
+    });
+
+
+    document.querySelector('button').onclick = () => {
+        const username = document.querySelector('.username').value;
+        const password = document.querySelector('.password').value;
+        login(username, password);
+    };
+
+    function login(username, password) {
+        fetch(`/Home/GetToken?username=${username}&password=${password}`, {
+            "headers": {
+                "accept": "application/json",
+                "accept-language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
+                "content-type": "application/json"
+            },
+            "body": "",
+            "method": "POST",
+            "mode": "cors",
+            "credentials": "include"
+        }).then(response => response.text())
+            .then(result => {
+                var userInfoResponse = JSON.parse(result);
+                localStorage.setItem("userinfo", JSON.stringify(userInfoResponse.data));
+                localStorage.setItem("access_token", userInfoResponse.data.access_token);
+                localStorage.setItem("access_token_expires_time", userInfoResponse.data.expires_time);
+                location.href = "/";
+            })
+            .catch(error => {
+                alert('登陆失败');
+                console.log(error);
+            });
+    }
+
+    function initStyle() {
+        // 背景图片
+        const pcImages = [ 'bg-pc1.jpg', 'bg-pc2.jpg', 'bg-pc3.jpg', 'bg-pc4-thunderstorm.webp', 'bg-pc5.jpg' ];
+        const mobileImages = ['bg-mobile1-architecture.jpg', 'bg-mobile2-fairy-tail-girl.jpeg'];
+        const isMobile = window.innerWidth < 768 || window.outerWidth < 768;
+        const images = isMobile ? mobileImages : pcImages;
+        const randomIndex = Math.floor(Math.random() * images.length);
+        const bgImage = images[randomIndex];
+        document.body.style.backgroundImage = `url('/imgs/${bgImage}')`;
+
+        const loginBox = document.querySelector('#login_box');
+        const inputs = document.querySelectorAll('input');
+        const loginBtn = document.querySelector('.login-btn');
+        if (isMobile) {
+            // 移动端登录表单容器
+            loginBox.style.width = '70%';
+            loginBox.style.height = '50%';
+            loginBox.style.margin = '30% auto';
+
+            // 移动端登录输入框
+            inputs.forEach(input => {
+                input.style.width = '100%';
+                input.style.height = '2rem';
+            });
+            
+        } else {
+            // PC登录表单容器
+            loginBox.style.width = '20%';
+            loginBox.style.height = '400px';
+            loginBox.style.margin = '10% auto';
+
+            // PC登录输入框
+            inputs.forEach(input => {
+                input.style.width = '60%';
+                input.style.height = '30px';
+            });
+        }
+
+        const usernameInput = inputs[0];
+
+        // 登录按钮(保持和输入框尺寸一致)
+        loginBtn.style.width = `${usernameInput.clientWidth}px`;
+        loginBtn.style.height = `${usernameInput.clientHeight}px`;
+
+        usernameInput.focus();
+    }
+</script>

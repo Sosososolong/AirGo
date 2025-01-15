@@ -20,7 +20,6 @@ namespace Sylas.RemoteTasks.App.Infrastructure
             CmdHandler = new SystemCmd(CurrentProject);
         }
 
-
         /// <summary>
         /// 初始化一个项目（包含 API, Core, Infrastructure)
         /// </summary>

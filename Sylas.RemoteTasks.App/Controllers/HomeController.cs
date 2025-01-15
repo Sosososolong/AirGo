@@ -1,8 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using RazorEngine.Templating;
+using Renci.SshNet.Security;
 using Sylas.RemoteTasks.App.Database;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.Models;
@@ -14,9 +16,11 @@ using Sylas.RemoteTasks.Utils.Dto;
 using Sylas.RemoteTasks.Utils.FileOp;
 using System.Data;
 using System.Diagnostics;
+using System.Net.Http.Headers;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {
@@ -655,6 +659,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// 代码生成首页视图
         /// </summary>
         /// <returns></returns>
+        [AllowAnonymous]
         public IActionResult Prepare()
         {
             if (Request.Method != "GET" || string.IsNullOrWhiteSpace(_operationsInfo))
@@ -776,6 +781,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             return Content($@"{{""code"": 1, ""msg"": """", ""data"": {JsonConvert.SerializeObject(_settingsObj["Paths"])}}}");
         }
         // 操作界面
+        [AllowAnonymous]
         public IActionResult InitializeCustomDbContextPage()
         {
             // 获取所有的实体类
@@ -929,12 +935,12 @@ namespace Sylas.RemoteTasks.App.Controllers
 
             return Json(new { code = 1, msg = "" });
         }
-
+        [AllowAnonymous]
         public IActionResult Privacy()
         {
             return View();
         }
-
+        [AllowAnonymous]
         [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
         public IActionResult Error()
         {
@@ -1122,6 +1128,56 @@ namespace Sylas.RemoteTasks.App.Controllers
 
             int deleted = await db.DeleteAsync(dto.Target, dto.Ids);
             return RequestResult<int>.Success(deleted);
+        }
+        [AllowAnonymous]
+        public IActionResult Login()
+        {
+            return View();
+        }
+
+        [AllowAnonymous]
+        public async Task<IActionResult> GetTokenAsync([FromServices]IHttpClientFactory httpClientFactory, [FromServices]IMemoryCache cache, string username, string password)
+        {
+            string key = "userinfo";
+            if (!cache.TryGetValue<Dictionary<string, object>>(key, out Dictionary<string, object>? userinfo) || userinfo is null)
+            {
+                string authority = configuration["IdentityServerConfiguration:Authority"] ?? throw new Exception("Authority不能为空");
+                string clientId = configuration["IdentityServerConfiguration:ClientId"] ?? throw new Exception("client id不能为空");
+                string clientSecret = configuration["IdentityServerConfiguration:ClientSecret"] ?? throw new Exception("client secret不能为空");
+                List<string> scopes = [];
+                configuration.GetSection("IdentityServerConfiguration:Scopes").Bind(scopes);
+
+                using HttpClient client = httpClientFactory.CreateClient();
+                string mediaType = "application/x-www-form-urlencoded";
+                string bodyContent = $"client_id={clientId}&client_secret={clientSecret}&scope={string.Join(' ', scopes)}&grant_type=password&username={username}&password={password}";
+                HttpContent parameters = new StringContent(bodyContent, Encoding.UTF8, mediaType);
+                var response = await client.PostAsync($"{authority}/connect/token", parameters);
+                var tokenInfo = await response.Content.ReadAsStringAsync();
+                var tokenObj = JsonConvert.DeserializeObject<JObject>(tokenInfo) ?? throw new Exception("账号或密码错误");
+                if (!response.IsSuccessStatusCode)
+                {
+                    return Ok(RequestResult<object>.Error(tokenObj["error"]?.ToString() ?? "账号或者密码错误"));
+                }
+                var accessToken = tokenObj["access_token"]?.ToString();
+                if (string.IsNullOrWhiteSpace(accessToken))
+                {
+                    return Ok(RequestResult<bool>.Error("账号或密码错误"));
+                }
+
+                var expireIn = Convert.ToInt32(tokenObj["expires_in"]);
+
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+                var userinfoResponse = await client.GetAsync($"{authority}/connect/userinfo");
+                var userinfoJson = await userinfoResponse.Content.ReadAsStringAsync();
+                userinfo = JsonConvert.DeserializeObject<Dictionary<string, object>>(userinfoJson) ?? throw new Exception("账号或密码错误");
+                userinfo["access_token"] = accessToken;
+                userinfo["expires_time"] = DateTime.Now.AddSeconds(expireIn).ToString("yyyy-MM-dd HH:mm:ss");
+
+                var cacheEntryOptions = new MemoryCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromSeconds(expireIn));
+                cache.Set(key, userinfo, cacheEntryOptions);
+            }
+
+            return Ok(RequestResult<object>.Success(userinfo));
         }
     }
 }

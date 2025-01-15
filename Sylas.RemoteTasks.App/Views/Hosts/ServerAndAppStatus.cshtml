@@ -1,6 +1,4 @@
-﻿@model Sylas.RemoteTasks.Utils.ServerInfo
-@using Newtonsoft.Json
-@{
+﻿@{
     ViewData["Title"] = "基本信息";
 }
 <style>
@@ -11,37 +9,16 @@
 </style>
 <h5>@ViewData["Title"]</h5>
 
-<table>
-    <tr><td>服务器名称:</td><td>@Model.MachineName</td></tr>
-    <tr><td>服务器IP:</td><td>@Model.IP</td></tr>
-    <tr><td>操作系统:</td><td>@Model.OSName</td></tr>
-    <tr><td>操作系统架构:</td><td>@Model.OSArchitecture</td></tr>
-    <tr><td>.NET版本:</td><td>@Model.DoNetName</td></tr>
-    <tr><td>CPU数量:</td><td>@Model.CpuCount</td></tr>
-    <tr><td>应用开始运行时间:</td><td>@Model.AppStartTime</td></tr>
-    <tr><td>应用总运行时间:</td><td>@Model.AppRunTime</td></tr>
-    <tr><td>应用占用内存:</td><td>@(Model.AppRam)MB / @(Model.AppRamRate)%</td></tr>
-</table>
+<!--基本信息-->
+<table id="baseInfoTable" class="server-app-table"></table>
 
+<!--CPU内存信息-->
 <h5 style="margin-top:20px;">CPU内存信息</h5>
-<table>
-    <tr><td>CPU使用率:</td><td>@(Model.MemoryInfo.CpuRate)%</td></tr>
-    <tr><td>总内存:</td><td>@(Math.Round(Model.MemoryInfo.Total / 1024, 0))GB</td></tr>
-    <tr><td>已使用:</td><td>@(Math.Round(Model.MemoryInfo.Used / 1024, 0))GB</td></tr>
-    <tr><td>空闲:</td><td>@(Math.Round(Model.MemoryInfo.Free / 1024, 0))GB</td></tr>
-    <tr><td>内存使用率:</td><td>@Math.Round(100 * Model.MemoryInfo.Used / Model.MemoryInfo.Total, 2)%</td></tr>
-</table>
+<table id="cpuAndMemoryInfoTable" class="server-app-table"></table>
 
+<!--磁盘信息-->
 <h5 style="margin-top:20px;">磁盘信息</h5>
-<table>
-    @foreach(var item in Model.DiskInfos)
-    {
-        <tr>
-            <td>@(item.DiskName)(@item.TypeName):</td>
-            <td>@(100 * item.Used / item.TotalSize)%</td>
-        </tr>
-    }
-</table>
+<table id="diskInfoTable" class="server-app-table"></table>
 
 <h5 style="margin-top:20px;">进程状态</h5>
 <table class="processes-table">
@@ -57,6 +34,10 @@
 @section Scripts {
     <script src="~/lib/signalr/dist/browser/signalr.js"></script>
     <script>
+        // 1. 获取基本信息
+        initTables();
+
+        // 2. 连接signalr
         var connection = new signalR.HubConnectionBuilder().withUrl("/informationHub").build();
 
         //Disable the send button until connection is established.
@@ -92,10 +73,35 @@
             return console.error(err.toString());
         });
 
-        // window.addEventListener('beforeunload', function () {
-        //     console.log('用户即将离开页面');
-        //     // 可以在这里发送一个消息到服务器，告知用户离开了
-        // });
+        function initTables() {
+            httpRequestDataAsync('/Hosts/GetServerInfo', document.querySelectorAll(".server-app-table"), 'POST')
+            .then(serverInfo => {
+                document.querySelector('#baseInfoTable').innerHTML = `<tr><td>服务器名称:</td><td>${serverInfo.machineName}</td></tr>
+        <tr><td>服务器IP:</td><td>${serverInfo.ip}</td></tr>
+        <tr><td>操作系统:</td><td>${serverInfo.osName}</td></tr>
+        <tr><td>操作系统架构:</td><td>${serverInfo.osArchitecture}</td></tr>
+        <tr><td>.NET版本:</td><td>${serverInfo.doNetName}</td></tr>
+        <tr><td>CPU数量:</td><td>${serverInfo.cpuCount}</td></tr>
+        <tr><td>应用开始运行时间:</td><td>${serverInfo.appStartTime}</td></tr>
+        <tr><td>应用总运行时间:</td><td>${serverInfo.appRunTime}</td></tr>
+        <tr><td>应用占用内存:</td><td>${serverInfo.appRam}MB / ${serverInfo.appRamRate}%</td></tr>`;
 
+                document.querySelector('#cpuAndMemoryInfoTable').innerHTML = `<tr><td>CPU使用率:</td><td>${serverInfo.memoryInfo.cpuRate}%</td></tr>
+        <tr><td>总内存:</td><td>${(serverInfo.memoryInfo.total / 1024).toFixed(2)}GB</td></tr>
+        <tr><td>已使用:</td><td>${(serverInfo.memoryInfo.used / 1024).toFixed(2)}GB</td></tr>
+        <tr><td>空闲:</td><td>${(serverInfo.memoryInfo.free / 1024).toFixed(2)}GB</td></tr>
+        <tr><td>内存使用率:</td><td>${(100 * serverInfo.memoryInfo.used / serverInfo.memoryInfo.total).toFixed(2)}%</td></tr>`;
+
+                let diskInfoTableHtml = '';
+                for(let i = 0; i < serverInfo.diskInfos.length; i++) {
+                    const diskInfo = serverInfo.diskInfos[i];
+                    diskInfoTableHtml += `<tr>
+                            <td>(${diskInfo.diskName})(${diskInfo.typeName}):</td>
+                            <td>${(100 * diskInfo.used / diskInfo.totalSize).toFixed(4)}%</td>
+                        </tr>`;
+                }
+                document.querySelector('#diskInfoTable').innerHTML = diskInfoTableHtml;
+            });
+        }
     </script>
 }

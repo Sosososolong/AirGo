@@ -98,7 +98,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="connectionString"></param>
         static string CheckConnectionString(string connectionString)
         {
-            if (!Regex.IsMatch(connectionString, @"\s+"))
+            if (Regex.IsMatch(connectionString, @"\s+"))
             {
                 connectionString = connectionString.RemoveConfusedChars();
             }

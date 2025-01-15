@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Sylas.RemoteTasks.App.RemoteHostModule;
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
 using Sylas.RemoteTasks.Database.SyncBase;
@@ -13,7 +14,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         private readonly HostService _hostService = hostService;
 
         public ILogger Logger { get; } = loggerFactory.CreateLogger<HostsController>();
-
+        [AllowAnonymous]
         public IActionResult Index()
         {
             var hostProviders = _hostService.GetRemoteHosts();
@@ -64,6 +65,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// 显示所有命令
         /// </summary>
         /// <returns></returns>
+        [AllowAnonymous]
         public IActionResult AnythingInfosAsync()
         {
             return View();
@@ -136,13 +138,22 @@ namespace Sylas.RemoteTasks.App.Controllers
         }
 
         /// <summary>
+        /// 获取服务器基本信息和一些应用信息
+        /// </summary>
+        /// <returns></returns>
+        public async Task<IActionResult> GetServerInfo()
+        {
+            var info = await SystemCmd.GetServerAndAppInfoAsync();
+            return Ok(RequestResult<ServerInfo>.Success(info));
+        }
+        /// <summary>
         /// 服务器和应用状态数据面板
         /// </summary>
         /// <returns></returns>
-        public async Task<IActionResult> ServerAndAppStatus()
+        [AllowAnonymous]
+        public IActionResult ServerAndAppStatus()
         {
-            var info = await SystemCmd.GetServerAndAppInfoAsync();
-            return View(info);
+            return View();
         }
     }
 }

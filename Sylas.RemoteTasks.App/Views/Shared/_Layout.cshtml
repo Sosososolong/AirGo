@@ -196,26 +196,42 @@
 
         function showSpinner(target) {
             if (target) {
-                let originHtml = target.innerHTML;
-                if (target.tagName === 'BUTTON') {
-                    target.setAttribute('disabled', true)
+                if (target instanceof NodeList) {
+                    target.forEach(item => addTargetSpinner(item))
+                } else {
+                    addTargetSpinner(target);
                 }
-                // aria-hidden="true"
-                target.innerHTML = `<span class="spinner-border spinner-border-sm" role="status"></span> ${originHtml}`;
             } else {
                 spinner.show();
             }
         }
+
         function closeSpinner(target) {
             if (target) {
-                if (target.tagName === 'BUTTON') {
-                    target.removeAttribute('disabled');
+                if (target instanceof NodeList) {
+                    target.forEach(item => removeTargetSpinner(item))
+                } else {
+                    removeTargetSpinner(target);
                 }
-                // aria-hidden="true"
-                target.innerHTML = target.innerHTML.replace('<span class="spinner-border spinner-border-sm" role="status"></span> ', '');
             } else {
                 spinner.hide();
             }
+        }
+
+        function addTargetSpinner(ele) {
+            let originHtml = ele.innerHTML;
+            if (ele.tagName === 'BUTTON') {
+                ele.setAttribute('disabled', true)
+            }
+            // aria-hidden="true"
+            ele.innerHTML = `<span class="spinner-border spinner-border-sm" role="status"></span> ${originHtml}`;
+        }
+        function removeTargetSpinner(ele) {
+            if (ele.tagName === 'BUTTON') {
+                ele.removeAttribute('disabled');
+            }
+            // aria-hidden="true"
+            ele.innerHTML = ele.innerHTML.replace('<span class="spinner-border spinner-border-sm" role="status"></span> ', '');
         }
 
         function addOverlay(targetId) {

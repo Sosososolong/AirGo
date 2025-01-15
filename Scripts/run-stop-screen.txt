@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# 要查找的程序名
+PROGRAM_NAME="remotetasks"
+
+# 查找包含特定程序的screen会话
+SESSION=$(screen -ls | grep "$PROGRAM_NAME" | awk '{print $1}')
+
+# 检查是否找到了会话
+if [ -z "$SESSION" ]; then
+  echo "No screen session found running $PROGRAM_NAME."
+  exit 1
+fi
+
+# 连接到会话
+screen -x $SESSION
+
+# 在screen会话中运行命令来杀死程序
+# 注意：这里假设你有足够的权限在该会话中运行命令
+screen -x -X $SESSION stuff "pkill RemoteTasks"
+
+# 可选：断开会话
+screen -x -X $SESSION stuff "exit"

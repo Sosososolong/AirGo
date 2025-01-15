@@ -152,65 +152,75 @@ namespace Sylas.RemoteTasks.App.Helpers
             // 4.控制器中使用[Authorize(AuthenticationSchemes = "Bearer,Cookies")]特性进行授权验证, 优先使用Bearer token进行验证, 如果没有Bearer token则使用Cookies进行验证
             services.AddAuthentication(options =>
             {
+                ////默认验证方案
+                //options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+                ////默认token验证失败后的确认验证结果方案
+                //options.DefaultChallengeScheme = "oidc";
+
+                //options.DefaultAuthenticateScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+                //options.DefaultForbidScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+                //options.DefaultSignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+                //options.DefaultSignOutScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+                
                 //默认验证方案
-                options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+                options.DefaultScheme = "Bearer"; //CookieAuthenticationDefaults.AuthenticationScheme;
                 //默认token验证失败后的确认验证结果方案
-                options.DefaultChallengeScheme = "oidc";
+                options.DefaultChallengeScheme = "Bearer";
 
-                options.DefaultAuthenticateScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-                options.DefaultForbidScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-                options.DefaultSignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-                options.DefaultSignOutScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+                options.DefaultAuthenticateScheme = "Bearer";
+                options.DefaultForbidScheme = "Bearer";
+                options.DefaultSignInScheme = "Bearer";
+                options.DefaultSignOutScheme = "Bearer";
             })
-            .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme,
-                options =>
-                {
-                    options.Cookie.Name = "RemoteTasksCookies";
-                    options.Cookie.SameSite = (SameSiteMode)(-1);
-                    options.ExpireTimeSpan = TimeSpan.FromMinutes(60);
-                    //options.TicketDataFormat = new TicketDataFormat(new CookieTicketDataFormat());
-                    //options.TicketDataFormat = new TicketDataFormat(new CustomCookieDataProtector());
-                })
-            .AddOpenIdConnect("oidc", options =>
-            {
-                //指定远程认证方案的本地登录处理方案
-                options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-                //远程认证地址
-                options.Authority = identityServerBaseUrl;
-                //Https强制要求标识
-                options.RequireHttpsMetadata = requireHttpsMetadata;
-                //客户端ID（支持隐藏模式和授权码模式，密码模式和客户端模式不需要用户登录）
-                options.ClientId = clientId;
-                options.ClientSecret = clientSecret;
-                options.ResponseType = oidcResponseType;
-                options.MapInboundClaims = false;
-                options.Scope.Clear();
-                foreach (var scope in scopes)
-                {
-                    options.Scope.Add(scope);
-                }
-                //options.ClaimActions.MapAll(); // 用户信息全部属性添加至Claims中
+            //.AddCookie(CookieAuthenticationDefaults.AuthenticationScheme,
+            //    options =>
+            //    {
+            //        options.Cookie.Name = "RemoteTasksCookies";
+            //        options.Cookie.SameSite = (SameSiteMode)(-1);
+            //        options.ExpireTimeSpan = TimeSpan.FromMinutes(60);
+            //        //options.TicketDataFormat = new TicketDataFormat(new CookieTicketDataFormat());
+            //        //options.TicketDataFormat = new TicketDataFormat(new CustomCookieDataProtector());
+            //    })
+            //.AddOpenIdConnect("oidc", options =>
+            //{
+            //    //指定远程认证方案的本地登录处理方案
+            //    options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+            //    //远程认证地址
+            //    options.Authority = identityServerBaseUrl;
+            //    //Https强制要求标识
+            //    options.RequireHttpsMetadata = requireHttpsMetadata;
+            //    //客户端ID（支持隐藏模式和授权码模式，密码模式和客户端模式不需要用户登录）
+            //    options.ClientId = clientId;
+            //    options.ClientSecret = clientSecret;
+            //    options.ResponseType = oidcResponseType;
+            //    options.MapInboundClaims = false;
+            //    options.Scope.Clear();
+            //    foreach (var scope in scopes)
+            //    {
+            //        options.Scope.Add(scope);
+            //    }
+            //    //options.ClaimActions.MapAll(); // 用户信息全部属性添加至Claims中
 
-                //令牌保存标识
-                options.SaveTokens = true;
+            //    //令牌保存标识
+            //    options.SaveTokens = true;
 
-                options.GetClaimsFromUserInfoEndpoint = true;
+            //    options.GetClaimsFromUserInfoEndpoint = true;
 
-                options.TokenValidationParameters = new TokenValidationParameters
-                {
-                    NameClaimType = JwtClaimTypes.Name,
-                    RoleClaimType = JwtClaimTypes.Role,
-                };
+            //    options.TokenValidationParameters = new TokenValidationParameters
+            //    {
+            //        NameClaimType = JwtClaimTypes.Name,
+            //        RoleClaimType = JwtClaimTypes.Role,
+            //    };
 
-                options.Events = new OpenIdConnectEvents
-                {
-                    OnTokenResponseReceived = n => OnTokenResponseReceived(n),
-                    OnUserInformationReceived = n => OnUserInformationReceived(n),
-                    OnMessageReceived = OnMessageReceived,
-                    OnRedirectToIdentityProvider = n => OnRedirectToIdentityProvider(n)
-                };
-                options.CallbackPath = "/signin-oidc";
-            })
+            //    options.Events = new OpenIdConnectEvents
+            //    {
+            //        OnTokenResponseReceived = n => OnTokenResponseReceived(n),
+            //        OnUserInformationReceived = n => OnUserInformationReceived(n),
+            //        OnMessageReceived = OnMessageReceived,
+            //        OnRedirectToIdentityProvider = n => OnRedirectToIdentityProvider(n)
+            //    };
+            //    options.CallbackPath = "/signin-oidc";
+            //})
             .AddIdentityServerAuthentication(options =>
             {
                 options.Authority = identityServerBaseUrl;
