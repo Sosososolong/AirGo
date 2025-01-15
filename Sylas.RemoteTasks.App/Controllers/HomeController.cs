@@ -1138,7 +1138,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> GetTokenAsync([FromServices]IHttpClientFactory httpClientFactory, [FromServices]IMemoryCache cache, string username, string password)
         {
-            string key = "userinfo";
+            string key = $"userinfo-{username}";
             if (!cache.TryGetValue<Dictionary<string, object>>(key, out Dictionary<string, object>? userinfo) || userinfo is null)
             {
                 string authority = configuration["IdentityServerConfiguration:Authority"] ?? throw new Exception("Authority不能为空");

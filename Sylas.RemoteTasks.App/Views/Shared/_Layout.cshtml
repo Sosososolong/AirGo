@@ -153,6 +153,14 @@
             keyboard: false
         });
 
+        // 是否需要登陆
+        const accessToken = getAccessToken();
+        const path = location.pathname;
+        if (!accessToken) {
+            closeSpinner();
+            location.href = `/Home/Login?redirect_path=${path}`;
+        }
+
         function showBox(msg, onClose, title = '提示', titleClass = '', confirmBtnContent = '确定', confirmBtnClass = 'btn-success') {
             $('#msgBox .modal-title').text(title);
             if (titleClass) {

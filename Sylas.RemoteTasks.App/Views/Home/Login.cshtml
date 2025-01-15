@@ -88,6 +88,7 @@
     };
 
     function login(username, password) {
+        const redirectPath = getQueryStringParameter('redirect_path')
         fetch(`/Home/GetToken?username=${username}&password=${password}`, {
             "headers": {
                 "accept": "application/json",
@@ -104,7 +105,7 @@
                 localStorage.setItem("userinfo", JSON.stringify(userInfoResponse.data));
                 localStorage.setItem("access_token", userInfoResponse.data.access_token);
                 localStorage.setItem("access_token_expires_time", userInfoResponse.data.expires_time);
-                location.href = "/";
+                location.href = redirectPath ? redirectPath : "/";
             })
             .catch(error => {
                 alert('登陆失败');
@@ -157,5 +158,22 @@
         loginBtn.style.height = `${usernameInput.clientHeight}px`;
 
         usernameInput.focus();
+    }
+    function getQueryStringParameter(param) {
+        // 解析URL
+        let queryString = location.href.split('?')[1];
+        if (!queryString) {
+            return null; // 如果没有query string，返回null
+        }
+
+        // 将query string转换为键值对对象
+        let params = {};
+        queryString.split('&').forEach(pair => {
+            let [key, value] = pair.split('=');
+            params[decodeURIComponent(key)] = decodeURIComponent(value || '');
+        });
+
+        // 返回指定参数的值
+        return params[param] || null;
     }
 </script>
