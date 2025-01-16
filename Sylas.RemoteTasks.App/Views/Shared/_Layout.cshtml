@@ -7,6 +7,15 @@
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/Sylas.RemoteTasks.App.styles.css" asp-append-version="true" />
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    <script>
+        // 是否需要登陆
+        const accessToken = getAccessToken();
+        const path = location.pathname;
+        if (!accessToken) {
+            location.href = `/Home/Login?redirect_path=${path}`;
+        }
+    </script>
 </head>
 <body>
     <header>
@@ -138,7 +147,6 @@
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="~/js/site.js" asp-append-version="true"></script>
     <script>
         const msgBox = new bootstrap.Modal('#msgBox', {
             backdrop: 'static',
@@ -152,14 +160,6 @@
             backdrop: 'static',
             keyboard: false
         });
-
-        // 是否需要登陆
-        const accessToken = getAccessToken();
-        const path = location.pathname;
-        if (!accessToken) {
-            closeSpinner();
-            location.href = `/Home/Login?redirect_path=${path}`;
-        }
 
         function showBox(msg, onClose, title = '提示', titleClass = '', confirmBtnContent = '确定', confirmBtnClass = 'btn-success') {
             $('#msgBox .modal-title').text(title);
