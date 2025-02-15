@@ -10,6 +10,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Sylas.RemoteTasks.Utils
@@ -373,6 +374,65 @@ namespace Sylas.RemoteTasks.Utils
                 throw new Exception($"{errPrefix}: API没有获取到任何数据");
             }
             return dataArr;
+        }
+
+        /// <summary>
+        /// 通过AI模型的API获取答案
+        /// </summary>
+        /// <param name="question"></param>
+        /// <param name="apiServer"></param>
+        /// <param name="apiModel"></param>
+        /// <param name="apiKey"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        public static async Task<string> AskAiAsync(string question, string apiServer, string apiModel, string apiKey)
+        {
+            // 创建一个 HttpClient 对象
+            using HttpClient client = new();
+            //client.Timeout = TimeSpan.FromSeconds(180);
+            client.Timeout = Timeout.InfiniteTimeSpan;
+            // 设置请求头，包括 API 密钥和请求内容类型
+            client.DefaultRequestHeaders.Add("Authorization", "Bearer " + apiKey);
+
+            // 设置请求内容，包括问题和 GPT 模型的名称
+            // 设置请求内容类型为 application/json
+            string requestBody = $$"""
+                {
+                  "model": "{{apiModel}}",
+                  "max_tokens": 8192,
+                  "messages": [
+                    {
+                      "role": "system",
+                      "content": "You are a helpful assistant."
+                    },
+                    {
+                      "role": "user",
+                      "content": "{{question}}"
+                    }
+                  ],
+                  "temperature": 0.7
+                }
+                """;
+            HttpContent httpContent = new StringContent(requestBody, Encoding.UTF8, "application/json");
+
+            // 发送 POST 请求并获取响应
+            HttpResponseMessage response;
+            try
+            {
+                response = await client.PostAsync($"{apiServer.TrimEnd('/')}/v1/chat/completions", httpContent);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+                throw;
+            }
+            string responseContent = await response.Content.ReadAsStringAsync();
+            Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} Ai Response: {responseContent}{Environment.NewLine}");
+
+            // 解析响应 JSON 并返回 GPT 的回答
+            dynamic responseData = JsonConvert.DeserializeObject<dynamic>(responseContent) ?? throw new Exception("获取回答失败");
+            string answer = responseData.choices[0].message.content;
+            return answer;
         }
     }
     /// <summary>

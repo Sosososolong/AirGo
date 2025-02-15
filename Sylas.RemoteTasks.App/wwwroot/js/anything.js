@@ -212,13 +212,13 @@ async function loadCommandsAsync(ele, id) {
             <button class="btn btn-sm btn-primary mb-2 ${(commandInfo && commandInfo.executedState ? " disabled" : "")}" type="button" onclick="executeCommand(${id}, '${command.Name}', this)" id="button-cmd-${id}">${command.Name}</button>
 
             <div style="font-size:12px;color:gray;padding-bottom:10px" class="command-resolved">
-                ${ !commandInfo || !commandInfo.commandTxt ? '' : commandInfo.commandTxt.split(';').join('<br/>').replace(/</g, '&lt;').replace(/>/g, '&gt;') }
+                ${ !commandInfo || !commandInfo.commandTxt ? '' : commandInfo.commandTxt.split(';').join('<br/>') }
             </div>
 
             <div style="font-size:12px; margin-left:30px; color:green;">${commandState}</div>
             <div class="arrow-up" style="position:absolute;right:5px;bottom:20px;cursor:pointer;" onclick="changeOrderAsync(this, ${id}, ${i}, ${commandsArr.length}, -1)"></div>
             <div class="arrow-down" style="position:absolute;right:5px;bottom:-5px;cursor:pointer;" onclick="changeOrderAsync(this, ${id}, ${i}, ${commandsArr.length}, 1)"></div>
-            <div style="position:absolute;right:7px;top:10px;cursor:pointer;font-size:12px;" onclick="showConfirmBox('确定移除命令[${command.Name}]吗?', () => removeCommandItemAsync(this, ${id}, ${i}))">❌</div>
+            <div style="position:absolute;right:10px;top:10px;cursor:pointer;font-size:8px;" onclick="showConfirmBox('确定移除命令[${command.Name}]吗?', () => removeCommandItemAsync(this, ${id}, ${i}))">❌</div>
         </div>`;
             }
 
@@ -299,7 +299,7 @@ async function resolveCmdSettingAsync(input) {
     const command = cardStatus.commandArray.find(x => x.Name == commandName);
     command.CommandTxt = cmdTxt;
 
-    // 在解析命令内容
+    // 再解析命令内容
     const bodyObj = { id, cmdTxt };
     const body = JSON.stringify(bodyObj);
     var data = await httpRequestDataAsync(`/Hosts/ResolveCommandSettting`, input, 'POST', body, '', errorHandlerType.returnErrorMessage);
@@ -412,9 +412,12 @@ async function addCommandPost(eventTrigger, id) {
     // anything的每一条命令更新时(编辑textarea时), 都会更新cardStatus中的commandArray; 所以commandArray中的命令是最新的, 可以作为提交更新的数据
     const cardStatus = cardsStatus.find(x => x.id == id);
     const commandArray = cardStatus.commandArray;
-    commandArray.push({ Name: input.value, CommandTxt: '', ExecutedState: '' });
+    const newCommand = { Name: input.value, CommandTxt: '', ExecutedState: '' };
+    commandArray.push(newCommand);
 
     await updateAnythingCommandsFromCardStatus(id, commandArray);
+
+    await addAnythingCommandAsync(id, newCommand);
 }
 
 async function updateAnythingCommandsFromCardStatus(id, cardStatusCommands) {
@@ -442,4 +445,27 @@ async function updateAnythingCommandsAsync(id, commands) {
     const cardStatus = cardsStatus.find(x => x.id == id);
     cardStatus.isShown = false;
     execute(trigger, () => loadCommandsAsync(document.querySelector(`#button-cmd-${id}`).closest('.card').querySelector('.card-title'), id));
+}
+/**
+ * 添加一条新命令
+ * @param {any} id
+ * @param {any} command
+ */
+async function addAnythingCommandAsync(id, command) {
+    command.anythingId = id.toString();
+    const params = { target: 'anythingcommands', records: [command] };
+    const paramsJson = JSON.stringify(params);
+    const trigger = {
+        // dataTableId: '', // 用于更新后重载数据表格
+        dataContent: paramsJson,
+        dataExecuteUrl: '/Home/Post',
+        dataMethod: 'POST'
+    };
+
+    // 将显示状态设置为false(true不会重载数据), 然后重载数据
+    const cardStatus = cardsStatus.find(x => x.id == id);
+    cardStatus.isShown = false;
+    execute(trigger,
+        () => loadCommandsAsync(document.querySelector(`#button-cmd-${id}`).closest('.card').querySelector('.card-title'), id)
+    );
 }

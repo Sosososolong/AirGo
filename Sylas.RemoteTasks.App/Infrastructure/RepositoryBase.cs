@@ -23,7 +23,7 @@ namespace Sylas.RemoteTasks.App.Infrastructure
             return pages;
         }
         /// <summary>
-        /// 根据Id查询数据库连接字符串信息
+        /// 根据Id查询数据
         /// </summary>
         /// <param name="id"></param>
         /// <returns></returns>
@@ -177,7 +177,7 @@ namespace Sylas.RemoteTasks.App.Infrastructure
         /// </summary>
         public Dictionary<string, object> Fields { get; set; } = [];
     }
-    public class  PostDto
+    public class PostDto
     {
         /// <summary>
         /// 指定要插入数据的表

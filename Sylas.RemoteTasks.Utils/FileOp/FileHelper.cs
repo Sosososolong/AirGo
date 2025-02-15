@@ -4,12 +4,16 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Sylas.RemoteTasks.App.RegexExp;
+using Sylas.RemoteTasks.Utils.Constants;
+using Sylas.RemoteTasks.Utils.Dto;
+using Sylas.RemoteTasks.Utils.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -217,44 +221,10 @@ public partial class FileHelper
 
         string newCon = newContentHandler(originContent);
 
-        using (var streamWriter = new StreamWriter(file, false, new UTF8Encoding(false)))
-        {
-            streamWriter.Write(newCon);
-            streamWriter.Flush();
-            streamWriter.Close();
-        }
-    }
-
-    /// <summary>
-    /// 修改json文件, 不能添加一个对象节点×××××××xxxx
-    /// </summary>
-    /// <param name="settingsFile"></param>
-    /// <param name="settingsUpdater"></param>
-    public static void SettingsWrite(string settingsFile, Action<dynamic> settingsUpdater)
-    {
-        if (!File.Exists(settingsFile))
-        {
-            throw new ArgumentException($"配置文件{settingsFile}不存在");
-        }
-        using (StreamReader sr = new StreamReader(settingsFile, new UTF8Encoding(false)))
-        {
-            string settings = sr.ReadToEnd();
-            // 将配置文件内容反序列化为对象
-            dynamic settingsObj = JsonConvert.DeserializeObject(settings) ?? throw new Exception($"反序列化失败");
-            // 对配置文件内容进行更新操作
-            settingsUpdater(settingsObj);
-
-            string updatedSettings = JsonConvert.SerializeObject(settingsObj);
-            if (updatedSettings.Length + 20 < UnformatJsonString(settings).Length)
-            {
-                throw new Exception("json配置文件的配置减少超过20个字符, 如果您在修改某些配置, 为了防止未知bug引起配置的清空, 建议您手动修改, 否则请修改源代码");
-            }
-            sr.Close();
-            using StreamWriter sw = new StreamWriter(settingsFile, false, new UTF8Encoding(false));
-            sw.Write(updatedSettings);
-            sw.Flush();
-            sw.Close();
-        }
+        using var streamWriter = new StreamWriter(file, false, new UTF8Encoding(false));
+        streamWriter.Write(newCon);
+        streamWriter.Flush();
+        streamWriter.Close();
     }
 
     /// <summary>
@@ -290,12 +260,11 @@ public partial class FileHelper
             throw new ArgumentException($"配置文件{settingsFile}不存在");
         }
         dynamic? settingsObj = null;
-        using (StreamReader sr = new StreamReader(settingsFile, new UTF8Encoding(false)))
+        using (StreamReader sr = new(settingsFile, new UTF8Encoding(false)))
         {
             string settings = sr.ReadToEnd();
             // 将配置文件内容反序列化为对象
             settingsObj = JsonConvert.DeserializeObject(settings);
-            sr.Close();
         }
         return settingsObj;
     }
@@ -387,15 +356,15 @@ public partial class FileHelper
         return encoding;
     }
     /// <summary>
-    /// 插入代码 - 属性
+    /// 给类文件追加属性代码
     /// </summary>
-    /// <param name="classFile"></param>
-    /// <param name="codes"></param>
-    public static void InsertCodePropertyLevel(string classFile, string codes)
+    /// <param name="file"></param>
+    /// <param name="code"></param>
+    public static void InsertCodeProperty(string file, string code)
     {
-        InsertContent(classFile, originCode =>
+        InsertContent(file, originCode =>
         {
-            if (originCode.Contains(codes))
+            if (originCode.Contains(code))
             {
                 throw new Exception("要插入的代码已经存在");
             }
@@ -405,7 +374,7 @@ public partial class FileHelper
             if (lastProperty != null)
             {
                 string lastPropertyString = lastProperty.Value; // "public DbSet<Employee> Employees { get; set; }"
-                string modifiedPropertyString = lastPropertyString + Environment.NewLine + _twoTabsSpace + codes;
+                string modifiedPropertyString = lastPropertyString + Environment.NewLine + _twoTabsSpace + code;
                 return originCode.Replace(lastPropertyString, modifiedPropertyString); // 匹配的属性应该是独一无二的, 所以这里肯定只是替换一次
             }
             // 添加第一个属性
@@ -417,36 +386,14 @@ public partial class FileHelper
                 regex = new Regex(@"\s{4}{");
 
                 string classLeftBrackets = regex.Match(originCode).Value;
-                classLeftBrackets = classLeftBrackets + Environment.NewLine + _twoTabsSpace + codes;
+                classLeftBrackets = classLeftBrackets + Environment.NewLine + _twoTabsSpace + code;
 
                 return regex.Replace(originCode, classLeftBrackets, 1); // 只替换一次
             }
-            string newCodeBeforeFirstMethodStatement = codes + firstMethodStatement;
+            string newCodeBeforeFirstMethodStatement = code + firstMethodStatement;
             return originCode.Replace(firstMethodStatement, newCodeBeforeFirstMethodStatement);
         });
 
-    }
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="classFile"></param>
-    /// <param name="methodName"></param>
-    /// <param name="codes"></param>
-    /// <exception cref="Exception"></exception>
-    public static void InsertCodeToMethodTail(string classFile, string methodName, string codes)
-    {
-        InsertContent(classFile, originCode =>
-        {
-            if (originCode.Contains(codes))
-            {
-                throw new Exception("要插入的代码已经存在");
-            }
-            Regex regex = new(methodName + @"\(.*\r\n\s{8}{[\w\W]*?\s{8}}");
-            Match onModelCreatingMatch = regex.Match(originCode);
-            string oldPart = onModelCreatingMatch.Value;
-            string newPart = onModelCreatingMatch.Value.TrimEnd('}') + _oneTabSpace + codes + Environment.NewLine + _twoTabsSpace + "}";
-            return originCode.Replace(oldPart, newPart);
-        });
     }
     /// <summary>
     /// 向一个方法中插入代码段字符串
@@ -608,6 +555,940 @@ public partial class FileHelper
 
         return searchedResult;
     }
+
+
+    #region 自动化文件读写
+    static string _parameterLineStartPattern = string.Empty;
+    /// <summary>
+    /// 匹配类定义文件中的时间属性的正则表达式
+    /// </summary>
+    private static readonly Regex RemoveDateTimeFieldPattern = new(@"[\n\s]+///\s+<summary>[\s\n]+///\s*\w*[\n\s]+///\s*</summary>[\s\n]+private\s+DateTime.+");
+
+    /// <summary>
+    /// 匹配实体StringLength等特性的正则表达式
+    /// </summary>
+    private static readonly Regex DataAnnotationsCodePattern = new(@"[\n\s]+\[StringLength.+\]");
+    /// <summary>
+    /// 解析{key}和{{key}}的全局变量
+    /// </summary>
+    /// <returns></returns>
+    private static readonly Regex GlobalVariablesPattern = new(@"(?<!\$)\{\{{0,1}(?<key>[^\s;]+?)(\[(?<index>\d+)\]){0,1}\}\}{0,1}(?<CallReplaceFunc>\.Replace\(((?<Quotation>""{0,1})(?<First>[\w\s]+)\k<Quotation>,\s*\k<Quotation>(?<Second>[\w\s\?]+)\k<Quotation>)\);){0,1}");
+
+    /// <summary>
+    /// 解析用户输入的变量
+    /// </summary>
+    private static readonly Regex CustomInputVariablesPattern = new(@"\{\{(?<varName>.+?)\}\}");
+
+    /// <summary>
+    /// IF条件指令
+    /// </summary>
+    /// <returns></returns>
+    private static readonly Regex IfStatementPattern = new(@"#IF:(?<Reversal>\!{0,1})(?<SourceTxt>\w+)\.Contains\((?<SubString>\w+)\)(?<Content>[\w\W]+?)#IFEND");
+    /// <summary>
+    /// 获取数据库表对应的实体类代码
+    /// conn.DbMaintenance会反射获取数据库对应的实例(如MySqlDbMaintenance)
+    /// </summary>
+    /// <param name="columnInfos">表所有字段信息</param>
+    /// <param name="table"></param>
+    /// <returns></returns>
+    public static async Task<string[]> BuildEntityClassCodeAsync(IEnumerable<ColumnInfo> columnInfos, string table)
+    {
+        #region 表字段分析
+        //获取主键类型("int", "string")
+        var primaryKey = columnInfos.FirstOrDefault(x => x.IsPrimarykey == 1);
+
+        //part1.1:生成实体类属性代码
+        StringBuilder propsText = new();
+        foreach (var columnInfo in columnInfos)
+        {
+            LoggerHelper.LogInformation($"{columnInfo.Name} DataType:{columnInfo.ColumnType}; Length:{columnInfo.Length}");
+        }
+
+        //part1.2:using System;
+        string usingSystem = string.Empty;
+        //part1.3:using System.ComponentModel.DataAnnotations;
+
+        //part2. 除Id外的属性代码
+        StringBuilder dtoExceptIdPropsCode = new();
+        StringBuilder dtoExceptIdAndDateTimePropsCode = new();
+        string usingDataAnnotation = string.Empty;
+
+        foreach (var columnInfo in columnInfos)
+        {
+            if (primaryKey is not null && columnInfo.Name != primaryKey?.Name)
+            {
+                var propType = columnInfo.ColumnType switch
+                {
+                    _ when columnInfo.ColumnType.Contains("time", StringComparison.OrdinalIgnoreCase) => "DateTime",
+                    _ when columnInfo.ColumnType.Contains("bit", StringComparison.OrdinalIgnoreCase) => "bool",
+                    _ when columnInfo.ColumnType.Contains("int", StringComparison.OrdinalIgnoreCase) => "int",
+                    _ when columnInfo.ColumnType.Contains("lob", StringComparison.OrdinalIgnoreCase) => "byte[]",
+                    _ => "string",
+                };
+                if (propType == "DateTime" && usingSystem.Length == 0)
+                {
+                    usingSystem = $"{Environment.NewLine}using System;";
+                }
+                var stringLengthAttr = columnInfo.Length > 0 && propType == "string" ? $"{Environment.NewLine}{SpaceConstants.TwoTabsSpaces}[StringLength({columnInfo.Length})]" : string.Empty;
+                if (stringLengthAttr.Length > 0 && usingDataAnnotation.Length == 0)
+                {
+                    usingDataAnnotation = $"{Environment.NewLine}using System.ComponentModel.DataAnnotations;";
+                }
+
+                var columnProp = $$"""
+                        {{SpaceConstants.TwoTabsSpaces}}/// <summary>
+                        {{SpaceConstants.TwoTabsSpaces}}/// {{columnInfo.Description}}
+                        {{SpaceConstants.TwoTabsSpaces}}/// </summary>{{stringLengthAttr}}
+                        {{SpaceConstants.TwoTabsSpaces}}public {{propType}} {{columnInfo.Name}} { get; set; }
+                        """;
+                propsText.AppendLine(columnProp);
+
+                string commonPropCode = $$"""
+                        {{SpaceConstants.TwoTabsSpaces}}/// <summary>
+                        {{SpaceConstants.TwoTabsSpaces}}/// {{columnInfo.Description}}
+                        {{SpaceConstants.TwoTabsSpaces}}/// </summary>
+                        {{SpaceConstants.TwoTabsSpaces}}public {{propType}} {{columnInfo.Name}} { get; set; }
+                        """;
+                dtoExceptIdPropsCode.AppendLine(commonPropCode);
+                if (!propType.Equals("DateTime"))
+                {
+                    dtoExceptIdAndDateTimePropsCode.AppendLine(commonPropCode);
+                }
+            }
+        }
+        #endregion
+
+        #region 生成实体类代码
+        string entityCalssName = await GetEntityClassName(table);
+        string primaryKeyType = primaryKey?.ColumnType?.Contains("char") == true ? "string" : "int";
+        string entityClassCode = $$"""
+                using Iduo.Net.Entity;{{usingSystem}}{{usingDataAnnotation}}
+
+                namespace {NAMESPACE}
+                {
+                    public class {{entityCalssName}} : EntityBase<{{primaryKeyType}}>
+                    {
+                {{propsText.ToString().TrimEnd()}}
+                    }
+                }
+
+                """;
+
+        string timeRangeFilterProps = $$"""
+                {{SpaceConstants.TwoTabsSpaces}}/// <summary>
+                {{SpaceConstants.TwoTabsSpaces}}/// 开始时间
+                {{SpaceConstants.TwoTabsSpaces}}/// </summary>
+                {{SpaceConstants.TwoTabsSpaces}}public DateTime? StartTime { get; set; }
+                {{SpaceConstants.TwoTabsSpaces}}/// <summary>
+                {{SpaceConstants.TwoTabsSpaces}}/// 结束时间
+                {{SpaceConstants.TwoTabsSpaces}}/// </summary>
+                {{SpaceConstants.TwoTabsSpaces}}public DateTime? EndTime { get; set; }
+                """;
+        #endregion
+
+        return [
+            entityCalssName,
+                entityClassCode,
+                primaryKeyType,
+                dtoExceptIdPropsCode.ToString().TrimEnd(),
+                dtoExceptIdAndDateTimePropsCode.ToString().TrimEnd(),
+                timeRangeFilterProps
+        ];
+    }
+
+    /// <summary>
+    /// 获取数据库表名对应的实体类名称
+    /// </summary>
+    /// <param name="table"></param>
+    /// <returns></returns>
+    static async Task<string> GetEntityClassName(string table)
+    {
+        if (table.Contains('_'))
+        {
+            table = table[(table.IndexOf('_') + 1)..];
+        }
+        string question = $"我的数据库表名为{table},使用PascalCase风格转换为C#的实体类名称(单数形式,不要添加Entry,Model等后缀)应该为?只回答名字即可";
+        string answer = await RemoteHelpers.AskAiAsync(question, "", "", "");
+        int index = answer.IndexOf('\n');
+        string entityClassName = index > -1 ? answer[..index].Trim() : answer;
+        return entityClassName;
+    }
+
+    static async Task<List<Operation>> GetOperationsAsync(string fileOperationConfigPath)
+    {
+        string settings = await File.ReadAllTextAsync(fileOperationConfigPath);
+        var settingLines = settings.Split('\n').Select(x => x.TrimEnd().Replace("&nbsp;", SpaceConstants.OneSpace.ToString())).ToArray();
+        List<Operation> operations = [];
+        bool isGlobalVarsBlock = false;
+        for (int i = 0; i < settingLines.Length; i++)
+        {
+            string line = settingLines[i];
+            string lineTrimed = line.Trim();
+            if (lineTrimed.StartsWith("###"))
+            {
+                isGlobalVarsBlock = false;
+                // ### 表示Operation内的一个子命令
+                var operationTitle = lineTrimed.Replace("###", string.Empty).Trim();
+                #region 忽略顺序读取子命令的所有属性
+                string targetFilePattern = string.Empty;
+                string value = string.Empty;
+                string type = string.Empty;
+                string linePattern = string.Empty;
+                for (int paramIndex = 0; paramIndex < 100; paramIndex++)
+                {
+                    (var paramName, var paramValue, i) = GetNextParameter(settingLines, i);
+                    if (paramName == nameof(OperationNode.TargetFilePattern))
+                    {
+                        targetFilePattern = paramValue;
+                    }
+                    else if (paramName == nameof(NodeStep.Value))
+                    {
+                        value = paramValue;
+                    }
+                    else if (paramName == nameof(NodeStep.OperationType))
+                    {
+                        type = paramValue;
+                    }
+                    else if (paramName == nameof(NodeStep.LinePattern))
+                    {
+                        linePattern = paramValue;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+                OperationNode opNode = new()
+                {
+                    OperationTitle = operationTitle,
+                    TargetFilePattern = targetFilePattern,
+                    Steps = []
+                };
+                #endregion
+
+                #region 解析操作节点的步骤集合
+                var values = value.Split("|||");
+                var types = type.Split("|||");
+                var linePatterns = linePattern.Split("|||");
+                for (int j = 0; j < values.Length; j++)
+                {
+                    NodeStep step = new()
+                    {
+                        Value = values[j],
+                        LinePattern = linePatterns[j]
+                    };
+                    var opType = types[j].Trim();
+                    step.OperationType = opType switch
+                    {
+                        nameof(OperationType.Append) => OperationType.Append,
+                        nameof(OperationType.Prepend) => OperationType.Prepend,
+                        nameof(OperationType.Replace) => OperationType.Replace,
+                        nameof(OperationType.ReplaceAll) => OperationType.ReplaceAll,
+                        nameof(OperationType.Create) => OperationType.Create,
+                        _ => throw new Exception($"无效的操作类型:{opType}"),
+                    };
+                    opNode.Steps.Add(step);
+                    operations.Last().Nodes.Add(opNode);
+                }
+                #endregion
+            }
+            else if (lineTrimed.StartsWith("##"))
+            {
+                isGlobalVarsBlock = true;
+                // 遇到"##", 创建一个Operation对象
+                string titleLineCon = lineTrimed.Replace("##", string.Empty).Trim();
+                var workingDirMatch = Regex.Match(titleLineCon, @"(?<name>.+)\((?<workingDir>.*)\)");
+                if (!workingDirMatch.Success)
+                {
+                    throw new Exception($"请将工作目录配置到末尾:{titleLineCon}");
+                }
+                var op = new Operation
+                {
+                    Name = workingDirMatch.Groups["name"].Value,
+                    WorkingDir = workingDirMatch.Groups["workingDir"].Value,
+                    Nodes = []
+                };
+
+                operations.Add(op);
+            }
+            else if (isGlobalVarsBlock && Regex.IsMatch(line.Trim(), @"(\w+\()|(\{\{\w+\}\})"))
+            {
+                operations.Last().GlobalVariables.Add(line.Trim());
+            }
+        }
+        return operations;
+    }
+    static readonly Dictionary<string, string> _variables = [];
+    static void ResolveTargetFileNamespace(string classFileDir, string classFileProjFile)
+    {
+        #region 解析文件的命名空间(命名空间随着文件位置不同而变化)
+        if (!string.IsNullOrWhiteSpace(classFileProjFile))
+        {
+            // xxx/xxxxx.csproj
+            // xxx/
+            var csprojDir = classFileProjFile[..(classFileProjFile.LastIndexOf('/') + 1)];
+            // =>  xxxxx
+            string ns = classFileProjFile.Replace(csprojDir, string.Empty).Replace(".csproj", string.Empty);
+            var subDirectoryParts = classFileDir.Replace(csprojDir, string.Empty).Split('/', StringSplitOptions.RemoveEmptyEntries);
+            foreach (var part in subDirectoryParts)
+            {
+                ns += $".{part}";
+            }
+            _variables["NAMESPACE"] = $"{ns}";
+        }
+        #endregion
+    }
+    /// <summary>
+    /// 解析用户输入变量和函数变量(包含全局变量的解析)
+    /// </summary>
+    /// <param name="opNode"></param>
+    /// <returns></returns>
+    static async Task ResolveVariablesAsync(OperationNode opNode)
+    {
+        // 解析用户输入变量(TargetFilePattern和Steps中每个项的Value)
+        opNode.TargetFilePattern = ResolveCustomInputVariables(opNode.TargetFilePattern);
+        foreach (var step in opNode.Steps)
+        {
+            step.Value = ResolveCustomInputVariables(step.Value);
+        }
+
+        // 解析函数变量(TargetFilePattern和Steps中每个项的Value)
+        opNode.TargetFilePattern = await ResolveFunctionVariablesAsync(opNode.TargetFilePattern);
+        foreach (var step in opNode.Steps)
+        {
+            step.Value = await ResolveFunctionVariablesAsync(step.Value);
+        }
+
+        // 解析条件语句决定是否输出(TargetFilePattern和Steps中每个项的Value)
+        opNode.TargetFilePattern = ResolveIfStatement(opNode.TargetFilePattern);
+        foreach (var step in opNode.Steps)
+        {
+            step.Value = ResolveIfStatement(step.Value);
+        }
+    }
+    /// <summary>
+    /// 解析用户输入变量和函数变量(包含全局变量的解析)
+    /// </summary>
+    /// <param name="originTxt"></param>
+    /// <returns></returns>
+    static async Task<string> ResolveVariablesAsync(string originTxt)
+    {
+        originTxt = ResolveCustomInputVariables(originTxt);
+        originTxt = await ResolveFunctionVariablesAsync(originTxt);
+        return originTxt;
+    }
+
+    /// <summary>
+    /// 解析文本中需要用户实时输入确定值的变量
+    /// </summary>
+    /// <param name="originTxt"></param>
+    /// <returns></returns>
+    static string ResolveCustomInputVariables(string originTxt)
+    {
+        var matches = CustomInputVariablesPattern.Matches(originTxt);
+        foreach (Match match in matches)
+        {
+            var varName = match.Groups["varName"].Value;
+            if (_variables.TryGetValue(varName, out string? varValue))
+            {
+                originTxt = originTxt.Replace(match.Value, varValue);
+            }
+            else
+            {
+                LoggerHelper.LogInformation($"请输入\"{varName}\":");
+                var input = Console.ReadLine() ?? string.Empty;
+                _variables[varName] = input;
+                originTxt = originTxt.Replace(match.Value, input);
+            }
+        }
+        return originTxt;
+    }
+
+    /// <summary>
+    /// 解析文本中的函数变量(调用获取函数输出)
+    /// </summary>
+    /// <param name="originTxt"></param>
+    /// <returns></returns>
+    /// <exception cref="Exception"></exception>
+    static async Task<string> ResolveFunctionVariablesAsync(string originTxt)
+    {
+        var matches = originTxt.ResolvePairedSymbolsContent("\\(", "\\)", "(?<FunctionName>[A-Z]\\w+)", "->(?<SavedKey>\\w+)->\\[(?<index>\\d+|[,A-Za-z,\\s,\"]+)\\]");
+        foreach (Match functionMatch in matches)
+        {
+            var functionName = functionMatch.Groups["FunctionName"].Value;
+            var parametersTxt = functionMatch.Groups["x"].Value;
+            // 解析全局变量: {VarName}和已经解析的用户输入变量{{VarName}}
+            var resolvedParametersTxt = ResolveGlobalVariables(parametersTxt);
+            if (_variables.ContainsKey(functionName) && int.TryParse(parametersTxt, out _))
+            {
+                continue;
+            }
+            string val = string.Empty;
+            string[] parameters = resolvedParametersTxt.Split("|||");
+            var myTypes = Assembly.GetAssembly(typeof(FileHelper))?.GetTypes() ?? throw new Exception($"获取{nameof(FileHelper)}程序集报错");
+            MethodInfo? method = null;
+            foreach (var myType in myTypes)
+            {
+                if (myType.Name.Equals("FileOperationHelper"))
+                {
+                    var functionMethod = myType.GetMethods().FirstOrDefault(x => x.Name == functionName);
+                    if (functionMethod is not null)
+                    {
+                        method = functionMethod;
+                        break;
+                    }
+                }
+            }
+            if (method is null)
+            {
+                throw new Exception($"没有找到方法:{functionName}");
+            }
+            LoggerHelper.LogInformation($"即将调用方法{functionName}, 参数:");
+            foreach (var parameter in parameters)
+            {
+                LoggerHelper.LogInformation($"{SpaceConstants.OneTabSpaces}- {parameter}");
+            }
+            var methodResult = method.Invoke(null, parameters) ?? throw new Exception($"方法{functionName}调用异常");
+            if (functionName.EndsWith("Async"))
+            {
+                if (methodResult is Task<string[]> resultTask)
+                {
+                    val = string.Join("|||", await resultTask);
+                }
+                else if (methodResult is Task<string> stringResultTask)
+                {
+                    val = await stringResultTask;
+                }
+                else
+                {
+                    throw new Exception($"暂时不支持方法{functionName}返回值类型{methodResult.GetType().Name}");
+                }
+            }
+            else
+            {
+                val = methodResult is string[] result
+                    ? string.Join("|||", result)
+                    : methodResult?.ToString() ?? throw new Exception($"方法{functionName}返回值为空");
+            }
+
+            var savedKey = functionMatch.Groups["SavedKey"].Value;
+            if (!string.IsNullOrWhiteSpace(savedKey))
+            {
+                _variables[savedKey] = val;
+            }
+
+            var index = functionMatch.Groups["index"].Value;
+            if (int.TryParse(index, out int indexIntVal))
+            {
+                originTxt = originTxt.Replace(functionMatch.Value, string.IsNullOrWhiteSpace(index) ? val : val.Split("|||")[indexIntVal]);
+            }
+            else
+            {
+                // index不是要去的值的索引,  而是要以index为key保存到全局变量_variables中
+                var vals = val.Split("|||");
+                var indexes = index.Split(',').Select(x => x.Trim()).ToArray();
+
+                for (int i = 0; i < indexes.Length; i++)
+                {
+                    string key = indexes[i].Trim('"');
+                    if (!_variables.ContainsKey(key))
+                    {
+                        _variables[key] = vals[i];
+                    }
+                }
+
+                return val;
+            }
+        }
+        // 函数输出依然可能包含全局变量
+        originTxt = ResolveGlobalVariables(originTxt);
+
+        return originTxt;
+    }
+    /// <summary>
+    /// 解析根据条件判断是否需要输出的文本
+    /// </summary>
+    /// <param name="originTxt"></param>
+    /// <returns></returns>
+    static string ResolveIfStatement(string originTxt)
+    {
+        var ifMatches = IfStatementPattern.Matches(originTxt);
+        foreach (Match m in ifMatches)
+        {
+            var hasReversalSymbol = m.Groups["Reversal"].Value;
+            var contains = string.IsNullOrWhiteSpace(hasReversalSymbol);
+
+            var source = m.Groups["SourceTxt"].Value;
+            var sourceValue = _variables[source];
+
+            var subString = m.Groups["SubString"].Value;
+
+            var ifContent = m.Groups["Content"].Value;
+            var elseContent = string.Empty;
+            if (ifContent.Contains("#ELSE:"))
+            {
+                var arr = ifContent.Split("#ELSE:");
+                ifContent = arr[0];
+                elseContent = arr[1];
+            }
+
+            if ((contains && sourceValue.Contains(subString)) || (!contains && !sourceValue.Contains(subString)))
+            {
+                // 条件为真, content为需要内容
+                originTxt = originTxt.Replace(m.Value, ifContent);
+            }
+            else
+            {
+                // 条件为假, content不需要
+                originTxt = originTxt.Replace(m.Value, elseContent);
+            }
+        }
+
+        return originTxt;
+    }
+
+    /// <summary>
+    /// 解析文本中的全局变量
+    /// </summary>
+    /// <param name="originTxt"></param>
+    /// <returns></returns>
+    static string ResolveGlobalVariables(string originTxt)
+    {
+        // 获取所有匹配的全局变量并去重
+        var allMatches = GlobalVariablesPattern.Matches(originTxt);
+        List<Match> matches = [];
+        foreach (Match match in allMatches)
+        {
+            if (!matches.Any(x => x.Value == match.Value))
+            {
+                matches.Add(match);
+            }
+        }
+
+        // 替换全局变量
+        foreach (Match match in matches)
+        {
+            var key = match.Groups["key"].Value;
+            if (_variables.TryGetValue(key, out var value))
+            {
+                var index = match.Groups["index"].Value;
+                string val = string.IsNullOrWhiteSpace(index) ? value : value.Split("|||")[Convert.ToInt32(index)];
+
+                #region 解析Replace函数
+                // .Replace("xx", "xxx");
+                var callReplaceFuncStatement = match.Groups["CallReplaceFunc"].Value;
+                string first = match.Groups["First"].Value;
+                string second = match.Groups["Second"].Value;
+                if (!string.IsNullOrWhiteSpace(callReplaceFuncStatement) && !string.IsNullOrWhiteSpace(first) && !string.IsNullOrWhiteSpace(second))
+                {
+                    val = val.Replace(first, second);
+                }
+                #endregion
+
+                originTxt = originTxt.Replace(match.Value, val);
+            }
+        }
+        return originTxt;
+    }
+
+    static (string, string, int) GetNextParameter(string[] settingLines, int lineIndex)
+    {
+        lineIndex++;
+        if (lineIndex >= settingLines.Length || settingLines[lineIndex].Trim().StartsWith("###"))
+        {
+            lineIndex--;
+            return (string.Empty, string.Empty, lineIndex);
+        }
+
+        int f = -2;
+        string lineParamName = string.Empty;
+        string lineParamValue = string.Empty;
+        while (true)
+        {
+            if (lineIndex >= settingLines.Length)
+            {
+                lineIndex--;
+                break;
+            }
+            string val = settingLines[lineIndex];
+            var paramStartFlagMatch = Regex.Match(val, _parameterLineStartPattern);
+            if (paramStartFlagMatch.Success)
+            {
+                f++;
+                val = val.Replace(paramStartFlagMatch.Value, string.Empty);
+                if (string.IsNullOrWhiteSpace(lineParamName))
+                {
+                    lineParamName = paramStartFlagMatch.Groups["paramName"].Value;
+                }
+            }
+            else
+            {
+                if (Regex.IsMatch(val, _parameterLineStartPattern) || Regex.IsMatch(val, @"\s*###"))
+                {
+                    lineIndex--;
+                    break;
+                }
+            }
+            if (f == 0)
+            {
+                lineIndex--;
+                break;
+            }
+            else if (f == -1)
+            {
+                lineParamValue = lineParamValue.Length == 0 ? val : $"{lineParamValue}{Environment.NewLine}{val}";
+            }
+            if (lineParamName != nameof(NodeStep.Value))
+            {
+                break;
+            }
+            lineIndex++;
+        }
+
+        return (lineParamName, lineParamValue, lineIndex);
+    }
+
+    // string file, string value, string operationTitle, OperationType operationType, string appendedLinePattern = ""
+    /// <summary>执行用户选择的操作(所有子命令)</summary>
+    static async Task ExecuteOperationAsync(Operation selectedOp)
+    {
+        #region 准备工作 - 解析变量
+        // 预设全局变量
+        foreach (var variable in selectedOp.GlobalVariables)
+        {
+            _ = await ResolveVariablesAsync(variable);
+        }
+
+        var files = GetSourceCodeFiles(selectedOp.WorkingDir);
+
+        foreach (var opNode in selectedOp.Nodes)
+        {
+            await ResolveVariablesAsync(opNode);
+        }
+        #endregion
+
+        LoggerHelper.LogInformation($"您确定要执行此操作: {selectedOp.Name}(yes/no)");
+        var input = Console.ReadLine() ?? "";
+        if (!input.Equals("yes", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        foreach (var opNode in selectedOp.Nodes)
+        {
+            // 多个target(比如index.html和App.razor文件同时)需要执行多个步骤Step(比如添加css引用和js引用)
+            IEnumerable<string>? targetFiles = null;
+            var createFileSteps = opNode.Steps.Where(x => x.OperationType == OperationType.Create);
+            if (createFileSteps.Count() > 1)
+            {
+                throw new Exception($"创建文件操作\"{opNode.OperationTitle}\"只能包含一个步骤");
+            }
+            else if (createFileSteps.Count() == 1)
+            {
+                var step = createFileSteps.First();
+                int lastSlashIndex = opNode.TargetFilePattern.LastIndexOf('/');
+                var creatingFile = opNode.TargetFilePattern[(lastSlashIndex + 1)..];
+                if (string.IsNullOrWhiteSpace(creatingFile))
+                {
+                    throw new Exception($"\"{opNode.OperationTitle}\"没有匹配到需要创建的文件名:{opNode.TargetFilePattern}");
+                }
+                var creatingFileDir = opNode.TargetFilePattern[..lastSlashIndex] + '/';
+                var creatingFileDirFullPath = files.FirstOrDefault(x => Regex.IsMatch(x, creatingFileDir));
+                creatingFileDirFullPath = creatingFileDirFullPath?[..creatingFileDirFullPath.LastIndexOf('/')];
+                if (string.IsNullOrWhiteSpace(creatingFileDirFullPath))
+                {
+                    throw new Exception($"没有找到需要创建文件的所在目录:{creatingFileDir}");
+                }
+                var creatingFilePath = $"{creatingFileDirFullPath}/{creatingFile}";
+                if (!File.Exists(creatingFilePath))
+                {
+                    File.Create(creatingFilePath).Close();
+                }
+                targetFiles = [creatingFilePath];
+            }
+            else
+            {
+                targetFiles = files.Where(x => Regex.IsMatch(x, opNode.TargetFilePattern, RegexOptions.IgnoreCase));
+            }
+            if (!targetFiles.Any())
+            {
+                throw new Exception($"没有找到文件:{opNode.TargetFilePattern}");
+            }
+            foreach (var targetFile in targetFiles)
+            {
+                #region 解析文件的命名空间
+                var csprojFile = GetFileProjectFile(targetFile, files);
+
+                if (!string.IsNullOrWhiteSpace(csprojFile))
+                {
+                    var csprojDir = csprojFile[..(csprojFile.LastIndexOf('/') + 1)];
+                    var targetFileDir = targetFile[..(targetFile.LastIndexOf('/') + 1)];
+                    ResolveTargetFileNamespace(targetFileDir, csprojFile);
+                }
+                #endregion
+                opNode.OperationTitle = ResolveGlobalVariables(opNode.OperationTitle);
+                opNode.TargetFilePattern = ResolveGlobalVariables(opNode.TargetFilePattern);
+                foreach (var step in opNode.Steps)
+                {
+                    step.Value = ResolveGlobalVariables(step.Value);
+                    await ModifyAsync(targetFile, opNode.OperationTitle, step.Value, step.LinePattern, step.OperationType);
+                }
+            }
+        }
+
+        async Task ModifyAsync(string file, string operationTitle, string value, string appendedLinePattern, OperationType operationType)
+        {
+            value = value.Replace("&emsp;", SpaceConstants.OneTabSpaces);
+            var content = await File.ReadAllTextAsync(file);
+            if ((operationType == OperationType.Append || operationType == OperationType.Prepend) && content.Contains(value))
+            {
+                LoggerHelper.LogInformation($"- 已\"{operationTitle}\", 无需操作 ({file})");
+            }
+            else
+            {
+                string newContent;
+                if (operationType == OperationType.ReplaceAll || operationType == OperationType.Create)
+                {
+                    if (value == content)
+                    {
+                        LoggerHelper.LogInformation($"- 已\"{operationTitle}\", 无需操作 ({file})");
+                        return;
+                    }
+                    newContent = value;
+                }
+                else if (operationType == OperationType.Replace)
+                {
+                    if (content.Contains(value))
+                    {
+                        LoggerHelper.LogInformation($"- 已\"{operationTitle}\", 无需操作 ({file})");
+                        return;
+                    }
+                    newContent = Regex.Replace(content, appendedLinePattern, value);
+                }
+                else
+                {
+                    var lines = content.Split('\n').Select(x => x.TrimEnd()).ToList();
+                    if (string.IsNullOrWhiteSpace(appendedLinePattern))
+                    {
+                        lines.Add(value);
+                    }
+                    else
+                    {
+                        var appendedLine = lines.LastOrDefault(x => Regex.IsMatch(x, appendedLinePattern));
+                        if (string.IsNullOrWhiteSpace(appendedLine))
+                        {
+                            throw new Exception($"没有匹配到对应的行:{appendedLinePattern}");
+                        }
+                        var appendedLineIndex = lines.IndexOf(appendedLine);
+                        if (operationType == OperationType.Append)
+                        {
+                            lines.Insert(appendedLineIndex + 1, value);
+                        }
+                        else if (operationType == OperationType.Prepend)
+                        {
+                            lines.Insert(appendedLineIndex, value);
+                        }
+                        else
+                        {
+                            throw new Exception($"无效的操作方式:{operationType}");
+                        }
+                    }
+                    newContent = string.Join(Environment.NewLine, lines);
+                }
+
+                await File.WriteAllTextAsync(file, newContent);
+                LoggerHelper.LogInformation($"√ 操作成功: \"{operationTitle}\" ({file})");
+            }
+        }
+    }
+    enum OperationType
+    {
+        Append,
+        Prepend,
+        Replace,
+        ReplaceAll,
+        Create
+    }
+
+    class Operation
+    {
+        /// <summary>
+        /// 预设全局变量, 支持用户输入值, 支持函数调用输出值
+        /// </summary>
+        public List<string> GlobalVariables { get; set; } = [];
+        /// <summary>操作名称</summary>
+        public string Name { get; set; } = string.Empty;
+        /// <summary>指定解决方案目录</summary>
+        public string WorkingDir { get; set; } = string.Empty;
+        /// <summary>具体需要执行的哪些指令</summary>
+        public List<OperationNode> Nodes { get; set; } = [];
+    }
+    class OperationNode
+    {
+        public string OperationTitle { get; set; } = string.Empty;
+        /// <summary>
+        /// Create创建文件时为目录名; 其他情况是匹配文件名的正则表达式
+        /// </summary>
+        public string TargetFilePattern { get; set; } = string.Empty;
+
+        public List<NodeStep> Steps { get; set; } = [];
+    }
+    class NodeStep
+    {
+        /// <summary>要添加的文本</summary>
+        public string Value { get; set; } = string.Empty;
+        /// <summary>使用正则定位到行</summary>
+        public string LinePattern { get; set; } = string.Empty;
+        /// <summary>
+        /// 操作方式:
+        /// Append: 定位行的后面添加Value;
+        /// Prepend: 定位行的前面添加Value;
+        /// Replace: 替换调定位的部分(可能多行);
+        /// ReplaceAll: 将所有内容替换为Value(或创建文件)
+        /// </summary>
+        public OperationType OperationType { get; set; }
+    }
+    
+    /// <summary>
+    /// 获取指定目录下的所有源代码文件
+    /// </summary>
+    /// <param name="dir"></param>
+    /// <returns></returns>
+    public static IEnumerable<string> GetSourceCodeFiles(string dir) => Directory.GetFiles(dir, "*", new EnumerationOptions() { RecurseSubdirectories = true }).Select(x => x.Replace('\\', '/')).Where(x => !x.Contains("/obj/") && !x.Contains("/bin/"));
+    /// <summary>
+    /// 获取指定目录的文件信息
+    /// </summary>
+    /// <param name="dir">指定目录</param>
+    /// <param name="patterns">正则表达式</param>
+    /// <returns>每个正则表达式都返回第一个匹配的结果</returns>
+    /// <exception cref="Exception"></exception>
+    public static string[] GetDirectoryFileInfo(string dir, string patterns)
+    {
+        List<string> matchedResult = [];
+        var allFiles = GetSourceCodeFiles(dir);
+        foreach (var item in patterns.Split(',', ';'))
+        {
+            string result = string.Empty;
+            foreach (var filePath in allFiles)
+            {
+                Match m = Regex.Match(filePath, item);
+                if (m.Success)
+                {
+                    result = m.Value;
+                    break;
+                }
+            }
+            if (string.IsNullOrWhiteSpace(result))
+            {
+                throw new Exception($"在目录{dir}中没有找到匹配{item}的文件");
+            }
+            matchedResult.Add(result);
+        }
+        return [.. matchedResult];
+    }
+    /// <summary>
+    /// 获取项目目录
+    /// </summary>
+    /// <param name="workingDir">指定目录</param>
+    /// <param name="pattern">正则表达式</param>
+    /// <returns></returns>
+    /// <exception cref="Exception"></exception>
+    public static string[] GetFileProjDirAndNamespace(string workingDir, string pattern)
+    {
+        var sourceFiles = GetSourceCodeFiles(workingDir);
+        foreach (var sourceFile in sourceFiles)
+        {
+            var m = Regex.Match(sourceFile, pattern, RegexOptions.IgnoreCase);
+            if (m.Success)
+            {
+                var proj = GetFileProjectFile(sourceFile, sourceFiles);
+                string projDir = proj[..(proj.LastIndexOf('/') + 1)];
+                var serviceRootNS = proj.Replace(projDir, string.Empty).Replace(".csproj", string.Empty);
+                return [projDir, serviceRootNS];
+            }
+        }
+        throw new Exception("获取项目目录失败");
+    }
+    /// <summary>
+    /// 构建WhereIf链式语句
+    /// </summary>
+    /// <param name="propsCode"></param>
+    /// <returns></returns>
+    public static string BuildWhereIfStatement(string propsCode)
+    {
+        var matches = Regex.Matches(propsCode, @"public\s+(?<PropType>\w+)\s+(?<PropName>\w+)\s+\{");
+        List<Tuple<string, string>> cols = [];
+        foreach (Match match in matches.Cast<Match>())
+        {
+            string propType = match.Groups["PropType"].Value;
+            string propName = match.Groups["PropName"].Value;
+            cols.Add(Tuple.Create(propType, propName));
+        }
+
+        string keywordStatement = string.Join(" || ", cols.Where(x => x.Item1.Equals("string")).Select(x => $"x.{x.Item2}.Contains(search.KeyWord)"));
+        string statement = !string.IsNullOrWhiteSpace(keywordStatement) ?
+            $".WhereIf(x => {keywordStatement}, !string.IsNullOrWhiteSpace(search.KeyWord)){Environment.NewLine}"
+            : "";
+        foreach (var item in cols)
+        {
+            if (item.Item1.Equals("string"))
+            {
+                statement += $"{SpaceConstants.FourTabsSpaces}.WhereIf(x => x.{item.Item2}.Contains(search.{item.Item2}), !string.IsNullOrWhiteSpace(search.{item.Item2})){Environment.NewLine}";
+            }
+            else
+            {
+                statement += $"{SpaceConstants.FourTabsSpaces}.WhereIf(x => x.{item.Item2} == search.{item.Item2}, search.{item.Item2}.HasValue){Environment.NewLine}";
+            }
+        }
+        return statement.TrimEnd();
+    }
+    /// <summary>
+    /// 获取指定文件的项目文件
+    /// </summary>
+    /// <param name="targetFile">指定文件</param>
+    /// <param name="files">解决方案中的所有文件路径(目录分隔符为'/')</param>
+    /// <returns></returns>
+    /// <exception cref="Exception"></exception>
+    public static string GetFileProjectFile(string targetFile, IEnumerable<string> files)
+    {
+        // xxx/Entities/Test.cs
+        // xxx/Entities/
+        string serviceFileDir = targetFile[..(targetFile.LastIndexOf('/') + 1)];
+        var csprojFile = files.FirstOrDefault(x => x.EndsWith(".csproj") && serviceFileDir.StartsWith(x[..(x.LastIndexOf('/') + 1)])) ?? throw new Exception($"查找{targetFile}的项目文件失败");
+        return csprojFile;
+    }
+    /// <summary>
+    /// 获取时间属性赋值代码
+    /// </summary>
+    /// <param name="entityPropsCode"></param>
+    /// <returns></returns>
+    public static string[] GetDateTimePropAssignCode(string entityPropsCode)
+    {
+        string assignDateTimeWhenAddEntity = string.Empty;
+        if (entityPropsCode.Contains("CreateTime"))
+        {
+            assignDateTimeWhenAddEntity = $"entity.CreateTime = DateTime.Now;";
+        }
+        if (entityPropsCode.Contains("UpdateTime"))
+        {
+            string updateStatement = "entity.UpdateTime = DateTime.Now;";
+            assignDateTimeWhenAddEntity += string.IsNullOrEmpty(assignDateTimeWhenAddEntity) ? updateStatement : $"{Environment.NewLine}{SpaceConstants.ThreeTabsSpaces}{updateStatement}";
+        }
+
+        string assignDateTimeWhenUpdateEntity = string.Empty;
+        if (entityPropsCode.Contains("CreateTime"))
+        {
+            assignDateTimeWhenUpdateEntity = $"updatingEntity.CreateTime = entity.CreateTime;";
+        }
+        if (entityPropsCode.Contains("UpdateTime"))
+        {
+            string updateStatement = "updatingEntity.UpdateTime = DateTime.Now;";
+            assignDateTimeWhenUpdateEntity += string.IsNullOrEmpty(assignDateTimeWhenUpdateEntity) ? updateStatement : $"{Environment.NewLine}{SpaceConstants.ThreeTabsSpaces}{updateStatement}";
+        }
+
+        return [assignDateTimeWhenAddEntity, assignDateTimeWhenUpdateEntity];
+    }
+    #endregion
 }
 
 /// <summary>

@@ -87,12 +87,18 @@
 
 @section Scripts {
     <script>
+        httpRequestDataAsync("/Home/GetTemplates", document.querySelector('form')).then(templates => {
+            const templatesSelect = document.querySelector('#codeTemplate');
+            let optionsHtml = '<option>请选择</option>';
+            templates.forEach(template => optionsHtml += `<option value="${template.id}">${template.title}</option>`);
+            templatesSelect.innerHTML = optionsHtml;
+        });
+
         let allTables = {};
         let allTableOptions = {};
         const leftJoinContainer = document.querySelector('.leftJoinContainer');
-        const connectionStringInput = document.querySelector("#connectionString");
-
-        const mainTableInput = document.querySelector("#tableFullName");
+        const connStrInputSelector = '#connectionString';
+        const mainTableInputSelector = '#tableFullName';
         const tableAliasInput = document.querySelector('#tableAliasName');
 
         let mainTable = {
@@ -108,14 +114,14 @@
          * 查询连接字符串对应库的所有表
          */
         async function getDbTables(event) {
-            if (!connectionStringInput.value) {
+            if (!document.querySelector(connStrInputSelector).value) {
                 showErrorBox('连接字符串不能为空');
-                connectionStringInput.focus();
+                document.querySelector(connStrInputSelector).focus();
                 return;
             }
 
-            console.log(`查询所有表: ${connectionStringInput.value}`)
-            const { tableOptions, _ } = await getDbTableOptionsAsync(connectionStringInput.value);
+            console.log(`查询所有表: ${document.querySelector(connStrInputSelector).value}`)
+            const { tableOptions, _ } = await getDbTableOptionsAsync(document.querySelector(connStrInputSelector).value);
             // "表名"输入框 可选所有表
             document.querySelector("#allTables").innerHTML = tableOptions;
         }
@@ -123,7 +129,7 @@
          * 添加联表相关信息
          */
         async function addLeftJoinTable(e) {
-            const { tableOptions, _ } = await getDbTableOptionsAsync(connectionStringInput.value);
+            const { tableOptions, _ } = await getDbTableOptionsAsync(document.querySelector(connStrInputSelector).value);
             let leftJoinTableIndex = document.querySelector('.leftJoinContainer').querySelectorAll(".leftJoinTableIndexFlag").length;
             let joinTableContainer = document.createElement("div");
             joinTableContainer.className = "card mb-3";
@@ -187,28 +193,17 @@
             e.preventDefault();
             const submitBtn = e.target.querySelector('button[type="submit"]');
                 showSpinner(submitBtn);
-            fetch('/Home/CodeGenPost', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    title: document.querySelector('#title').value,
-                    mainTable,
-                    tableComment: document.querySelector('#tableComment') ? document.querySelector('#tableComment').value : '',
-                    leftJoinTables,
-                    templateId: document.querySelector('select[name="templateId"]').value
-                })
-            }).then(response => {
-                if (response.ok) {
-                    var rspJson = response.json();
-                    return rspJson;
-                } else {
-                    showErrorBox("Failed to do something: " + response.json());
-                }
-            }).then(rspJson => {
-                if (rspJson.code !== 1) {
-                    showErrorBox(rspJson.errMsg ? rspJson.errMsg : "操作失败")
+            const body = JSON.stringify({
+                title: document.querySelector('#title').value,
+                mainTable,
+                tableComment: document.querySelector('#tableComment') ? document.querySelector('#tableComment').value : '',
+                leftJoinTables,
+                templateId: document.querySelector('select[name="templateId"]').value
+            });
+            httpRequestAsync('/Home/CodeGenPost', document.querySelector('form'), 'POST', body)
+            .then(response => {
+                if (response.code !== 1) {
+                    showErrorBox(response.errMsg ? response.errMsg : "操作失败")
                 } else {
                     document.querySelector('#tmplRenderResult .modal-body').innerHTML = rspJson.data;
                     tmplRenderResult.show();
@@ -218,22 +213,47 @@
             }).finally(() => {
                 closeSpinner(submitBtn);
             });
+            // fetch('/Home/CodeGenPost', {
+            //     method: 'POST',
+            //     headers: {
+            //         'Content-Type': 'application/json'
+            //     },
+            //     body: body
+            // }).then(response => {
+            //     if (response.ok) {
+            //         var rspJson = response.json();
+            //         return rspJson;
+            //     } else {
+            //         showErrorBox("Failed to do something: " + response.json());
+            //     }
+            // }).then(rspJson => {
+            //     if (rspJson.code !== 1) {
+            //         showErrorBox(rspJson.errMsg ? rspJson.errMsg : "操作失败")
+            //     } else {
+            //         document.querySelector('#tmplRenderResult .modal-body').innerHTML = rspJson.data;
+            //         tmplRenderResult.show();
+            //     }
+            // }).catch(error => {
+            //     showErrorBox(error);
+            // }).finally(() => {
+            //     closeSpinner(submitBtn);
+            // });
         }
 
         /**
          * 选择了主表后获取主表相关信息
          */
         async function mainTableChanged() {
-            const connectionString = connectionStringInput.value;
+            const connectionString = document.querySelector(connStrInputSelector).value;
             if (!connectionString) {
-                connectionStringInput.focus();
+                document.querySelector(connStrInputSelector).focus();
                 showErrorBox('连接字符串不能为空');
                 return;
             }
 
-            mainTable.name = mainTableInput.value
+            mainTable.name = document.querySelector(mainTableInputSelector).value
             if (!mainTable.name) {
-                mainTableInput.focus();
+                document.querySelector(mainTableInputSelector).focus();
                 showErrorBox('主表不能为空');
                 return;
             }
@@ -259,7 +279,7 @@
          */
         async function getDbTableOptionsAsync(connectionString) {
             if (!connectionString) {
-                connectionString = connectionStringInput.value;
+                connectionString = document.querySelector(connStrInputSelector).value;
                 if (!connectionString) {
                     showErrorBox('连接字符串不能为空');
                     return;
@@ -365,7 +385,7 @@
             document.querySelector(`#leftJoinTableAlias${index}`).value = leftJoinTableAlias;
 
             // 获取联查表的所有字段
-            const response = await fetchData(`/Home/GetTableInfo?connectionString=${connectionStringInput.value}&table=${leftJoinTable}`, 'POST');
+            const response = await fetchData(`/Home/GetTableInfo?connectionString=${document.querySelector(connStrInputSelector).value}&table=${leftJoinTable}`, 'POST');
             if (response) {
                 if (response.code === 1) {
                     columns = response.data;

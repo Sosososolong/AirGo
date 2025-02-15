@@ -156,7 +156,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         /// <exception cref="Exception"></exception>
         public async Task<CommandResult> ExecuteAsync(CommandInfoInDto dto)
         {
-            var anythingInfo = await GetAnythingInfoBySettingAndCommandAsync(dto.SettingId);
+            var anythingInfo = await GetAnythingInfoBySettingIdAsync(dto.SettingId);
             var commandInfo = anythingInfo.Commands.FirstOrDefault(x => x.Name == dto.CommandName) ?? throw new Exception($"未知的命令{dto.CommandName}");
             if (anythingInfo.CommandExecutor is null)
             {
@@ -301,13 +301,13 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             return new CommandResult(false, "执行时间过长, 请稍后查看执行结果");
         }
         /// <summary>
-        /// 根据settingId和commandName获取对应的AnythingInfo
+        /// 根据settingId获取对应的AnythingInfo
         /// </summary>
         /// <param name="settingId"></param>
         /// <param name="commandName"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public async Task<AnythingInfo> GetAnythingInfoBySettingAndCommandAsync(int settingId)
+        public async Task<AnythingInfo> GetAnythingInfoBySettingIdAsync(int settingId)
         {
             if (memoryCache.TryGetValue(_cacheKeyAllAnythingInfos, out List<AnythingInfo>? anythingInfos) && anythingInfos is not null)
             {

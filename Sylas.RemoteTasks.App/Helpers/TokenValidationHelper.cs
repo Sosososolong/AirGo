@@ -328,7 +328,7 @@ namespace Sylas.RemoteTasks.App.Helpers
         /// <summary>
         /// Base-address of the token issuer
         /// </summary>
-        public string Authority { get; set; }
+        public string Authority { get; set; } = string.Empty;
 
         /// <summary>
         /// Specifies whether HTTPS is required for the discovery endpoint
@@ -348,12 +348,12 @@ namespace Sylas.RemoteTasks.App.Helpers
         /// <summary>
         /// Name of the API resource used for authentication against introspection endpoint
         /// </summary>
-        public string ApiName { get; set; }
+        public string ApiName { get; set; } = string.Empty;
 
         /// <summary>
         /// Secret used for authentication against introspection endpoint
         /// </summary>
-        public string ApiSecret { get; set; }
+        public string ApiSecret { get; set; } = string.Empty;
 
         /// <summary>
         /// Enable if this API is being secured by IdentityServer3, and if you need to support both JWTs and reference tokens.
@@ -408,7 +408,7 @@ namespace Sylas.RemoteTasks.App.Helpers
         /// <summary>
         /// back-channel handler for JWT middleware
         /// </summary>
-        public HttpMessageHandler JwtBackChannelHandler { get; set; }
+        public HttpMessageHandler JwtBackChannelHandler { get; set; } = new HttpClientHandler();
 
         /// <summary>
         /// timeout for back-channel operations

@@ -13,9 +13,9 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule
             return new AnythingCommand
             {
                 AnythingId = anythingId,
-                Name = this.Name,
-                CommandTxt = this.CommandTxt,
-                ExecutedState = this.ExecutedState,
+                Name = Name,
+                CommandTxt = CommandTxt,
+                ExecutedState = ExecutedState,
                 CreateTime = DateTime.Now,
                 UpdateTime = DateTime.Now
             };

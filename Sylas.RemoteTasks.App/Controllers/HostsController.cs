@@ -56,7 +56,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             {
                 return RequestResult<object>.Error($"未找到id为{id}的操作对象");
             }
-            var anythingInfo = await anythingService.GetAnythingInfoBySettingAndCommandAsync(id);
+            var anythingInfo = await anythingService.GetAnythingInfoBySettingIdAsync(id);
 
             return RequestResult<object>.Success(new { AnythingSetting = anythingSetting, AnythingInfo = anythingInfo });
         }
@@ -98,7 +98,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// </summary>
         /// <param name="anythingSetting"></param>
         /// <returns></returns>
-        public async Task<IActionResult> AddAnythingSettingAsync(AnythingSetting anythingSetting)
+        public async Task<IActionResult> AddAnythingSettingAsync([FromBody] AnythingSetting anythingSetting)
         {
             return Json(await anythingService.AddAnythingSettingAsync(anythingSetting));
         }

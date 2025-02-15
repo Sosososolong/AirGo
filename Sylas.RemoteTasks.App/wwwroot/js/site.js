@@ -794,43 +794,64 @@ async function handleDataForm(table, eventTrigger) {
             showWarningBox('身份已过期, 请重新登录', () => location.href = "/Home/Login");
             return null;
         }
-        fetch(url, {
-            // 你的服务器端接收上传的URL
-            method: method,
-            body: formData,
-            // Content-Type为multipart/form-data
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'authorization': `Bearer ${accessToken}`
-            },
-        })
-        .then(resp => {
-            if (resp.ok) {
-                return resp.json();
-            } else {
-                showMessage = () => showErrorBox('操作失败:' + resp.statusText);
-                return;
-            }
-        })
-        .then(data => {
-            if (data) {
-                showMessage = () => showResultBox(data);
-            }
-        })
-        .catch(error => {
-            if (e.status === 500) {
-                showMessage = () => showErrorBox('接口异常, 请联系系统管理员')
-            } else if (e.status === 404) {
-                showMessage = () => showErrorBox(`接口不存在: ${url}`)
-            } else {
-                showMessage = () => showErrorBox(e.textStatus);
-            }
-            console.log(e);
-        })
-        .finally(() => {
-            closeSpinner();
-            showMessage();
-        });
+        await httpRequestAsync(url, null, method, formData)
+            .then(data => {
+                if (data) {
+                    showMessage = () => showResultBox(data);
+                }
+            })
+            .catch(error => {
+                if (e.status === 500) {
+                    showMessage = () => showErrorBox('接口异常, 请联系系统管理员')
+                } else if (e.status === 404) {
+                    showMessage = () => showErrorBox(`接口不存在: ${url}`)
+                } else {
+                    showMessage = () => showErrorBox(e.textStatus);
+                }
+                console.log(e);
+            })
+            .finally(() => {
+                closeSpinner();
+                showMessage();
+            });
+
+        //fetch(url, {
+        //    // 你的服务器端接收上传的URL
+        //    method: method,
+        //    body: formData,
+        //    // Content-Type为multipart/form-data
+        //    headers: {
+        //        'X-Requested-With': 'XMLHttpRequest',
+        //        'authorization': `Bearer ${accessToken}`
+        //    },
+        //})
+        //.then(resp => {
+        //    if (resp.ok) {
+        //        return resp.json();
+        //    } else {
+        //        showMessage = () => showErrorBox('操作失败:' + resp.statusText);
+        //        return;
+        //    }
+        //})
+        //.then(data => {
+        //    if (data) {
+        //        showMessage = () => showResultBox(data);
+        //    }
+        //})
+        //.catch(error => {
+        //    if (e.status === 500) {
+        //        showMessage = () => showErrorBox('接口异常, 请联系系统管理员')
+        //    } else if (e.status === 404) {
+        //        showMessage = () => showErrorBox(`接口不存在: ${url}`)
+        //    } else {
+        //        showMessage = () => showErrorBox(e.textStatus);
+        //    }
+        //    console.log(e);
+        //})
+        //.finally(() => {
+        //    closeSpinner();
+        //    showMessage();
+        //});
     } else {
         // 需要提交的数据对应的所有表单项(添加时不需要Id字段, 如果带上了值为""的Id字段, 会因为转为int类型失败从而导致参数自动绑定失败)
         let formItemIds = handleType === "add" ? table.formItemIdsForAddPannel : table.formItemIds;
@@ -839,14 +860,15 @@ async function handleDataForm(table, eventTrigger) {
         let dataJsonString = JSON.stringify(data);
 
         try {
-            response = await $.ajax({
-                url: url,
-                method: method,
-                data: dataJsonString,
-                //contentType: 'application/x-www-form-urlencoded',
-                contentType: 'application/json;charset=utf-8',
-                dataType: 'json'
-            });
+            //response = await $.ajax({
+            //    url: url,
+            //    method: method,
+            //    data: dataJsonString,
+            //    //contentType: 'application/x-www-form-urlencoded',
+            //    contentType: 'application/json;charset=utf-8',
+            //    dataType: 'json'
+            //});
+            response = await httpRequestAsync(url, null, method, dataJsonString)
             showMessage = () => showResultBox(response);
         } catch (e) {
             if (e.status === 500) {

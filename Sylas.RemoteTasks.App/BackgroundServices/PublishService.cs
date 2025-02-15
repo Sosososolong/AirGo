@@ -260,6 +260,7 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                             }
                             else if (type == "2")
                             {
+                                //2;;;;DESKTOP-CPTIQKF;;;;Process352756-Socket1
                                 string childServerNodeDomain = parametersArray[1];
                                 string childServerNodeSocketNo = string.Empty;
                                 if (parametersArray.Length >= 3)

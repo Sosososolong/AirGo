@@ -6,7 +6,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection.Metadata;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -45,10 +44,10 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                     {
                         Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 创建了SshClient");
                         connection = new SshClient(Host, Port, UserName, _privateKeyFiles);
-                        
+
                         CancellationTokenSource cts = new();
                         await connection.ConnectAsync(cts.Token);
-                        
+
                         // 创建时不需要添加到池中, 用完返回进池就可以了
                         //_sshConnectionPool.Add(connection);
                         _currentConnections++;
@@ -195,7 +194,6 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
 
 
 
-#pragma warning disable CS1570 // XML 注释出现 XML 格式错误
         /// <summary>
         /// 运行命令
         /// shell命令
@@ -206,7 +204,6 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
         public async Task<SshCommand?> RunCommandAsync(string command)
-#pragma warning restore CS1570 // XML 注释出现 XML 格式错误
         {
             var cmdMatch = RegexConst.CommandRegex.Match(command);
             var action = cmdMatch.Groups["action"].Value.Replace('\\', '/');
@@ -356,7 +353,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                     throw new Exception($"本地路径:{local}不存在, 无法上传");
                 }
             }
-            
+
             ReturnConnection(conn);
         }
 
