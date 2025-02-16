@@ -11,6 +11,10 @@ namespace Sylas.RemoteTasks.Database
     public interface IDatabaseProvider
     {
         /// <summary>
+        /// 数据库类型
+        /// </summary>
+        DatabaseType DbType { get; }
+        /// <summary>
         /// 分页查询指定数据表, 可使用db参数切换到指定数据库
         /// </summary>
         /// <param name="table">查询的表明</param>
@@ -50,7 +54,7 @@ namespace Sylas.RemoteTasks.Database
         /// <param name="parameters"></param>
         /// <param name="db"></param>
         /// <returns></returns>
-        Task<int> ExecuteScalarAsync(string sql, Dictionary<string, object?> parameters, string db = "");
+        Task<int> ExecuteScalarAsync(string sql, object? parameters, string db = "");
         /// <summary>
         /// 执行增删改的SQL语句 - 可使用数据库连接字符串指定数据库
         /// </summary>

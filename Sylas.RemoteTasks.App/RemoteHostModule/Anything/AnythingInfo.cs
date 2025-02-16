@@ -1,7 +1,4 @@
-﻿using Sylas.RemoteTasks.Utils;
-using Sylas.RemoteTasks.Utils.CommandExecutor;
-using Sylas.RemoteTasks.Utils.Template;
-using System.Text.RegularExpressions;
+﻿using Sylas.RemoteTasks.Utils.CommandExecutor;
 
 namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
 {
@@ -23,7 +20,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         /// <summary>
         /// 可执行命令
         /// </summary>
-        public List<CommandInfo> Commands { get; set; } = [];
+        public IEnumerable<AnythingCommand> Commands { get; set; } = [];
 
         /// <summary>
         /// 给当前对象自定义属性

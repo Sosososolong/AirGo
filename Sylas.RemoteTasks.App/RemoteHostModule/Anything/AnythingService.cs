@@ -1,8 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Primitives;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils;
@@ -11,8 +9,6 @@ using Sylas.RemoteTasks.Utils.Constants;
 using Sylas.RemoteTasks.Utils.Dto;
 using Sylas.RemoteTasks.Utils.Template;
 using System.Net;
-using System.Net.Http;
-using System.Net.Http.Json;
 using System.Text;
 
 namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
@@ -58,24 +54,36 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             var anythingSetting = await repository.GetByIdAsync(id);
             return anythingSetting;
         }
+        /// <summary>
+        /// 根据Id查询Anything配置包括命令明细
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        public async Task<AnythingSettingDetails> GetAnythingSettingDetailsByIdAsync(int id)
+        {
+            var anythingSetting = await GetAnythingSettingByIdAsync(id) ?? throw new Exception($"配置{id}不存在");
+            var commandsPage = await _commandRepository.GetPageAsync(
+                new DataSearch(1, 1000, new DataFilter { FilterItems = [new FilterItem(nameof(AnythingCommand.AnythingId), "=", id)] })
+            );
+            var details = anythingSetting.ToDetails(commandsPage.Data);
+            return details;
+        }
 
         /// <summary>
-        /// 添加
+        /// 添加Anything
         /// </summary>
         /// <param name="anythingSetting"></param>
         /// <returns></returns>
-        public async Task<OperationResult> AddAnythingSettingAsync(AnythingSetting anythingSetting)
+        public async Task<OperationResult> AddAnythingSettingAsync(AnythingSettingDetailsInDto anythingSetting)
         {
-            var added = await repository.AddAsync(anythingSetting);
-            if (!string.IsNullOrWhiteSpace(anythingSetting.Commands))
+            var added = await repository.AddAsync(anythingSetting.ToAnythingSetting());
+            if (anythingSetting.Commands.Count() > 0)
             {
-                var commands = JsonConvert.DeserializeObject<List<CommandInfo>>(anythingSetting.Commands);
-                if (commands is not null)
+                foreach (var command in anythingSetting.Commands)
                 {
-                    foreach (var command in commands)
-                    {
-                        await _commandRepository.AddAsync(command.ToCommandEntity(anythingSetting.Id));
-                    }
+                    command.AnythingId = added;
+                    await _commandRepository.AddAsync(command);
                 }
             }
             return added > 0 ? new OperationResult(true) : new OperationResult(false, "Affected rows: 0");
@@ -88,16 +96,104 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         /// <returns></returns>
         public async Task<OperationResult> DeleteAnythingSettingByIdAsync(int id)
         {
-            var added = await repository.DeleteAsync(id);
+            var affectedRows = await repository.DeleteAsync(id);
 
-            var pageData = await _commandRepository.GetPageAsync(new DataSearch(1, 10, new DataFilter() { FilterItems = [new(nameof(AnythingCommand.AnythingId), "=", id)] }));
-            var commandIds = pageData.Data.Select(x => x.Id);
+            var commands = await GetAnythingCommandsAsync(id);
+            var commandIds = commands.Select(x => x.Id);
             foreach (var commandId in commandIds)
             {
                 await _commandRepository.DeleteAsync(commandId);
             }
 
-            return added > 0 ? new OperationResult(true) : new OperationResult(false, "Affected rows: 0");
+            return affectedRows > 0 ? new OperationResult(true) : new OperationResult(false, "Affected rows: 0");
+        }
+        /// <summary>
+        /// 通过Id删除命令记录
+        /// </summary>
+        /// <param name="anythingSetting"></param>
+        /// <returns></returns>
+        public async Task<OperationResult> DeleteAnythingCommandByIdAsync(int id)
+        {
+            var command = await _commandRepository.GetByIdAsync(id);
+            if (command is null)
+            {
+                return new OperationResult(false, "命令不存在");
+            }
+            var affectedRows = await _commandRepository.DeleteAsync(id);
+            if (affectedRows > 0)
+            {
+                var anythingSetting = await repository.GetByIdAsync(command.AnythingId);
+                if (anythingSetting is not null)
+                {
+                    string cacheKeyAnythingInfo = AnythingInfoCacheKey(anythingSetting.Id);
+                    if (memoryCache.TryGetValue(cacheKeyAnythingInfo, out AnythingInfo? anythingInfo))
+                    {
+                        if (anythingInfo is not null)
+                        {
+                            var deletedCommand = anythingInfo.Commands.FirstOrDefault(x => x.Id == id);
+                            if (deletedCommand is not null)
+                            {
+                                var commands = anythingInfo.Commands.ToList();
+                                commands.Remove(deletedCommand);
+                                anythingInfo.Commands = commands;
+                            }
+                        }
+                    }
+                }
+                return new OperationResult(true);
+            }
+            return new OperationResult(false, "Affected rows: 0");
+        }
+
+        /// <summary>
+        /// 获取Anything的命令列表
+        /// </summary>
+        /// <param name="anythingId"></param>
+        /// <returns></returns>
+        public async Task<IEnumerable<AnythingCommand>> GetAnythingCommandsAsync(int anythingId)
+        {
+            var pageData = await _commandRepository.GetPageAsync(
+                new DataSearch(
+                    1,
+                    1000,
+                    new DataFilter()
+                    {
+                        FilterItems = [
+                            new(nameof(AnythingCommand.AnythingId), "=", anythingId)
+                        ]
+                    }
+                )
+            );
+            return pageData.Data;
+        }
+        /// <summary>
+        /// 为Anything配置添加一条命令
+        /// </summary>
+        /// <param name="command"></param>
+        /// <returns></returns>
+        public async Task<OperationResult> AddCommandAsync(AnythingCommand command)
+        {
+            var commandId = await _commandRepository.AddAsync(command);
+            if (commandId > 0)
+            {
+                command.Id = commandId;
+                var anythingSetting = await repository.GetByIdAsync(command.AnythingId);
+                if (anythingSetting is not null)
+                {
+                    string cacheKeyAnythingInfo = AnythingInfoCacheKey(anythingSetting.Id);
+                    if (memoryCache.TryGetValue(cacheKeyAnythingInfo, out AnythingInfo? anythingInfo))
+                    {
+                        if (anythingInfo is not null)
+                        {
+                            var commands = anythingInfo.Commands.ToList();
+                            commands.Add(command);
+                            anythingInfo.Commands = commands;
+                        }
+                    }
+                }
+                return new OperationResult(true);
+            }
+            return new OperationResult(commandId > 0);
         }
 
         /// <summary>
@@ -125,12 +221,15 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
                 return anythingInfos;
             }
             anythingInfos = [];
-            var anythingSettingsPage = await GetAnythingSettingsAsync(new DataSearch(1, 1000));
-            if (anythingSettingsPage.Data is not null)
+            var allAnythingSettingsPage = await GetAnythingSettingsAsync(new DataSearch(1, 10000));
+            var allCmdsPage = await _commandRepository.GetPageAsync(new DataSearch(1, 100000));
+            if (allAnythingSettingsPage.Data is not null)
             {
-                foreach (var anythingSetting in anythingSettingsPage.Data)
+                foreach (var anythingSetting in allAnythingSettingsPage.Data)
                 {
-                    var anythingInfo = await BuildAnythingInfoAsync(anythingSetting);
+                    var cmds = allCmdsPage.Data.Where(x => x.AnythingId == anythingSetting.Id);
+                    var anythingSettingDetails = anythingSetting.ToDetails(cmds);
+                    var anythingInfo = await BuildAnythingInfoAsync(anythingSettingDetails);
                     anythingInfos.Add(anythingInfo);
                 }
             }
@@ -156,8 +255,8 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         /// <exception cref="Exception"></exception>
         public async Task<CommandResult> ExecuteAsync(CommandInfoInDto dto)
         {
-            var anythingInfo = await GetAnythingInfoBySettingIdAsync(dto.SettingId);
-            var commandInfo = anythingInfo.Commands.FirstOrDefault(x => x.Name == dto.CommandName) ?? throw new Exception($"未知的命令{dto.CommandName}");
+            var commandInfo = await _commandRepository.GetByIdAsync(dto.CommandId) ?? throw new Exception($"未知的命令{dto.CommandId}");
+            var anythingInfo = await GetAnythingInfoBySettingIdAsync(commandInfo.AnythingId);
             if (anythingInfo.CommandExecutor is null)
             {
                 throw new Exception("Anything Executor Error");
@@ -167,7 +266,13 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             {
                 if (AppStatus.IsCenterServer)
                 {
-                    var commandTaskDto = new CommandInfoTaskDto { CommandExecuteNo = commandTaskNo, Domain = commandInfo.Domain, SettingId = dto.SettingId, CommandName = dto.CommandName };
+                    var commandTaskDto = new CommandInfoTaskDto {
+                        CommandId = dto.CommandId,
+                        CommandExecuteNo = commandTaskNo,
+                        Domain = commandInfo.Domain,
+                        SettingId = dto.CommandId,
+                        CommandName = commandInfo.Name
+                    };
 
                     #region 将任务信息添加到domain对应队列中
                     if (!_serverNodeQueues.TryGetValue(commandInfo.Domain, out Queue<CommandInfoTaskDto>? cmdTasks) || cmdTasks is null)
@@ -300,6 +405,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             }
             return new CommandResult(false, "执行时间过长, 请稍后查看执行结果");
         }
+        string AnythingInfoCacheKey(int settingId) => $"AnythingInfo_{settingId}";
         /// <summary>
         /// 根据settingId获取对应的AnythingInfo
         /// </summary>
@@ -309,40 +415,51 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         /// <exception cref="Exception"></exception>
         public async Task<AnythingInfo> GetAnythingInfoBySettingIdAsync(int settingId)
         {
+            AnythingInfo? anythingInfo;
             if (memoryCache.TryGetValue(_cacheKeyAllAnythingInfos, out List<AnythingInfo>? anythingInfos) && anythingInfos is not null)
             {
-                var anything = anythingInfos.FirstOrDefault(x => x.SettingId == settingId);
-                return anything ?? throw new Exception("无效的Anything");
+                anythingInfo = anythingInfos.FirstOrDefault(x => x.SettingId == settingId);
+                return anythingInfo ?? throw new Exception("无效的Anything");
+            }
+            string cacheKeyAnythingInfo = AnythingInfoCacheKey(settingId);
+            if (memoryCache.TryGetValue(cacheKeyAnythingInfo, out anythingInfo))
+            {
+                return anythingInfo ?? throw new Exception("无效的Anything");
             }
             var anythingSetting = (await GetAnythingSettingByIdAsync(settingId)) ?? throw new Exception($"无效的AnythingSetting");
-            var anythingInfo = await BuildAnythingInfoAsync(anythingSetting);
+            var commands = await GetAnythingCommandsAsync(anythingSetting.Id);
+            var anythingDetails = anythingSetting.ToDetails(commands);
+            anythingInfo = await BuildAnythingInfoAsync(anythingDetails);
+
+            var cacheEntryOptions = new MemoryCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromMinutes(60 * 8));
+            memoryCache.Set(cacheKeyAnythingInfo, anythingInfo, cacheEntryOptions);
             return anythingInfo;
         }
         /// <summary>
         /// 从AnythingSetting解析一个AnythingInfo对象
         /// </summary>
-        /// <param name="anythingSetting"></param>
+        /// <param name="anythingSettingDetails"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        async Task<AnythingInfo> BuildAnythingInfoAsync(AnythingSetting anythingSetting)
+        async Task<AnythingInfo> BuildAnythingInfoAsync(AnythingSettingDetails anythingSettingDetails)
         {
             #region 解析Properties, 添加Name和Title
-            var properties = GetAllProperties(anythingSetting);
+            var properties = GetAllProperties(anythingSettingDetails);
             #endregion
 
             #region 解析Executor对象和构造函数参数(使用Properties解析参数)
             AnythingExecutor? anythingExecutor;
-            if (anythingSetting.Executor == 0)
+            if (anythingSettingDetails.Executor == 0)
             {
                 anythingExecutor = new AnythingExecutor { Name = "SystemCmd" };
             }
             else
             {
                 // 在查询Anything列表时, 多个AnythingInfo都可能对应一个Executor, 所以此查询在一瞬间可能很频繁, 所以添加了缓存
-                string cacheKey = $"CacheKeyExecutor_{anythingSetting.Executor}";
+                string cacheKey = $"CacheKeyExecutor_{anythingSettingDetails.Executor}";
                 if (!memoryCache.TryGetValue(cacheKey, out anythingExecutor) || anythingExecutor is null)
                 {
-                    anythingExecutor = await executorRepository.GetByIdAsync(anythingSetting.Executor) ?? throw new Exception($"无效的AnythingExecutor: {anythingSetting.Executor}");
+                    anythingExecutor = await executorRepository.GetByIdAsync(anythingSettingDetails.Executor) ?? throw new Exception($"无效的AnythingExecutor: {anythingSettingDetails.Executor}");
                     var cacheEntryOptions = new MemoryCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromMinutes(1));
                     memoryCache.Set(cacheKey, anythingExecutor, cacheEntryOptions);
                 }
@@ -383,8 +500,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
 
             #region 解析出AnythingInfo
             // 解析CommandTxt中的模板
-            var commands = JsonConvert.DeserializeObject<List<CommandInfo>>(anythingSetting.Commands) ?? [];
-            foreach (var anythingCommand in commands)
+            foreach (var anythingCommand in anythingSettingDetails.Commands)
             {
                 anythingCommand.CommandTxt = TmplHelper.ResolveExpressionValue(anythingCommand.CommandTxt, properties)?.ToString() ?? throw new Exception($"解析命令\"{anythingCommand.CommandTxt}\"异常");
                 if (!string.IsNullOrWhiteSpace(anythingCommand.ExecutedState))
@@ -397,12 +513,12 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
 
             var anythingInfo = new AnythingInfo()
             {
-                SettingId = anythingSetting.Id,
+                SettingId = anythingSettingDetails.Id,
                 CommandExecutor = anythingCommandExecutor,
-                Name = anythingSetting.Name,
-                Title = anythingSetting.Title,
+                Name = anythingSettingDetails.Name,
+                Title = anythingSettingDetails.Title,
                 Properties = properties,
-                Commands = commands
+                Commands = anythingSettingDetails.Commands
             };
             #endregion
 

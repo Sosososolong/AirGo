@@ -1,11 +1,6 @@
-﻿using Sylas.RemoteTasks.App.Database;
-
-namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
+﻿namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
 {
-    /// <summary>
-    /// AnythingInfo的本文配置
-    /// </summary>
-    public class AnythingSetting : EntityBase<int>
+    public class AnythingSettingDetailsInDto
     {
         /// <summary>
         /// 标识, 使用模板从属性中获取
@@ -18,21 +13,24 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         public string Title { get; set; } = string.Empty;
 
         /// <summary>
+        /// 可执行命令
+        /// </summary>
+        public IEnumerable<AnythingCommand> Commands { get; set; } = [];
+
+        /// <summary>
         /// 给当前对象自定义属性
         /// </summary>
         public string Properties { get; set; } = string.Empty;
 
         public int Executor { get; set; }
-        public AnythingSettingDetails ToDetails(IEnumerable<AnythingCommand> commands)
+        public AnythingSetting ToAnythingSetting()
         {
-            return new AnythingSettingDetails
+            return new AnythingSetting
             {
-                Id = Id,
                 Name = Name,
                 Title = Title,
                 Properties = Properties,
-                Executor = Executor,
-                Commands = commands
+                Executor = Executor
             };
         }
     }

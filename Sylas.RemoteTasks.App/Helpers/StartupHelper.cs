@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
 using Sylas.RemoteTasks.App.Database;
-using Sylas.RemoteTasks.App.RemoteHostModule;
+using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.Database;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils;
@@ -22,24 +22,6 @@ namespace Sylas.RemoteTasks.App.Helpers
             builder.Configuration.AddJsonFile("TaskConfig.log.json", optional: true, reloadOnChange: true);
             builder.Configuration.AddUserSecrets<Program>();
             builder.Configuration.AddJsonFile("TaskImportantSettings.json", optional: true, reloadOnChange: true);
-        }
-
-        public static void AddRemoteHostManager(this IServiceCollection services, IConfiguration configuration)
-        {
-            var remoteHosts = configuration.GetSection("Hosts").Get<List<RemoteHost>>() ?? [];
-
-            services.AddSingleton(remoteHosts);
-
-            services.AddSingleton(serviceProvider =>
-            {
-                var result = new List<RemoteHostInfoProvider>();
-                foreach (var remoteHost in remoteHosts)
-                {
-                    var dockerContainerProvider = new DockerContainerProvider(remoteHost);
-                    result.Add(dockerContainerProvider);
-                }
-                return result;
-            });
         }
 
         public static void AddCache(this IServiceCollection services)

@@ -1,5 +1,5 @@
-﻿async function executeCommand(settingId, commandName, executeBtn, overrideMsg = true) {
-    const requestBody = JSON.stringify({ settingId, commandName });
+﻿async function executeCommand(commandId, commandName, executeBtn, overrideMsg = true) {
+    const requestBody = JSON.stringify({ commandId });
     const data = await httpRequestDataAsync('/Hosts/ExecuteCommand', executeBtn, 'POST', requestBody);
     if (data) {
         const rigthPannel = document.querySelector('.data-right-pannel');
@@ -172,14 +172,14 @@ async function loadCommandsAsync(ele, id) {
         if (data) {
             let anythingSetting = data.anythingSetting;
             let anythingInfo = data.anythingInfo;
-
-            const commandsArr = JSON.parse(anythingSetting.commands);
+            const commandsLength = anythingInfo.commands.length;
             // cardStatus对象保存命令数组
-            cardStatus.commandArray = commandsArr;
+            cardStatus.commandArray = anythingInfo.commands;
             let commandsHtml = '';
-            const commandItemStyle = commandsArr.length > 1 ? multiCommandItemsStyle : sigleCommandItemStyle;
-            for (let i = 0; i < commandsArr.length; i++) {
-                const command = commandsArr[i];
+            const commandItemStyle = anythingInfo.commands.length > 1 ? multiCommandItemsStyle : sigleCommandItemStyle;
+            for (let i = 0; i < anythingInfo.commands.length; i++) {
+                // command和commandInfo有什么区别: command包含原始的模板命令, 我们编辑命令时应该编辑的是原始的命令, commandInfo则显示最终被解析后的命令
+                const command = anythingSetting.commands[i];
                 const commandInfo = anythingInfo.commands[i];
 
                 let commandState = '';
@@ -188,37 +188,38 @@ async function loadCommandsAsync(ele, id) {
                     commandState += `<div class="card-text">${stateArr[j]}</div>`
                 }
                 // 命令内容, 可能有多条脚本, 一个脚本一行显示到textarea中
-                let commandTxt = command.CommandTxt;
-                let commandLength = 1;
-                if (commandTxt.indexOf('\n') > -1) {
-                    commandLength = commandTxt.split('\n').length;
+                let commandOrigin = command.commandTxt;
+                let commandTxt = commandInfo.commandTxt;
+                let commandRows = 1;
+                if (commandOrigin.indexOf('\n') > -1) {
+                    commandRows = commandOrigin.split('\n').length;
                 } else {
-                    commandTxtArr = commandTxt.split(';');
-                    commandLength = commandTxtArr.length;
-                    for (var j = 0; j < commandLength; j++) {
+                    commandTxtArr = commandOrigin.split(';');
+                    commandRows = commandTxtArr.length;
+                    for (var j = 0; j < commandRows; j++) {
                         commandTxtArr[j] = commandTxtArr[j].trim();
                     }
-                    commandTxt = commandTxtArr.join('\n');
+                    commandOrigin = commandTxtArr.join('\n');
                 }
 
                 commandsHtml += `<div style="${commandItemStyle}" class="command-item" style="padding-right:10px;" draggable="true">
             <div class="input-group mb-3">
                 <div class="input-group-text">
-                  <input class="form-check-input mt-0 command-checkbox" type="checkbox" value="" aria-label="Checkbox for following text input" data-id="${id}" data-command-name="${command.Name}">
+                  <input class="form-check-input mt-0 command-checkbox" type="checkbox" value="" aria-label="Checkbox for following text input" data-id="${id}" data-command-name="${commandInfo.name}">
                 </div>
-                <textarea class="form-control form-control-sm" rows="${commandLength}" aria-label="command setting" aria-describedby="button-cmd-${id}" anything-id="${id}" oninput="inputing(this, resolveCmdSettingAsync)">${commandTxt}</textarea>
+                <textarea class="form-control form-control-sm" rows="${commandRows}" aria-label="command setting" aria-describedby="button-cmd-${id}" anything-id="${id}" oninput="inputing(this, resolveCmdSettingAsync)">${commandOrigin}</textarea>
             </div>
 
-            <button class="btn btn-sm btn-primary mb-2 ${(commandInfo && commandInfo.executedState ? " disabled" : "")}" type="button" onclick="executeCommand(${id}, '${command.Name}', this)" id="button-cmd-${id}">${command.Name}</button>
+            <button class="btn btn-sm btn-primary mb-2 ${(commandInfo && commandInfo.executedState ? " disabled" : "")}" type="button" onclick="executeCommand(${commandInfo.id}, '${commandInfo.name}', this)" id="button-cmd-${id}">${commandInfo.name}</button>
 
             <div style="font-size:12px;color:gray;padding-bottom:10px" class="command-resolved">
                 ${ !commandInfo || !commandInfo.commandTxt ? '' : commandInfo.commandTxt.split(';').join('<br/>') }
             </div>
 
             <div style="font-size:12px; margin-left:30px; color:green;">${commandState}</div>
-            <div class="arrow-up" style="position:absolute;right:5px;bottom:20px;cursor:pointer;" onclick="changeOrderAsync(this, ${id}, ${i}, ${commandsArr.length}, -1)"></div>
-            <div class="arrow-down" style="position:absolute;right:5px;bottom:-5px;cursor:pointer;" onclick="changeOrderAsync(this, ${id}, ${i}, ${commandsArr.length}, 1)"></div>
-            <div style="position:absolute;right:10px;top:10px;cursor:pointer;font-size:8px;" onclick="showConfirmBox('确定移除命令[${command.Name}]吗?', () => removeCommandItemAsync(this, ${id}, ${i}))">❌</div>
+            <div class="arrow-up" style="position:absolute;right:5px;bottom:20px;cursor:pointer;" onclick="changeOrderAsync(this, ${id}, ${i}, ${commandsLength}, -1)"></div>
+            <div class="arrow-down" style="position:absolute;right:5px;bottom:-5px;cursor:pointer;" onclick="changeOrderAsync(this, ${id}, ${i}, ${commandsLength}, 1)"></div>
+            <div style="position:absolute;right:10px;top:10px;cursor:pointer;font-size:8px;" onclick="showConfirmBox('确定移除命令[${commandInfo.name}]吗?', () => removeCommandItemAsync(this, ${id}, ${commandInfo.id}, ${i}))">❌</div>
         </div>`;
             }
 
@@ -237,7 +238,7 @@ async function loadCommandsAsync(ele, id) {
                 <div style="color:white;font-size:24px;cursor:pointer;padding: 0 10px;line-height:12px;" onclick="resizeDataPannel(event, ${id})">-</div>
             </div>
             <div class="data-pannel-body">
-                <textarea id='properties-${id}' placeholder="设置变量" style="background-color:rgba(255,255,255,0);color:white;" name="properties" rows="6" class="form-control mb-2">${anythingSetting.properties}</textarea><input type="hidden" type="number" id="setting-id-${id}" name="id" value="${id}">
+                <textarea id='properties-${id}' placeholder="设置变量" style="background-color:rgba(255,255,255,0);color:white;" name="properties" rows="6" class="form-control mb-2">${JSON.stringify(anythingInfo.properties)}</textarea><input type="hidden" type="number" id="setting-id-${id}" name="id" value="${id}">
                 <div class="d-flex justify-content-end">
                     <button type="button" class="btn btn-primary btn-sm" data-content="formItemIds:properties-${id};setting-id-${id}" data-execute-url="${apiUpdateUrl}" data-method="POST" onclick="showConfirmBox('确定更新变量吗?', () => execute(this))">更新变量</button>
                 </div>
@@ -355,7 +356,7 @@ async function changeOrderAsync(trigger, id, currentCommandIndex, length, step) 
  * @param {any} id
  * @param {any} removedIndex
  */
-async function removeCommandItemAsync(trigger, id, removedIndex) {
+async function removeCommandItemAsync(trigger, id, commandId, removedIndex) {
     // 先移除cardStatus中的对应的命令
     const cardStatus = cardsStatus.find(x => x.id == id);
     const commands = cardStatus.commandArray;
@@ -367,6 +368,19 @@ async function removeCommandItemAsync(trigger, id, removedIndex) {
 
     // 更新anything的命令集
     await updateAnythingCommandsFromCardStatus(id, commands);
+    await removeCommandAsync(id, commandId);
+}
+
+async function removeCommandAsync(id, commandId) {
+    const params = { commandId };
+    const paramsJson = JSON.stringify(params);
+    const trigger = {
+        // dataTableId: '', // 用于更新后重载数据表格
+        dataContent: paramsJson,
+        dataExecuteUrl: `/Hosts/DeleteAnythingCommandById?id=${commandId}`,
+        dataMethod: 'POST'
+    };
+    execute(trigger, () => loadCommandsAsync(document.querySelector(`#button-cmd-${id}`).closest('.card').querySelector('.card-title'), id));
 }
 
 /**
@@ -453,12 +467,11 @@ async function updateAnythingCommandsAsync(id, commands) {
  */
 async function addAnythingCommandAsync(id, command) {
     command.anythingId = id.toString();
-    const params = { target: 'anythingcommands', records: [command] };
-    const paramsJson = JSON.stringify(params);
+    const paramsJson = JSON.stringify(command);
     const trigger = {
         // dataTableId: '', // 用于更新后重载数据表格
         dataContent: paramsJson,
-        dataExecuteUrl: '/Home/Post',
+        dataExecuteUrl: '/Hosts/AddCommand',
         dataMethod: 'POST'
     };
 

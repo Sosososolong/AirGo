@@ -1,5 +1,5 @@
 ﻿using Newtonsoft.Json;
-using Sylas.RemoteTasks.App.RemoteHostModule;
+using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
 using Sylas.RemoteTasks.Utils;
 using Sylas.RemoteTasks.Utils.CommandExecutor;
@@ -342,7 +342,7 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                     }
                     _logger.LogCritical("Center Server - Command Sender[{threadNo}] -> {childServerNodeDomain}_Node-{childServerNodeSocketNo}: 队列中读取到一条给自服务节点命令任务: {CommandName}", threadNo, childServerNodeDomain, childServerNodeSocketNo, commandInfoTaskDto.CommandName);
                     // 处理一条命令
-                    var sendResult = await socketForClient.SendTextAsync($"{commandInfoTaskDto.SettingId};;;;{commandInfoTaskDto.CommandName};;;;{commandInfoTaskDto.CommandExecuteNo}{_endFlag}");
+                    var sendResult = await socketForClient.SendTextAsync($"{commandInfoTaskDto.CommandId};;;;{commandInfoTaskDto.CommandExecuteNo}{_endFlag}");
                     _logger.LogCritical("Center Server - Command Sender[{threadNo}] -> {childServerNodeDomain}_Node-{childServerNodeSocketNo}: 成功向子节点发送命令的执行任务({sendResult})", threadNo, childServerNodeDomain, childServerNodeSocketNo, sendResult);
                 }
             }
@@ -545,23 +545,22 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                                         await RecordHeartbeatsLogAsync($"Server Node({_domain}) - {socketNo}: keep-alive <-");
                                         continue;
                                     }
-                                    else if (arr.Length < 3)
+                                    else if (arr.Length < 2)
                                     {
                                         _logger.LogError("Server Node({domain} - {socketNo}): 参数不足{msg}", _domain, socketNo, msgFromCenter);
                                     }
-                                    else if (!int.TryParse(arr[0], out int settingId))
+                                    else if (!int.TryParse(arr[0], out int commandId))
                                     {
                                         _logger.LogError("Server Node({domain} - {socketNo}): settingId({settingIdStr})无法转换为整数", _domain, socketNo, arr[0]);
                                     }
                                     else
                                     {
                                         _logger.LogCritical("Server Node({domain} - {socketNo}): 接收到来自中心服务器的命令任务: {anythingCommand}", _domain, socketNo, msgFromCenter);
-                                        string commandName = arr[1];
-                                        string commandExecuteNo = arr[2];
+                                        string commandExecuteNo = arr[1];
                                         using var scope = _scopeFactory.CreateScope();
                                         var anythingService = scope.ServiceProvider.GetRequiredService<AnythingService>();
                                         // 执行命令
-                                        var commandResult = await anythingService.ExecuteAsync(new() { SettingId = settingId, CommandName = commandName, CommandExecuteNo = commandExecuteNo });
+                                        var commandResult = await anythingService.ExecuteAsync(new() { CommandId = commandId, CommandExecuteNo = commandExecuteNo });
                                         string commandResultJson = JsonConvert.SerializeObject(commandResult);
                                         await socket.SendTextAsync($"{commandResultJson}{_endFlag}");
                                     }

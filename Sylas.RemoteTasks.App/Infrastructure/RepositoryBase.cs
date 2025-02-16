@@ -72,7 +72,11 @@ namespace Sylas.RemoteTasks.App.Infrastructure
             string sql = DbTableInfo<T>._insertSql;
             var parameters = DbTableInfo<T>._getInsertSqlParameters(t);
             await Console.Out.WriteLineAsync($"仓储获取Insert语句信息耗时: {(DateTime.Now - start).TotalMilliseconds}/ms");
-            return await _db.ExecuteSqlAsync(sql, parameters);
+            if (_db.DbType == DatabaseType.Pg)
+            {
+                sql = $"{sql} RETURNING id";
+            }
+            return await _db.ExecuteScalarAsync(sql, parameters);
         }
 
         /// <summary>

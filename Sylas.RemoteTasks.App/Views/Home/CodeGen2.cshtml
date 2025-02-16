@@ -8,7 +8,7 @@
     <input type="text" id="title" name="title" class="form-control">
 
     <label for="connectionString" class="form-label mt-3">数据库连接字符串</label>
-    <input type="text" id="connectionString" name="connectionString" class="form-control" onchange="getDbTables(event)">
+    <input type="text" id="connectionString" name="connectionString" class="form-control" onchange="getDbTables()">
 
     <label for="tableFullName" class="form-label mt-3">数据表表名</label>
     <input type="text" id="tableFullName" name="tableFullName" list="allTables" class="form-control mb-3" onchange="mainTableChanged()">
@@ -21,7 +21,7 @@
 
     <div class="leftJoinContainer mt-3">
         <div class="text-end">
-            <button class="btn btn-primary mb-3 add-related-btn" type="button" onclick="addLeftJoinTable(event)">添加联表</button>
+            <button class="btn btn-primary mb-3 add-related-btn" type="button" onclick="addLeftJoinTable()">添加联表</button>
         </div>
     </div>
 
@@ -113,7 +113,7 @@
         /**
          * 查询连接字符串对应库的所有表
          */
-        async function getDbTables(event) {
+        async function getDbTables() {
             if (!document.querySelector(connStrInputSelector).value) {
                 showErrorBox('连接字符串不能为空');
                 document.querySelector(connStrInputSelector).focus();
@@ -128,7 +128,7 @@
         /**
          * 添加联表相关信息
          */
-        async function addLeftJoinTable(e) {
+        async function addLeftJoinTable() {
             const { tableOptions, _ } = await getDbTableOptionsAsync(document.querySelector(connStrInputSelector).value);
             let leftJoinTableIndex = document.querySelector('.leftJoinContainer').querySelectorAll(".leftJoinTableIndexFlag").length;
             let joinTableContainer = document.createElement("div");

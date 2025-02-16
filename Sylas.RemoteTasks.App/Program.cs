@@ -6,7 +6,6 @@ using Sylas.RemoteTasks.App.ExceptionHandlers;
 using Sylas.RemoteTasks.App.Helpers;
 using Sylas.RemoteTasks.App.Hubs;
 using Sylas.RemoteTasks.App.Infrastructure;
-using Sylas.RemoteTasks.App.RemoteHostModule;
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
 using Sylas.RemoteTasks.App.RequestProcessor;
 using Sylas.RemoteTasks.Utils.Constants;
@@ -37,9 +36,6 @@ builder.Services.AddSignalR();
 builder.Services.AddHttpClient();
 builder.Services.AddHttpContextAccessor();
 
-// 添加远程主机服务对象
-builder.Services.AddRemoteHostManager(builder.Configuration);
-
 // 添加"网络请求任务"工厂
 builder.Services.AddSingleton<RequestProcessorBase>();
 
@@ -58,7 +54,6 @@ builder.Services.AddSingleton<DatabaseProvider>();
 builder.Services.AddDatabaseUtils();
 
 // 添加服务
-builder.Services.AddTransient<HostService>();
 builder.Services.AddTransient<AnythingService>();
 builder.Services.AddTransient<RequestProcessorService>();
 

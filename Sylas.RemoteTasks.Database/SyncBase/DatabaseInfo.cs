@@ -437,20 +437,20 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="parameters"></param>
         /// <param name="db"></param>
         /// <returns></returns>
-        public async Task<int> ExecuteScalarAsync(string sql, Dictionary<string, object?> parameters, string db = "")
+        public async Task<int> ExecuteScalarAsync(string sql, object? parameters, string db = "")
         {
             using var conn = GetDbConnection(_connectionString);
             if (!string.IsNullOrWhiteSpace(db))
             {
                 conn.ChangeDatabase(db);
             }
-            var lastInsertRowId = 0;
+            var result = 0;
             conn.Open();
             using var trans = conn.BeginTransaction();
             try
             {
                 _logger.LogDebug(sql);
-                lastInsertRowId = await conn.ExecuteScalarAsync<int>(sql, parameters, transaction: trans);
+                result = await conn.ExecuteScalarAsync<int>(sql, parameters, transaction: trans);
             }
             catch (Exception)
             {
@@ -458,7 +458,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 throw;
             }
             trans.Commit();
-            return lastInsertRowId;
+            return result;
         }
         /// <summary>
         /// 执行增删改的SQL语句 - 可使用数据库连接字符串指定数据库

@@ -15,6 +15,10 @@ namespace Sylas.RemoteTasks.Database.SyncBase
     public class DbTableInfo<T>
     {
         /// <summary>
+        /// 数据库类型
+        /// </summary>
+        public readonly static DatabaseType DbType;
+        /// <summary>
         /// 数据表名
         /// </summary>
         public readonly static string _tableName;

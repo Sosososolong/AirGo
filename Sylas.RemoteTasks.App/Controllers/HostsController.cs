@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Sylas.RemoteTasks.App.RemoteHostModule;
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils;
@@ -9,26 +8,13 @@ using Sylas.RemoteTasks.Utils.Dto;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {
-    public class HostsController(ILoggerFactory loggerFactory, HostService hostService, AnythingService anythingService) : CustomBaseController
+    public class HostsController(ILoggerFactory loggerFactory, AnythingService anythingService) : CustomBaseController
     {
-        private readonly HostService _hostService = hostService;
-
         public ILogger Logger { get; } = loggerFactory.CreateLogger<HostsController>();
         [AllowAnonymous]
         public IActionResult Index()
         {
-            var hostProviders = _hostService.GetRemoteHosts();
-            return View(hostProviders);
-        }
-
-        /// <summary>
-        /// 执行 远程主机信息(Docker容器等) 动态生成的对应命令
-        /// </summary>
-        /// <param name="executeDto"></param>
-        /// <returns></returns>
-        public IActionResult Execute([FromBody] ExecuteDto executeDto)
-        {
-            return Json(_hostService.Execute(executeDto));
+            return View();
         }
 
         /// <summary>
@@ -51,14 +37,14 @@ namespace Sylas.RemoteTasks.App.Controllers
             {
                 return RequestResult<object>.Error("id不能为空");
             }
-            var anythingSetting = await anythingService.GetAnythingSettingByIdAsync(id);
-            if (anythingSetting is null)
+            var anythingDetails = await anythingService.GetAnythingSettingDetailsByIdAsync(id);
+            if (anythingDetails is null)
             {
                 return RequestResult<object>.Error($"未找到id为{id}的操作对象");
             }
             var anythingInfo = await anythingService.GetAnythingInfoBySettingIdAsync(id);
 
-            return RequestResult<object>.Success(new { AnythingSetting = anythingSetting, AnythingInfo = anythingInfo });
+            return RequestResult<object>.Success(new { AnythingSetting = anythingDetails, AnythingInfo = anythingInfo });
         }
 
         /// <summary>
@@ -98,7 +84,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// </summary>
         /// <param name="anythingSetting"></param>
         /// <returns></returns>
-        public async Task<IActionResult> AddAnythingSettingAsync([FromBody] AnythingSetting anythingSetting)
+        public async Task<IActionResult> AddAnythingSettingAsync([FromBody] AnythingSettingDetailsInDto anythingSetting)
         {
             return Json(await anythingService.AddAnythingSettingAsync(anythingSetting));
         }
@@ -126,6 +112,19 @@ namespace Sylas.RemoteTasks.App.Controllers
         public async Task<IActionResult> DeleteAnythingSettingByIdAsync(int id)
         {
             return Json(await anythingService.DeleteAnythingSettingByIdAsync(id));
+        }
+        public async Task<IActionResult> DeleteAnythingCommandByIdAsync(int id)
+        {
+            return Json(await anythingService.DeleteAnythingCommandByIdAsync(id));
+        }
+        /// <summary>
+        /// 为Anything配置添加一条命令
+        /// </summary>
+        /// <param name="command"></param>
+        /// <returns></returns>
+        public async Task<IActionResult> AddCommandAsync([FromBody] AnythingCommand command)
+        {
+            return Json(await anythingService.AddCommandAsync(command));
         }
         /// <summary>
         /// 解析一个命令模板

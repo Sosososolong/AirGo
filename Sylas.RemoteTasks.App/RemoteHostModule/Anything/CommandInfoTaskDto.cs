@@ -1,6 +1,6 @@
-﻿namespace Sylas.RemoteTasks.App.RemoteHostModule
+﻿namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
 {
-    public class CommandInfoInDto
+    public class CommandInfoTaskDto : CommandInfoInDto
     {
         /// <summary>
         /// AnythingSetting的Id
@@ -11,8 +11,8 @@
         /// </summary>
         public string CommandName { get; set; } = string.Empty;
         /// <summary>
-        /// 命令执行的编号, 命令结果原样返回, 用于客户端并发状态下匹配发送的命令和对应的结果
+        /// 命令所属主机域名
         /// </summary>
-        public string CommandExecuteNo { get; set; } = string.Empty;
+        public string Domain { get; set; } = string.Empty;
     }
 }

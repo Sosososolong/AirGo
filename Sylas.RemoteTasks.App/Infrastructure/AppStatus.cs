@@ -1,4 +1,6 @@
-﻿namespace Sylas.RemoteTasks.App.RemoteHostModule
+﻿using Sylas.RemoteTasks.Database.SyncBase;
+
+namespace Sylas.RemoteTasks.App.Infrastructure
 {
     public class AppStatus
     {

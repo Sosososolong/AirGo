@@ -32,6 +32,10 @@ public class DatabaseProvider : IDatabaseProvider
         }
     }
     /// <summary>
+    /// 数据库类型
+    /// </summary>
+    public DatabaseType DbType => DatabaseInfo.GetDbType(ConnectionString);
+    /// <summary>
     /// 数据库连接字符串
     /// </summary>
     private readonly IConfiguration _configuration;
@@ -170,7 +174,7 @@ public class DatabaseProvider : IDatabaseProvider
     /// <param name="db"></param>
     /// <returns></returns>
     /// <exception cref="Exception"></exception>
-    public async Task<DataSet> QueryAsync(string sqlStr, Dictionary<string, object?> parameters, string db = "")
+    public async Task<DataSet> QueryAsync(string sqlStr, IDictionary<string, object?> parameters, string db = "")
     {
         if (string.IsNullOrWhiteSpace(ConnectionString))
         {
@@ -417,9 +421,9 @@ public class DatabaseProvider : IDatabaseProvider
     /// <param name="parameters"></param>
     /// <param name="db"></param>
     /// <returns></returns>
-    public async Task<int> ExecuteScalarAsync(string sql, Dictionary<string, object?> parameters, string db = "")
+    public async Task<int> ExecuteScalarAsync(string sql, object? parameters, string db = "")
     {
-        var dataSet = await QueryAsync(sql, parameters, db);
+        var dataSet = await QueryAsync(sql, parameters as Dictionary<string, object?> ?? [], db);
         return Convert.ToInt32(dataSet.Tables[0].Rows[0][0]);
     }
     /// <summary>

@@ -7,6 +7,7 @@ using RazorEngine.Templating;
 using Sylas.RemoteTasks.App.Database;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.Models;
+using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
 using Sylas.RemoteTasks.App.Snippets;
 using Sylas.RemoteTasks.Database.CodeGenerator;
 using Sylas.RemoteTasks.Database.SyncBase;
@@ -1089,11 +1090,6 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// <returns></returns>
         public async Task<RequestResult<bool>> PatchAsync([FromServices] DatabaseInfo db, [FromBody] PatchDto patchDto)
         {
-            //Dictionary<string, object> idAndUpdatingFields = [];
-            //foreach (var item in patchDto.Fields)
-            //{
-            //    idAndUpdatingFields.Add(item.Key, item.Value as object);
-            //}
             var res = await db.UpdateAsync(patchDto.Target, patchDto.Fields);
             return RequestResult<bool>.Success(res);
         }
@@ -1104,7 +1100,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// <param name="db"></param>
         /// <param name="searchDynamic"></param>
         /// <returns></returns>
-        public async Task<RequestResult<PagedData<dynamic>>> GetAsync([FromServices] DatabaseInfo db, [FromBody] DataSearchDynamic searchDynamic)
+        public async Task<RequestResult<PagedData<dynamic>>> QueryAsync([FromServices] DatabaseInfo db, [FromBody] DataSearchDynamic searchDynamic)
         {
             if (string.IsNullOrWhiteSpace(searchDynamic.TableName))
             {
