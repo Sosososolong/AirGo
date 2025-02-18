@@ -217,7 +217,7 @@ async function loadCommandsAsync(ele, id) {
                 <textarea class="form-control form-control-sm command-input-${commandInfo.id}" rows="${commandRows}" aria-label="command setting" aria-describedby="button-cmd-${id}" anything-id="${id}" oninput="inputing(this, resolveCmdSettingAsync)">${commandOrigin}</textarea>
             </div>
 
-            <button class="btn btn-sm btn-primary mb-2 ${(commandInfo && commandInfo.executedState ? " disabled" : "")}" type="button" onclick="executeCommand(${commandInfo.id}, '${commandInfo.name}', this)" id="button-cmd-${commandInfo.id}">${commandInfo.name}</button>
+            <button class="btn btn-sm btn-danger mb-2 ${(commandInfo && commandInfo.executedState ? " disabled" : "")}" type="button" onclick="executeCommand(${commandInfo.id}, '${commandInfo.name}', this)" id="button-cmd-${commandInfo.id}">${commandInfo.name}</button>
             <button class="btn btn-sm btn-primary mb-2" type="button" onclick="updateCommandAsync(${commandInfo.id})">更新命令</button>
 
             <div style="font-size:12px;color:gray;padding-bottom:10px;max-height:200px;overflow:auto;" class="scrollable-nobar command-resolved">

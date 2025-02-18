@@ -1246,7 +1246,6 @@ public partial class FileHelper
         return (lineParamName, lineParamValue, lineIndex);
     }
 
-    static readonly string[] _realTimeResolvedVariables = ["NAMESPACE"];
     // string file, string value, string operationTitle, OperationType operationType, string appendedLinePattern = ""
     /// <summary>执行用户选择的操作(所有子命令)</summary>
     static async Task<string> ExecuteOperationAsync(Operation selectedOp)

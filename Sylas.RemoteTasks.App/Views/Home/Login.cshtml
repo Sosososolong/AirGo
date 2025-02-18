@@ -62,17 +62,28 @@
         border-radius: 10px;
         cursor: pointer;
     }
-</style>
+    .login-btn:hover {
+        background-color: #2980b9;
+    }
+
+    button:disabled {
+        color: #ccc;
+        background-color: #eee;
+        border: none;
+        cursor: not-allowed;
+    }
+    </style>
 
 <div id="login_box">
     <h2>LOGIN</h2>
+    <p class="msg" style="color:orange;"></p>
     <div class="input_box">
         <input type="text" class="username login-input" placeholder="请输入用户名" />
     </div>
     <div class="input_box">
         <input type="password" class="password login-input" placeholder="请输入密码" />
     </div>
-    <button class="login-btn">登录</button>
+    <button class="login-btn">登录<span class="loader"></span></button>
 </div>
 
 <script>
@@ -85,13 +96,24 @@
     firstTimeInit = false;
 
     document.querySelector('button').onclick = () => {
+        document.querySelector('.msg').textContent = '';
         const username = document.querySelector('.username').value;
         const password = document.querySelector('.password').value;
+        if (!username) {
+            document.querySelector('.msg').textContent = "用户名不能为空";
+            return;
+        }
+        if (!password) {
+            document.querySelector('.msg').textContent = "密码不能为空";
+            return;
+        }
+        
         login(username, password);
     };
 
     function login(username, password) {
         const redirectPath = getQueryStringParameter('redirect_path')
+        document.querySelector('.login-btn').setAttribute("disabled", "disabled");
         fetch(`/Home/GetToken?username=${username}&password=${password}`, {
             "headers": {
                 "accept": "application/json",
@@ -105,14 +127,21 @@
         }).then(response => response.text())
             .then(result => {
                 var userInfoResponse = JSON.parse(result);
+                if (userInfoResponse.code == 400) {
+                    document.querySelector('.msg').textContent = "登录失败:" + userInfoResponse.data[0];
+                    return;
+                }
                 localStorage.setItem("userinfo", JSON.stringify(userInfoResponse.data));
                 localStorage.setItem("access_token", userInfoResponse.data.access_token);
                 localStorage.setItem("access_token_expires_time", userInfoResponse.data.expires_time);
                 location.href = redirectPath ? redirectPath : "/";
             })
             .catch(error => {
-                alert('登陆失败');
+                alert('登录失败');
                 console.log(error);
+            })
+            .finally(() => {
+                document.querySelector('.login-btn').removeAttribute("disabled");
             });
     }
 

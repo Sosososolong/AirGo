@@ -676,7 +676,7 @@ async function httpRequestAsync(url, spinnerEle = null, method = 'POST', body = 
 
         if (!response.ok) {
             if (response.status === 401) {
-                showWarningBox('身份已过期, 请点击确定刷新页面', () => location.reload());
+                showWarningBox('身份已过期, 请重新登录', () => location.href = "/Home/Login");
                 return null;
             }
             else if (response.status === 404) {
@@ -1211,6 +1211,10 @@ function inputing(input, inputHandler) {
  * 创建一个数据面板
  */
 function newDataPannel(pannelId, pannelClass, innerHtml) {
+    var existPannel = document.querySelector('#' + pannelId);
+    if (existPannel) {
+        existPannel.remove();
+    }
     // 展示properties
     const propertiesPannel = document.createElement('div');
     propertiesPannel.id = pannelId;
