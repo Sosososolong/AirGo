@@ -609,7 +609,8 @@ public partial class FileHelper
         var matches = Regex.Matches(commandContent, @"###\s*[\w\W]+?(?=(###|$))");
         foreach (var m in matches.Cast<Match>())
         {
-            string nodeConfig = m.Value;
+            string nodeConfig = m.Value
+                .Replace("&nbsp;", SpaceConstants.OneSpace.ToString());
 
             var opNode = ResolveNodeFromConfig(nodeConfig);
             selectedOp.Nodes.Add(opNode);
@@ -703,6 +704,18 @@ public partial class FileHelper
         }
         return opNode;
     }
+    /// <summary>
+    /// 大驼峰转小驼峰
+    /// </summary>
+    /// <param name="origin"></param>
+    /// <returns></returns>
+    public static string ToCamelCase(string origin) => origin.ToCamelCase();
+    /// <summary>
+    /// 获取单数的复数形式
+    /// </summary>
+    /// <param name="word"></param>
+    /// <returns></returns>
+    public static string Pluralize(string word) => word.Pluralize();
     /// <summary>
     /// 获取数据库表对应的实体类代码
     /// conn.DbMaintenance会反射获取数据库对应的实例(如MySqlDbMaintenance)
@@ -812,11 +825,11 @@ public partial class FileHelper
 
         return [
             entityCalssName,
-                entityClassCode,
-                primaryKeyType,
-                dtoExceptIdPropsCode.ToString().TrimEnd(),
-                dtoExceptIdAndDateTimePropsCode.ToString().TrimEnd(),
-                timeRangeFilterProps
+            entityClassCode,
+            primaryKeyType,
+            dtoExceptIdPropsCode.ToString().TrimEnd(),
+            dtoExceptIdAndDateTimePropsCode.ToString().TrimEnd(),
+            timeRangeFilterProps
         ];
     }
 
@@ -832,7 +845,7 @@ public partial class FileHelper
             table = table[(table.IndexOf('_') + 1)..];
         }
         string question = $"我的数据库表名为{table},使用PascalCase风格转换为C#的实体类名称(单数形式,不要添加Entry,Model等后缀)应该为?只回答名字即可";
-        string answer = await RemoteHelpers.AskAiAsync(question, "", "", "");
+        string answer = await RemoteHelpers.AskAiAsync(question);
         int index = answer.IndexOf('\n');
         string entityClassName = index > -1 ? answer[..index].Trim() : answer;
         return entityClassName;
@@ -942,7 +955,10 @@ public partial class FileHelper
         }
         return operations;
     }
-    static readonly Dictionary<string, string> _variables = [];
+    static readonly Dictionary<string, string> _variables = new()
+    {
+        { "TAB", SpaceConstants.OneTabSpaces }
+    };
     static void ResolveTargetFileNamespace(string classFileDir, string classFileProjFile)
     {
         #region 解析文件的命名空间(命名空间随着文件位置不同而变化)
@@ -973,6 +989,7 @@ public partial class FileHelper
         opNode.TargetFilePattern = await ResolveFunctionVariablesAsync(opNode.TargetFilePattern);
         foreach (var step in opNode.Steps)
         {
+            step.LinePattern = await ResolveFunctionVariablesAsync(step.LinePattern);
             step.Value = await ResolveFunctionVariablesAsync(step.Value);
         }
 
@@ -1229,6 +1246,7 @@ public partial class FileHelper
         return (lineParamName, lineParamValue, lineIndex);
     }
 
+    static readonly string[] _realTimeResolvedVariables = ["NAMESPACE"];
     // string file, string value, string operationTitle, OperationType operationType, string appendedLinePattern = ""
     /// <summary>执行用户选择的操作(所有子命令)</summary>
     static async Task<string> ExecuteOperationAsync(Operation selectedOp)
@@ -1308,6 +1326,8 @@ public partial class FileHelper
                     step.Value = ResolveGlobalVariables(step.Value);
                     await ModifyAsync(targetFile, opNode.NodeTitle, step.Value, step.LinePattern, step.OperationType);
                 }
+                // "NAMESPACE"变量值每个文件需要实时解析, 不删除会导致下个文件会提前被解析出当前值
+                _variables.Remove("NAMESPACE");
             }
         }
 
@@ -1315,7 +1335,6 @@ public partial class FileHelper
 
         async Task ModifyAsync(string file, string operationTitle, string value, string appendedLinePattern, OperationType operationType)
         {
-            value = value.Replace("&emsp;", SpaceConstants.OneTabSpaces);
             var content = await File.ReadAllTextAsync(file);
             if ((operationType == OperationType.Append || operationType == OperationType.Prepend) && content.Contains(value))
             {

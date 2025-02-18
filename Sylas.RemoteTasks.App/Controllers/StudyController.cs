@@ -2,8 +2,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.Study;
+using Sylas.RemoteTasks.Common.Dtos;
 using Sylas.RemoteTasks.Database.SyncBase;
-using Sylas.RemoteTasks.Utils.Dto;
 using System.ComponentModel.DataAnnotations;
 
 namespace Sylas.RemoteTasks.App.Controllers

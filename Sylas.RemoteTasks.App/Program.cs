@@ -21,6 +21,8 @@ builder.AddConfiguration();
 
 // 读取服务器状态等信息
 StartupHelper.GetAppStatus(builder.Configuration);
+// 添加AI服务相关配置
+builder.Services.AddAiConfig(builder.Configuration);
 
 // 注册全局热键
 builder.Services.AddGlobalHotKeys(builder.Configuration);

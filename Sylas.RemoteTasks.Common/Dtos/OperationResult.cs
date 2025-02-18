@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace Sylas.RemoteTasks.Utils.Dto
+namespace Sylas.RemoteTasks.Common.Dtos
 {
     /// <summary>
     /// 存储操作结果的相关信息

@@ -1,10 +1,10 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
+using Sylas.RemoteTasks.Common.Dtos;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils;
 using Sylas.RemoteTasks.Utils.CommandExecutor;
-using Sylas.RemoteTasks.Utils.Dto;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {

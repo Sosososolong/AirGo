@@ -8,6 +8,7 @@ using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.Database;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils;
+using Sylas.RemoteTasks.Utils.Dtos;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Security.Claims;
@@ -68,6 +69,14 @@ namespace Sylas.RemoteTasks.App.Helpers
             }
 
             AppStatus.Domain = Dns.GetHostName();
+        }
+
+        public static void AddAiConfig(this IServiceCollection services, IConfiguration configuration)
+        {
+            var aiConfig = new AiConfig();
+            configuration.GetSection("AiConfig").Bind(aiConfig);
+            services.AddSingleton(aiConfig);
+            RemoteHelpers.AiConfig = aiConfig;
         }
 
         public static void AddGlobalHotKeys(this IServiceCollection services, IConfiguration configuration)

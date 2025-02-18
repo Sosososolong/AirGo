@@ -1,5 +1,5 @@
-﻿using Sylas.RemoteTasks.Utils;
-using Sylas.RemoteTasks.Utils.Dto;
+﻿using Sylas.RemoteTasks.Common.Dtos;
+using Sylas.RemoteTasks.Utils;
 using Sylas.RemoteTasks.Utils.FileOp;
 using System.Text;
 using System.Text.RegularExpressions;

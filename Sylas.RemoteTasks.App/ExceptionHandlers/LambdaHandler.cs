@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Diagnostics;
+using Sylas.RemoteTasks.Common.Dtos;
 using static System.Net.Mime.MediaTypeNames;
-using Sylas.RemoteTasks.Utils.Dto;
 
 namespace Sylas.RemoteTasks.App.ExceptionHandlers
 {

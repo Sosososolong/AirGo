@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Sylas.RemoteTasks.Common;
+using Sylas.RemoteTasks.Utils.Dtos;
 using Sylas.RemoteTasks.Utils.Extensions;
 using System;
 using System.Collections;
@@ -376,30 +377,34 @@ namespace Sylas.RemoteTasks.Utils
             }
             return dataArr;
         }
-
+        /// <summary>
+        /// AI服务的相关配置
+        /// </summary>
+        public static AiConfig AiConfig = new();
         /// <summary>
         /// 通过AI模型的API获取答案
         /// </summary>
         /// <param name="question"></param>
-        /// <param name="apiServer"></param>
-        /// <param name="apiModel"></param>
-        /// <param name="apiKey"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static async Task<string> AskAiAsync(string question, string apiServer, string apiModel, string apiKey)
+        public static async Task<string> AskAiAsync(string question)
         {
+            if (string.IsNullOrWhiteSpace(AiConfig.Server) || string.IsNullOrWhiteSpace(AiConfig.Model))
+            {
+                throw new Exception("请在程序启动时初始化RemoteHelpers.AiConfig实例");
+            }
             // 创建一个 HttpClient 对象
             using HttpClient client = new();
             //client.Timeout = TimeSpan.FromSeconds(180);
             client.Timeout = Timeout.InfiniteTimeSpan;
             // 设置请求头，包括 API 密钥和请求内容类型
-            client.DefaultRequestHeaders.Add("Authorization", "Bearer " + apiKey);
+            client.DefaultRequestHeaders.Add("Authorization", "Bearer " + AiConfig.ApiKey);
 
             // 设置请求内容，包括问题和 GPT 模型的名称
             // 设置请求内容类型为 application/json
             string requestBody = $$"""
                 {
-                  "model": "{{apiModel}}",
+                  "model": "{{AiConfig.Model}}",
                   "max_tokens": 8192,
                   "messages": [
                     {
@@ -420,7 +425,7 @@ namespace Sylas.RemoteTasks.Utils
             HttpResponseMessage response;
             try
             {
-                response = await client.PostAsync($"{apiServer.TrimEnd('/')}/v1/chat/completions", httpContent);
+                response = await client.PostAsync($"{AiConfig.Server.TrimEnd('/')}/v1/chat/completions", httpContent);
             }
             catch (Exception ex)
             {

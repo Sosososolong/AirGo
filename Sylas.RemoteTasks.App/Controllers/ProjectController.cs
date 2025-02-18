@@ -4,8 +4,8 @@ using Sylas.RemoteTasks.App.DatabaseManager.Models;
 using Sylas.RemoteTasks.App.Helpers;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.Common;
+using Sylas.RemoteTasks.Common.Dtos;
 using Sylas.RemoteTasks.Database.SyncBase;
-using Sylas.RemoteTasks.Utils.Dto;
 using Sylas.RemoteTasks.Utils.FileOp;
 using System.Text.RegularExpressions;
 

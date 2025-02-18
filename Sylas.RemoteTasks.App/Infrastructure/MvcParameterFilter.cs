@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
-using Sylas.RemoteTasks.Utils.Dto;
+using Sylas.RemoteTasks.Common.Dtos;
 
 namespace Sylas.RemoteTasks.App.Infrastructure
 {
@@ -8,7 +8,7 @@ namespace Sylas.RemoteTasks.App.Infrastructure
     {
         public void OnActionExecuted(ActionExecutedContext context)
         {
-            
+
         }
 
         public void OnActionExecuting(ActionExecutingContext context)

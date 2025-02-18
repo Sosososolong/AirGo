@@ -2748,6 +2748,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                         ,convert(bit,C.IsNullable)  					as [IsNullable]
                         ,ISNULL(CM.text,'') 							as [DefaultValue]
                     	,C.colid										as [OrderNo]
+                    	,ETP.value										as [Remark]
                     FROM syscolumns C
                     INNER JOIN systypes T ON C.xusertype = T.xusertype 
                     left JOIN sys.extended_properties ETP   ON  ETP.major_id = c.id AND ETP.minor_id = C.colid AND ETP.name ='MS_Description' 
@@ -2806,7 +2807,8 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                         CASE is_nullable  WHEN 'NO' then 0 ELSE 1 END  	IsNullable,
                     	CASE WHEN column_key='PRI' THEN 1 ELSE 0 END 	IsPK,
                         column_default 									DefaultValue,
-                    	ORDINAL_POSITION 								OrderNo
+                    	ORDINAL_POSITION 								OrderNo,
+                    	COLUMN_COMMENT  								Remark
                     from information_schema.columns where table_schema = '{GetDatabaseName(conn)}' and table_name = '{tableName}' 
                     order by ORDINAL_POSITION asc
                     """;

@@ -1,8 +1,8 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Sylas.RemoteTasks.App.Infrastructure;
+using Sylas.RemoteTasks.Common.Dtos;
 using Sylas.RemoteTasks.Utils.Constants;
-using Sylas.RemoteTasks.Utils.Dto;
 using System.Text;
 
 namespace Sylas.RemoteTasks.App.Controllers

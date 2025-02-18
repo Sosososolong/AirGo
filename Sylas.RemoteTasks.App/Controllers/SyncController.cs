@@ -2,8 +2,8 @@
 using Sylas.RemoteTasks.App.RequestProcessor;
 using Sylas.RemoteTasks.App.RequestProcessor.Models;
 using Sylas.RemoteTasks.App.RequestProcessor.Models.Dtos;
+using Sylas.RemoteTasks.Common.Dtos;
 using Sylas.RemoteTasks.Database.SyncBase;
-using Sylas.RemoteTasks.Utils.Dto;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {

@@ -1,5 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Sylas.RemoteTasks.Utils.Dto;
+using Sylas.RemoteTasks.Common.Dtos;
 using Sylas.RemoteTasks.Utils.Message;
 
 namespace Sylas.RemoteTasks.App.Controllers

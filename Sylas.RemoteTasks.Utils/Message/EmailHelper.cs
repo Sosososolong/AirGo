@@ -1,6 +1,6 @@
 ﻿using MailKit.Net.Smtp;
 using MimeKit;
-using Sylas.RemoteTasks.Utils.Dto;
+using Sylas.RemoteTasks.Common.Dtos;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;

@@ -1,4 +1,4 @@
-﻿using Sylas.RemoteTasks.Utils.Dto;
+﻿using Sylas.RemoteTasks.Common.Dtos;
 using System;
 using System.Linq;
 using System.Reflection;

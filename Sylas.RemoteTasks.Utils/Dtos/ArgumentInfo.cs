@@ -1,4 +1,4 @@
-﻿namespace Sylas.RemoteTasks.Utils.Dto
+﻿namespace Sylas.RemoteTasks.Utils.Dtos
 {
     /// <summary>
     /// 描述参数信息的基类

@@ -1,4 +1,4 @@
-﻿namespace Sylas.RemoteTasks.Utils.Dto
+﻿namespace Sylas.RemoteTasks.Common.Dtos
 {
     /// <summary>
     /// 接口请求响应结果
