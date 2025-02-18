@@ -109,10 +109,30 @@ namespace Sylas.RemoteTasks.App.Controllers
             var result = await anythingService.UpdateAnythingSettingAsync(anythingSetting);
             return Json(result);
         }
+        /// <summary>
+        /// 更新命令内容
+        /// </summary>
+        /// <param name="command"></param>
+        /// <returns></returns>
+        public async Task<IActionResult> UpdateCommandAsync([FromBody] Dictionary<string, string> command)
+        {
+            var result = await anythingService.UpdateCommandAsync(command);
+            return Ok(RequestResult<OperationResult>.Success(result));
+        }
+        /// <summary>
+        /// 删除Anything配置
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
         public async Task<IActionResult> DeleteAnythingSettingByIdAsync(int id)
         {
             return Json(await anythingService.DeleteAnythingSettingByIdAsync(id));
         }
+        /// <summary>
+        /// 删除命令
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
         public async Task<IActionResult> DeleteAnythingCommandByIdAsync(int id)
         {
             return Json(await anythingService.DeleteAnythingCommandByIdAsync(id));

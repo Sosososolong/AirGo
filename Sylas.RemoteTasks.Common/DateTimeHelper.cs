@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Sylas.RemoteTasks.Utils
+namespace Sylas.RemoteTasks.Common
 {
     /// <summary>
     /// 时间格式化帮助类

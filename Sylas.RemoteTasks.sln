@@ -11,6 +11,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Sylas.RemoteTasks.Database"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Sylas.RemoteTasks.Utils", "Sylas.RemoteTasks.Utils\Sylas.RemoteTasks.Utils.csproj", "{4C8CF5D9-C644-4893-A500-2250D8F48BB1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sylas.RemoteTasks.Common", "Sylas.RemoteTasks.Common\Sylas.RemoteTasks.Common.csproj", "{4DE2C921-8056-497C-9404-637B4B99E974}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -33,6 +35,10 @@ Global
 		{4C8CF5D9-C644-4893-A500-2250D8F48BB1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4C8CF5D9-C644-4893-A500-2250D8F48BB1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4C8CF5D9-C644-4893-A500-2250D8F48BB1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4DE2C921-8056-497C-9404-637B4B99E974}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4DE2C921-8056-497C-9404-637B4B99E974}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4DE2C921-8056-497C-9404-637B4B99E974}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4DE2C921-8056-497C-9404-637B4B99E974}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -1,10 +1,9 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils;
-using System.Text;
 using Xunit.Abstractions;
 
 namespace Sylas.RemoteTasks.Test.Remote

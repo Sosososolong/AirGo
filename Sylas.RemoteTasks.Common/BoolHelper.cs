@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Sylas.RemoteTasks.Utils
+namespace Sylas.RemoteTasks.Common
 {
     /// <summary>
     /// 比较值大小帮助类

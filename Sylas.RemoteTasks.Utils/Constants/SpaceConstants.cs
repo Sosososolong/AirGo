@@ -6,9 +6,17 @@
     public static class SpaceConstants
     {
         /// <summary>
-        /// 一个空格
+        /// 一个空格字节
         /// </summary>
         public const char OneSpace = ' ';
+        /// <summary>
+        /// 一个空格字符串
+        /// </summary>
+        public const string OneSpaceStr = " ";
+        /// <summary>
+        /// 两个空格
+        /// </summary>
+        public static readonly string TwoSpaces = new(OneSpace, 2);
         /// <summary>
         /// 一个Tab对应的空格(4个空格)
         /// </summary>

@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Sylas.RemoteTasks.App.RegexExp;
+using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Utils.Extensions.Text;
 using Sylas.RemoteTasks.Utils.Template.Parser;
 using System;

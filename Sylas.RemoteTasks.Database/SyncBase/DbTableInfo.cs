@@ -1,6 +1,6 @@
 ﻿using Dapper;
+using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Database.Attributes;
-using Sylas.RemoteTasks.Utils;
 using System;
 using System.Collections.Generic;
 using System.Linq;

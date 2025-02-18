@@ -10,6 +10,7 @@ using System.Linq;
 using System.Text;
 using Microsoft.Extensions.Logging;
 using System.Threading;
+using Sylas.RemoteTasks.Common;
 
 namespace Sylas.RemoteTasks.Utils
 {

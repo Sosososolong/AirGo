@@ -41,28 +41,10 @@ namespace Sylas.RemoteTasks.Test
 
             services.AddSingleton<IConfiguration>(_configuration);
 
-            #region Host
-            var remoteHosts = _configuration.GetSection("Hosts").Get<List<RemoteHost>>() ?? [];
-
-            services.AddSingleton(remoteHosts);
-
-            //services.AddSingleton(serviceProvider =>
-            //{
-            //    var result = new List<RemoteHostInfoProvider>();
-            //    foreach (var remoteHost in remoteHosts)
-            //    {
-            //        var dockerContainerManager = new DockerContainerProvider(remoteHost);
-            //        result.Add(dockerContainerManager);
-            //    }
-            //    return result;
-            //});
-            #endregion
-
             #region 仓储
             services.AddScoped(typeof(RepositoryBase<>), typeof(RepositoryBase<>));
             #endregion
 
-            services.AddSingleton<HostService>();
             services.AddScoped<DatabaseInfo>();
             services.AddScoped<IDatabaseProvider, DatabaseInfo>();
         }

@@ -6,7 +6,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 
-namespace Sylas.RemoteTasks.Utils
+namespace Sylas.RemoteTasks.Common
 {
     /// <summary>
     /// 对象转化/复制帮助类

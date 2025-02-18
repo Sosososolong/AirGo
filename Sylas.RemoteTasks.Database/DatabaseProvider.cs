@@ -1,6 +1,8 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json.Linq;
+using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Database;
+using Sylas.RemoteTasks.Database.Dtos;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils;
 using System;

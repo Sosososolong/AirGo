@@ -1,4 +1,5 @@
-﻿using Sylas.RemoteTasks.Utils.CommandExecutor;
+﻿using Newtonsoft.Json;
+using Sylas.RemoteTasks.Utils.CommandExecutor;
 
 namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
 {
@@ -28,6 +29,6 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         public Dictionary<string, object> Properties { get; set; } = [];
         public int SettingId { get; set; }
 
-        public ICommandExecutor? CommandExecutor { get; set; }
+        public string CommandExecutor { get; set; } = string.Empty;
     }
 }

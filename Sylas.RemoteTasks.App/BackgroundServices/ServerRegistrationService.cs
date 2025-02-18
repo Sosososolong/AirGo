@@ -1,4 +1,5 @@
 ﻿using Sylas.RemoteTasks.Database;
+using Sylas.RemoteTasks.Database.Dtos;
 using Sylas.RemoteTasks.Database.SyncBase;
 using System.DirectoryServices.ActiveDirectory;
 using System.Net;

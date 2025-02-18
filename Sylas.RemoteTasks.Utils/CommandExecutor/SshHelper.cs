@@ -1,5 +1,5 @@
 ﻿using Renci.SshNet;
-using Sylas.RemoteTasks.App.RegexExp;
+using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Utils.Extensions;
 using Sylas.RemoteTasks.Utils.FileOp;
 using System;
@@ -25,7 +25,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         private int Port { get; } = 0;
         private string UserName { get; set; }
         private readonly IPrivateKeySource[] _privateKeyFiles;
-        static SemaphoreSlim _semaphoneSlimLock = new(1, 1);
+        static readonly SemaphoreSlim _semaphoneSlimLock = new(1, 1);
         /// <summary>
         /// 从池中获取一个SSH连接
         /// </summary>

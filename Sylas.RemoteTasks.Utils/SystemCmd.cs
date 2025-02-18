@@ -13,6 +13,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Collections.Concurrent;
+using Sylas.RemoteTasks.Common;
 
 namespace Sylas.RemoteTasks.Utils
 {

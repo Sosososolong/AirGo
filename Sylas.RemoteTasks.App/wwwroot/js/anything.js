@@ -97,7 +97,8 @@ function buildDataView(data) {
             id: record.id,
             isShown: false,
             collapseBtnId,
-            commandArray: []
+            commandArray: [],
+            originProperties: ''
         });
         cardsHtml += (`
                 <div class="card mb-2">
@@ -110,7 +111,7 @@ function buildDataView(data) {
                         </h5>
                         <div>
                             <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="${record.id}" data-fetch-url="${apiUrl}" data-method="POST" onclick="showUpdatePannel(this, () => cardsStatus.find(x => x.id == ${record.id}).isShown = false, () => { document.querySelector('#${collapseBtnId}').click(); })">更新</button>
-                            <button type="button" class="btn btn-primary btn-sm" onclick="updateAnythingCommandsFromCardStatus(${record.id})">应用</button>
+                            <button type="button" class="btn btn-primary btn-sm" onclick="updateAnythingCommandsFromCardStatus(${record.id})">保存所有命令</button>
                             <button type="button" class="btn btn-primary btn-sm" onclick="addCommand(this, ${record.id}, '${record.title}')">添加命令</button>
                             <button type="button" class="btn btn-primary btn-sm" onclick="executeCommands(this)">运行</button>
                             <button type="button" class="btn btn-primary btn-sm d-none" data-table-id="${tableId}" data-content="&quot;${record.id}&quot;" data-execute-url="/Study/DeleteQuestion" data-method="POST" onclick="showConfirmBox('确定删除? 此操作无法撤销!', () => execute(this))">删除</button>
@@ -171,6 +172,9 @@ async function loadCommandsAsync(ele, id) {
         var data = await httpRequestDataAsync(`/Hosts/AnythingSettingAndInfo?id=${id}`, ele);
         if (data) {
             let anythingSetting = data.anythingSetting;
+            const originProperties = anythingSetting.properties;
+            cardStatus.originProperties = originProperties;
+
             let anythingInfo = data.anythingInfo;
             const commandsLength = anythingInfo.commands.length;
             // cardStatus对象保存命令数组
@@ -189,7 +193,7 @@ async function loadCommandsAsync(ele, id) {
                 }
                 // 命令内容, 可能有多条脚本, 一个脚本一行显示到textarea中
                 let commandOrigin = command.commandTxt;
-                let commandTxt = commandInfo.commandTxt;
+                let commandValue = commandInfo.commandTxt;
                 let commandRows = 1;
                 if (commandOrigin.indexOf('\n') > -1) {
                     commandRows = commandOrigin.split('\n').length;
@@ -201,19 +205,23 @@ async function loadCommandsAsync(ele, id) {
                     }
                     commandOrigin = commandTxtArr.join('\n');
                 }
+                if (commandRows > 10) {
+                    commandRows = 10
+                }
 
                 commandsHtml += `<div style="${commandItemStyle}" class="command-item" style="padding-right:10px;" draggable="true">
             <div class="input-group mb-3">
                 <div class="input-group-text">
                   <input class="form-check-input mt-0 command-checkbox" type="checkbox" value="" aria-label="Checkbox for following text input" data-id="${id}" data-command-name="${commandInfo.name}">
                 </div>
-                <textarea class="form-control form-control-sm" rows="${commandRows}" aria-label="command setting" aria-describedby="button-cmd-${id}" anything-id="${id}" oninput="inputing(this, resolveCmdSettingAsync)">${commandOrigin}</textarea>
+                <textarea class="form-control form-control-sm command-input-${commandInfo.id}" rows="${commandRows}" aria-label="command setting" aria-describedby="button-cmd-${id}" anything-id="${id}" oninput="inputing(this, resolveCmdSettingAsync)">${commandOrigin}</textarea>
             </div>
 
-            <button class="btn btn-sm btn-primary mb-2 ${(commandInfo && commandInfo.executedState ? " disabled" : "")}" type="button" onclick="executeCommand(${commandInfo.id}, '${commandInfo.name}', this)" id="button-cmd-${id}">${commandInfo.name}</button>
+            <button class="btn btn-sm btn-primary mb-2 ${(commandInfo && commandInfo.executedState ? " disabled" : "")}" type="button" onclick="executeCommand(${commandInfo.id}, '${commandInfo.name}', this)" id="button-cmd-${commandInfo.id}">${commandInfo.name}</button>
+            <button class="btn btn-sm btn-primary mb-2" type="button" onclick="updateCommandAsync(${commandInfo.id})">更新命令</button>
 
-            <div style="font-size:12px;color:gray;padding-bottom:10px" class="command-resolved">
-                ${ !commandInfo || !commandInfo.commandTxt ? '' : commandInfo.commandTxt.split(';').join('<br/>') }
+            <div style="font-size:12px;color:gray;padding-bottom:10px;max-height:200px;overflow:auto;" class="scrollable-nobar command-resolved">
+                ${ !commandInfo || !commandValue ? '' : commandValue.split('\n').join('<br/>') }
             </div>
 
             <div style="font-size:12px; margin-left:30px; color:green;">${commandState}</div>
@@ -224,6 +232,7 @@ async function loadCommandsAsync(ele, id) {
             }
 
             card.querySelector('.card-body').innerHTML = commandsHtml;
+            card.classList.add('anything-card-' + id);
             cardStatus.isShown = true;
 
             // 创建变量properties展示修改面板
@@ -238,7 +247,7 @@ async function loadCommandsAsync(ele, id) {
                 <div style="color:white;font-size:24px;cursor:pointer;padding: 0 10px;line-height:12px;" onclick="resizeDataPannel(event, ${id})">-</div>
             </div>
             <div class="data-pannel-body">
-                <textarea id='properties-${id}' placeholder="设置变量" style="background-color:rgba(255,255,255,0);color:white;" name="properties" rows="6" class="form-control mb-2">${JSON.stringify(anythingInfo.properties)}</textarea><input type="hidden" type="number" id="setting-id-${id}" name="id" value="${id}">
+                <textarea id='properties-${id}' placeholder="设置变量" style="background-color:rgba(255,255,255,0);color:white;" name="properties" rows="6" class="form-control mb-2">${originProperties}</textarea><input type="hidden" type="number" id="setting-id-${id}" name="id" value="${id}">
                 <div class="d-flex justify-content-end">
                     <button type="button" class="btn btn-primary btn-sm" data-content="formItemIds:properties-${id};setting-id-${id}" data-execute-url="${apiUpdateUrl}" data-method="POST" onclick="showConfirmBox('确定更新变量吗?', () => execute(this))">更新变量</button>
                 </div>
@@ -297,7 +306,7 @@ async function resolveCmdSettingAsync(input) {
     // 先更新cardStatus中的commandArray
     const cardStatus = cardsStatus.find(x => x.id == id);
     const commandName = input.closest('.command-item').querySelector('button').textContent;
-    const command = cardStatus.commandArray.find(x => x.Name == commandName);
+    const command = cardStatus.commandArray.find(x => x.name == commandName);
     command.CommandTxt = cmdTxt;
 
     // 再解析命令内容
@@ -305,7 +314,7 @@ async function resolveCmdSettingAsync(input) {
     const body = JSON.stringify(bodyObj);
     var data = await httpRequestDataAsync(`/Hosts/ResolveCommandSettting`, input, 'POST', body, '', errorHandlerType.returnErrorMessage);
     if (data) {
-        input.closest('.command-item').querySelector('.command-resolved').innerText = data.split(';').join('<br/>');
+        input.closest('.command-item').querySelector('.command-resolved').innerText = data.split('\n').join('<br/>');
     }
 }
 
@@ -380,7 +389,7 @@ async function removeCommandAsync(id, commandId) {
         dataExecuteUrl: `/Hosts/DeleteAnythingCommandById?id=${commandId}`,
         dataMethod: 'POST'
     };
-    execute(trigger, () => loadCommandsAsync(document.querySelector(`#button-cmd-${id}`).closest('.card').querySelector('.card-title'), id));
+    execute(trigger, () => loadCommandsAsync(document.querySelector(`.anything-card-${id}`).querySelector('.card-title'), id));
 }
 
 /**
@@ -458,7 +467,29 @@ async function updateAnythingCommandsAsync(id, commands) {
     // 将显示状态设置为false(true不会重载数据), 然后重载数据
     const cardStatus = cardsStatus.find(x => x.id == id);
     cardStatus.isShown = false;
-    execute(trigger, () => loadCommandsAsync(document.querySelector(`#button-cmd-${id}`).closest('.card').querySelector('.card-title'), id));
+    execute(trigger, () => loadCommandsAsync(document.querySelector(`.anything-card-${id}`).querySelector('.card-title'), id));
+}
+async function updateCommandAsync(id) {
+    const commandTxt = document.querySelector(`.command-input-${id}`).value;
+    const params = { id: id.toString(), commandTxt };
+    const paramsJson = JSON.stringify(params);
+    const trigger = {
+        // dataTableId: '', // 用于更新后重载数据表格
+        dataContent: paramsJson,
+        dataExecuteUrl: "/Hosts/UpdateCommand",
+        dataMethod: 'POST'
+    };
+
+    const btn = document.querySelector(`#button-cmd-${id}`);
+    const cardEle = btn.closest('.card');
+    // 获取cardEle的类集合
+    const cardClasses = cardEle.classList;
+    const anythingId = cardClasses[cardClasses.length - 1].replace('anything-card-', '');
+
+    // 将显示状态设置为false(true不会重载数据), 然后重载数据
+    const cardStatus = cardsStatus.find(x => x.id == anythingId);
+    cardStatus.isShown = false;
+    execute(trigger, () => loadCommandsAsync(cardEle.querySelector('.card-title'), anythingId));
 }
 /**
  * 添加一条新命令

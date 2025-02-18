@@ -38,6 +38,7 @@
 
   <ItemGroup>
     <Folder Include="Configs\AppConfigs\" />
+    <Folder Include="Hosts\" />
   </ItemGroup>
 
 </Project>

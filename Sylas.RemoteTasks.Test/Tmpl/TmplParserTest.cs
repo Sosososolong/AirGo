@@ -1,11 +1,9 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
-using Sylas.RemoteTasks.App.RegexExp;
 using Sylas.RemoteTasks.Utils.Extensions.Text;
 using Sylas.RemoteTasks.Utils.Template;
 using Xunit.Abstractions;
-using static System.Reflection.Metadata.BlobBuilder;
 
 namespace Sylas.RemoteTasks.Test.Tmpl
 {
@@ -168,7 +166,7 @@ namespace Sylas.RemoteTasks.Test.Tmpl
             Assert.Equal("$for item in users", blocks.First()[0].Content);
             Assert.Equal("<span>${item.name}</span> <span>${item.age}</span> <span>$${item.email}</span>", blocks.First()[1].Content);
             Assert.Equal("$forend", blocks.First()[2].Content);
-            
+
             Assert.Single(blocks.First().Children);
             var firstChild = blocks.First().Children.First();
             Assert.Equal(3, firstChild.Count);

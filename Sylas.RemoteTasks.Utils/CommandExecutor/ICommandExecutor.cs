@@ -1,5 +1,7 @@
 ﻿using Sylas.RemoteTasks.Utils.Dto;
 using System;
+using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 
 namespace Sylas.RemoteTasks.Utils.CommandExecutor
@@ -23,22 +25,40 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         /// <param name="args"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static RequestResult<ICommandExecutor> Create(string executorName, object[] args)
+        public static RequestResult<Func<object[], Task<CommandResult>>> Create(string executorName, object[] args)
         {
             var t = ReflectionHelper.GetTypeByClassName(executorName);
-            var instance = ReflectionHelper.CreateInstance(t, args);
-            try
+            bool isStaticClass = t.IsAbstract && t.IsSealed;
+            object? instance = null;
+            if (!isStaticClass)
             {
-                if (instance is not ICommandExecutor anythingCommandExecutor)
+                instance = ReflectionHelper.CreateInstance(t, args);
+            }
+            // 获取 ExecuteAsync 方法
+            MethodInfo executeAsyncMethod = t.GetMethods().FirstOrDefault(x => x.Name.Equals("ExecuteAsync"));
+            // 命令执行器
+            async Task<CommandResult> commandHandler(object[] parameters)
+            {
+                var task = (Task)executeAsyncMethod.Invoke(instance, parameters);
+                if (task is Task<CommandResult> commandResultTask)
                 {
-                    return RequestResult<ICommandExecutor>.Error($"对象无法转换为ICommandExecutor");
+                    return await commandResultTask;
                 }
-                return RequestResult<ICommandExecutor>.Success(anythingCommandExecutor);
+                throw new Exception("命令执行者返回的不是正确的命令结果类型");
             }
-            catch (Exception ex)
-            {
-                return RequestResult<ICommandExecutor>.Error(ex.Message);
-            }
+            return RequestResult<Func<object[], Task<CommandResult>>>.Success(commandHandler);
+            //try
+            //{
+            //    if (instance is not ICommandExecutor anythingCommandExecutor)
+            //    {
+            //        return RequestResult<ICommandExecutor>.Error($"对象无法转换为ICommandExecutor");
+            //    }
+            //    return RequestResult<ICommandExecutor>.Success(anythingCommandExecutor);
+            //}
+            //catch (Exception ex)
+            //{
+            //    return RequestResult<ICommandExecutor>.Error(ex.Message);
+            //}
         }
     }
 }

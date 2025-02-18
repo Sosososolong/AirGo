@@ -1,4 +1,5 @@
-﻿using Sylas.RemoteTasks.Database.SyncBase;
+﻿using Sylas.RemoteTasks.Database.Dtos;
+using Sylas.RemoteTasks.Database.SyncBase;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;

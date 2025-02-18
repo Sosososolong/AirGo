@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-namespace Sylas.RemoteTasks.Utils
+namespace Sylas.RemoteTasks.Common
 {
     /// <summary>
     /// JToken助手

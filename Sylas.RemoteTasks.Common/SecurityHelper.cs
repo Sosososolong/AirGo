@@ -5,7 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Sylas.RemoteTasks.Utils
+namespace Sylas.RemoteTasks.Common
 {
     /// <summary>
     /// 数据安全,加密解密帮助类

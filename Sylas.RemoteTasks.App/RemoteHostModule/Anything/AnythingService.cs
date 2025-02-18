@@ -2,12 +2,13 @@
 using Microsoft.Extensions.Caching.Memory;
 using Newtonsoft.Json;
 using Sylas.RemoteTasks.App.Infrastructure;
+using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Database.SyncBase;
-using Sylas.RemoteTasks.Utils;
 using Sylas.RemoteTasks.Utils.CommandExecutor;
 using Sylas.RemoteTasks.Utils.Constants;
 using Sylas.RemoteTasks.Utils.Dto;
 using Sylas.RemoteTasks.Utils.Template;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
 
@@ -203,8 +204,18 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         /// <returns></returns>
         public async Task<OperationResult> UpdateAnythingSettingAsync(Dictionary<string, string> anythingSetting)
         {
-            var added = await repository.UpdateAsync(anythingSetting);
-            return added > 0 ? new OperationResult(true) : new OperationResult(false, "Affected rows: 0");
+            var affectedRows = await repository.UpdateAsync(anythingSetting);
+            return affectedRows > 0 ? new OperationResult(true) : new OperationResult(false, "Affected rows: 0");
+        }
+        /// <summary>
+        /// 更新命令
+        /// </summary>
+        /// <param name="command"></param>
+        /// <returns></returns>
+        public async Task<OperationResult> UpdateCommandAsync(Dictionary<string, string> command)
+        {
+            var affectedRows = await _commandRepository.UpdateAsync(command);
+            return new OperationResult(affectedRows > 0);
         }
 
         const string _cacheKeyAllAnythingInfos = "AllAnythingInfos";
@@ -325,14 +336,15 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
                     return requestResult.Data ?? new CommandResult(false, "中心服务器没有返回命令执行结果");
                 }
             }
-            CommandResult cr = await anythingInfo.CommandExecutor.ExecuteAsync(commandInfo.CommandTxt);
+            var resolvedResult = await ResolveCommandSettingAsync(new CommandResolveDto() { Id = commandInfo.AnythingId, CmdTxt = commandInfo.CommandTxt });
+            string resolvedCommandContent = resolvedResult.Data ?? string.Empty;
+            CommandResult cr = await AnythingIdAndCommandExecutorMap[anythingInfo.SettingId]([resolvedCommandContent]);
             if (!string.IsNullOrWhiteSpace(dto.CommandExecuteNo))
             {
                 cr.CommandExecuteNo = dto.CommandExecuteNo;
             }
             return cr;
         }
-        //public static readonly BlockingCollection<CommandInfoTaskDto> CommandTaskCollection = [];
         static readonly Dictionary<string, CommandResult> _remoteCommandResults = [];
         static readonly Dictionary<string, Queue<CommandInfoTaskDto>> _serverNodeQueues = [];
 
@@ -435,6 +447,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             memoryCache.Set(cacheKeyAnythingInfo, anythingInfo, cacheEntryOptions);
             return anythingInfo;
         }
+        static readonly ConcurrentDictionary<int, Func<object[], Task<CommandResult>>> AnythingIdAndCommandExecutorMap = new();
         /// <summary>
         /// 从AnythingSetting解析一个AnythingInfo对象
         /// </summary>
@@ -496,6 +509,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
                 throw new Exception(result.ErrMsg);
             }
             var anythingCommandExecutor = result.Data ?? throw new Exception("无法解析命令执行器");
+            AnythingIdAndCommandExecutorMap.AddOrUpdate(anythingSettingDetails.Id, anythingCommandExecutor, (k, v) => anythingCommandExecutor);
             #endregion
 
             #region 解析出AnythingInfo
@@ -506,7 +520,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
                 if (!string.IsNullOrWhiteSpace(anythingCommand.ExecutedState))
                 {
                     var start = DateTime.Now;
-                    anythingCommand.ExecutedState = (await anythingCommandExecutor.ExecuteAsync(anythingCommand.ExecutedState)).Message;
+                    anythingCommand.ExecutedState = (await anythingCommandExecutor([anythingCommand.ExecutedState])).Message;
                     Console.WriteLine($"获取命令状态耗时: {(DateTime.Now - start).TotalMilliseconds}/ms");
                 }
             }
@@ -514,7 +528,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             var anythingInfo = new AnythingInfo()
             {
                 SettingId = anythingSettingDetails.Id,
-                CommandExecutor = anythingCommandExecutor,
+                CommandExecutor = executorName,
                 Name = anythingSettingDetails.Name,
                 Title = anythingSettingDetails.Title,
                 Properties = properties,

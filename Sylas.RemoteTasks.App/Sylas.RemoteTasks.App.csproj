@@ -40,7 +40,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Sylas.RemoteTasks.Database\Sylas.RemoteTasks.Database.csproj" />
+    <ProjectReference Include="..\Sylas.RemoteTasks.Utils\Sylas.RemoteTasks.Utils.csproj" />
   </ItemGroup>
 
   <ItemGroup>

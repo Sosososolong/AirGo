@@ -3,9 +3,10 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Sylas.RemoteTasks.App.RegexExp;
+using Sylas.RemoteTasks.Common;
+using Sylas.RemoteTasks.Database.SyncBase;
+using Sylas.RemoteTasks.Utils.CommandExecutor;
 using Sylas.RemoteTasks.Utils.Constants;
-using Sylas.RemoteTasks.Utils.Dto;
 using Sylas.RemoteTasks.Utils.Extensions;
 using System;
 using System.Collections.Generic;
@@ -24,9 +25,6 @@ namespace Sylas.RemoteTasks.Utils.FileOp;
 /// </summary>
 public partial class FileHelper
 {
-    private static readonly string _oneTabSpace = new(' ', 4);
-    private static readonly string _twoTabsSpace = new(' ', 8);
-    private static readonly string _fourTabsSpace = new(' ', 16);
     /// <summary>
     /// 删除文件
     /// </summary>
@@ -171,14 +169,8 @@ public partial class FileHelper
         {
             throw new ArgumentException($"目录{dir}不存在");
         }
-        if (filter == null)
-        {
-            filter = s => true;
-        }
-        if (dirs == null)
-        {
-            dirs = new List<string>();
-        }
+        filter ??= s => true;
+        dirs ??= [];
         if (string.IsNullOrWhiteSpace(dir))
         {
             throw new ArgumentNullException(nameof(dir));
@@ -374,7 +366,7 @@ public partial class FileHelper
             if (lastProperty != null)
             {
                 string lastPropertyString = lastProperty.Value; // "public DbSet<Employee> Employees { get; set; }"
-                string modifiedPropertyString = lastPropertyString + Environment.NewLine + _twoTabsSpace + code;
+                string modifiedPropertyString = lastPropertyString + Environment.NewLine + SpaceConstants.TwoTabsSpaces + code;
                 return originCode.Replace(lastPropertyString, modifiedPropertyString); // 匹配的属性应该是独一无二的, 所以这里肯定只是替换一次
             }
             // 添加第一个属性
@@ -386,7 +378,7 @@ public partial class FileHelper
                 regex = new Regex(@"\s{4}{");
 
                 string classLeftBrackets = regex.Match(originCode).Value;
-                classLeftBrackets = classLeftBrackets + Environment.NewLine + _twoTabsSpace + code;
+                classLeftBrackets = classLeftBrackets + Environment.NewLine + SpaceConstants.TwoTabsSpaces + code;
 
                 return regex.Replace(originCode, classLeftBrackets, 1); // 只替换一次
             }
@@ -421,7 +413,7 @@ public partial class FileHelper
                 Regex regex = new(methodName + @"\(.*\r\n\s{8}{[\w\W]*?\s{8}}");
                 Match onModelCreatingMatch = regex.Match(originCode);
                 string oldPart = onModelCreatingMatch.Value;
-                string newPart = onModelCreatingMatch.Value.TrimEnd('}') + _oneTabSpace + codes + Environment.NewLine + _twoTabsSpace + "}";
+                string newPart = onModelCreatingMatch.Value.TrimEnd('}') + SpaceConstants.OneTabSpaces + codes + Environment.NewLine + SpaceConstants.TwoTabsSpaces + "}";
                 return originCode.Replace(oldPart, newPart);
             }
             if (codesExistPredicate is null)
@@ -450,7 +442,7 @@ public partial class FileHelper
             }
 
             string insertPosition = insertPositionStatement.ToString();
-            string newCodes = insertPosition.ToString() + insertPositionTrivia + Environment.NewLine + _oneTabSpace + _twoTabsSpace + codes;
+            string newCodes = insertPosition.ToString() + insertPositionTrivia + Environment.NewLine + SpaceConstants.OneTabSpaces + SpaceConstants.TwoTabsSpaces + codes;
             return originCode.Replace(insertPosition, newCodes);
         });
     }
@@ -559,6 +551,7 @@ public partial class FileHelper
 
     #region 自动化文件读写
     static string _parameterLineStartPattern = string.Empty;
+    static string[] _configItemKeys = [];
     /// <summary>
     /// 匹配类定义文件中的时间属性的正则表达式
     /// </summary>
@@ -585,23 +578,150 @@ public partial class FileHelper
     /// <returns></returns>
     private static readonly Regex IfStatementPattern = new(@"#IF:(?<Reversal>\!{0,1})(?<SourceTxt>\w+)\.Contains\((?<SubString>\w+)\)(?<Content>[\w\W]+?)#IFEND");
     /// <summary>
+    /// 执行文件写入操作指令
+    /// </summary>
+    /// <param name="commandContent"></param>
+    /// <returns></returns>
+    /// <exception cref="Exception"></exception>
+    public static async Task<CommandResult> ExecuteAsync(string commandContent)
+    {
+        if (string.IsNullOrWhiteSpace(_parameterLineStartPattern))
+        {
+            var props = typeof(OperationNode).GetProperties();
+            var stepProps = typeof(NodeStep).GetProperties();
+            string propsPattern = string.Join('|', props.Select(x => x.Name)) + "|" + string.Join('|', stepProps.Select(x => x.Name));
+
+            _parameterLineStartPattern = $@"^-{{0,1}}\s*(?<paramName>{propsPattern}):\s*";
+            _configItemKeys = props.Select(x => x.Name).Concat(stepProps.Select(x => x.Name)).ToArray();
+        }
+
+        // 匹配操作名称和工作目录
+        Operation selectedOp = new();
+        string[] titleLines = Regex.Match(commandContent, @"##[\w\W]+?(?=###)").Value.Split('\n');
+        selectedOp.GlobalVariables = titleLines.Skip(1).ToList();
+
+        string firstLineValue = titleLines.First()[2..].Trim();
+        Match nameAndWorkingDirMatch = Regex.Match(firstLineValue, @"(?<name>\w+)\s*\((?<workingDir>.*)\)");
+        selectedOp.Name = nameAndWorkingDirMatch.Groups["name"].Value;
+        selectedOp.WorkingDir = nameAndWorkingDirMatch.Groups["workingDir"].Value;
+
+        // 匹配节点内容(###...)
+        var matches = Regex.Matches(commandContent, @"###\s*[\w\W]+?(?=(###|$))");
+        foreach (var m in matches.Cast<Match>())
+        {
+            string nodeConfig = m.Value;
+
+            var opNode = ResolveNodeFromConfig(nodeConfig);
+            selectedOp.Nodes.Add(opNode);
+        }
+
+        string operationLog = await ExecuteOperationAsync(selectedOp);
+        return new CommandResult(true, operationLog);
+    }
+    static OperationNode ResolveNodeFromConfig(string nodeConfig)
+    {
+        // 获取第一个换行符的索引
+        var firstLineBreakIndex = nodeConfig.IndexOf('\n');
+        var nodeTitle = nodeConfig[..firstLineBreakIndex][3..].Trim();
+        nodeConfig = nodeConfig[(firstLineBreakIndex + 1)..].Trim();
+
+        var configItemMatches = Regex.Matches(nodeConfig, _parameterLineStartPattern);
+
+        string targetFilePattern = string.Empty;
+        StringBuilder valueBuilder = new();
+        string type = string.Empty;
+        string linePattern = string.Empty;
+        string[] lines = nodeConfig.Split('\n');
+        string configItemKey = string.Empty;
+        string configItemValue;
+        bool isConfigItemFirstLine = false;
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            configItemValue = line;
+            string lineConfigItemKey = _configItemKeys.FirstOrDefault(x => line.StartsWith(x + ":"));
+            isConfigItemFirstLine = !string.IsNullOrWhiteSpace(lineConfigItemKey);
+            if (isConfigItemFirstLine)
+            {
+                configItemKey = lineConfigItemKey;
+                // configItemKey.Length + 1: 加1是因为后面还有一个冒号
+                configItemValue = line[(lineConfigItemKey.Length + 1)..].Trim();
+            }
+            if (string.IsNullOrWhiteSpace(configItemKey))
+            {
+                throw new Exception("配置项的键不能为空");
+            }
+            if (configItemKey == nameof(OperationNode.TargetFilePattern))
+            {
+                targetFilePattern = configItemValue;
+            }
+            else if (configItemKey == nameof(NodeStep.Value))
+            {
+                valueBuilder.AppendLine(configItemValue);
+            }
+            else if (configItemKey == nameof(NodeStep.OperationType))
+            {
+                type = configItemValue;
+            }
+            else if (configItemKey == nameof(NodeStep.LinePattern))
+            {
+                linePattern = configItemValue;
+            }
+            else
+            {
+                continue;
+            }
+        }
+
+        OperationNode opNode = new()
+        {
+            Steps = [],
+            NodeTitle = nodeTitle,
+            TargetFilePattern = targetFilePattern,
+        };
+        var values = valueBuilder.ToString().Trim().Split("|||");
+        var types = type.Split("|||");
+        var linePatterns = linePattern.Split("|||");
+        for (int j = 0; j < values.Length; j++)
+        {
+            NodeStep step = new()
+            {
+                Value = values[j],
+                LinePattern = linePatterns[j]
+            };
+            var opType = types[j].Trim();
+            step.OperationType = opType switch
+            {
+                nameof(OperationType.Append) => OperationType.Append,
+                nameof(OperationType.Prepend) => OperationType.Prepend,
+                nameof(OperationType.Replace) => OperationType.Replace,
+                nameof(OperationType.ReplaceAll) => OperationType.ReplaceAll,
+                nameof(OperationType.Create) => OperationType.Create,
+                _ => throw new Exception($"无效的操作类型:{opType}"),
+            };
+            opNode.Steps.Add(step);
+        }
+        return opNode;
+    }
+    /// <summary>
     /// 获取数据库表对应的实体类代码
     /// conn.DbMaintenance会反射获取数据库对应的实例(如MySqlDbMaintenance)
     /// </summary>
-    /// <param name="columnInfos">表所有字段信息</param>
+    /// <param name="connectionString">数据库连接字符串</param>
     /// <param name="table"></param>
     /// <returns></returns>
-    public static async Task<string[]> BuildEntityClassCodeAsync(IEnumerable<ColumnInfo> columnInfos, string table)
+    public static async Task<string[]> BuildEntityClassCodeAsync(string connectionString, string table)
     {
+        var columnInfos = await DatabaseInfo.GetTableColumnsInfoAsync(connectionString, table);
         #region 表字段分析
         //获取主键类型("int", "string")
-        var primaryKey = columnInfos.FirstOrDefault(x => x.IsPrimarykey == 1);
+        var primaryKey = columnInfos.FirstOrDefault(x => x.IsPK == 1);
 
         //part1.1:生成实体类属性代码
         StringBuilder propsText = new();
         foreach (var columnInfo in columnInfos)
         {
-            LoggerHelper.LogInformation($"{columnInfo.Name} DataType:{columnInfo.ColumnType}; Length:{columnInfo.Length}");
+            LoggerHelper.LogInformation($"{columnInfo.ColumnCode} DataType:{columnInfo.ColumnType}; Length:{columnInfo.ColumnLength}");
         }
 
         //part1.2:using System;
@@ -615,8 +735,12 @@ public partial class FileHelper
 
         foreach (var columnInfo in columnInfos)
         {
-            if (primaryKey is not null && columnInfo.Name != primaryKey?.Name)
+            if (primaryKey is not null && columnInfo.ColumnCode != primaryKey?.ColumnCode)
             {
+                if (columnInfo.ColumnType is null)
+                {
+                    throw new Exception($"字段{columnInfo.ColumnCode}类型为空");
+                }
                 var propType = columnInfo.ColumnType switch
                 {
                     _ when columnInfo.ColumnType.Contains("time", StringComparison.OrdinalIgnoreCase) => "DateTime",
@@ -629,7 +753,7 @@ public partial class FileHelper
                 {
                     usingSystem = $"{Environment.NewLine}using System;";
                 }
-                var stringLengthAttr = columnInfo.Length > 0 && propType == "string" ? $"{Environment.NewLine}{SpaceConstants.TwoTabsSpaces}[StringLength({columnInfo.Length})]" : string.Empty;
+                var stringLengthAttr = !string.IsNullOrWhiteSpace(columnInfo.ColumnLength) && Convert.ToInt32(columnInfo.ColumnLength) > 0 && propType == "string" ? $"{Environment.NewLine}{SpaceConstants.TwoTabsSpaces}[StringLength({columnInfo.ColumnLength})]" : string.Empty;
                 if (stringLengthAttr.Length > 0 && usingDataAnnotation.Length == 0)
                 {
                     usingDataAnnotation = $"{Environment.NewLine}using System.ComponentModel.DataAnnotations;";
@@ -637,17 +761,17 @@ public partial class FileHelper
 
                 var columnProp = $$"""
                         {{SpaceConstants.TwoTabsSpaces}}/// <summary>
-                        {{SpaceConstants.TwoTabsSpaces}}/// {{columnInfo.Description}}
+                        {{SpaceConstants.TwoTabsSpaces}}/// {{columnInfo.Remark}}
                         {{SpaceConstants.TwoTabsSpaces}}/// </summary>{{stringLengthAttr}}
-                        {{SpaceConstants.TwoTabsSpaces}}public {{propType}} {{columnInfo.Name}} { get; set; }
+                        {{SpaceConstants.TwoTabsSpaces}}public {{propType}} {{columnInfo.ColumnCode}} { get; set; }
                         """;
                 propsText.AppendLine(columnProp);
 
                 string commonPropCode = $$"""
                         {{SpaceConstants.TwoTabsSpaces}}/// <summary>
-                        {{SpaceConstants.TwoTabsSpaces}}/// {{columnInfo.Description}}
+                        {{SpaceConstants.TwoTabsSpaces}}/// {{columnInfo.Remark}}
                         {{SpaceConstants.TwoTabsSpaces}}/// </summary>
-                        {{SpaceConstants.TwoTabsSpaces}}public {{propType}} {{columnInfo.Name}} { get; set; }
+                        {{SpaceConstants.TwoTabsSpaces}}public {{propType}} {{columnInfo.ColumnCode}} { get; set; }
                         """;
                 dtoExceptIdPropsCode.AppendLine(commonPropCode);
                 if (!propType.Equals("DateTime"))
@@ -760,7 +884,7 @@ public partial class FileHelper
                 }
                 OperationNode opNode = new()
                 {
-                    OperationTitle = operationTitle,
+                    NodeTitle = operationTitle,
                     TargetFilePattern = targetFilePattern,
                     Steps = []
                 };
@@ -845,13 +969,6 @@ public partial class FileHelper
     /// <returns></returns>
     static async Task ResolveVariablesAsync(OperationNode opNode)
     {
-        // 解析用户输入变量(TargetFilePattern和Steps中每个项的Value)
-        opNode.TargetFilePattern = ResolveCustomInputVariables(opNode.TargetFilePattern);
-        foreach (var step in opNode.Steps)
-        {
-            step.Value = ResolveCustomInputVariables(step.Value);
-        }
-
         // 解析函数变量(TargetFilePattern和Steps中每个项的Value)
         opNode.TargetFilePattern = await ResolveFunctionVariablesAsync(opNode.TargetFilePattern);
         foreach (var step in opNode.Steps)
@@ -873,34 +990,7 @@ public partial class FileHelper
     /// <returns></returns>
     static async Task<string> ResolveVariablesAsync(string originTxt)
     {
-        originTxt = ResolveCustomInputVariables(originTxt);
         originTxt = await ResolveFunctionVariablesAsync(originTxt);
-        return originTxt;
-    }
-
-    /// <summary>
-    /// 解析文本中需要用户实时输入确定值的变量
-    /// </summary>
-    /// <param name="originTxt"></param>
-    /// <returns></returns>
-    static string ResolveCustomInputVariables(string originTxt)
-    {
-        var matches = CustomInputVariablesPattern.Matches(originTxt);
-        foreach (Match match in matches)
-        {
-            var varName = match.Groups["varName"].Value;
-            if (_variables.TryGetValue(varName, out string? varValue))
-            {
-                originTxt = originTxt.Replace(match.Value, varValue);
-            }
-            else
-            {
-                LoggerHelper.LogInformation($"请输入\"{varName}\":");
-                var input = Console.ReadLine() ?? string.Empty;
-                _variables[varName] = input;
-                originTxt = originTxt.Replace(match.Value, input);
-            }
-        }
         return originTxt;
     }
 
@@ -925,24 +1015,7 @@ public partial class FileHelper
             }
             string val = string.Empty;
             string[] parameters = resolvedParametersTxt.Split("|||");
-            var myTypes = Assembly.GetAssembly(typeof(FileHelper))?.GetTypes() ?? throw new Exception($"获取{nameof(FileHelper)}程序集报错");
-            MethodInfo? method = null;
-            foreach (var myType in myTypes)
-            {
-                if (myType.Name.Equals("FileOperationHelper"))
-                {
-                    var functionMethod = myType.GetMethods().FirstOrDefault(x => x.Name == functionName);
-                    if (functionMethod is not null)
-                    {
-                        method = functionMethod;
-                        break;
-                    }
-                }
-            }
-            if (method is null)
-            {
-                throw new Exception($"没有找到方法:{functionName}");
-            }
+            MethodInfo? method = typeof(FileHelper).GetMethods().FirstOrDefault(x => x.Name == functionName) ?? throw new Exception($"没有找到方法:{functionName}");
             LoggerHelper.LogInformation($"即将调用方法{functionName}, 参数:");
             foreach (var parameter in parameters)
             {
@@ -1090,7 +1163,15 @@ public partial class FileHelper
         }
         return originTxt;
     }
-
+    //static (string, string) GetLineParameterValue(string line)
+    //{
+    //    var configItemKey = _configItemKeys.FirstOrDefault(x => line.StartsWith($"{x}:"));
+    //    if (configItemKey is null)
+    //    {
+    //        return (string.Empty, line);
+    //    }
+    //    return (configItemKey, line);
+    //}
     static (string, string, int) GetNextParameter(string[] settingLines, int lineIndex)
     {
         lineIndex++;
@@ -1150,7 +1231,7 @@ public partial class FileHelper
 
     // string file, string value, string operationTitle, OperationType operationType, string appendedLinePattern = ""
     /// <summary>执行用户选择的操作(所有子命令)</summary>
-    static async Task ExecuteOperationAsync(Operation selectedOp)
+    static async Task<string> ExecuteOperationAsync(Operation selectedOp)
     {
         #region 准备工作 - 解析变量
         // 预设全局变量
@@ -1167,13 +1248,7 @@ public partial class FileHelper
         }
         #endregion
 
-        LoggerHelper.LogInformation($"您确定要执行此操作: {selectedOp.Name}(yes/no)");
-        var input = Console.ReadLine() ?? "";
-        if (!input.Equals("yes", StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
+        StringBuilder operationLog = new();
         foreach (var opNode in selectedOp.Nodes)
         {
             // 多个target(比如index.html和App.razor文件同时)需要执行多个步骤Step(比如添加css引用和js引用)
@@ -1181,7 +1256,7 @@ public partial class FileHelper
             var createFileSteps = opNode.Steps.Where(x => x.OperationType == OperationType.Create);
             if (createFileSteps.Count() > 1)
             {
-                throw new Exception($"创建文件操作\"{opNode.OperationTitle}\"只能包含一个步骤");
+                throw new Exception($"创建文件操作\"{opNode.NodeTitle}\"只能包含一个步骤");
             }
             else if (createFileSteps.Count() == 1)
             {
@@ -1190,7 +1265,7 @@ public partial class FileHelper
                 var creatingFile = opNode.TargetFilePattern[(lastSlashIndex + 1)..];
                 if (string.IsNullOrWhiteSpace(creatingFile))
                 {
-                    throw new Exception($"\"{opNode.OperationTitle}\"没有匹配到需要创建的文件名:{opNode.TargetFilePattern}");
+                    throw new Exception($"\"{opNode.NodeTitle}\"没有匹配到需要创建的文件名:{opNode.TargetFilePattern}");
                 }
                 var creatingFileDir = opNode.TargetFilePattern[..lastSlashIndex] + '/';
                 var creatingFileDirFullPath = files.FirstOrDefault(x => Regex.IsMatch(x, creatingFileDir));
@@ -1226,15 +1301,17 @@ public partial class FileHelper
                     ResolveTargetFileNamespace(targetFileDir, csprojFile);
                 }
                 #endregion
-                opNode.OperationTitle = ResolveGlobalVariables(opNode.OperationTitle);
+                opNode.NodeTitle = ResolveGlobalVariables(opNode.NodeTitle);
                 opNode.TargetFilePattern = ResolveGlobalVariables(opNode.TargetFilePattern);
                 foreach (var step in opNode.Steps)
                 {
                     step.Value = ResolveGlobalVariables(step.Value);
-                    await ModifyAsync(targetFile, opNode.OperationTitle, step.Value, step.LinePattern, step.OperationType);
+                    await ModifyAsync(targetFile, opNode.NodeTitle, step.Value, step.LinePattern, step.OperationType);
                 }
             }
         }
+
+        return operationLog.ToString();
 
         async Task ModifyAsync(string file, string operationTitle, string value, string appendedLinePattern, OperationType operationType)
         {
@@ -1242,7 +1319,7 @@ public partial class FileHelper
             var content = await File.ReadAllTextAsync(file);
             if ((operationType == OperationType.Append || operationType == OperationType.Prepend) && content.Contains(value))
             {
-                LoggerHelper.LogInformation($"- 已\"{operationTitle}\", 无需操作 ({file})");
+                operationLog.AppendLine($"- 已\"{operationTitle}\", 无需操作 ({file})");
             }
             else
             {
@@ -1251,7 +1328,7 @@ public partial class FileHelper
                 {
                     if (value == content)
                     {
-                        LoggerHelper.LogInformation($"- 已\"{operationTitle}\", 无需操作 ({file})");
+                        operationLog.AppendLine($"- 已\"{operationTitle}\", 无需操作 ({file})");
                         return;
                     }
                     newContent = value;
@@ -1260,7 +1337,7 @@ public partial class FileHelper
                 {
                     if (content.Contains(value))
                     {
-                        LoggerHelper.LogInformation($"- 已\"{operationTitle}\", 无需操作 ({file})");
+                        operationLog.AppendLine($"- 已\"{operationTitle}\", 无需操作 ({file})");
                         return;
                     }
                     newContent = Regex.Replace(content, appendedLinePattern, value);
@@ -1297,7 +1374,7 @@ public partial class FileHelper
                 }
 
                 await File.WriteAllTextAsync(file, newContent);
-                LoggerHelper.LogInformation($"√ 操作成功: \"{operationTitle}\" ({file})");
+                operationLog.AppendLine($"√ 操作成功: \"{operationTitle}\" ({file})");
             }
         }
     }
@@ -1325,7 +1402,7 @@ public partial class FileHelper
     }
     class OperationNode
     {
-        public string OperationTitle { get; set; } = string.Empty;
+        public string NodeTitle { get; set; } = string.Empty;
         /// <summary>
         /// Create创建文件时为目录名; 其他情况是匹配文件名的正则表达式
         /// </summary>
@@ -1348,7 +1425,7 @@ public partial class FileHelper
         /// </summary>
         public OperationType OperationType { get; set; }
     }
-    
+
     /// <summary>
     /// 获取指定目录下的所有源代码文件
     /// </summary>

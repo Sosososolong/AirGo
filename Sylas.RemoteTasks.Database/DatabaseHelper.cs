@@ -1,11 +1,9 @@
-﻿using Dapper;
-using MySql.Data.MySqlClient;
+﻿using MySql.Data.MySqlClient;
 //using MySqlConnector;
 using Newtonsoft.Json.Linq;
 using Oracle.ManagedDataAccess.Client;
-using Sylas.RemoteTasks.App.RegexExp;
+using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Database.SyncBase;
-using Sylas.RemoteTasks.Utils;
 using Sylas.RemoteTasks.Utils.Extensions;
 using System;
 using System.Collections.Generic;
@@ -13,7 +11,6 @@ using System.Data;
 using System.Data.SqlClient;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace Sylas.RemoteTasks.Database
 {

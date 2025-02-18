@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Sylas.RemoteTasks.Utils
+namespace Sylas.RemoteTasks.Common
 {
     /// <summary>
     /// 日志帮助类

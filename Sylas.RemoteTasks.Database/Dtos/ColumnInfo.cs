@@ -1,4 +1,4 @@
-﻿namespace Sylas.RemoteTasks.Database.SyncBase
+﻿namespace Sylas.RemoteTasks.Database.Dtos
 {
     /// <summary>
     /// 数据表字段信息

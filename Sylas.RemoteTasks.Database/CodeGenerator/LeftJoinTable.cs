@@ -1,4 +1,4 @@
-﻿using Sylas.RemoteTasks.Database.SyncBase;
+﻿using Sylas.RemoteTasks.Database.Dtos;
 using System.Collections.Generic;
 
 namespace Sylas.RemoteTasks.Database.CodeGenerator

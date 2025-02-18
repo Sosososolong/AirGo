@@ -10,6 +10,7 @@ using Sylas.RemoteTasks.App.Models;
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
 using Sylas.RemoteTasks.App.Snippets;
 using Sylas.RemoteTasks.Database.CodeGenerator;
+using Sylas.RemoteTasks.Database.Dtos;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils.Constants;
 using Sylas.RemoteTasks.Utils.Dto;
@@ -1052,11 +1053,11 @@ namespace Sylas.RemoteTasks.App.Controllers
         {
             if (string.IsNullOrWhiteSpace(connectionString) || string.IsNullOrWhiteSpace(table))
             {
-                return Ok(RequestResult<IEnumerable<RemoteTasks.Database.SyncBase.ColumnInfo>>.Error("数据库连接字符串和表名都不能为空"));
+                return Ok(RequestResult<IEnumerable<ColumnInfo>>.Error("数据库连接字符串和表名都不能为空"));
             }
             database.ChangeDatabase(connectionString);
             var columns = await database.GetTableColumnsInfoAsync(table);
-            return Ok(new RequestResult<IEnumerable<RemoteTasks.Database.SyncBase.ColumnInfo>>(columns));
+            return Ok(new RequestResult<IEnumerable<ColumnInfo>>(columns));
         }
 
         public async Task<IActionResult> GetAllTables(string connectionString)

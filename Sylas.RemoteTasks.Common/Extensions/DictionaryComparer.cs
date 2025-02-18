@@ -1,9 +1,8 @@
-﻿using Org.BouncyCastle.Asn1.X509;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Sylas.RemoteTasks.Utils.Extensions
+namespace Sylas.RemoteTasks.Common.Extensions
 {
     /// <summary>
     /// 字典比较器
