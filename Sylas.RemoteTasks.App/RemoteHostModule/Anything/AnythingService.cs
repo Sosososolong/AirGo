@@ -77,17 +77,9 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         /// </summary>
         /// <param name="anythingSetting"></param>
         /// <returns></returns>
-        public async Task<OperationResult> AddAnythingSettingAsync(AnythingSettingDetailsInDto anythingSetting)
+        public async Task<OperationResult> AddAnythingSettingAsync(AnythingSetting anythingSetting)
         {
-            var added = await repository.AddAsync(anythingSetting.ToAnythingSetting());
-            if (anythingSetting.Commands.Count() > 0)
-            {
-                foreach (var command in anythingSetting.Commands)
-                {
-                    command.AnythingId = added;
-                    await _commandRepository.AddAsync(command);
-                }
-            }
+            var added = await repository.AddAsync(anythingSetting);
             return added > 0 ? new OperationResult(true) : new OperationResult(false, "Affected rows: 0");
         }
 
@@ -215,7 +207,35 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         /// <returns></returns>
         public async Task<OperationResult> UpdateCommandAsync(Dictionary<string, string> command)
         {
+            if (!command.TryGetValue("id", out string? id) || id is null)
+            {
+                return new OperationResult(false, "命令id不能为空");
+            }
+            
             var affectedRows = await _commandRepository.UpdateAsync(command);
+            if (affectedRows > 0)
+            {
+                var entity = await _commandRepository.GetByIdAsync(Convert.ToInt32(id));
+                if (entity is null)
+                {
+                    return new OperationResult(false, $"命令{id}不存在");
+                }
+                string cacheKeyAnythingInfo = AnythingInfoCacheKey(entity.AnythingId);
+                if (memoryCache.TryGetValue(cacheKeyAnythingInfo, out AnythingInfo? anythingInfo))
+                {
+                    if (anythingInfo is not null)
+                    {
+                        var commands = anythingInfo.Commands.ToList();
+                        var exist = commands.FirstOrDefault(x => x.Id == entity.Id);
+                        if (exist is not null)
+                        {
+                            commands.Remove(exist);
+                        }
+                        commands.Add(entity);
+                        anythingInfo.Commands = commands;
+                    }
+                }
+            }
             return new OperationResult(affectedRows > 0);
         }
 

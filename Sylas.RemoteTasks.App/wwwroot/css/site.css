@@ -44,7 +44,7 @@ tbody {
     border-radius: 5px;
     /*°ëÍ¸Ã÷*/
     opacity: 1;
-    background: rgba(250, 129, 90, 0.7);
+    background: rgba(13, 110, 253, 0.7); /*#0d6efd;*/ /*rgba(250, 129, 90, 0.7);*/
     backdrop-filter: blur(20rpx);
 }
 .arrow-up {

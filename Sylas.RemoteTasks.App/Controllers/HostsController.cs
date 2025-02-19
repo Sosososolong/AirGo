@@ -84,7 +84,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// </summary>
         /// <param name="anythingSetting"></param>
         /// <returns></returns>
-        public async Task<IActionResult> AddAnythingSettingAsync([FromBody] AnythingSettingDetailsInDto anythingSetting)
+        public async Task<IActionResult> AddAnythingSettingAsync([FromBody] AnythingSetting anythingSetting)
         {
             return Json(await anythingService.AddAnythingSettingAsync(anythingSetting));
         }

@@ -76,7 +76,7 @@ const ths = [
     { name: 'properties', title: '环境变量', multiLines: true },
     { name: 'name', title: '名称', searchedByKeywords: true },
     { name: 'title', title: '标题', searchedByKeywords: true },
-    { name: 'executor', title: '执行者', type: 'dataSource|dataSourceApi=/Hosts/Executors?pageIndex=1&pageSize=1000|displayField=name' },
+    { name: 'executor', title: '执行者', type: 'dataSource|defaultValue=0|dataSourceApi=/Hosts/Executors?pageIndex=1&pageSize=1000|displayField=name' },
     { name: 'commands', title: '命令', multiLines: true },
 
     { name: 'createTime', title: '创建时间' },
@@ -111,7 +111,6 @@ function buildDataView(data) {
                         </h5>
                         <div>
                             <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="${record.id}" data-fetch-url="${apiUrl}" data-method="POST" onclick="showUpdatePannel(this, () => cardsStatus.find(x => x.id == ${record.id}).isShown = false, () => { document.querySelector('#${collapseBtnId}').click(); })">更新</button>
-                            <button type="button" class="btn btn-primary btn-sm" onclick="updateAnythingCommandsFromCardStatus(${record.id})">保存所有命令</button>
                             <button type="button" class="btn btn-primary btn-sm" onclick="addCommand(this, ${record.id}, '${record.title}')">添加命令</button>
                             <button type="button" class="btn btn-primary btn-sm" onclick="executeCommands(this)">运行</button>
                             <button type="button" class="btn btn-primary btn-sm d-none" data-table-id="${tableId}" data-content="&quot;${record.id}&quot;" data-execute-url="/Study/DeleteQuestion" data-method="POST" onclick="showConfirmBox('确定删除? 此操作无法撤销!', () => execute(this))">删除</button>
@@ -159,10 +158,18 @@ function onDataLoaded(row) {
 }
 const multiCommandItemsStyle = 'background-color:#eee;padding:10px 30px 0 10px;margin-bottom:10px;position:relative;border-radius:5px;';
 const sigleCommandItemStyle = 'position:relative;';
-async function loadCommandsAsync(ele, id) {
+/**
+ * 展开卡片, 显示所有命令列表
+ * @param {any} ele
+ * @param {any} id
+ */
+async function loadCommandsAsync(ele, id, refresh = false) {
+    // 卡片元素
     const card = ele.closest('.card');
-
     const cardStatus = currentCard = cardsStatus.find(x => x.id == id)
+    if (refresh && cardStatus.isShown) {
+        cardStatus.isShown = false;
+    }
     if (!cardStatus.isShown) {
         cardsStatus.forEach(x => {
             if (x.isShown) {
@@ -181,10 +188,12 @@ async function loadCommandsAsync(ele, id) {
             cardStatus.commandArray = anythingInfo.commands;
             let commandsHtml = '';
             const commandItemStyle = anythingInfo.commands.length > 1 ? multiCommandItemsStyle : sigleCommandItemStyle;
+            anythingInfo.commands = anythingInfo.commands.sort((item1, item2) => item1['orderNo'] > item2['orderNo'] ? 1 : -1);
             for (let i = 0; i < anythingInfo.commands.length; i++) {
                 // command和commandInfo有什么区别: command包含原始的模板命令, 我们编辑命令时应该编辑的是原始的命令, commandInfo则显示最终被解析后的命令
-                const command = anythingSetting.commands[i];
                 const commandInfo = anythingInfo.commands[i];
+                // 索引不是一一对应, 使用id查找对应的原始命令配置
+                const command = anythingSetting.commands.find(x => x.id == commandInfo.id);
 
                 let commandState = '';
                 const stateArr = !commandInfo || !commandInfo.executedState ? [] : commandInfo.executedState.split('\n');
@@ -225,8 +234,8 @@ async function loadCommandsAsync(ele, id) {
             </div>
 
             <div style="font-size:12px; margin-left:30px; color:green;">${commandState}</div>
-            <div class="arrow-up" style="position:absolute;right:5px;bottom:20px;cursor:pointer;" onclick="changeOrderAsync(this, ${id}, ${i}, ${commandsLength}, -1)"></div>
-            <div class="arrow-down" style="position:absolute;right:5px;bottom:-5px;cursor:pointer;" onclick="changeOrderAsync(this, ${id}, ${i}, ${commandsLength}, 1)"></div>
+            <div class="arrow-up" command-id="${commandInfo.id}" order-no="${commandInfo.orderNo}" style="position:absolute;right:5px;bottom:20px;cursor:pointer;" onclick="changeOrderAsync(this, ${id}, ${i}, ${commandsLength}, -1)"></div>
+            <div class="arrow-down" command-id="${commandInfo.id}" order-no="${commandInfo.orderNo}" style="position:absolute;right:5px;bottom:-5px;cursor:pointer;" onclick="changeOrderAsync(this, ${id}, ${i}, ${commandsLength}, 1)"></div>
             <div style="position:absolute;right:10px;top:10px;cursor:pointer;font-size:8px;" onclick="showConfirmBox('确定移除命令[${commandInfo.name}]吗?', () => removeCommandItemAsync(this, ${id}, ${commandInfo.id}, ${i}))">❌</div>
         </div>`;
             }
@@ -239,9 +248,10 @@ async function loadCommandsAsync(ele, id) {
             let resolvedProperties = '';
             for (var key in anythingInfo.properties) {
                 if (anythingInfo.properties.hasOwnProperty(key)) {
-                    resolvedProperties += `<div>${key}: ${anythingInfo.properties[key]}</div>`;
+                    resolvedProperties += `<tr style="color:white"><td>${key}: </td><td>${anythingInfo.properties[key]}</td>`;
                 }
             }
+            resolvedProperties = `<table>${resolvedProperties}</table>`
             const dataPannelHtml = `<div class="d-flex justify-content-between">
                 <h4 class="text-white mb-4 data-pannel-title">环境变量</h4>
                 <div style="color:white;font-size:24px;cursor:pointer;padding: 0 10px;line-height:12px;" onclick="resizeDataPannel(event, ${id})">-</div>
@@ -251,19 +261,22 @@ async function loadCommandsAsync(ele, id) {
                 <div class="d-flex justify-content-end">
                     <button type="button" class="btn btn-primary btn-sm" data-content="formItemIds:properties-${id};setting-id-${id}" data-execute-url="${apiUpdateUrl}" data-method="POST" onclick="showConfirmBox('确定更新变量吗?', () => execute(this))">更新变量</button>
                 </div>
-                <div style="color:gray;">${resolvedProperties}</div>
+                <div class="all-properties">${resolvedProperties}</div>
             </div>`;
             newDataPannel(`data-pannel-${id}`, 'right-data-pannel', dataPannelHtml);
-            // 更新选中状态
-            ele.parentElement.style.backgroundColor = 'rgba(250, 129, 90, 0.7)';
+            // 卡片元素样式设置
+            ele.closest('.card').style.backgroundColor = 'rgba(0, 0, 0, 0.1)';
+
+            //ele.parentElement.style.backgroundColor = 'rgba(13, 110, 253, 0.7)';
             ele.parentElement.style.backdropFilter = 'blur(20rpx)';
-            ele.closest('.card').style.border = '1px solid rgba(250, 129, 90, 0.7)';
+            //ele.closest('.card').style.border = '1px solid rgba(13, 110, 253, 0.7)';
         }
     } else {
         cardStatus.isShown = false;
         // 移除变量properties展示面板
         removeDataPannel(`data-pannel-${id}`);
         // 更新选中状态
+        ele.closest('.card').style.backgroundColor = '';
         ele.parentElement.style.backgroundColor = '';
         ele.parentElement.style.backdropFilter = '';
         ele.closest('.card').style.border = '';
@@ -341,22 +354,32 @@ async function changeOrderAsync(trigger, id, currentCommandIndex, length, step) 
     }
 
     // 先更新cardStatus中的commandArray的顺序
-    const cardStatus = cardsStatus.find(x => x.id == id);
-    const commands = cardStatus.commandArray;
+    //const cardStatus = cardsStatus.find(x => x.id == id);
+    //const commands = cardStatus.commandArray;
 
-    const currentCommandCopy = commands[currentCommandIndex];
+    //const currentCommandCopy = commands[currentCommandIndex];
     
-    commands[currentCommandIndex] = commands[nextIndex];
-    commands[nextIndex] = currentCommandCopy;
+    //commands[currentCommandIndex] = commands[nextIndex];
+    //commands[nextIndex] = currentCommandCopy;
 
     // 更新div的顺序(下一个放到当前元素的前面)
-    const commandBlocks = trigger.closest('.card').querySelectorAll('.command-item');
-    const currentCommandBlock = commandBlocks[currentCommandIndex];
-    const nextCommandBlock = commandBlocks[nextIndex];
-    nextCommandBlock.insertAdjacentElement('afterend', currentCommandBlock);
+    //const commandBlocks = trigger.closest('.card').querySelectorAll('.command-item');
+    //const currentCommandBlock = commandBlocks[currentCommandIndex];
+    //const nextCommandBlock = commandBlocks[nextIndex];
+    //nextCommandBlock.insertAdjacentElement('afterend', currentCommandBlock);
 
-    // 更新anything的命令集
-    await updateAnythingCommandsFromCardStatus(id, commands);
+    const commandId = trigger.getAttribute("command-id");
+    const orderNo = trigger.getAttribute("order-no");
+    const params = { id: commandId, orderNo: (Number(orderNo) + step).toString() };
+    const paramsJson = JSON.stringify(params);
+    const executeData = {
+        // dataTableId: '', // 用于更新后重载数据表格
+        dataContent: paramsJson,
+        dataExecuteUrl: `/Hosts/UpdateCommand`,
+        dataMethod: 'POST'
+    };
+    
+    execute(executeData, () => loadCommandsAsync(document.querySelector(`.anything-card-${id}`).querySelector('.card-title'), id, true));
 }
 
 /**
@@ -373,10 +396,8 @@ async function removeCommandItemAsync(trigger, id, commandId, removedIndex) {
 
     // 移除对应的dom
     trigger.closest('.command-item').remove();
-    document.querySelector('.command-item').remove();
 
-    // 更新anything的命令集
-    await updateAnythingCommandsFromCardStatus(id, commands);
+    // 更新命令
     await removeCommandAsync(id, commandId);
 }
 
@@ -438,37 +459,13 @@ async function addCommandPost(eventTrigger, id) {
     const newCommand = { Name: input.value, CommandTxt: '', ExecutedState: '' };
     commandArray.push(newCommand);
 
-    await updateAnythingCommandsFromCardStatus(id, commandArray);
-
     await addAnythingCommandAsync(id, newCommand);
 }
 
-async function updateAnythingCommandsFromCardStatus(id, cardStatusCommands) {
-    if (!cardStatusCommands) {
-        const cardStatus = cardsStatus.find(x => x.id == id);
-        cardStatusCommands = cardStatus.commandArray;
-    }
-    const anythingCommands = JSON.stringify(cardStatusCommands);
-    await updateAnythingCommandsAsync(id, anythingCommands);
-}
-
-async function updateAnythingCommandsAsync(id, commands) {
-    const params = { id: id.toString(), commands };
-    //params["id"] = id;
-    //params["commands"] = commands;
-    const paramsJson = JSON.stringify(params);
-    const trigger = {
-        // dataTableId: '', // 用于更新后重载数据表格
-        dataContent: paramsJson,
-        dataExecuteUrl: apiUpdateUrl,
-        dataMethod: 'POST'
-    };
-
-    // 将显示状态设置为false(true不会重载数据), 然后重载数据
-    const cardStatus = cardsStatus.find(x => x.id == id);
-    cardStatus.isShown = false;
-    execute(trigger, () => loadCommandsAsync(document.querySelector(`.anything-card-${id}`).querySelector('.card-title'), id));
-}
+/**
+ * 更新命令
+ * @param {any} id
+ */
 async function updateCommandAsync(id) {
     const commandTxt = document.querySelector(`.command-input-${id}`).value;
     const params = { id: id.toString(), commandTxt };
@@ -486,10 +483,7 @@ async function updateCommandAsync(id) {
     const cardClasses = cardEle.classList;
     const anythingId = cardClasses[cardClasses.length - 1].replace('anything-card-', '');
 
-    // 将显示状态设置为false(true不会重载数据), 然后重载数据
-    const cardStatus = cardsStatus.find(x => x.id == anythingId);
-    cardStatus.isShown = false;
-    execute(trigger, () => loadCommandsAsync(cardEle.querySelector('.card-title'), anythingId));
+    execute(trigger, () => loadCommandsAsync(cardEle.querySelector('.card-title'), anythingId, true));
 }
 /**
  * 添加一条新命令
@@ -506,10 +500,7 @@ async function addAnythingCommandAsync(id, command) {
         dataMethod: 'POST'
     };
 
-    // 将显示状态设置为false(true不会重载数据), 然后重载数据
-    const cardStatus = cardsStatus.find(x => x.id == id);
-    cardStatus.isShown = false;
     execute(trigger,
-        () => loadCommandsAsync(document.querySelector(`#button-cmd-${id}`).closest('.card').querySelector('.card-title'), id)
+        () => loadCommandsAsync(document.querySelector(`#button-cmd-${id}`).closest('.card').querySelector('.card-title'), id, true)
     );
 }

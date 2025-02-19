@@ -27,8 +27,15 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         /// 给当前对象自定义属性
         /// </summary>
         public Dictionary<string, object> Properties { get; set; } = [];
+        
+        /// <summary>
+        /// 配置记录的Id
+        /// </summary>
         public int SettingId { get; set; }
-
+        
+        /// <summary>
+        /// 命令执行器
+        /// </summary>
         public string CommandExecutor { get; set; } = string.Empty;
     }
 }
