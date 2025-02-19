@@ -1,10 +1,9 @@
 ﻿using IdentityModel;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
-using Microsoft.IdentityModel.Tokens;
 using Sylas.RemoteTasks.App.Database;
 using Sylas.RemoteTasks.App.Infrastructure;
+using Sylas.RemoteTasks.Common.Extensions;
 using Sylas.RemoteTasks.Database;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils;
@@ -59,7 +58,7 @@ namespace Sylas.RemoteTasks.App.Helpers
 
             string centerServer = configuration.GetValue<string>("CenterServer") ?? string.Empty;
             AppStatus.CenterServer = centerServer;
-            
+
             AppStatus.IsCenterServer = string.IsNullOrWhiteSpace(centerServer);
 
             AppStatus.CenterWebServer = configuration.GetValue<string>("CenterWebServer");
@@ -69,6 +68,8 @@ namespace Sylas.RemoteTasks.App.Helpers
             }
 
             AppStatus.Domain = Dns.GetHostName();
+
+            AppStatus.InstancePath = AppDomain.CurrentDomain.BaseDirectory.ToBase64();
         }
 
         public static void AddAiConfig(this IServiceCollection services, IConfiguration configuration)
@@ -152,7 +153,7 @@ namespace Sylas.RemoteTasks.App.Helpers
                 //options.DefaultForbidScheme = CookieAuthenticationDefaults.AuthenticationScheme;
                 //options.DefaultSignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
                 //options.DefaultSignOutScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-                
+
                 //默认验证方案
                 options.DefaultScheme = "Bearer"; //CookieAuthenticationDefaults.AuthenticationScheme;
                 //默认token验证失败后的确认验证结果方案

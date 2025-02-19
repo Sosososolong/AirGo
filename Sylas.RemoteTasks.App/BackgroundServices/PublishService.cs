@@ -1,6 +1,7 @@
 ﻿using Newtonsoft.Json;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
+using Sylas.RemoteTasks.Common.Extensions;
 using Sylas.RemoteTasks.Utils;
 using Sylas.RemoteTasks.Utils.CommandExecutor;
 using System.Collections.Concurrent;
@@ -260,12 +261,18 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                             }
                             else if (type == "2")
                             {
-                                //2;;;;DESKTOP-CPTIQKF;;;;Process352756-Socket1
-                                string childServerNodeDomain = parametersArray[1];
+                                //2;;;;DESKTOP-XXX;;;;{节点路径base64编码结果}-Socket1
+                                string childServerNodeDomain = parametersArray[1]; // DESKTOP-XXX
                                 string childServerNodeSocketNo = string.Empty;
+                                string childServerNodePath = string.Empty;
                                 if (parametersArray.Length >= 3)
                                 {
-                                    childServerNodeSocketNo = parametersArray[2];
+                                    childServerNodeSocketNo = parametersArray[2]; // 节点路径base64编码结果-Socket1
+                                    int index = childServerNodeSocketNo.LastIndexOf('-');
+                                    if (index > 0)
+                                    {
+                                        childServerNodePath = childServerNodeSocketNo[..index];
+                                    }
                                 }
 
                                 var centerServer = _configuration?.GetValue<string>("CenterServer");
@@ -273,13 +280,20 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                                 {
                                     // **关键**: 当有新的子节点连接过来时, 需要将老的socket连接释放掉, 只保留最新的与子节点的连接的socket对象(老的socket不一定会检测到异常关闭, 可能会一直存在, 那么就会导致消息还是发送给子节点老的socket连接, 导致子节点收不到消息)
                                     _logger.LogInformation("Center Server[{thread}]: 接收到来自子节点{Domain}的连接{childNodeSocketNo}, 关闭并释放socket连接", threadSocketNo, childServerNodeDomain, childServerNodeSocketNo);
-                                    if (_childNodeSockets.TryGetValue(childServerNodeDomain, out var val))
+                                    string childServerNodeIdentityNo = $"{childServerNodeDomain}-{childServerNodePath}";
+                                    if (_childNodeSockets.TryGetValue(childServerNodeIdentityNo, out var val))
                                     {
-                                        _logger.LogInformation("Center Server[{thread}]: 已经存在与子节点{Domain}的连接{oldSocketNo}, 关闭并释放socket连接", threadSocketNo, childServerNodeDomain, val.Item2);
+                                        _logger.LogInformation("Center Server[{thread}]: 已经存在与子节点{childServerNodeIdentityNo}的连接{oldSocketNo}, 关闭并释放socket连接", threadSocketNo, childServerNodeIdentityNo, val.Item2);
                                         val.Item1.Close();
                                         val.Item1.Dispose();
                                     }
-                                    _childNodeSockets[childServerNodeDomain] = (socketForClient, childServerNodeSocketNo);
+                                    else if (_childNodeSockets.Keys.Any(x => x.StartsWith(childServerNodeDomain)))
+                                    {
+                                        // 当前子节点主机已经有实例连接过来了, 那么当前实例无需与中心服务器建立连接
+                                        _logger.LogWarning("Center Server[{thread}]: 当前子节点{childServerNodeDomain}已经有实例({instancePath})连接过来了, 当前实例无需与中心服务器建立连接", threadSocketNo, childServerNodeDomain, childServerNodePath.FromBase64());
+                                        return;
+                                    }
+                                    _childNodeSockets[childServerNodeIdentityNo] = (socketForClient, childServerNodeSocketNo);
 
                                     // 没有配置中心服务器地址, 说明就是中心服务器
                                     // 先将当前客户端添加到公共容器中, 供当前中心服务器调度
@@ -435,7 +449,10 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                     while (true)
                     {
                         _socketNo++;
-                        string socketNo = $"Process{AppStatus.ProcessId}-Socket{_socketNo}";
+                        
+                        // domain - node路径 节点实例标识, 使得可以区分哪台主机的哪个应用(同一台主机根据实例的路径)
+                        string socketNo = $"{AppStatus.InstancePath}-Socket{_socketNo}";
+                        
                         // 重新连接时需要初始化最后一次心跳时间, 否则会导致心跳检测线程检测到心跳超时
                         _lastKeepAliveTime = DateTime.Now;
                         _toCenterServerConn = null;

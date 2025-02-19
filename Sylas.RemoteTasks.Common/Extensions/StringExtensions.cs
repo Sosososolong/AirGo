@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Text;
 
-namespace Sylas.RemoteTasks.Utils.Extensions
+namespace Sylas.RemoteTasks.Common.Extensions
 {
     /// <summary>
     /// 字符串操作扩展类
@@ -54,7 +54,7 @@ namespace Sylas.RemoteTasks.Utils.Extensions
         public static string ConvertSnakeCaseToPascalCase(this string snake_case_name)
         {
             // 1.正则匹配字符串中所有的"Xxx",
-            var res = System.Text.RegularExpressions.Regex.Replace(snake_case_name, @"([A-Z])[a-z]+", match =>
+            var res = Regex.Replace(snake_case_name, @"([A-Z])[a-z]+", match =>
             {
                 // 2.然后在委托中替换大写字母"X"为"_x", 最后去掉开头的"_"
                 var origin = match.Groups[0].Value;
@@ -252,5 +252,17 @@ namespace Sylas.RemoteTasks.Utils.Extensions
 
             return result.ToString();
         }
+        /// <summary>
+        /// 将字符串转换为Base64编码
+        /// </summary>
+        /// <param name="origin"></param>
+        /// <returns></returns>
+        public static string ToBase64(this string origin) => Convert.ToBase64String(Encoding.UTF8.GetBytes(origin));
+        /// <summary>
+        /// 将Base64编码的字符串还原为原始字符串
+        /// </summary>
+        /// <param name="base64"></param>
+        /// <returns></returns>
+        public static string FromBase64(this string base64) => Encoding.UTF8.GetString(Convert.FromBase64String(base64));
     }
 }
