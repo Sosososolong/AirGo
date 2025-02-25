@@ -33,7 +33,7 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableContainerS
             pageIndex: pageIndex,
             pageSize: pageSize,
             totalPages: 0,
-            orderRules: !orderRules ? [{ orderField: 'updateTime', isAsc: false }] : orderRules,
+            orderRules: !orderRules ? [{ fieldName: 'updateTime', isAsc: false }] : orderRules,
             dataFilter: {
                 filterItems: [
                     {

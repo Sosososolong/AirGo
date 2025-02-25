@@ -1,21 +1,19 @@
-﻿using Sylas.RemoteTasks.Utils.CommandExecutor;
+﻿using Sylas.RemoteTasks.Common;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
-using System.Net;
 using System.Runtime.InteropServices;
-using System.Threading.Tasks;
-using System.Text.RegularExpressions;
-using System.Linq;
 using System.Text;
-using System.Threading;
-using System.Collections.Concurrent;
-using Sylas.RemoteTasks.Common;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 
-namespace Sylas.RemoteTasks.Utils
+namespace Sylas.RemoteTasks.Utils.CommandExecutor
 {
     /// <summary>
     /// 系统终端命令助手
@@ -120,17 +118,21 @@ namespace Sylas.RemoteTasks.Utils
         /// CPU使用率命令-Windows
         /// </summary>
         public const string CPURateCommandWindows = "wmic cpu get LoadPercentage";
-
+        static Regex WindowsPathPattern = new(@"^[A-Z]:\\([^*\^""\<\>\?\|:]+)*>.*");
         /// <summary>
         /// 本地执行脚本
         /// </summary>
-        /// <param name="commands"></param>
+        /// <param name="command"></param>
         /// <returns></returns>
-        public async Task<CommandResult> ExecuteAsync(string commands)
+        public async IAsyncEnumerable<CommandResult> ExecuteAsync(string command)
         {
-            List<string> outputs = await ExecuteAsync([.. commands.Split(';')]);
-            string output = string.Join(Environment.NewLine, outputs);
-            return new CommandResult(true, output);
+            var outputs = ExecuteSingleCommandAsync(command);
+            await foreach (var output in outputs)
+            {
+                var cmdRes = output.StartsWith("[ERR]") ? new CommandResult(false, output) : new CommandResult(true, output);
+                yield return cmdRes;
+            }
+            yield break;
         }
         /// <summary>
         /// 本地执行脚本
@@ -144,7 +146,6 @@ namespace Sylas.RemoteTasks.Utils
             var currentDir = AppDomain.CurrentDomain.BaseDirectory;
             var tempDir = Path.Combine(currentDir, $"TEMP_SYSTEMCMD_{DateTime.Now:yyyyMMddHHmmssFFFFFFF}");
             var dirInfo = Directory.CreateDirectory(tempDir);
-            //string winShell = "D:/Program Files/Git/bin/bash.exe";
             var startInfo = new ProcessStartInfo
             {
                 // 设置要启动的应用程序
@@ -175,16 +176,16 @@ namespace Sylas.RemoteTasks.Utils
                 string logFileName = $"cmd{commandIndex}";
                 string outputFile = Path.Combine(tempDir, $"{logFileName}.log");
                 string tempScriptFile = Path.Combine(tempDir, $"{logFileName}.ps1");
-                string scripts = """
+                string scripts = $$"""
+                    chcp 65001
                     try {
-                        {cmdItem} *> {outputFile}
+                        {{cmdItem}} *> {{outputFile}}
                      } catch {
                         # 捕获到错误后，将错误信息写入文件  
-                        $_.Exception.Message | Out-File -FilePath "{outputFile}" -Append
+                        $_.Exception.Message | Out-File -FilePath "{{outputFile}}" -Append
                     }
                     """;
-                scripts = scripts.Replace("{cmdItem}", cmdItem).Replace("{outputFile}", outputFile);
-                File.WriteAllText(tempScriptFile, scripts);
+                File.WriteAllText(tempScriptFile, scripts, Encoding.UTF8);
                 await p.StandardInput.WriteLineAsync($"PowerShell.exe -File {tempScriptFile} -ExecutionPolicy Bypass");
             }
 
@@ -195,34 +196,8 @@ namespace Sylas.RemoteTasks.Utils
             string successOutput = await p.StandardOutput.ReadToEndAsync();
             string errorOutput = await p.StandardError.ReadToEndAsync();
 
-            // 等待程序退出(等待用户关闭); 局部变量p对象使用了using会在方法执行完毕释放
-            // p.WaitForExit();
-
-            //var output = (successOutput + Environment.NewLine + Environment.NewLine + errorOutput).Trim();
-            // 获取输出信息, 不适用于多条命令混合在一起, 因为只能一次性读取输出, 然后一次性读取错误(不知道是哪条命令的错误)
-            //// 删除powershell.exe本身的输出显示文字
-            //var firstCommand = commands[0];
-            //if (output.Contains(firstCommand))
-            //{
-            //    var outputList = output.Split(commands[0]).ToList();
-            //    if (outputList.Count > 1)
-            //    {
-            //        outputList.RemoveAt(0);
-            //        // 剩下输出的所有行, 还需要删除最后一行的用户输入行, 类似于: "PS C:\Users\UserName>"
-            //        var leftLines = string.Join("", outputList).Split(Environment.NewLine).ToList();
-            //        var lastLine = leftLines.Last();
-            //        if (lastLine.StartsWith("PS "))
-            //        {
-            //            leftLines.Remove(lastLine);
-            //        }
-            //        return string.Join(Environment.NewLine, leftLines).Trim();
-            //    }
-            //}
-
-            //return output;
-
             List<string> outputList = [];
-            var tempFiles = Directory.GetFiles(tempDir).OrderBy(File.GetCreationTime).ThenBy(f => f);
+            var tempFiles = Directory.GetFiles(tempDir).OrderBy(f => f);// (File.GetCreationTime).ThenBy
             foreach (var f in tempFiles)
             {
                 if (f.EndsWith(".log"))
@@ -241,6 +216,77 @@ namespace Sylas.RemoteTasks.Utils
             }
 
             return outputList;
+        }
+        /// <summary>
+        /// 执行一个终端命令
+        /// </summary>
+        /// <param name="cmdTxt"></param>
+        /// <returns></returns>
+        public static async IAsyncEnumerable<string> ExecuteSingleCommandAsync(string cmdTxt)
+        {
+            // TODO: 修改为配置
+            string winShell = "powershell.exe";
+            var currentDir = AppDomain.CurrentDomain.BaseDirectory;
+            var tempDir = Path.Combine(currentDir, $"TEMP_SYSTEMCMD_{DateTime.Now:yyyyMMddHHmmssFFFFFFF}");
+            _ = Directory.CreateDirectory(tempDir);
+            var startInfo = new ProcessStartInfo
+            {
+                // 设置要启动的应用程序
+                FileName = Directory.Exists("C:/") ? winShell : "/bin/bash",
+                // 是否使用操作系统shell启动
+                UseShellExecute = false,
+                // 接受来自调用程序的输入信息
+                RedirectStandardInput = true,
+
+                // 重定向输出, 即时输出已经全部重定向写入文件, 后面依然需要读取程序全部输出, 只有读取全部输出完毕代表脚本全部执行完毕, 才能继续下一步操作读取文件中的输出内容
+                RedirectStandardOutput = true,
+                // 输出错误
+                RedirectStandardError = true,
+                // 不显示程序窗口
+                CreateNoWindow = true
+            };
+
+            Process p = new() { StartInfo = startInfo };
+            // 启动程序
+            p.Start();
+
+            // 向cmd窗口发送输入信息, 执行一个cmd命令
+            string logFileName = $"cmd";
+            string outputFile = Path.Combine(tempDir, $"{logFileName}.log");
+            string tempScriptFile = Path.Combine(tempDir, $"{logFileName}.ps1");
+            string scripts = $$"""
+                    try {
+                        {{cmdTxt}}
+                     } catch {
+                        # 捕获到错误后，将错误信息写入文件  
+                        $_.Exception.Message | Out-File -FilePath "{{outputFile}}" -Append
+                    }
+                    """;
+            File.WriteAllText(tempScriptFile, scripts, Encoding.UTF8);
+            string inputContent = $"PowerShell.exe -File {tempScriptFile} -ExecutionPolicy Bypass";
+            await p.StandardInput.WriteLineAsync(inputContent);
+
+            p.StandardInput.AutoFlush = true;
+            p.StandardInput.Close();
+
+            // 获取输出信息
+            bool validStartOutput = false;
+            while (!p.StandardOutput.EndOfStream)
+            {
+                string line = await p.StandardOutput.ReadLineAsync();
+                if (line.Contains(inputContent) && !validStartOutput)
+                {
+                    validStartOutput = true;
+                }
+                if (validStartOutput && !line.Contains(inputContent))
+                {
+                    yield return line;
+                }
+            }
+            if (File.Exists(outputFile))
+            {
+                yield return File.ReadAllText(outputFile);
+            }
         }
         /// <summary>
         /// 本地执行脚本
@@ -280,7 +326,7 @@ namespace Sylas.RemoteTasks.Utils
                 commandIndex++;
 
                 var executeTask = RunProcess(startInfo, cmdItem);
-                
+
                 executeTasks.Add(executeTask);
             }
 

@@ -38,6 +38,10 @@
              */
             createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, ths, idFieldName, null, null, onDataLoaded, ''
                 , { url: '/Database/AddConnectionString', method: 'POST', updateUrl: '/Database/UpdateConnectionString', updateMethod: 'POST' }
+                , true
+                , ''
+                , null
+                , [{ fieldName: 'orderNo', isAsc: true }]
             )
 
             /**

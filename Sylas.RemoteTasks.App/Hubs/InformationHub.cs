@@ -1,5 +1,5 @@
 ﻿using Microsoft.AspNetCore.SignalR;
-using Sylas.RemoteTasks.Utils;
+using Sylas.RemoteTasks.Utils.CommandExecutor;
 using System.Collections.Concurrent;
 
 namespace Sylas.RemoteTasks.App.Hubs

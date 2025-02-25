@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Reflection;
 
 namespace Sylas.RemoteTasks.Database.Attributes
 {
@@ -16,5 +17,16 @@ namespace Sylas.RemoteTasks.Database.Attributes
         /// 数据表表名
         /// </summary>
         public string TableName { get; set; } = tableName;
+        /// <summary>
+        /// 获取Entity的表名配置
+        /// </summary>
+        /// <param name="entityType"></param>
+        /// <returns></returns>
+        public static string GetTableName(Type entityType)
+        {
+            var tableAttribute = entityType.GetCustomAttribute<TableAttribute>(true);
+            var tableName = tableAttribute is not null && !string.IsNullOrWhiteSpace(tableAttribute.TableName) ? tableAttribute.TableName : entityType.Name;
+            return tableName;
+        }
     }
 }

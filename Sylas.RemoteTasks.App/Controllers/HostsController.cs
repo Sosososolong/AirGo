@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
 using Sylas.RemoteTasks.Common.Dtos;
 using Sylas.RemoteTasks.Database.SyncBase;
-using Sylas.RemoteTasks.Utils;
 using Sylas.RemoteTasks.Utils.CommandExecutor;
 
 namespace Sylas.RemoteTasks.App.Controllers
@@ -76,6 +75,20 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// <returns></returns>
         public async Task<IActionResult> ExecuteCommandAsync([FromBody] CommandInfoInDto commandInfoInDto)
         {
+            //var response = HttpContext.Response;
+            //response.Headers.Add("Content-Type", "text/event-stream");
+            //response.Headers.Add("Cache-Control", "no-cache");
+            //response.Headers.Add("Connection", "keep-alive");
+            //var cancellationToken = HttpContext.RequestAborted;
+            //await response.WriteAsync("data: Starting SSE...\n\n");
+            //string text = "Your text goes here";
+            //foreach (char c in text)
+            //{
+            //    await response.WriteAsync($"data: {c}\n\n");
+            //    await response.Body.FlushAsync();
+            //    await Task.Delay(10, cancellationToken);
+            //}
+            //return;
             var commandResult = await anythingService.ExecuteAsync(commandInfoInDto);
             return Ok(RequestResult<CommandResult>.Success(commandResult));
         }

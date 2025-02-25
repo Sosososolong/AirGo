@@ -55,8 +55,9 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             #region 反射获取实体类的基本信息
             var entityType = typeof(T);
 
-            var tableAttribute = entityType.GetCustomAttribute<TableAttribute>(true);
-            _tableName = tableAttribute is not null && !string.IsNullOrWhiteSpace(tableAttribute.TableName) ? tableAttribute.TableName : entityType.Name;
+            //var tableAttribute = entityType.GetCustomAttribute<TableAttribute>(true);
+            //_tableName = tableAttribute is not null && !string.IsNullOrWhiteSpace(tableAttribute.TableName) ? tableAttribute.TableName : entityType.Name;
+            _tableName = TableAttribute.GetTableName(entityType);
 
             var properties = entityType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
             // entityType.GetCustomAttribute 自定义特性获取主键信息或者其他信息

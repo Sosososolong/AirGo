@@ -23,6 +23,8 @@ builder.AddConfiguration();
 StartupHelper.GetAppStatus(builder.Configuration);
 // 添加AI服务相关配置
 builder.Services.AddAiConfig(builder.Configuration);
+// 注册Executor(通过ExecutorAttribute只注册依赖DI容器中其他对象的)
+builder.Services.AddExecutor();
 
 // 注册全局热键
 builder.Services.AddGlobalHotKeys(builder.Configuration);

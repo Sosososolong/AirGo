@@ -13,11 +13,18 @@ namespace Sylas.RemoteTasks.Test.Database
         private readonly DatabaseInfo _databaseInfo;
         private readonly IConfiguration _configuration;
         private readonly Dictionary<string, string> _connectionStrings;
+        public readonly string _connectionStringDev;
+        public readonly string _connectionStringMySqlIX;
+        public readonly string _cus1;
+        public readonly string _cus2;
+        private readonly string _createStatementLog;
+
         public DatabaseInfoTest(ITestOutputHelper outputHelper, TestFixture fixture)
         {
             _outputHelper = outputHelper;
             _databaseInfo = fixture.ServiceProvider.GetRequiredService<DatabaseInfo>();
             _configuration = fixture.ServiceProvider.GetRequiredService<IConfiguration>();
+            _connectionStringMySqlIX = _configuration.GetConnectionString("MySqlIX")!;
             _connectionStrings = new()
             {
                 { DatabaseType.Sqlite.ToString(), _configuration.GetConnectionString("Sqlite")! },
@@ -27,6 +34,10 @@ namespace Sylas.RemoteTasks.Test.Database
                 { DatabaseType.Oracle.ToString(), _configuration.GetConnectionString("OracleE")! },
                 { DatabaseType.MySql.ToString(), _configuration.GetConnectionString("MySqlEH")! },
             };
+            _connectionStringDev = _configuration.GetConnectionString("MySqlDEV")!;
+            _cus1 = _configuration.GetConnectionString("cus1")!;
+            _cus2 = _configuration.GetConnectionString("cus2")!;
+            _createStatementLog = _configuration["CreateStatementLog"] ?? throw new Exception("请在配置文件中添加创建表语句日志CreateStatementLog");
         }
 
         /// <summary>
@@ -48,7 +59,7 @@ namespace Sylas.RemoteTasks.Test.Database
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
         [Fact]
-        async Task SyncFromDBToDB_AllTables()
+        public async Task SyncFromDBToDB_AllTables()
         {
             #region 参数
             var sourceConnectionString = _configuration["SyncFromDbToDbOptions:SourceConnectionString"] ?? throw new Exception($"请在配置文件中添加源数据库连接字符串");
@@ -98,7 +109,7 @@ namespace Sylas.RemoteTasks.Test.Database
         [Fact]
         public async Task GetCreateTableStatement_CopyTable_AcrossDatabases()
         {
-            string log = @"D:\.NET\iduo\routine\db\bak\create_statement1.txt";
+            string log = _createStatementLog;
             File.WriteAllText(log, string.Empty);
 
             foreach (var connectionString in _connectionStrings)
@@ -137,6 +148,16 @@ namespace Sylas.RemoteTasks.Test.Database
 
                 File.AppendAllText(log, Environment.NewLine + Environment.NewLine);
             }
+        }
+
+        /// <summary>
+        /// 备份数据表到文件中
+        /// </summary>
+        /// <returns></returns>
+        [Fact]
+        public async Task BackupTablesTest()
+        {
+            await DatabaseInfo.BackupDataAsync(_connectionStringDev, "", "D:\\.NET\\iduo\\routine\\db\\bak\\自定义数据表备份到文件", "DEV");
         }
     }
 }

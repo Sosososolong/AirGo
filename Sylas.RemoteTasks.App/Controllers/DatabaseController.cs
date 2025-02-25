@@ -1,9 +1,12 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Sylas.RemoteTasks.App.DatabaseManager.Models;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Sylas.RemoteTasks.App.DatabaseManager.Models.Dtos;
 using Sylas.RemoteTasks.App.Infrastructure;
+using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Common.Dtos;
+using Sylas.RemoteTasks.Database.Dtos;
 using Sylas.RemoteTasks.Database.SyncBase;
+using Sylas.RemoteTasks.Utils.Constants;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {
@@ -13,6 +16,7 @@ namespace Sylas.RemoteTasks.App.Controllers
     /// <param name="repository"></param>
     public class DatabaseController(RepositoryBase<DbConnectionInfo> repository) : CustomBaseController
     {
+        [AllowAnonymous]
         public IActionResult Index()
         {
             return View();
@@ -36,6 +40,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// <returns></returns>
         public async Task<IActionResult> AddConnectionStringAsync([FromBody] DbConnectionInfoInDto dto)
         {
+            dto.ConnectionString = await SecurityHelper.AesEncryptAsync(dto.ConnectionString);
             int affectedRows = await repository.AddAsync(dto.ToEntity());
             return Ok(new RequestResult<bool>(affectedRows > 0));
         }
@@ -50,6 +55,10 @@ namespace Sylas.RemoteTasks.App.Controllers
             if (connInfo is null)
             {
                 return Ok(new OperationResult(false, "数据不存在"));
+            }
+            if (DatabaseConstants.ConnectionStringKeywords.Any(x => dto.ConnectionString.Contains(x, StringComparison.OrdinalIgnoreCase)))
+            {
+                dto.ConnectionString = await SecurityHelper.AesEncryptAsync(dto.ConnectionString);
             }
             connInfo.Name = dto.Name;
             connInfo.Alias = dto.Alias;

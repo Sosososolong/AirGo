@@ -5,6 +5,7 @@ using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Common.Dtos;
 using Sylas.RemoteTasks.Database.SyncBase;
+using Sylas.RemoteTasks.Utils;
 using Sylas.RemoteTasks.Utils.CommandExecutor;
 using Sylas.RemoteTasks.Utils.Constants;
 using Sylas.RemoteTasks.Utils.Dtos;
@@ -25,6 +26,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
     /// <param name="memoryCache"></param>
     /// <param name="httpClientFactory"></param>
     /// <param name="httpContextAccessor"></param>
+    /// <param name="serviceScopeFactory"></param>
     public class AnythingService(
         RepositoryBase<AnythingSetting> repository,
         RepositoryBase<AnythingExecutor> executorRepository,
@@ -32,7 +34,8 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         ILogger<AnythingService> logger,
         IMemoryCache memoryCache,
         IHttpClientFactory httpClientFactory,
-        IHttpContextAccessor httpContextAccessor)
+        IHttpContextAccessor httpContextAccessor,
+        IServiceScopeFactory serviceScopeFactory)
     {
         /// <summary>
         /// 查询
@@ -155,7 +158,10 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
                         FilterItems = [
                             new(nameof(AnythingCommand.AnythingId), "=", anythingId)
                         ]
-                    }
+                    },
+                    [
+                        new("id", true)
+                    ]
                 )
             );
             return pageData.Data;
@@ -359,7 +365,24 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             }
             var resolvedResult = await ResolveCommandSettingAsync(new CommandResolveDto() { Id = commandInfo.AnythingId, CmdTxt = commandInfo.CommandTxt });
             string resolvedCommandContent = resolvedResult.Data ?? string.Empty;
-            CommandResult cr = await AnythingIdAndCommandExecutorMap[anythingInfo.SettingId]([resolvedCommandContent]);
+            var commandResults = AnythingIdAndCommandExecutorMap[anythingInfo.SettingId]([resolvedCommandContent]);
+            
+            bool success = true;
+            StringBuilder msgBuilder = new();
+            string errMsg = string.Empty;
+            await foreach (var commandResult in commandResults)
+            {
+                if (!commandResult.Succeed)
+                {
+                    success = false;
+                    errMsg += commandResult.Message;
+                }
+                else
+                {
+                    msgBuilder.AppendLine(commandResult.Message);
+                }
+            }
+            CommandResult cr = new(success, success ? msgBuilder.ToString() : errMsg);
             if (!string.IsNullOrWhiteSpace(dto.CommandExecuteNo))
             {
                 cr.CommandExecuteNo = dto.CommandExecuteNo;
@@ -468,7 +491,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             memoryCache.Set(cacheKeyAnythingInfo, anythingInfo, cacheEntryOptions);
             return anythingInfo;
         }
-        static readonly ConcurrentDictionary<int, Func<object[], Task<CommandResult>>> AnythingIdAndCommandExecutorMap = new();
+        static readonly ConcurrentDictionary<int, Func<object[], IAsyncEnumerable<CommandResult>>> AnythingIdAndCommandExecutorMap = new();
         /// <summary>
         /// 从AnythingSetting解析一个AnythingInfo对象
         /// </summary>
@@ -524,12 +547,18 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
                 }
             }
 
-            var result = ICommandExecutor.Create(executorName, args);
-            if (result.Code != 1)
+            Func<object[], IAsyncEnumerable<CommandResult>> anythingCommandExecutor;
+            using (IServiceScope scope = serviceScopeFactory.CreateScope())
             {
-                throw new Exception(result.ErrMsg);
+                var result = ICommandExecutor.Create(executorName, args, serviceScopeFactory);
+                if (result.Code != 1)
+                {
+                    throw new Exception(result.ErrMsg);
+                }
+                anythingCommandExecutor = result.Data ?? throw new Exception("无法解析命令执行器");
             }
-            var anythingCommandExecutor = result.Data ?? throw new Exception("无法解析命令执行器");
+            
+
             AnythingIdAndCommandExecutorMap.AddOrUpdate(anythingSettingDetails.Id, anythingCommandExecutor, (k, v) => anythingCommandExecutor);
             #endregion
 
@@ -541,7 +570,14 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
                 if (!string.IsNullOrWhiteSpace(anythingCommand.ExecutedState))
                 {
                     var start = DateTime.Now;
-                    anythingCommand.ExecutedState = (await anythingCommandExecutor([anythingCommand.ExecutedState])).Message;
+                    StringBuilder stateBuiler = new();
+                    await foreach (var item in anythingCommandExecutor([anythingCommand.ExecutedState]))
+                    {
+                        stateBuiler.AppendLine(item.Message);
+                    }
+                    anythingCommand.ExecutedState = stateBuiler.ToString();
+
+
                     Console.WriteLine($"获取命令状态耗时: {(DateTime.Now - start).TotalMilliseconds}/ms");
                 }
             }

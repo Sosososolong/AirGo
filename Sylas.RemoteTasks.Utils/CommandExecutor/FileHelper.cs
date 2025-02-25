@@ -6,7 +6,6 @@ using Newtonsoft.Json.Linq;
 using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Common.Extensions;
 using Sylas.RemoteTasks.Database.SyncBase;
-using Sylas.RemoteTasks.Utils.CommandExecutor;
 using Sylas.RemoteTasks.Utils.Constants;
 using System;
 using System.Collections.Generic;
@@ -19,7 +18,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
-namespace Sylas.RemoteTasks.Utils.FileOp;
+namespace Sylas.RemoteTasks.Utils.CommandExecutor;
 /// <summary>
 /// 文件操作帮助类
 /// </summary>
@@ -583,7 +582,7 @@ public partial class FileHelper
     /// <param name="commandContent"></param>
     /// <returns></returns>
     /// <exception cref="Exception"></exception>
-    public static async Task<CommandResult> ExecuteAsync(string commandContent)
+    public static async IAsyncEnumerable<CommandResult> ExecuteAsync(string commandContent)
     {
         if (string.IsNullOrWhiteSpace(_parameterLineStartPattern))
         {
@@ -617,7 +616,7 @@ public partial class FileHelper
         }
 
         string operationLog = await ExecuteOperationAsync(selectedOp);
-        return new CommandResult(true, operationLog);
+        yield return new CommandResult(true, operationLog);
     }
     static OperationNode ResolveNodeFromConfig(string nodeConfig)
     {
@@ -1122,7 +1121,7 @@ public partial class FileHelper
                 elseContent = arr[1];
             }
 
-            if ((contains && sourceValue.Contains(subString)) || (!contains && !sourceValue.Contains(subString)))
+            if (contains && sourceValue.Contains(subString) || !contains && !sourceValue.Contains(subString))
             {
                 // 条件为真, content为需要内容
                 originTxt = originTxt.Replace(m.Value, ifContent);

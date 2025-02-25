@@ -1,5 +1,5 @@
 ﻿using Newtonsoft.Json;
-using Sylas.RemoteTasks.Utils;
+using Sylas.RemoteTasks.Utils.CommandExecutor;
 using System.Collections.Concurrent;
 using Xunit.Abstractions;
 
@@ -8,6 +8,41 @@ namespace Sylas.RemoteTasks.Test.SystemHelperTest
     public class ShellTest(ITestOutputHelper outputHelper, TestFixture fixture) : IClassFixture<TestFixture>
     {
         //private readonly IConfiguration _configuration = fixture.ServiceProvider.GetRequiredService<IConfiguration>();
+        [Fact]
+        public async Task ExecuteAsync_ManyCommands()
+        {
+            string[] commands = [
+                "tasklist",
+                "tasklist | findstr \"nginx\"",
+                "tasklist | findstr \"mysql\"",
+                "netstat -ano | findstr \"3306\"",
+                "tasklist",
+                "tasklist | findstr \"nginx\"",
+                "tasklist | findstr \"mysql\"",
+                "netstat -ano | findstr \"3306\"",
+                "tasklist",
+                "tasklist | findstr \"nginx\"",
+                "tasklist | findstr \"mysql\"",
+                "netstat -ano | findstr \"3306\"",
+                "tasklist",
+                "tasklist | findstr \"nginx\"",
+                "tasklist | findstr \"mysql\"",
+                "netstat -ano | findstr \"3306\"",
+            ];
+            var start = DateTime.Now;
+            //IAsyncEnumerable<string> res = SystemCmd.ExecuteAsync2(commands);
+            //await foreach (var item in res)
+            //{
+            //    outputHelper.WriteLine($"{item[..(item.Length > 200 ? 200 : item.Length)]}");
+            //}
+
+            var res = SystemCmd.ExecuteSingleCommandAsync(string.Join(Environment.NewLine, commands));
+            await foreach (var item in res)
+            {
+                outputHelper.WriteLine($"{item[..(item.Length > 200 ? 200 : item.Length)]}");
+            }
+            outputHelper.WriteLine($"-------------------------Commands->ExecuteParallellyAsync{(DateTime.Now - start).TotalMilliseconds}/ms------------------------------");
+        }
         [Fact]
         public async Task ExecuteAsync_FindMySqlDNginx()
         {

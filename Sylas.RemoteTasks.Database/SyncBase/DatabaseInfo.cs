@@ -13,6 +13,7 @@ using Npgsql;
 using Oracle.ManagedDataAccess.Client;
 using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Common.Extensions;
+using Sylas.RemoteTasks.Database.Attributes;
 using Sylas.RemoteTasks.Database.Dtos;
 using Sylas.RemoteTasks.Utils.Extensions;
 using System;
@@ -21,6 +22,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -432,6 +434,19 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             return affectedRows;
         }
         /// <summary>
+        /// 执行SQL语句, 返回第一条数据的第一个字段
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="connectionString"></param>
+        /// <param name="sql"></param>
+        /// <param name="parameters"></param>
+        /// <returns></returns>
+        public static async Task<T?> ExecuteScalarAsync<T>(string connectionString, string sql, object? parameters = null)
+        {
+            using var conn = GetDbConnection(connectionString);
+            return await conn.ExecuteScalarAsync<T>(sql, parameters);
+        }
+        /// <summary>
         /// 执行SQL语句并返回唯一一个值 - 可使用db参数指定切换到当前连接的用户有权限的其他数据库
         /// </summary>
         /// <param name="sql"></param>
@@ -831,6 +846,65 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 var createSql = GetCreateTableStatement(tableName, colInfos, _dbType);
                 _logger.LogInformation($"数据表{tableName}不存在, 将创建数据表:{Environment.NewLine}{createSql}");
                 _ = await conn.ExecuteAsync(createSql);
+            }
+        }
+        /// <summary>
+        /// 备份数据表到指定目录中
+        /// </summary>
+        /// <param name="connectionString"></param>
+        /// <param name="tables"></param>
+        /// <param name="backupPath"></param>
+        /// <param name="backupPointName">备份点名称, 为空则默认以当前时间点为名</param>
+        /// <returns></returns>
+        public static async Task BackupDataAsync(string connectionString, string tables, string backupPath, string backupPointName = "")
+        {
+            IEnumerable<string> tableList;
+            using var conn = GetDbConnection(connectionString);
+            if (string.IsNullOrWhiteSpace(tables))
+            {
+                tableList = await GetAllTablesAsync(conn);
+            }
+            else
+            {
+                tableList = tables.Split(';', ',');
+            }
+            if (string.IsNullOrWhiteSpace(backupPointName))
+            {
+                backupPointName = DateTime.Now.ToString("yyyyMMddHHmmss");
+            }
+            string backupDir = Path.Combine(backupPath, backupPointName);
+            if (!Directory.Exists(backupDir))
+            {
+                Directory.CreateDirectory(backupDir);
+            }
+
+            string logFile = Path.Combine(backupDir, $"backup.log");
+            using var logWriter = new StreamWriter(logFile, false);
+            foreach (var table in tableList)
+            {
+                string sql = $"select * from {table}";
+
+                // 打开一个DataReader之前, 先获取表的字段信息
+                var columns = await GetTableColumnsInfoAsync(conn, table);
+
+                // 使用DataReader一条一条地读取数据, 避免一次性读取数据量过大
+                using var reader = await conn.ExecuteReaderAsync(sql);
+                string backupFile = Path.Combine(backupDir, table);
+                
+                using var writer = new StreamWriter(backupFile, false);
+                await writer.WriteLineAsync(string.Join("|||", columns.Select(x => $"{x.ColumnCode}:{x.ColumnCSharpType}")));
+
+                logWriter.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 开始备份表:{table}");
+
+                int lines = 0;
+                while (reader.Read())
+                {
+                    var values = new object[reader.FieldCount];
+                    reader.GetValues(values);
+                    await writer.WriteLineAsync(string.Join("|||", values.Select(x => x.ToString())));
+                    lines++;
+                }
+                logWriter.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {lines}条记录备份结束");
             }
         }
         /// <summary>
@@ -1450,19 +1524,19 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="sourceConn"></param>
         /// <param name="sourceTableName"></param>
         /// <param name="targetConn"></param>
-        /// <param name="targetTableStatement"></param>
+        /// <param name="targetTable"></param>
         /// <param name="filter"></param>
         /// <returns></returns>
         public static async IAsyncEnumerable<TableSqlInfo> GetDataTransferSqlInfosAsync(
             IDbConnection sourceConn,
             string sourceTableName,
             IDbConnection targetConn,
-            string? targetTableStatement = null,
+            string? targetTable = null,
             DataFilter? filter = null)
         {
             #region 获取源表的所有字段信息
             var sourceDbType = GetDbType(sourceConn.ConnectionString);
-            sourceTableName = GetTableStatement(sourceTableName, sourceDbType);
+            var sourceTableStatement = GetTableStatement(sourceTableName, sourceDbType);
 
             IEnumerable<ColumnInfo> sourceColInfos = await GetTableColumnsInfoAsync(sourceConn, sourceTableName);
             string[] sourcePrimaryKeys = sourceColInfos.Where(x => x.IsPK == 1 && !string.IsNullOrWhiteSpace(x.ColumnCode)).Select(x => x.ColumnCode).ToArray();
@@ -1474,12 +1548,12 @@ namespace Sylas.RemoteTasks.Database.SyncBase
 
             #region 获取表在目标库中的所有数据的主键值集合
             var targetDbType = GetDbType(targetConn.ConnectionString);
-            if (string.IsNullOrWhiteSpace(targetTableStatement))
+            if (string.IsNullOrWhiteSpace(targetTable))
             {
-                targetTableStatement = sourceTableName;
+                targetTable = sourceTableName;
             }
 
-            targetTableStatement = GetTableStatement(targetTableStatement, targetDbType);
+            string targetTableStatement = GetTableStatement(targetTable, targetDbType);
 
             if (targetDbType == DatabaseType.SqlServer)
             {
@@ -1487,7 +1561,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             }
 
             // 目标数据表不存在则创建
-            await CreateTableIfNotExistAsync(targetConn, targetTableStatement, sourceColInfos);
+            await CreateTableIfNotExistAsync(targetConn, targetTable, sourceColInfos);
 
             var readAllPkValuesStart = DateTime.Now;
             List<string> targetPkValues = await GetTableAllPkValuesAsync(targetConn, targetTableStatement, sourcePrimaryKeys, null);
@@ -1495,7 +1569,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             var readAllPkValuesSeconds = (readAllPkValuesEnd - readAllPkValuesStart).TotalSeconds;
             if (readAllPkValuesSeconds > 30)
             {
-                LoggerHelper.LogCritical($"获取目标表{targetTableStatement}所有记录({targetPkValues.Count})的主键值完毕, 消耗{DateTimeHelper.FormatSeconds(readAllPkValuesSeconds)}/s");
+                LoggerHelper.LogCritical($"获取目标表{targetTable}所有记录({targetPkValues.Count})的主键值完毕, 消耗{DateTimeHelper.FormatSeconds(readAllPkValuesSeconds)}/s");
             }
             #endregion
 
@@ -1513,12 +1587,13 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             // : @
             var dbVarFlag = GetDbParameterFlag(targetConn.ConnectionString);
 
-            IEnumerable<ColumnInfo> targetColInfos = await GetTableColumnsInfoAsync(targetConn, targetTableStatement);
+            IEnumerable<ColumnInfo> targetColInfos = await GetTableColumnsInfoAsync(targetConn, targetTable);
+            string[] sourceFields = sourceColInfos.Select(x => x.ColumnCode).ToArray();
+            targetColInfos = targetColInfos.Where(x => sourceFields.Contains(x.ColumnCode, StringComparer.OrdinalIgnoreCase));
             // columnsStatement =           "Name, Age"
             string columnsStatement = GetFieldsStatement(targetColInfos, targetDbType);
             #endregion
 
-            var sourceTableStatement = GetTableStatement(sourceTableName, sourceDbType);
             // 记录数据源字段名和目标表字段的映射关系
             Dictionary<string, ColumnInfo> sourceColumnMapToTargetColumn = [];
             while (true)
@@ -2241,21 +2316,20 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             if (!hasAutoIncreamentPk)
             {
                 string endStatement = dbType == DatabaseType.MySql ? " USING BTREE," : ",";
-                columnDdlBuilder.AppendLine($"  PRIMARY KEY ({string.Join(',', columns.Where(x => x.IsPK == 1).Select(x => GetTableStatement(x.ColumnCode, dbType)))}){endStatement}");
+                string[] pks = columns.Where(x => x.IsPK == 1).Select(x => GetTableStatement(x.ColumnCode, dbType)).ToArray();
+                // 构建主键声明语句
+                string pksDeclaration = string.Empty;
+                if (pks.Length > 0)
+                {
+                    pksDeclaration = $"PRIMARY KEY ({string.Join(',', pks)}){endStatement}";
+                    columnDdlBuilder.AppendLine($"  {pksDeclaration}");
+                }
             }
             // Remove the last comma
             if (columnDdlBuilder.Length > 0)
             {
-                // 去掉 ,\r\n 3个字符
-                if (columnDdlBuilder[^2] == '\r')
-                {
-                    columnDdlBuilder.Length -= 3;
-                }
-                else
-                {
-
-                    columnDdlBuilder.Length -= 2;
-                }
+                int removedLength = $",{Environment.NewLine}".Length;
+                columnDdlBuilder.Remove(columnDdlBuilder.Length - removedLength, removedLength);
             }
 
             return columnDdlBuilder.ToString();
@@ -2506,7 +2580,9 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                 //    string pkValue = string.Join(',', primaryKeys.Select(x => reader[x]));
                 //    targetPkValues.Add(pkValue);
                 //}
-                return (await targetConn.QueryAsync<string>($"select {string.Join(',', primaryKeys)} from {targetTable}")).ToList();
+                var pkValues = (await targetConn.QueryAsync<dynamic>($"select {string.Join(',', primaryKeys)} from {targetTable}"));
+
+                return pkValues.Select(x => string.Join(',', (x as IDictionary<string, object>)!.Values)).ToList();
             }
             catch (Exception ex)
             {
@@ -2728,7 +2804,6 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             {
                 return tableInfo;
             }
-            tableName = GetTableOriginName(tableName);
 
             string sql;
             // TODO: 数据库类型 作为公共属性

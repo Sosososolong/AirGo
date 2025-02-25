@@ -1,7 +1,6 @@
 ﻿using Renci.SshNet;
 using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Utils.Extensions;
-using Sylas.RemoteTasks.Utils.FileOp;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -485,7 +484,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         /// 使用ssh连接主机执行命令
         /// </summary>
         /// <param name="command"></param>
-        public async Task<CommandResult> ExecuteAsync(string command)
+        public async IAsyncEnumerable<CommandResult> ExecuteAsync(string command)
         {
             var cmd = await RunCommandAsync(command);
             var output = cmd?.Result ?? "";
@@ -494,9 +493,10 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
             if (!string.IsNullOrWhiteSpace(output))
             {
                 output = string.IsNullOrWhiteSpace(error) ? output : $"{output}{Environment.NewLine}[ERR]{Environment.NewLine}{error}";
-                return new(true, output);
+                yield return new(true, output);
+                yield break;
             }
-            return new(false, error);
+            yield return new(false, error);
         }
 
         /// <summary>

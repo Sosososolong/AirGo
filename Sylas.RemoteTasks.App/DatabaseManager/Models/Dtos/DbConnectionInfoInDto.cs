@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using Sylas.RemoteTasks.Database.Dtos;
+using System.ComponentModel.DataAnnotations;
 
 namespace Sylas.RemoteTasks.App.DatabaseManager.Models.Dtos
 {

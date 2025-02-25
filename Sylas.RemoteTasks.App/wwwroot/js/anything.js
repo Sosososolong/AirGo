@@ -1,38 +1,47 @@
 ﻿async function executeCommand(commandId, commandName, executeBtn, overrideMsg = true) {
     const requestBody = JSON.stringify({ commandId });
-    const data = await httpRequestDataAsync('/Hosts/ExecuteCommand', executeBtn, 'POST', requestBody);
-    if (data) {
-        const rigthPannel = document.querySelector('.data-right-pannel');
-        if (data.succeed) {
-            if (data.message) {
-                const msgs = data.message.split('\n').filter(x => x);
-                let msgHtml = `<div style="color:green;">${commandName}:</div>`;
-                msgs.forEach(msg => {
-                    if (msg && msg.length > 50) {
-                        msg = trimMsg(msg, 50);
-                    }
-                    msgHtml += `<div style="color:gray; margin-left:20px;">${msg}</div>`
-                })
-                if (overrideMsg) {
-                    rigthPannel.innerHTML = msgHtml;
-                }
-                else {
-                    rigthPannel.innerHTML += msgHtml;
-                }
-                //showMsgBox("操作成功" + ": " + data.message);
-            } else {
-                rigthPannel.innerHTML += `<p style="color:green;">${commandName}: 操作成功</p>`;
-            }
-        } else {
-            const errMsg = data.message ? data.message : '操作失败';
-            if (overrideMsg) {
-                rigthPannel.innerHTML = `<p style="color:red;">${commandName}: ${trimMsg(errMsg, 50)}</p>`
-            } else {
-                rigthPannel.innerHTML += `<p style="color:red;">${commandName}: ${trimMsg(errMsg, 50)}</p>`
-            }
-            //showErrorBox(errMsg);
-        }
-    }
+    const eventSource = new EventSource('/Hosts/ExecuteCommand');
+
+    eventSource.onmessage = event => {
+        console.log(event.data); // 处理接收到的进度信息
+    };
+
+    eventSource.onerror = error => {
+        console.error('EventSource failed:', error);
+    };
+    //const data = await httpRequestDataAsync('/Hosts/ExecuteCommand', executeBtn, 'POST', requestBody);
+    //if (data) {
+    //    const rigthPannel = document.querySelector('.data-right-pannel');
+    //    if (data.succeed) {
+    //        if (data.message) {
+    //            const msgs = data.message.split('\n').filter(x => x);
+    //            let msgHtml = `<div style="color:green;">${commandName}:</div>`;
+    //            msgs.forEach(msg => {
+    //                if (msg && msg.length > 50) {
+    //                    msg = trimMsg(msg, 50);
+    //                }
+    //                msgHtml += `<div style="color:gray; margin-left:20px;">${msg}</div>`
+    //            })
+    //            if (overrideMsg) {
+    //                rigthPannel.innerHTML = msgHtml;
+    //            }
+    //            else {
+    //                rigthPannel.innerHTML += msgHtml;
+    //            }
+    //            //showMsgBox("操作成功" + ": " + data.message);
+    //        } else {
+    //            rigthPannel.innerHTML += `<p style="color:green;">${commandName}: 操作成功</p>`;
+    //        }
+    //    } else {
+    //        const errMsg = data.message ? data.message : '操作失败';
+    //        if (overrideMsg) {
+    //            rigthPannel.innerHTML = `<p style="color:red;">${commandName}: ${trimMsg(errMsg, 50)}</p>`
+    //        } else {
+    //            rigthPannel.innerHTML += `<p style="color:red;">${commandName}: ${trimMsg(errMsg, 50)}</p>`
+    //        }
+    //        //showErrorBox(errMsg);
+    //    }
+    //}
 }
 
 async function executeCommands(trigger) {
@@ -226,8 +235,10 @@ async function loadCommandsAsync(ele, id, refresh = false) {
                 <textarea class="form-control form-control-sm command-input-${commandInfo.id}" rows="${commandRows}" aria-label="command setting" aria-describedby="button-cmd-${id}" anything-id="${id}" oninput="inputing(this, resolveCmdSettingAsync)">${commandOrigin}</textarea>
             </div>
 
-            <button class="btn btn-sm btn-danger mb-2 ${(commandInfo && commandInfo.executedState ? " disabled" : "")}" type="button" onclick="executeCommand(${commandInfo.id}, '${commandInfo.name}', this)" id="button-cmd-${commandInfo.id}">${commandInfo.name}</button>
-            <button class="btn btn-sm btn-primary mb-2" type="button" onclick="updateCommandAsync(${commandInfo.id})">更新命令</button>
+            <div class="d-flex justify-content-between">
+                <div><button class="btn btn-sm btn-danger mb-2 ${(commandInfo && commandInfo.executedState ? " disabled" : "")}" type="button" onclick="executeCommand(${commandInfo.id}, '${commandInfo.name}', this)" id="button-cmd-${commandInfo.id}">${commandInfo.name}</button></div>
+                <div><button class="btn btn-sm btn-primary mb-2" type="button" onclick="updateCommandAsync(${commandInfo.id})">更新命令</button></div>
+            </div>
 
             <div style="font-size:12px;color:gray;padding-bottom:10px;max-height:200px;overflow:auto;" class="scrollable-nobar command-resolved">
                 ${ !commandInfo || !commandValue ? '' : commandValue.split('\n').join('<br/>') }
@@ -501,6 +512,6 @@ async function addAnythingCommandAsync(id, command) {
     };
 
     execute(trigger,
-        () => loadCommandsAsync(document.querySelector(`#button-cmd-${id}`).closest('.card').querySelector('.card-title'), id, true)
+        () => loadCommandsAsync(document.querySelector(`.anything-card-${id}`).closest('.card').querySelector('.card-title'), id, true)
     );
 }

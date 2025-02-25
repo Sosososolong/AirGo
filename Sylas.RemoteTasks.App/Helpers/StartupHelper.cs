@@ -7,9 +7,11 @@ using Sylas.RemoteTasks.Common.Extensions;
 using Sylas.RemoteTasks.Database;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils;
+using Sylas.RemoteTasks.Utils.CommandExecutor;
 using Sylas.RemoteTasks.Utils.Dtos;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
+using System.Reflection;
 using System.Security.Claims;
 
 namespace Sylas.RemoteTasks.App.Helpers
@@ -78,6 +80,22 @@ namespace Sylas.RemoteTasks.App.Helpers
             configuration.GetSection("AiConfig").Bind(aiConfig);
             services.AddSingleton(aiConfig);
             RemoteHelpers.AiConfig = aiConfig;
+        }
+        /// <summary>
+        /// 注册Executor(通过ExecutorAttribute只注册依赖DI容器中其他对象的)
+        /// </summary>
+        /// <param name="services"></param>
+        public static void AddExecutor(this IServiceCollection services)
+        {
+            var types = ReflectionHelper.GetTypes(typeof(ICommandExecutor));
+            foreach (var type in types)
+            {
+                var attr = type.GetCustomAttribute<ExecutorAttribute>(true);
+                if (attr is not null)
+                {
+                    services.Add(new ServiceDescriptor(typeof(ICommandExecutor), type.Name, type, ServiceLifetime.Scoped));
+                }
+            }
         }
 
         public static void AddGlobalHotKeys(this IServiceCollection services, IConfiguration configuration)
