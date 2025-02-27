@@ -387,8 +387,7 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
 
                     // 连接不通时会抛异常: SocketException (110): Connection timed out
                     // 客户端突然关闭时: SocketException (104): Connection reset by peer
-                    int receivedLength = await socketForClient.ReceiveAsync(buffer, SocketFlags.None, cancellationToken);
-
+                    (string msgFromNode, int receivedLength) = await socketForClient.ReceiveAllTextAsync(buffer, IsEndFlag, _logger, cancellationToken: cancellationToken);
                     if (await socketForClient.CheckIsCloseMsgAsync(receivedLength, buffer))
                     {
                         _logger.LogCritical("Center Server - CommandResult Receiver[{threadNo}] <- {childServerNodeDomain}_Node-{childServerNodeSocketNo}: {logNo}. 接收到来自子节点的关闭信号, 将关闭与子节点的socket连接, Received length:{length}", threadNo, childServerNodeDomain, childServerNodeSocketNo, logNo++, receivedLength);
@@ -403,17 +402,21 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                     }
                     else
                     {
-                        commandResultJson += buffer.GetText(receivedLength);
+                        // 对于长消息需考虑粘包问题, 接收的数据也可能不是完整的, 例如没有完整结束: {...14855"}000000{"Succeed":true,"Message":
+                        // 也可能开头不完整: "xx消息内容","CommandExecuteNo":"xx编号"}0000
+                        //commandResultJson += buffer.GetText(receivedLength);
+                        commandResultJson += msgFromNode.Replace(_heartbeatMsg, string.Empty);
                         _logger.LogInformation("Center Server - CommandResult Receiver[{threadNo}] <- {childServerNodeDomain}_Node-{childServerNodeSocketNo}: {logNo}. 成功获取子返回命令的执行结果文本: {text}", threadNo, childServerNodeDomain, childServerNodeSocketNo, logNo++, commandResultJson);
                         if (receivedLength >= 6)
                         {
                             var last6Bytes = buffer.Skip(receivedLength - 6).Take(6).ToArray();
                             if (IsEndFlag(last6Bytes))
                             {
-                                commandResultJson = commandResultJson[..^6];
-                                _logger.LogInformation("Center Server - CommandResult Receiver[{threadNo}] <- {childServerNodeDomain}_Node-{childServerNodeSocketNo}: {logNo}. 命令执行结果json字符串去除结束标记:{result}", threadNo, childServerNodeDomain, childServerNodeSocketNo, logNo++, commandResultJson);
-                                var commandResult = JsonConvert.DeserializeObject<CommandResult>(commandResultJson) ?? new CommandResult(false, commandResultJson);
-                                AnythingService.SetCommandResult(commandResult.CommandExecuteNo, commandResult);
+                                // commandResultJson可能包含多个命令执行结果(粘包:一次性接收到客户端的多次发送), 每个命令执行结果之间以结束标记"000000"分隔
+                                foreach(var signleCommandResultJson in commandResultJson.Split(_endFlag, StringSplitOptions.RemoveEmptyEntries))
+                                {
+                                    AnythingService.SetCommandResult(signleCommandResultJson);
+                                }
                             }
                         }
                         _logger.LogInformation("Center Server - CommandResult Receiver[{threadNo}] <- {childServerNodeDomain}_Node-{childServerNodeSocketNo}: {logNo}. 命令处理完毕, 重新等待接收子节点的消息", threadNo, childServerNodeDomain, childServerNodeSocketNo, logNo++);
@@ -572,14 +575,25 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                                     }
                                     else
                                     {
-                                        _logger.LogCritical("Server Node({domain} - {socketNo}): 接收到来自中心服务器的命令任务: {anythingCommand}", _domain, socketNo, msgFromCenter);
+                                        _logger.LogCritical("Server Node({domain} - {socketNo}): 接收到来自中心服务器的命令任务: {msgFromCenter}", _domain, socketNo, msgFromCenter);
                                         string commandExecuteNo = arr[1];
                                         using var scope = _scopeFactory.CreateScope();
                                         var anythingService = scope.ServiceProvider.GetRequiredService<AnythingService>();
                                         // 执行命令
-                                        var commandResult = await anythingService.ExecuteAsync(new() { CommandId = commandId, CommandExecuteNo = commandExecuteNo });
-                                        string commandResultJson = JsonConvert.SerializeObject(commandResult);
-                                        await socket.SendTextAsync($"{commandResultJson}{_endFlag}");
+                                        IAsyncEnumerable<CommandResult> commandResults = anythingService.ExecuteAsync(new() { CommandId = commandId, CommandExecuteNo = commandExecuteNo });
+                                        int batchNo = 0;
+                                        await foreach (var commandResult in commandResults)
+                                        {
+                                            commandResult.CommandExecuteNo += $"-{batchNo}";
+                                            string commandResultJson = JsonConvert.SerializeObject(commandResult);
+                                            _logger.LogInformation("Server Node({domain} - {socketNo}): 向中心服务器响应命令执行结果:{commandResultJson}", _domain, socketNo, commandResultJson);
+                                            await socket.SendTextAsync($"{commandResultJson}{_endFlag}");
+                                            batchNo++;
+                                        }
+                                        // 发送信号, 表示已经发送完所有执行结果CommandResult
+                                        string endCommandResult = $@"{{""Succeed"":false,""Message"":"""",""CommandExecuteNo"":""{commandExecuteNo}-cmd-end""}}";
+                                        await socket.SendTextAsync($"{endCommandResult}{_endFlag}");
+                                        _lastKeepAliveTime = DateTime.Now;
                                     }
                                 }
                             }

@@ -291,7 +291,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         /// <param name="dto"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public async Task<CommandResult> ExecuteAsync(CommandInfoInDto dto)
+        public async IAsyncEnumerable<CommandResult> ExecuteAsync(CommandInfoInDto dto)
         {
             var commandInfo = await _commandRepository.GetByIdAsync(dto.CommandId) ?? throw new Exception($"未知的命令{dto.CommandId}");
             var anythingInfo = await GetAnythingInfoBySettingIdAsync(commandInfo.AnythingId);
@@ -304,7 +304,9 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             {
                 if (AppStatus.IsCenterServer)
                 {
-                    var commandTaskDto = new CommandInfoTaskDto {
+                    #region 执行子节点命令
+                    var commandTaskDto = new CommandInfoTaskDto
+                    {
                         CommandId = dto.CommandId,
                         CommandExecuteNo = commandTaskNo,
                         Domain = commandInfo.Domain,
@@ -322,10 +324,15 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
                     cmdTasks.Enqueue(commandTaskDto);
                     #endregion
 
-                    return await GetCommandResultAsync(commandTaskNo);
+                    await foreach (var commandReuslt in GetCommandResultAsync(commandTaskNo))
+                    {
+                        yield return commandReuslt;
+                    }
+                    #endregion
                 }
                 else
                 {
+                    #region 执行本机命令
                     using var client = httpClientFactory.CreateClient();
                     string? accessToken = string.Empty;
                     if (httpContextAccessor.HttpContext!.Request.Headers.TryGetValue("Authorization", out var token))
@@ -348,48 +355,37 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
                     var response = await client.PostAsJsonAsync($"{AppStatus.CenterWebServer!.TrimEnd('/')}/Hosts/ExecuteCommand", dto);
                     if (response.StatusCode != HttpStatusCode.OK)
                     {
-                        return new CommandResult(false, $"{commandInfo.Domain}命令需要转到中心服务器, 请求失败: {response.ReasonPhrase}");
+                        yield return new CommandResult(false, $"{commandInfo.Domain}命令需要转到中心服务器, 请求失败: {response.ReasonPhrase}");
                     }
                     var responseContent = await response.Content.ReadAsStringAsync();
                     if (!responseContent.StartsWith('{'))
                     {
-                        return new CommandResult(false, $"{commandInfo.Domain}命令需要转到中心服务器, 授权失败");
+                        yield return new CommandResult(false, $"{commandInfo.Domain}命令需要转到中心服务器, 授权失败");
                     }
                     RequestResult<CommandResult>? requestResult = JsonConvert.DeserializeObject<RequestResult<CommandResult>>(responseContent);
                     if (requestResult is null)
                     {
-                        return new CommandResult(false, "请求中心服务器失败");
+                        yield return new CommandResult(false, "请求中心服务器失败");
+                        yield break;
                     }
-                    return requestResult.Data ?? new CommandResult(false, "中心服务器没有返回命令执行结果");
+                    yield return requestResult.Data ?? new CommandResult(false, "中心服务器没有返回命令执行结果");
+                    #endregion
                 }
             }
             var resolvedResult = await ResolveCommandSettingAsync(new CommandResolveDto() { Id = commandInfo.AnythingId, CmdTxt = commandInfo.CommandTxt });
             string resolvedCommandContent = resolvedResult.Data ?? string.Empty;
             var commandResults = AnythingIdAndCommandExecutorMap[anythingInfo.SettingId]([resolvedCommandContent]);
             
-            bool success = true;
-            StringBuilder msgBuilder = new();
-            string errMsg = string.Empty;
             await foreach (var commandResult in commandResults)
             {
-                if (!commandResult.Succeed)
+                if (!string.IsNullOrWhiteSpace(dto.CommandExecuteNo))
                 {
-                    success = false;
-                    errMsg += commandResult.Message;
+                    commandResult.CommandExecuteNo = dto.CommandExecuteNo;
                 }
-                else
-                {
-                    msgBuilder.AppendLine(commandResult.Message);
-                }
+                yield return commandResult;
             }
-            CommandResult cr = new(success, success ? msgBuilder.ToString() : errMsg);
-            if (!string.IsNullOrWhiteSpace(dto.CommandExecuteNo))
-            {
-                cr.CommandExecuteNo = dto.CommandExecuteNo;
-            }
-            return cr;
         }
-        static readonly Dictionary<string, CommandResult> _remoteCommandResults = [];
+        static readonly List<string> _remoteCommandResults = [];
         static readonly Dictionary<string, Queue<CommandInfoTaskDto>> _serverNodeQueues = [];
 
         /// <summary>
@@ -435,31 +431,71 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         /// </summary>
         /// <param name="cmdExeNo"></param>
         /// <param name="commandResult"></param>
-        public static void SetCommandResult(string cmdExeNo, CommandResult commandResult)
+        public static void SetCommandResult(string commandResult)
         {
-            _remoteCommandResults[cmdExeNo] = commandResult;
+            _remoteCommandResults.Add(commandResult);
         }
-        static async Task<CommandResult> GetCommandResultAsync(string cmdExeNo)
+        static async IAsyncEnumerable<CommandResult> GetCommandResultAsync(string cmdExeNo)
         {
-            for (int i = 0; i < 20; i++)
+            // 设置超时时间
+            const int timeout = 30;
+            int waitSeconds = timeout;
+            int i = 1;
+            while (true)
             {
-                if (_remoteCommandResults.TryGetValue(cmdExeNo, out CommandResult? value))
+                var commandResultJsons = _remoteCommandResults.Where(x => x.Contains(cmdExeNo)).ToList();
+                if (commandResultJsons.Count > 0)
                 {
-                    LoggerHelper.LogCritical($"AnythingService: 获取到命令[{cmdExeNo}]执行的结果:{JsonConvert.SerializeObject(value)}");
-                    _remoteCommandResults.Remove(cmdExeNo);
-                    return value;
-                }
-                await Task.Delay(1000);
-                if ((i + 1) % 10 == 0)
-                {
-                    LoggerHelper.LogInformation($"AnythingService: 等待命令[{cmdExeNo}]返回结果..., 结果容器长度{_remoteCommandResults.Count}");
-                    foreach (var item in _remoteCommandResults)
+                    waitSeconds = timeout;
+                    foreach (var commandResultJson in commandResultJsons)
                     {
-                        LoggerHelper.LogInformation($"AnythingService: {item.Key}: {item.Value.Message}");
+                        LoggerHelper.LogCritical($"AnythingService: 获取到命令[{cmdExeNo}]执行的结果/{commandResultJsons.Count}:{JsonConvert.SerializeObject(commandResultJson)}");
+
+                        CommandResult value;
+                        try
+                        {
+                            value = JsonConvert.DeserializeObject<CommandResult>(commandResultJson) ?? new CommandResult(false, commandResultJson);
+                        }
+                        catch (Exception)
+                        {
+                            await Task.Delay(10000);
+                            _ = _remoteCommandResults.Remove(commandResultJson);
+                            continue;
+                        }
+                        
+                        _ = _remoteCommandResults.Remove(commandResultJson);
+
+                        if (value.CommandExecuteNo.EndsWith("cmd-end", StringComparison.OrdinalIgnoreCase))
+                        {
+                            LoggerHelper.LogCritical("遇到命令集终点");
+                            yield break;
+                        }
+                        yield return value;
                     }
                 }
+                else
+                {
+                    await Task.Delay(1000);
+                    waitSeconds--;
+                    if (waitSeconds <= 0)
+                    {
+                        yield return new CommandResult(false, "执行时间过长, 请稍后查看执行结果");
+                        yield break;
+                    }
+
+                    #region 等待时间超过10s或者达到10s的倍数的时候打印命令结果集合
+                    if ((i + 1) % 10 == 0)
+                    {
+                        LoggerHelper.LogInformation($"AnythingService: 等待命令[{cmdExeNo}]返回结果..., 结果容器长度{_remoteCommandResults.Count}");
+                        foreach (var item in _remoteCommandResults)
+                        {
+                            LoggerHelper.LogInformation($"AnythingService: {item}");
+                        }
+                    }
+                    #endregion
+                }
+                i++;
             }
-            return new CommandResult(false, "执行时间过长, 请稍后查看执行结果");
         }
         string AnythingInfoCacheKey(int settingId) => $"AnythingInfo_{settingId}";
         /// <summary>

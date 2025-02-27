@@ -30,7 +30,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                 throw new Exception("命令内容比如以数据库名为开头(DB_NAME:EXE_SQL)");
             }
 
-            string sql = cmdTxt.Replace(targetDbName, string.Empty).TrimStart(':').Trim();
+            string sql = cmdTxt.Substring(targetDbName.Length + 1).Trim();
             string table = TableAttribute.GetTableName(typeof(DbConnectionInfo));
             var filter = new DataFilter
             {

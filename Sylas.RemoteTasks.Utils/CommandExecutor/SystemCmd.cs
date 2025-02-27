@@ -1,4 +1,5 @@
 ﻿using Sylas.RemoteTasks.Common;
+using Sylas.RemoteTasks.Utils.Constants;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -179,7 +180,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                 string scripts = $$"""
                     chcp 65001
                     try {
-                        {{cmdItem}} *> {{outputFile}}
+                    {{string.Join('\n', cmdItem.Split('\n').Select(x => $"{SpaceConstants.OneTabSpaces}"))}} *> {{outputFile}}
                      } catch {
                         # 捕获到错误后，将错误信息写入文件  
                         $_.Exception.Message | Out-File -FilePath "{{outputFile}}" -Append

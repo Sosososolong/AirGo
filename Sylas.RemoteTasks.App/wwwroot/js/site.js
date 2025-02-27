@@ -661,7 +661,7 @@ async function httpRequestAsync(url, spinnerEle = null, method = 'POST', body = 
         }
         const accessToken = getAccessToken();
         if (!accessToken) {
-            showWarningBox('身份已过期, 请重新登录', () => location.href = "/Home/Login");
+            showWarningBox('身份已过期, 请重新登录', () => location.href = `/Home/Login?redirect_path=${location.pathname}`);
             return null;
         }
         const response = await fetch(url, {
@@ -676,7 +676,7 @@ async function httpRequestAsync(url, spinnerEle = null, method = 'POST', body = 
 
         if (!response.ok) {
             if (response.status === 401) {
-                showWarningBox('身份已过期, 请重新登录', () => location.href = "/Home/Login");
+                showWarningBox('身份已过期, 请重新登录', () => location.href = `/Home/Login?redirect_path=${location.pathname}`);
                 return null;
             }
             else if (response.status === 404) {
@@ -791,7 +791,7 @@ async function handleDataForm(table, eventTrigger) {
         const accessToken = getAccessToken();
         if (!accessToken) {
             closeSpinner();
-            showWarningBox('身份已过期, 请重新登录', () => location.href = "/Home/Login");
+            showWarningBox('身份已过期, 请重新登录', () => location.href = `/Home/Login?redirect_path=${location.pathname}`);
             return null;
         }
         await httpRequestAsync(url, null, method, formData)

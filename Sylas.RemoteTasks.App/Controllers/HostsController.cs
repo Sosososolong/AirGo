@@ -1,9 +1,14 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
+using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Common.Dtos;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils.CommandExecutor;
+using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {
@@ -66,31 +71,38 @@ namespace Sylas.RemoteTasks.App.Controllers
             var pageData = await anythingService.ExecutorsAsync(new DataSearch { PageIndex = pageIndex == 0 ? 1 : pageIndex, PageSize = pageSize == 0 ? 20 : pageSize });
             return Ok(RequestResult<PagedData<AnythingExecutor>>.Success(pageData));
         }
-
+        //static Regex validMsgPattern = new(@"(?<=.*[A-Z]:\\.*>).+");
         /// <summary>
         /// 对指定对象anything执行指定的命令command
         /// </summary>
         /// <param name="anything"></param>
         /// <param name="command"></param>
         /// <returns></returns>
-        public async Task<IActionResult> ExecuteCommandAsync([FromBody] CommandInfoInDto commandInfoInDto)
+        public async Task ExecuteCommandAsync([FromBody] CommandInfoInDto commandInfoInDto)
         {
-            //var response = HttpContext.Response;
-            //response.Headers.Add("Content-Type", "text/event-stream");
-            //response.Headers.Add("Cache-Control", "no-cache");
-            //response.Headers.Add("Connection", "keep-alive");
-            //var cancellationToken = HttpContext.RequestAborted;
-            //await response.WriteAsync("data: Starting SSE...\n\n");
-            //string text = "Your text goes here";
-            //foreach (char c in text)
-            //{
-            //    await response.WriteAsync($"data: {c}\n\n");
-            //    await response.Body.FlushAsync();
-            //    await Task.Delay(10, cancellationToken);
-            //}
-            //return;
-            var commandResult = await anythingService.ExecuteAsync(commandInfoInDto);
-            return Ok(RequestResult<CommandResult>.Success(commandResult));
+            var response = HttpContext.Response;
+            response.Headers.Append("Content-Type", "text/event-stream");
+            response.Headers.Append("Cache-Control", "no-cache");
+            response.Headers.Append("Connection", "keep-alive");
+            var cancellationToken = HttpContext.RequestAborted;
+            var commandResults = anythingService.ExecuteAsync(commandInfoInDto);
+            await foreach (CommandResult commandResult in commandResults)
+            {
+                string commandResultJosn = JsonConvert.SerializeObject(commandResult, new JsonSerializerSettings() { ContractResolver = new CamelCasePropertyNamesContractResolver() });
+                
+                if (commandResult.Message.EndsWith('%') || !commandResult.Message.Contains("warning "))
+                {
+                    // 有可能连续写入两次, 客户端一起接收过来了, 所以这里只返回有效数据, 由客户端进行拆分; 原本是: "data: {commandResultJosn}\n"
+                    await response.WriteAsync($"{commandResultJosn}\n", Encoding.UTF8);
+                }
+                await response.Body.FlushAsync();
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    LoggerHelper.LogCritical("客户端取消请求");
+                    break;
+                }
+            }
+            LoggerHelper.LogCritical("命令执行完毕");
         }
         /// <summary>
         /// 添加一条AnythingSetting记录

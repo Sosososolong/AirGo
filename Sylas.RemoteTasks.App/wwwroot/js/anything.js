@@ -1,47 +1,150 @@
-﻿async function executeCommand(commandId, commandName, executeBtn, overrideMsg = true) {
+﻿const frequency = 200;
+async function executeCommand(commandId, commandName, executeBtn, overrideMsg = true) {
+    document.querySelector('.data-right-pannel').innerHTML = '';
     const requestBody = JSON.stringify({ commandId });
-    const eventSource = new EventSource('/Hosts/ExecuteCommand');
+    // 支持SSE的fetch请求
+    const spinnerEle = executeBtn;
+    try {
+        if (spinnerEle) {
+            showSpinner(spinnerEle);
+        }
+        //if (!contentType && method.toUpperCase() === 'POST') {
+        //    contentType = 'application/json';
+        //}
+        const accessToken = getAccessToken();
+        if (!accessToken) {
+            showWarningBox('身份已过期, 请重新登录', () => location.href = `/Home/Login?redirect_path=${location.pathname}`);
+            return null;
+        }
+        const response = await fetch('/Hosts/ExecuteCommand', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'authorization': `Bearer ${accessToken}`
+            },
+            body: requestBody
+        })
 
-    eventSource.onmessage = event => {
-        console.log(event.data); // 处理接收到的进度信息
+        if (!response.ok) {
+            if (response.status === 401) {
+                showWarningBox('身份已过期, 请重新登录', () => location.href = `/Home/Login?redirect_path=${location.pathname}`);
+                return null;
+            }
+            else if (response.status === 404) {
+                showErrorBox('接口不存在, 请确认请求方式和参数');
+                return null;
+            } else {
+                showErrorBox(`请求异常:${response.statusText}`);
+            }
+        }
+
+        let msgNotFoundCount = 0;
+        const interval = window.setInterval(() => {
+            if (msgContainer[commandName]) {
+                const msgCount = msgContainer[commandName].length;
+                if (msgCount === 0) {
+                    msgNotFoundCount++;
+                } else {
+                    msgNotFoundCount = 0;
+                    for (var i = 0; i < msgCount; i++) {
+                        const value = msgContainer[commandName].shift();
+                        if (value) {
+                            // 将读取到的内容转换为字符串
+                            const receivedContent = new TextDecoder().decode(value);
+                            const jsonList = receivedContent.match(/\{[^\{]+\}/g);
+                            for (var i = 0; i < jsonList.length; i++) {
+                                const json = jsonList[i];
+                                const receivedCommandResult = JSON.parse(json);
+                                commandResultHandler(receivedCommandResult, commandName);
+                            }
+                        }
+                    }
+                }
+                // 连续30s没有新消息, 则停止计时器
+                const timeout = 30;
+                if (msgNotFoundCount >= (timeout * 1000) / frequency) {
+                    window.clearInterval(interval);
+                }
+            }
+        }, frequency)
+        const reader = response.body.getReader();
+        reader.read().then(function processText({ done, value }) {
+            if (done) {
+                return;
+            }
+
+            if (!msgContainer[commandName] || msgContainer[commandName].length === 0) {
+                msgContainer[commandName] = [value];
+            } else {
+                msgContainer[commandName].push(value);
+            }
+            return reader.read().then(processText);
+        });
+    } catch (e) {
+        showErrorBox(e.message);
+        return null;
+    } finally {
+        if (spinnerEle) {
+            closeSpinner(spinnerEle);
+        }
     };
 
-    eventSource.onerror = error => {
-        console.error('EventSource failed:', error);
-    };
+    // 普通方式http请求
     //const data = await httpRequestDataAsync('/Hosts/ExecuteCommand', executeBtn, 'POST', requestBody);
     //if (data) {
-    //    const rigthPannel = document.querySelector('.data-right-pannel');
-    //    if (data.succeed) {
-    //        if (data.message) {
-    //            const msgs = data.message.split('\n').filter(x => x);
-    //            let msgHtml = `<div style="color:green;">${commandName}:</div>`;
-    //            msgs.forEach(msg => {
-    //                if (msg && msg.length > 50) {
-    //                    msg = trimMsg(msg, 50);
-    //                }
-    //                msgHtml += `<div style="color:gray; margin-left:20px;">${msg}</div>`
-    //            })
-    //            if (overrideMsg) {
-    //                rigthPannel.innerHTML = msgHtml;
-    //            }
-    //            else {
-    //                rigthPannel.innerHTML += msgHtml;
-    //            }
-    //            //showMsgBox("操作成功" + ": " + data.message);
-    //        } else {
-    //            rigthPannel.innerHTML += `<p style="color:green;">${commandName}: 操作成功</p>`;
-    //        }
-    //    } else {
-    //        const errMsg = data.message ? data.message : '操作失败';
-    //        if (overrideMsg) {
-    //            rigthPannel.innerHTML = `<p style="color:red;">${commandName}: ${trimMsg(errMsg, 50)}</p>`
-    //        } else {
-    //            rigthPannel.innerHTML += `<p style="color:red;">${commandName}: ${trimMsg(errMsg, 50)}</p>`
-    //        }
-    //        //showErrorBox(errMsg);
-    //    }
+    //    commandResultHandler(data);
     //}
+}
+
+let lastMsg = '';
+let msgContainer = {};
+function commandResultHandler(data, commandName) {
+    const title = `<div style="color:green;">${commandName}:</div>`;
+    const rightPannel = document.querySelector('.data-right-pannel');
+    if (rightPannel.innerHTML.indexOf('请稍后') > -1 || rightPannel.innerHTML.indexOf('msg-end') > -1) {
+        rightPannel.innerHTML = '';
+    }
+    if (data.succeed) {
+        if (data.message) {
+            const msgs = data.message.split('\n').filter(x => x);
+            let msgHtml = rightPannel.innerHTML.indexOf(title) > -1 ? title : '';
+            for (var i = 0; i < msgs.length; i++) {
+                let msg = msgs[i];
+                let currentMsgDiv = `<div style="color:gray; margin-left:20px;">${msg}</div>`;
+                if (msg && msg.length > 50) {
+                    msg = trimMsg(msg, 50);
+                }
+                const processBarPattern = /\[=*>\s*\]\s*(\d+(\.\d+)*)\s*%/;
+                const m = msg.match(processBarPattern);
+                if (m && m.length > 2) {
+                    const last = rightPannel.lastChild;
+                    const lastHtml = last.outerHTML;
+                    if (last && lastHtml.endsWith('%</div>') && !lastHtml.endsWith('100.00 %</div>')) {
+                        if (lastHtml.indexOf('100.00') > -1) {
+                            console.warn('remove 100%');
+                        }
+                        last.remove();
+                    }
+                }
+                msgHtml += currentMsgDiv
+                lastMsg = msg;
+            }
+
+            rightPannel.innerHTML += msgHtml;
+            rightPannel.scrollTop = rightPannel.scrollHeight;
+        } else if (rightPannel.innerHTML.length === 0) {
+            rightPannel.innerHTML += `<p style="color:green;">${commandName}: 操作成功</p>`;
+        }
+    } else {
+        const errMsg = data.message ? data.message : '操作失败';
+        if (overrideMsg) {
+            rightPannel.innerHTML = `<p style="color:red;">${commandName}: ${trimMsg(errMsg, 50)}</p>`
+        } else {
+            rightPannel.innerHTML += `<p style="color:red;">${commandName}: ${trimMsg(errMsg, 50)}</p>`
+        }
+        //showErrorBox(errMsg);
+    }
 }
 
 async function executeCommands(trigger) {
@@ -98,7 +201,7 @@ function buildDataView(data) {
     let container = document.createElement('div');
 
     container.classList.add('row');
-    container.innerHTML = `<div class="col-sm-6 cards-container"></div><div class="col-sm-6 data-right-pannel"></div>`;
+    container.innerHTML = `<div class="col-sm-6 cards-container"></div><div class="col-sm-6 data-right-pannel" style="height:500px;overflow:auto;"></div>`;
     let cardsHtml = '';
     data.forEach((record, index) => {
         const collapseBtnId = `collapseBtn${record.id}`;
