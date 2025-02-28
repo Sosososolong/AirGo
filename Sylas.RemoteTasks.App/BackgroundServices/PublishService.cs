@@ -1,13 +1,16 @@
 ﻿using Newtonsoft.Json;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
+using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Common.Extensions;
 using Sylas.RemoteTasks.Utils;
 using Sylas.RemoteTasks.Utils.CommandExecutor;
 using System.Collections.Concurrent;
+using System.DirectoryServices.ActiveDirectory;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 
 namespace Sylas.RemoteTasks.App.BackgroundServices
 {
@@ -387,7 +390,7 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
 
                     // 连接不通时会抛异常: SocketException (110): Connection timed out
                     // 客户端突然关闭时: SocketException (104): Connection reset by peer
-                    (string msgFromNode, int receivedLength) = await socketForClient.ReceiveAllTextAsync(buffer, IsEndFlag, _logger, cancellationToken: cancellationToken);
+                    (string msgFromNode, int receivedLength) = await socketForClient.ReceiveAllTextAsync(buffer, IsEndFlag, cancellationToken: cancellationToken);
                     if (await socketForClient.CheckIsCloseMsgAsync(receivedLength, buffer))
                     {
                         _logger.LogCritical("Center Server - CommandResult Receiver[{threadNo}] <- {childServerNodeDomain}_Node-{childServerNodeSocketNo}: {logNo}. 接收到来自子节点的关闭信号, 将关闭与子节点的socket连接, Received length:{length}", threadNo, childServerNodeDomain, childServerNodeSocketNo, logNo++, receivedLength);
@@ -395,7 +398,8 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                     }
                     else if (SocketHelper.CheckIsKeepAliveMsg(receivedLength, buffer))
                     {
-                        await RecordHeartbeatsLogAsync($"Center Server - CommandResult Receiver[{threadNo}] <- {childServerNodeDomain}_Node-{childServerNodeSocketNo}: keep-alive", childServerNodeSocketNo);
+                        string logFileName = string.IsNullOrWhiteSpace(childServerNodeSocketNo) ? $"{DateTime.Now:yyyy-MM-dd}.log" : $"{DateTime.Now:yyyy-MM-dd}-{childServerNodeSocketNo}.log";
+                        await LoggerHelper.RecordLogAsync($"Center Server - CommandResult Receiver[{threadNo}] <- {childServerNodeDomain}_Node-{childServerNodeSocketNo}: keep-alive", _heartbeatLogsDirectory, logFileName);
                         _lastKeepAliveTime = DateTime.Now;
                         await socketForClient.SendTextAsync(_heartbeatMsg);
                         continue;
@@ -406,7 +410,7 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                         // 也可能开头不完整: "xx消息内容","CommandExecuteNo":"xx编号"}0000
                         //commandResultJson += buffer.GetText(receivedLength);
                         commandResultJson += msgFromNode.Replace(_heartbeatMsg, string.Empty);
-                        _logger.LogInformation("Center Server - CommandResult Receiver[{threadNo}] <- {childServerNodeDomain}_Node-{childServerNodeSocketNo}: {logNo}. 成功获取子返回命令的执行结果文本: {text}", threadNo, childServerNodeDomain, childServerNodeSocketNo, logNo++, commandResultJson);
+                        await LoggerHelper.RecordLogAsync($"Center Server - CommandResult Receiver[{threadNo}] <- {childServerNodeDomain}_Node-{childServerNodeSocketNo}: {logNo}. 成功获取子节点返回命令的执行结果文本: {msgFromNode}", "Commands", $"ReceiveFromChildNode{DateTime.Now:yyyyMMdd}.log");
                         if (receivedLength >= 6)
                         {
                             var last6Bytes = buffer.Skip(receivedLength - 6).Take(6).ToArray();
@@ -419,7 +423,6 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                                 }
                             }
                         }
-                        _logger.LogInformation("Center Server - CommandResult Receiver[{threadNo}] <- {childServerNodeDomain}_Node-{childServerNodeSocketNo}: {logNo}. 命令处理完毕, 重新等待接收子节点的消息", threadNo, childServerNodeDomain, childServerNodeSocketNo, logNo++);
                     }
                 }
                 _logger.LogInformation("Center Server - CommandResult Receiver[{threadNo}] <- {childServerNodeDomain}_Node-{childServerNodeSocketNo}: {logNo}. 命令结果接收器结束", threadNo, childServerNodeDomain, childServerNodeSocketNo, logNo++);
@@ -497,7 +500,7 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                                         {
                                             await socket.SendTextAsync(_heartbeatMsg);
                                             _lastKeepAliveTime = DateTime.Now;
-                                            await RecordHeartbeatsLogAsync($"Server Node({_domain}) - {socketNo}: keep-alive ->");
+                                            await LoggerHelper.RecordLogAsync($"Server Node({_domain}) - {socketNo}: keep-alive ->", _heartbeatLogsDirectory);
                                         }
                                         else
                                         {
@@ -540,11 +543,11 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                             }, _centerConnWorkersCts.Token);
                             #endregion
 
-                            #region 通过与中心服务器的TCP长连接不断地: 接收命令 -> 执行命令 -> 返回命令结果
+                            #region 子节点通过与中心服务器的TCP长连接不断地: 接收命令 -> 执行命令 -> 返回命令结果
                             // 通过与中心服务器的TCP长连接不断地: 接收命令 -> 执行命令 -> 返回命令结果
                             while (true)
                             {
-                                (string msgFromCenter, int msgLength) = await socket.ReceiveAllTextAsync(buffer, IsEndFlag, _logger);
+                                (string msgFromCenter, int msgLength) = await socket.ReceiveAllTextAsync(buffer, IsEndFlag);
                                 // 更新最后一次与中心服务器通讯时间
                                 _lastKeepAliveTime = DateTime.Now;
 
@@ -562,7 +565,7 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                                     }
                                     else if (SocketHelper.CheckIsKeepAliveMsg(msgFromCenter))
                                     {
-                                        await RecordHeartbeatsLogAsync($"Server Node({_domain}) - {socketNo}: keep-alive <-");
+                                        await LoggerHelper.RecordLogAsync($"Server Node({_domain}) - {socketNo}: keep-alive <-", _heartbeatLogsDirectory);
                                         continue;
                                     }
                                     else if (arr.Length < 2)
@@ -586,7 +589,7 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                                         {
                                             commandResult.CommandExecuteNo += $"-{batchNo}";
                                             string commandResultJson = JsonConvert.SerializeObject(commandResult);
-                                            _logger.LogInformation("Server Node({domain} - {socketNo}): 向中心服务器响应命令执行结果:{commandResultJson}", _domain, socketNo, commandResultJson);
+                                            await LoggerHelper.RecordLogAsync($"Server Node({_domain} - {socketNo}): 向中心服务器响应命令执行结果:{commandResultJson}", "Commands", $"ResponseCommandResult{DateTime.Now:yyyyMMdd}");
                                             await socket.SendTextAsync($"{commandResultJson}{_endFlag}");
                                             batchNo++;
                                         }
@@ -637,25 +640,6 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
         bool IsEndFlag(byte[] endFlag)
         {
             return endFlag.Length >= 6 && endFlag[0] == _zeroByteValue && endFlag[1] == _zeroByteValue && endFlag[2] == _zeroByteValue && endFlag[3] == _zeroByteValue && endFlag[4] == _zeroByteValue && endFlag[5] == _zeroByteValue;
-        }
-        /// <summary>
-        /// 记录心跳日志
-        /// </summary>
-        /// <param name="msg"></param>
-        /// <param name="domain"></param>
-        /// <returns></returns>
-        async Task RecordHeartbeatsLogAsync(string msg, string domain = "")
-        {
-            string logFileName = string.IsNullOrWhiteSpace(domain) ? $"{DateTime.Now:yyyy-MM-dd}.log" : $"{DateTime.Now:yyyy-MM-dd}-{domain}.log";
-            string logFilePath = Path.Combine(_heartbeatLogsDirectory, logFileName);
-            try
-            {
-                await File.AppendAllTextAsync(logFilePath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {msg}{Environment.NewLine}");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogInformation("心跳日志异常:{err}", ex.Message);
-            }
         }
     }
 }

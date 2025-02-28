@@ -1,4 +1,6 @@
 ﻿using System;
+using System.IO;
+using System.Threading.Tasks;
 
 namespace Sylas.RemoteTasks.Common
 {
@@ -34,6 +36,43 @@ namespace Sylas.RemoteTasks.Common
             Console.ForegroundColor = ConsoleColor.DarkYellow;
             Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {critical}");
             Console.ResetColor();
+        }
+
+        /// <summary>
+        /// 记录日志
+        /// </summary>
+        /// <param name="msg"></param>
+        /// <param name="logDirectory"></param>
+        /// <param name="logFileName"></param>
+        /// <returns></returns>
+        public static async Task RecordLogAsync(string msg, string logDirectory = "", string logFileName = "")
+        {
+            if (string.IsNullOrWhiteSpace(logDirectory))
+            {
+                logDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "Others");
+            }
+            else if (!Path.IsPathRooted(logDirectory))
+            {
+                logDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", logDirectory);
+            }
+            if (!Directory.Exists(logDirectory))
+            {
+                Directory.CreateDirectory(logDirectory);
+            }
+
+            if (string.IsNullOrWhiteSpace(logFileName))
+            {
+                logFileName = $"{DateTime.Now:yyyy-MM-dd}.log";
+            }
+            string logFilePath = Path.Combine(logDirectory, logFileName);
+            try
+            {
+                await File.AppendAllTextAsync(logFilePath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {msg}{Environment.NewLine}");
+            }
+            catch (Exception ex)
+            {
+                LogInformation($"心跳日志异常:{ex.Message}");
+            }
         }
     }
 }

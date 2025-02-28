@@ -374,6 +374,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             }
             var resolvedResult = await ResolveCommandSettingAsync(new CommandResolveDto() { Id = commandInfo.AnythingId, CmdTxt = commandInfo.CommandTxt });
             string resolvedCommandContent = resolvedResult.Data ?? string.Empty;
+            // 获取缓存的执行器对象并执行命令
             var commandResults = AnythingIdAndCommandExecutorMap[anythingInfo.SettingId]([resolvedCommandContent]);
             
             await foreach (var commandResult in commandResults)
@@ -384,6 +385,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
                 }
                 yield return commandResult;
             }
+            yield return new CommandResult(false, string.Empty, "-cmd-end");
         }
         static readonly List<string> _remoteCommandResults = [];
         static readonly Dictionary<string, Queue<CommandInfoTaskDto>> _serverNodeQueues = [];
@@ -449,28 +451,17 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
                     waitSeconds = timeout;
                     foreach (var commandResultJson in commandResultJsons)
                     {
-                        LoggerHelper.LogCritical($"AnythingService: 获取到命令[{cmdExeNo}]执行的结果/{commandResultJsons.Count}:{JsonConvert.SerializeObject(commandResultJson)}");
+                        await LoggerHelper.RecordLogAsync($"AnythingService: 获取到命令[{cmdExeNo}]执行的结果/{commandResultJsons.Count}:{commandResultJson}", "Commands", $"HandleResult{DateTime.Now:yyyyMMdd}.log");
 
-                        CommandResult value;
-                        try
-                        {
-                            value = JsonConvert.DeserializeObject<CommandResult>(commandResultJson) ?? new CommandResult(false, commandResultJson);
-                        }
-                        catch (Exception)
-                        {
-                            await Task.Delay(10000);
-                            _ = _remoteCommandResults.Remove(commandResultJson);
-                            continue;
-                        }
-                        
+                        CommandResult value = JsonConvert.DeserializeObject<CommandResult>(commandResultJson) ?? new CommandResult(false, commandResultJson);
                         _ = _remoteCommandResults.Remove(commandResultJson);
 
-                        if (value.CommandExecuteNo.EndsWith("cmd-end", StringComparison.OrdinalIgnoreCase))
+                        yield return value;
+                        if (value.CommandExecuteNo.EndsWith("-cmd-end", StringComparison.OrdinalIgnoreCase))
                         {
                             LoggerHelper.LogCritical("遇到命令集终点");
                             yield break;
                         }
-                        yield return value;
                     }
                 }
                 else
@@ -487,10 +478,11 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
                     if ((i + 1) % 10 == 0)
                     {
                         LoggerHelper.LogInformation($"AnythingService: 等待命令[{cmdExeNo}]返回结果..., 结果容器长度{_remoteCommandResults.Count}");
-                        foreach (var item in _remoteCommandResults)
-                        {
-                            LoggerHelper.LogInformation($"AnythingService: {item}");
-                        }
+                        // 后台服务可能随时向_remoteCommandResults中添加数据, ToArray() 防止遍历过程报"集合被修改"的错
+                        //foreach (var item in _remoteCommandResults.ToArray())
+                        //{
+                        //    LoggerHelper.LogInformation($"AnythingService: {item}");
+                        //}
                     }
                     #endregion
                 }

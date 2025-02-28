@@ -1,5 +1,5 @@
 ﻿const frequency = 200;
-async function executeCommand(commandId, commandName, executeBtn, overrideMsg = true) {
+async function executeCommand(commandId, commandName, executeBtn) {
     document.querySelector('.data-right-pannel').innerHTML = '';
     const requestBody = JSON.stringify({ commandId });
     // 支持SSE的fetch请求
@@ -55,8 +55,19 @@ async function executeCommand(commandId, commandName, executeBtn, overrideMsg = 
                             const jsonList = receivedContent.match(/\{[^\{]+\}/g);
                             for (var i = 0; i < jsonList.length; i++) {
                                 const json = jsonList[i];
-                                const receivedCommandResult = JSON.parse(json);
-                                commandResultHandler(receivedCommandResult, commandName);
+                                let receivedCommandResult;
+                                try {
+                                    receivedCommandResult = JSON.parse(json);
+                                } catch (e) {
+                                    console.warn('json err;', json);
+                                    continue;
+                                }
+                                
+                                const isLastResult = commandResultHandler(receivedCommandResult, commandName);
+                                if (isLastResult) {
+                                    window.clearInterval(interval);
+                                    closeSpinner(spinnerEle);
+                                }
                             }
                         }
                     }
@@ -85,9 +96,7 @@ async function executeCommand(commandId, commandName, executeBtn, overrideMsg = 
         showErrorBox(e.message);
         return null;
     } finally {
-        if (spinnerEle) {
-            closeSpinner(spinnerEle);
-        }
+        
     };
 
     // 普通方式http请求
@@ -100,51 +109,49 @@ async function executeCommand(commandId, commandName, executeBtn, overrideMsg = 
 let lastMsg = '';
 let msgContainer = {};
 function commandResultHandler(data, commandName) {
+    let isLastResult = false;
     const title = `<div style="color:green;">${commandName}:</div>`;
     const rightPannel = document.querySelector('.data-right-pannel');
-    if (rightPannel.innerHTML.indexOf('请稍后') > -1 || rightPannel.innerHTML.indexOf('msg-end') > -1) {
-        rightPannel.innerHTML = '';
-    }
-    if (data.succeed) {
-        if (data.message) {
-            const msgs = data.message.split('\n').filter(x => x);
-            let msgHtml = rightPannel.innerHTML.indexOf(title) > -1 ? title : '';
-            for (var i = 0; i < msgs.length; i++) {
-                let msg = msgs[i];
-                let currentMsgDiv = `<div style="color:gray; margin-left:20px;">${msg}</div>`;
-                if (msg && msg.length > 50) {
-                    msg = trimMsg(msg, 50);
-                }
-                const processBarPattern = /\[=*>\s*\]\s*(\d+(\.\d+)*)\s*%/;
-                const m = msg.match(processBarPattern);
-                if (m && m.length > 2) {
-                    const last = rightPannel.lastChild;
-                    const lastHtml = last.outerHTML;
-                    if (last && lastHtml.endsWith('%</div>') && !lastHtml.endsWith('100.00 %</div>')) {
-                        if (lastHtml.indexOf('100.00') > -1) {
-                            console.warn('remove 100%');
-                        }
-                        last.remove();
-                    }
-                }
-                msgHtml += currentMsgDiv
-                lastMsg = msg;
-            }
-
-            rightPannel.innerHTML += msgHtml;
-            rightPannel.scrollTop = rightPannel.scrollHeight;
+    if (!data.succeed && data.commandExecuteNo.indexOf('-cmd-end') === -1) {
+        const errMsg = data.message ? data.message : '操作失败';
+        rightPannel.innerHTML += `<p style="color:red;">${commandName}: ${trimMsg(errMsg, 50)}</p>`
+    } else if (!data.message) {
+        if (data.commandExecuteNo.endsWith('-cmd-end')) {
+            isLastResult = true;
         } else if (rightPannel.innerHTML.length === 0) {
             rightPannel.innerHTML += `<p style="color:green;">${commandName}: 操作成功</p>`;
         }
     } else {
-        const errMsg = data.message ? data.message : '操作失败';
-        if (overrideMsg) {
-            rightPannel.innerHTML = `<p style="color:red;">${commandName}: ${trimMsg(errMsg, 50)}</p>`
-        } else {
-            rightPannel.innerHTML += `<p style="color:red;">${commandName}: ${trimMsg(errMsg, 50)}</p>`
+        const msgs = data.message.split('\n');
+        let msgHtml = rightPannel.innerHTML.indexOf(title) > -1 ? title : '';
+        for (var i = 0; i < msgs.length; i++) {
+            let msg = msgs[i];
+            let currentMsgDiv = `<div style="color:gray; margin-left:20px;">${msg}</div>`;
+            if (msg && msg.length > 50) {
+                msg = trimMsg(msg, 50);
+            }
+            const processBarPattern = /\[=*>\s*\]\s*(\d+(\.\d+)*)\s*%/;
+            const m = msg.match(processBarPattern);
+            if (m && m.length > 2) {
+                const last = rightPannel.lastChild;
+                const lastHtml = last.outerHTML;
+                if (last && lastHtml.endsWith('%</div>') && !lastHtml.endsWith('100.00 %</div>')) {
+                    if (lastHtml.indexOf('100.00') > -1) {
+                        console.warn('remove 100%');
+                    }
+                    last.remove();
+                }
+            }
+            if (msg.length > 0) {
+                msgHtml += currentMsgDiv
+                lastMsg = msg;
+            }
         }
-        //showErrorBox(errMsg);
+
+        rightPannel.innerHTML += msgHtml;
+        rightPannel.scrollTop = rightPannel.scrollHeight;
     }
+    return isLastResult;
 }
 
 async function executeCommands(trigger) {
@@ -158,7 +165,7 @@ async function executeCommands(trigger) {
         if (commandCheckboxes[i].checked) {
             const anythingId = commandCheckboxes[i].getAttribute("data-id");
             const commandName = commandCheckboxes[i].getAttribute("data-command-name");
-            await executeCommand(anythingId, commandName, trigger, false);
+            await executeCommand(anythingId, commandName, trigger);
         }
     }
 }

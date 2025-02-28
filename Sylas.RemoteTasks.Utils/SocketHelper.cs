@@ -166,11 +166,10 @@ namespace Sylas.RemoteTasks.Utils
         /// <param name="socket"></param>
         /// <param name="buffer"></param>
         /// <param name="isEndFlag"></param>
-        /// <param name="logger"></param>
         /// <param name="cancellationToken"></param>
         /// <param name="afterSocketDisposed">关闭socket后的逻辑</param>
         /// <returns></returns>
-        public static async Task<(string, int)> ReceiveAllTextAsync(this Socket socket, byte[] buffer, Func<byte[], bool> isEndFlag, ILogger? logger = null, Action? afterSocketDisposed = null, CancellationToken cancellationToken = default)
+        public static async Task<(string, int)> ReceiveAllTextAsync(this Socket socket, byte[] buffer, Func<byte[], bool> isEndFlag, Action? afterSocketDisposed = null, CancellationToken cancellationToken = default)
         {
             string text = string.Empty;
             byte[]? lastBytes = null;
@@ -181,10 +180,11 @@ namespace Sylas.RemoteTasks.Utils
                 readCount++;
                 if (readCount % 100 == 0)
                 {
-                    Log(logger, $"接受文本信息: 第{readCount}次", LogLevel.Critical);
+                    LoggerHelper.LogCritical($"接受文本信息: 第{readCount}次");
                 }
                 // 当cancellationToken被设为取消状态时, 这里会抛出OperationCanceledException
                 int receivedLength = await socket.ReceiveAsync(buffer, SocketFlags.None, cancellationToken);
+                lastBytes = buffer.Take(receivedLength).ToArray();
                 allReceivedLength += receivedLength;
                 if (receivedLength == 0)
                 {
@@ -206,17 +206,12 @@ namespace Sylas.RemoteTasks.Utils
                 }
                 else
                 {
+                    // 比如数据为: "data1000000data2000000data3000000data4000000...datan000000"
                     if (receivedLength < 6)
                     {
-                        // 这里本不需要判断lastBytes是否为null: 总的如果小于6的话, 那么在receivedLength<100的条件下就已经处理了, 所以这里肯定不是第一次读取了, lastBytes肯定不为null
-                        // 但是不判断的话下面使用lastBytes的时候, 会警告lastBytes可能为null
-                        if (lastBytes is null)
-                        {
-                            throw new Exception("接收到的所有字节不足6个(结束符)");
-                        }
                         // 上一次已经传过来了prefixPartLength位结束符
                         int prefixPartLength = 6 - receivedLength;
-                        var prefixPart = lastBytes.Skip(lastBytes.Length - (prefixPartLength)).Take(prefixPartLength);
+                        var prefixPart = lastBytes.Skip(lastBytes.Length - prefixPartLength).Take(prefixPartLength);
                         var last6Bytes = prefixPart.Concat(buffer.Take(receivedLength)).ToArray();
                         if (isEndFlag(last6Bytes))
                         {
@@ -227,7 +222,8 @@ namespace Sylas.RemoteTasks.Utils
                         }
                         else
                         {
-                            throw new Exception($"最后6个字节{string.Join(',', last6Bytes)}不是结束符");
+                            LoggerHelper.LogCritical($"最后6个字节{string.Join(',', last6Bytes)}不是结束符");
+                            text += buffer.GetText(receivedLength);
                         }
                     }
                     else
@@ -236,7 +232,6 @@ namespace Sylas.RemoteTasks.Utils
                         if (isEndFlag(last6Bytes))
                         {
                             text += buffer.GetText(receivedLength - 6);
-                            Log(logger, $"成功获取文本信息:{text}", LogLevel.Critical);
                             text = RemoveMsgReadyPart(text);
                             return (text, allReceivedLength);
                         }

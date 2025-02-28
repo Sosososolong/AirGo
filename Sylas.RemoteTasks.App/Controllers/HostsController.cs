@@ -89,8 +89,8 @@ namespace Sylas.RemoteTasks.App.Controllers
             await foreach (CommandResult commandResult in commandResults)
             {
                 string commandResultJosn = JsonConvert.SerializeObject(commandResult, new JsonSerializerSettings() { ContractResolver = new CamelCasePropertyNamesContractResolver() });
-                
-                if (commandResult.Message.EndsWith('%') || !commandResult.Message.Contains("warning "))
+
+                if (!commandResult.Message.Contains("warning "))
                 {
                     // 有可能连续写入两次, 客户端一起接收过来了, 所以这里只返回有效数据, 由客户端进行拆分; 原本是: "data: {commandResultJosn}\n"
                     await response.WriteAsync($"{commandResultJosn}\n", Encoding.UTF8);

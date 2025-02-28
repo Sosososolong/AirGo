@@ -797,7 +797,7 @@ async function handleDataForm(table, eventTrigger) {
         await httpRequestAsync(url, null, method, formData)
             .then(data => {
                 if (data) {
-                    showMessage = () => showResultBox(data);
+                    showMessage = () => showResultBox(data)
                 }
             })
             .catch(error => {
@@ -806,13 +806,13 @@ async function handleDataForm(table, eventTrigger) {
                 } else if (e.status === 404) {
                     showMessage = () => showErrorBox(`接口不存在: ${url}`)
                 } else {
-                    showMessage = () => showErrorBox(e.textStatus);
+                    showMessage = () => showErrorBox(e.textStatus)
                 }
-                console.log(e);
+                console.log(e)
             })
             .finally(() => {
-                closeSpinner();
-                showMessage();
+                closeSpinner()
+                showMessage()
             });
 
         //fetch(url, {
