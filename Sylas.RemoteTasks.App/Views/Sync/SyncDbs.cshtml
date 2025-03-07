@@ -4,21 +4,25 @@
 
 <form method="get" action="SyncDbs" id="requestForm">
     <label for="sourceConnectionString" class="form-label">sourceConnectionString</label>
-    <input type="text" id="sourceConnectionString" name="sourceConnectionString" class="form-control" aria-describedby="sourceConnectionStringHelpBlock">
+    @* <input type="text" id="sourceConnectionString" name="sourceConnectionString" class="form-control" aria-describedby="sourceConnectionStringHelpBlock"> *@
+    <select id="sourceConnectionString" name="sourceConnectionString" class="form-control form-select-sm">
+    </select>
     <div id="sourceConnectionStringHelpBlock" class="form-text text-warning">
         源数据库连接字符串.
     </div>
-    
+
+    <label for="targetConnectionString" class="form-label mt-3">targetConnectionString</label>
+    @* <input type="text" id="targetConnectionString" name="targetConnectionString" class="form-control" aria-describedby="targetConnectionStringHelpBlock"> *@
+    <select id="targetConnectionString" name="targetConnectionString" class="form-control form-select-sm">
+    </select>
+    <div id="targetConnectionStringHelpBlock" class="form-text">
+        目标数据库连接字符串.
+    </div>
+
     <label for="sourceTable" class="form-label">sourceTable</label>
     <input type="text" id="sourceTable" name="sourceTable" class="form-control" aria-describedby="sourceTableHelpBlock">
     <div id="sourceTableHelpBlock" class="form-text text-warning">
-        源数据表.
-    </div>
-
-    <label for="targetConnectionString" class="form-label mt-3">targetConnectionString</label>
-    <input type="text" id="targetConnectionString" name="targetConnectionString" class="form-control" aria-describedby="targetConnectionStringHelpBlock">
-    <div id="targetConnectionStringHelpBlock" class="form-text">
-        目标数据库连接字符串.
+        要同步的数据表.
     </div>
 
     <button class="btn btn-primary mt-3" type="submit">开始同步</button>
@@ -26,5 +30,23 @@
 </form>
 
 @section Scripts {
-    
+    <script>
+        const bodyObj = {
+            pageIndex: 1,
+            pageSize: 100
+        };
+        const body = JSON.stringify(bodyObj);
+        httpRequestDataAsync(`/Database/ConnectionStrings`, null, 'POST', body)
+            .then(rsp => {
+                connectionStrings = rsp.data;
+                console.log(connectionStrings)
+                let options = '';
+                for (let i = 0; i < connectionStrings.length; i++) {
+                    options += `<option value="${connectionStrings[i].id}">${connectionStrings[i].name}</option>`
+                }
+                document.querySelector('select[name="sourceConnectionString"]').innerHTML = options;
+                document.querySelector('select[name="targetConnectionString"]').innerHTML = options;
+            });
+
+    </script>
 }

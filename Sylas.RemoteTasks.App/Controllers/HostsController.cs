@@ -8,7 +8,6 @@ using Sylas.RemoteTasks.Common.Dtos;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils.CommandExecutor;
 using System.Text;
-using System.Text.RegularExpressions;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {

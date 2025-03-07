@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using RazorEngine.Templating;
 using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Common.Extensions;
 using Sylas.RemoteTasks.Database.SyncBase;
@@ -10,6 +11,7 @@ using Sylas.RemoteTasks.Utils.Constants;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Dynamic;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
@@ -593,11 +595,44 @@ public partial class FileHelper
             _parameterLineStartPattern = $@"^-{{0,1}}\s*(?<paramName>{propsPattern}):\s*";
             _configItemKeys = props.Select(x => x.Name).Concat(stepProps.Select(x => x.Name)).ToArray();
         }
-
+        
         // 匹配操作名称和工作目录
         Operation selectedOp = new();
         string[] titleLines = Regex.Match(commandContent, @"##[\w\W]+?(?=###)").Value.Split('\n');
         selectedOp.GlobalVariables = titleLines.Skip(1).ToList();
+
+        #region RazorEngine解析模板
+        Match useRazorEngineMatch = Regex.Match(commandContent, @"\s*ENGINE:\s*Razor\s+", RegexOptions.IgnoreCase);
+        if (useRazorEngineMatch.Success)
+        {
+            // 使用标题和模板变量作为模板缓存的唯一标识符
+            string titleLine = useRazorEngineMatch.Value.Trim();
+            string currentTmpl = titleLine + string.Join("", selectedOp.GlobalVariables);
+
+            ExpandoObject dataModel = new();
+            var dataModelDictionary = (IDictionary<string, object>)dataModel;
+            foreach (var variable in selectedOp.GlobalVariables)
+            {
+                if (!string.IsNullOrWhiteSpace(variable) && variable.Contains('='))
+                {
+                    var variableArr = variable.Split("=");
+                    if (variableArr.Length != 2)
+                    {
+                        throw new Exception($"模板变量语法错误:{variable}");
+                    }
+                    dataModelDictionary[variableArr[0].Trim()] = variableArr[1].Trim();
+                }
+            }
+            if (!RazorEngine.Engine.Razor.IsTemplateCached(currentTmpl, null))
+            {
+                RazorEngine.Engine.Razor.AddTemplate(currentTmpl, commandContent);
+                RazorEngine.Engine.Razor.Compile(currentTmpl);
+            }
+            commandContent = RazorEngine.Engine.Razor.Run(currentTmpl, modelType: null, model: dataModel);
+            // 重新获取所有标题行titleLines(可能包含模板变量)
+            titleLines = Regex.Match(commandContent, @"##[\w\W]+?(?=###)").Value.Split('\n');
+        }
+        #endregion
 
         string firstLineValue = titleLines.First()[2..].Trim();
         Match nameAndWorkingDirMatch = Regex.Match(firstLineValue, @"(?<name>\w+)\s*\((?<workingDir>.*)\)");
@@ -695,7 +730,7 @@ public partial class FileHelper
                 nameof(OperationType.Append) => OperationType.Append,
                 nameof(OperationType.Prepend) => OperationType.Prepend,
                 nameof(OperationType.Replace) => OperationType.Replace,
-                nameof(OperationType.ReplaceAll) => OperationType.ReplaceAll,
+                nameof(OperationType.Override) => OperationType.Override,
                 nameof(OperationType.Create) => OperationType.Create,
                 _ => throw new Exception($"无效的操作类型:{opType}"),
             };
@@ -919,7 +954,7 @@ public partial class FileHelper
                         nameof(OperationType.Append) => OperationType.Append,
                         nameof(OperationType.Prepend) => OperationType.Prepend,
                         nameof(OperationType.Replace) => OperationType.Replace,
-                        nameof(OperationType.ReplaceAll) => OperationType.ReplaceAll,
+                        nameof(OperationType.Override) => OperationType.Override,
                         nameof(OperationType.Create) => OperationType.Create,
                         _ => throw new Exception($"无效的操作类型:{opType}"),
                     };
@@ -1179,15 +1214,7 @@ public partial class FileHelper
         }
         return originTxt;
     }
-    //static (string, string) GetLineParameterValue(string line)
-    //{
-    //    var configItemKey = _configItemKeys.FirstOrDefault(x => line.StartsWith($"{x}:"));
-    //    if (configItemKey is null)
-    //    {
-    //        return (string.Empty, line);
-    //    }
-    //    return (configItemKey, line);
-    //}
+
     static (string, string, int) GetNextParameter(string[] settingLines, int lineIndex)
     {
         lineIndex++;
@@ -1256,15 +1283,14 @@ public partial class FileHelper
             _ = await ResolveVariablesAsync(variable);
         }
 
-        var files = GetSourceCodeFiles(selectedOp.WorkingDir);
-
         foreach (var opNode in selectedOp.Nodes)
         {
             await ResolveVariablesAsync(opNode);
         }
         #endregion
 
-        StringBuilder operationLog = new();
+        string opLog = string.Empty;
+        var files = GetSourceCodeFiles(selectedOp.WorkingDir);
         foreach (var opNode in selectedOp.Nodes)
         {
             // 多个target(比如index.html和App.razor文件同时)需要执行多个步骤Step(比如添加css引用和js引用)
@@ -1283,14 +1309,23 @@ public partial class FileHelper
                 {
                     throw new Exception($"\"{opNode.NodeTitle}\"没有匹配到需要创建的文件名:{opNode.TargetFilePattern}");
                 }
-                var creatingFileDir = opNode.TargetFilePattern[..lastSlashIndex] + '/';
-                var creatingFileDirFullPath = files.FirstOrDefault(x => Regex.IsMatch(x, creatingFileDir));
-                creatingFileDirFullPath = creatingFileDirFullPath?[..creatingFileDirFullPath.LastIndexOf('/')];
-                if (string.IsNullOrWhiteSpace(creatingFileDirFullPath))
+                string creatingFilePath;
+                if (opNode.TargetFilePattern.Contains('/'))
                 {
-                    throw new Exception($"没有找到需要创建文件的所在目录:{creatingFileDir}");
+                    string? creatingFileDir = opNode.TargetFilePattern[..lastSlashIndex] + '/';
+                    string? creatingFileDirFullPath = files.FirstOrDefault(x => Regex.IsMatch(x, creatingFileDir));
+                    if (string.IsNullOrWhiteSpace(creatingFileDirFullPath))
+                    {
+                        LoggerHelper.LogCritical($"当前操作{opNode.NodeTitle}不执行, 因为工作目录{selectedOp.WorkingDir}中没有找到需要创建文件:{opNode.TargetFilePattern}");
+                    }
+                    creatingFileDirFullPath = creatingFileDirFullPath?[..creatingFileDirFullPath.LastIndexOf('/')];
+                    creatingFilePath = $"{creatingFileDirFullPath}/{creatingFile}";
                 }
-                var creatingFilePath = $"{creatingFileDirFullPath}/{creatingFile}";
+                else
+                {
+                    creatingFilePath = Path.Combine(selectedOp.WorkingDir, opNode.TargetFilePattern);
+                }
+                
                 if (!File.Exists(creatingFilePath))
                 {
                     File.Create(creatingFilePath).Close();
@@ -1322,85 +1357,86 @@ public partial class FileHelper
                 foreach (var step in opNode.Steps)
                 {
                     step.Value = ResolveGlobalVariables(step.Value);
-                    await ModifyAsync(targetFile, opNode.NodeTitle, step.Value, step.LinePattern, step.OperationType);
+                    opLog = await ModifyAsync(targetFile, opNode.NodeTitle, step.Value, step.LinePattern, step.OperationType);
                 }
                 // "NAMESPACE"变量值每个文件需要实时解析, 不删除会导致下个文件会提前被解析出当前值
                 _variables.Remove("NAMESPACE");
             }
         }
 
-        return operationLog.ToString();
-
-        async Task ModifyAsync(string file, string operationTitle, string value, string appendedLinePattern, OperationType operationType)
+        return opLog;
+    }
+    static async Task<string> ModifyAsync(string file, string operationTitle, string value, string appendedLinePattern, OperationType operationType)
+    {
+        StringBuilder operationLog = new();
+        var content = await File.ReadAllTextAsync(file);
+        if ((operationType == OperationType.Append || operationType == OperationType.Prepend) && content.Contains(value))
         {
-            var content = await File.ReadAllTextAsync(file);
-            if ((operationType == OperationType.Append || operationType == OperationType.Prepend) && content.Contains(value))
+            operationLog.AppendLine($"- 已\"{operationTitle}\", 无需操作 ({file})");
+        }
+        else
+        {
+            string newContent;
+            if (operationType == OperationType.Override || operationType == OperationType.Create)
             {
-                operationLog.AppendLine($"- 已\"{operationTitle}\", 无需操作 ({file})");
+                if (value == content)
+                {
+                    operationLog.AppendLine($"- 已\"{operationTitle}\", 无需操作 ({file})");
+                    return operationLog.ToString();
+                }
+                newContent = value;
+            }
+            else if (operationType == OperationType.Replace)
+            {
+                if (content.Contains(value))
+                {
+                    operationLog.AppendLine($"- 已\"{operationTitle}\", 无需操作 ({file})");
+                    return operationLog.ToString();
+                }
+                newContent = Regex.Replace(content, appendedLinePattern, value);
             }
             else
             {
-                string newContent;
-                if (operationType == OperationType.ReplaceAll || operationType == OperationType.Create)
+                var lines = content.Split('\n').Select(x => x.TrimEnd()).ToList();
+                if (string.IsNullOrWhiteSpace(appendedLinePattern))
                 {
-                    if (value == content)
-                    {
-                        operationLog.AppendLine($"- 已\"{operationTitle}\", 无需操作 ({file})");
-                        return;
-                    }
-                    newContent = value;
-                }
-                else if (operationType == OperationType.Replace)
-                {
-                    if (content.Contains(value))
-                    {
-                        operationLog.AppendLine($"- 已\"{operationTitle}\", 无需操作 ({file})");
-                        return;
-                    }
-                    newContent = Regex.Replace(content, appendedLinePattern, value);
+                    lines.Add(value);
                 }
                 else
                 {
-                    var lines = content.Split('\n').Select(x => x.TrimEnd()).ToList();
-                    if (string.IsNullOrWhiteSpace(appendedLinePattern))
+                    var appendedLine = lines.LastOrDefault(x => Regex.IsMatch(x, appendedLinePattern));
+                    if (string.IsNullOrWhiteSpace(appendedLine))
                     {
-                        lines.Add(value);
+                        throw new Exception($"没有匹配到对应的行:{appendedLinePattern}");
+                    }
+                    var appendedLineIndex = lines.IndexOf(appendedLine);
+                    if (operationType == OperationType.Append)
+                    {
+                        lines.Insert(appendedLineIndex + 1, value);
+                    }
+                    else if (operationType == OperationType.Prepend)
+                    {
+                        lines.Insert(appendedLineIndex, value);
                     }
                     else
                     {
-                        var appendedLine = lines.LastOrDefault(x => Regex.IsMatch(x, appendedLinePattern));
-                        if (string.IsNullOrWhiteSpace(appendedLine))
-                        {
-                            throw new Exception($"没有匹配到对应的行:{appendedLinePattern}");
-                        }
-                        var appendedLineIndex = lines.IndexOf(appendedLine);
-                        if (operationType == OperationType.Append)
-                        {
-                            lines.Insert(appendedLineIndex + 1, value);
-                        }
-                        else if (operationType == OperationType.Prepend)
-                        {
-                            lines.Insert(appendedLineIndex, value);
-                        }
-                        else
-                        {
-                            throw new Exception($"无效的操作方式:{operationType}");
-                        }
+                        throw new Exception($"无效的操作方式:{operationType}");
                     }
-                    newContent = string.Join(Environment.NewLine, lines);
                 }
-
-                await File.WriteAllTextAsync(file, newContent);
-                operationLog.AppendLine($"√ 操作成功: \"{operationTitle}\" ({file})");
+                newContent = string.Join(Environment.NewLine, lines);
             }
+
+            await File.WriteAllTextAsync(file, newContent);
+            operationLog.AppendLine($"√ 操作成功: \"{operationTitle}\" ({file})");
         }
+        return operationLog.ToString();
     }
     enum OperationType
     {
         Append,
         Prepend,
         Replace,
-        ReplaceAll,
+        Override,
         Create
     }
 
@@ -1437,8 +1473,8 @@ public partial class FileHelper
         /// 操作方式:
         /// Append: 定位行的后面添加Value;
         /// Prepend: 定位行的前面添加Value;
-        /// Replace: 替换调定位的部分(可能多行);
-        /// ReplaceAll: 将所有内容替换为Value(或创建文件)
+        /// Replace: 替换定位的部分(可能多行);
+        /// Override: 覆盖, 即将所有内容替换为Value(或创建文件)
         /// </summary>
         public OperationType OperationType { get; set; }
     }
@@ -1448,7 +1484,17 @@ public partial class FileHelper
     /// </summary>
     /// <param name="dir"></param>
     /// <returns></returns>
-    public static IEnumerable<string> GetSourceCodeFiles(string dir) => Directory.GetFiles(dir, "*", new EnumerationOptions() { RecurseSubdirectories = true }).Select(x => x.Replace('\\', '/')).Where(x => !x.Contains("/obj/") && !x.Contains("/bin/"));
+    public static IEnumerable<string> GetSourceCodeFiles(string dir)
+    {
+        if (!Directory.Exists(dir))
+        {
+            Directory.CreateDirectory(dir);
+        }
+        var files = Directory.GetFiles(dir, "*", new EnumerationOptions() { RecurseSubdirectories = true })
+            .Select(x => x.Replace('\\', '/'))
+            .Where(x => !x.Contains("/obj/") && !x.Contains("/bin/"));
+        return files;
+    }
     /// <summary>
     /// 获取指定目录的文件信息
     /// </summary>
@@ -1519,7 +1565,10 @@ public partial class FileHelper
             cols.Add(Tuple.Create(propType, propName));
         }
 
-        string keywordStatement = string.Join(" || ", cols.Where(x => x.Item1.Equals("string")).Select(x => $"x.{x.Item2}.Contains(search.KeyWord)"));
+        var keywordQueryStatements = cols
+            .Where(x => x.Item1.Equals("string") && x.Item2.EndsWith("id", StringComparison.OrdinalIgnoreCase))
+            .Select(x => $"x.{x.Item2}.Contains(search.KeyWord)");
+        string keywordStatement = string.Join(" || ", keywordQueryStatements);
         string statement = !string.IsNullOrWhiteSpace(keywordStatement) ?
             $".WhereIf(x => {keywordStatement}, !string.IsNullOrWhiteSpace(search.KeyWord)){Environment.NewLine}"
             : "";
@@ -1527,7 +1576,8 @@ public partial class FileHelper
         {
             if (item.Item1.Equals("string"))
             {
-                statement += $"{SpaceConstants.FourTabsSpaces}.WhereIf(x => x.{item.Item2}.Contains(search.{item.Item2}), !string.IsNullOrWhiteSpace(search.{item.Item2})){Environment.NewLine}";
+                string compareMethodName = item.Item2.EndsWith("id", StringComparison.OrdinalIgnoreCase) ? "Equals" : "Contains";
+                statement += $"{SpaceConstants.FourTabsSpaces}.WhereIf(x => x.{item.Item2}.{compareMethodName}(search.{item.Item2}), !string.IsNullOrWhiteSpace(search.{item.Item2})){Environment.NewLine}";
             }
             else
             {
@@ -1548,7 +1598,7 @@ public partial class FileHelper
         // xxx/Entities/Test.cs
         // xxx/Entities/
         string serviceFileDir = targetFile[..(targetFile.LastIndexOf('/') + 1)];
-        var csprojFile = files.FirstOrDefault(x => x.EndsWith(".csproj") && serviceFileDir.StartsWith(x[..(x.LastIndexOf('/') + 1)])) ?? throw new Exception($"查找{targetFile}的项目文件失败");
+        var csprojFile = files.FirstOrDefault(x => x.EndsWith(".csproj") && serviceFileDir.StartsWith(x[..(x.LastIndexOf('/') + 1)]));
         return csprojFile;
     }
     /// <summary>

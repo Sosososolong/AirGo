@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.Snippets;
 using Sylas.RemoteTasks.Common.Dtos;
@@ -8,6 +9,7 @@ namespace Sylas.RemoteTasks.App.Controllers
 {
     public class SnippetController(RepositoryBase<Snippet> repository, RepositoryBase<SnippetType> snippetTypeRepository) : CustomBaseController
     {
+        [AllowAnonymous]
         public IActionResult Index()
         {
             return View();

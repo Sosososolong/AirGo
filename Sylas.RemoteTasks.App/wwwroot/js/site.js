@@ -480,13 +480,14 @@ ${formItemComponent}
             document.querySelector('#search-form').querySelectorAll('input,select').forEach(item => {
                 if (item.id !== 'search-input') {
                     // itemValue如果直接使用表单项的值(item.value)得到的都是字符串; 实际上id的值有可能是数字, 所以需要从dataSourceField中找到原始的数据项
-                    const itemValue = targetTable.dataSourceField[item.name].find(x => x.id == item.value).id; // item.value;
-
-                    filterItems.push({
-                        fieldName: item.name,
-                        compareType: '=',
-                        value: itemValue
-                    });
+                    const itemValue = targetTable.dataSourceField[item.name].find(x => x.id == item.value)?.id; // item.value;
+                    if (itemValue) {
+                        filterItems.push({
+                            fieldName: item.name,
+                            compareType: '=',
+                            value: itemValue
+                        });
+                    }
                 }
             });
             targetTable.dataFilter.filterItems = filterItems;

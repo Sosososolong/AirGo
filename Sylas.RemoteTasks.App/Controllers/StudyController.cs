@@ -36,7 +36,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         public async Task<IActionResult> AddQuestion([FromServices] IWebHostEnvironment env, [FromForm] Question question)
         {
             var operationResult = await SaveUploadedFilesAsync(env);
-            if (operationResult.IsSuccess && operationResult.Data is not null)
+            if (operationResult.Succeed && operationResult.Data is not null)
             {
                 question.ImageUrl = operationResult.Data.First();
             }

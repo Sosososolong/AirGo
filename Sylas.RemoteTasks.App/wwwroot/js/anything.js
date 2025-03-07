@@ -8,9 +8,6 @@ async function executeCommand(commandId, commandName, executeBtn) {
         if (spinnerEle) {
             showSpinner(spinnerEle);
         }
-        //if (!contentType && method.toUpperCase() === 'POST') {
-        //    contentType = 'application/json';
-        //}
         const accessToken = getAccessToken();
         if (!accessToken) {
             showWarningBox('身份已过期, 请重新登录', () => location.href = `/Home/Login?redirect_path=${location.pathname}`);
@@ -62,7 +59,11 @@ async function executeCommand(commandId, commandName, executeBtn) {
                                     console.warn('json err;', json);
                                     continue;
                                 }
-                                
+                                if (!receivedCommandResult.succeed && receivedCommandResult.commandExecuteNo !== '-cmd-end') {
+                                    window.clearInterval(interval);
+                                    showErrorBox(receivedCommandResult.message, null);
+                                    closeSpinner(spinnerEle);
+                                }
                                 const isLastResult = commandResultHandler(receivedCommandResult, commandName);
                                 if (isLastResult) {
                                     window.clearInterval(interval);
@@ -72,7 +73,7 @@ async function executeCommand(commandId, commandName, executeBtn) {
                         }
                     }
                 }
-                // 连续30s没有新消息, 则停止计时器
+                // 连续30s没有新消息, 则停止计时器(如果计时器还存在的话)
                 const timeout = 30;
                 if (msgNotFoundCount >= (timeout * 1000) / frequency) {
                     window.clearInterval(interval);
@@ -98,12 +99,6 @@ async function executeCommand(commandId, commandName, executeBtn) {
     } finally {
         
     };
-
-    // 普通方式http请求
-    //const data = await httpRequestDataAsync('/Hosts/ExecuteCommand', executeBtn, 'POST', requestBody);
-    //if (data) {
-    //    commandResultHandler(data);
-    //}
 }
 
 let lastMsg = '';
@@ -112,7 +107,7 @@ function commandResultHandler(data, commandName) {
     let isLastResult = false;
     const title = `<div style="color:green;">${commandName}:</div>`;
     const rightPannel = document.querySelector('.data-right-pannel');
-    if (!data.succeed && data.commandExecuteNo.indexOf('-cmd-end') === -1) {
+    if (!data.succeed && data?.commandExecuteNo?.indexOf('-cmd-end') === -1) {
         const errMsg = data.message ? data.message : '操作失败';
         rightPannel.innerHTML += `<p style="color:red;">${commandName}: ${trimMsg(errMsg, 50)}</p>`
     } else if (!data.message) {
@@ -266,7 +261,7 @@ createTable(
     true,
     'h1',
     buildDataView,
-    [{ orderField: 'name', isAsc: false }]
+    [{ fieldName: 'name', isAsc: false }]
 )
 
 /**

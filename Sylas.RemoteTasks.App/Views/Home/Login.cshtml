@@ -225,7 +225,7 @@
         console.log(pics);
         const pcImages = pics.filter(x => x.startsWith('bg-pc'));
         const mobileImages = pics.filter(x => x.startsWith('bg-mobile'));
-        const isMobile = window.innerWidth < 768 || window.outerWidth < 768;
+        const isMobile = (window.innerWidth > 0 && window.innerWidth < 768) || (window.outerWidth > 0 && window.outerWidth < 768);
         const images = isMobile ? mobileImages : pcImages;
         const randomIndex = Math.floor(Math.random() * images.length);
         const bgImage = images[randomIndex];

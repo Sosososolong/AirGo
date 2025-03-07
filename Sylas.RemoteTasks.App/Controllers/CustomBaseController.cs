@@ -91,7 +91,7 @@ namespace Sylas.RemoteTasks.App.Controllers
 
             #region 检查是否新增(上传)图片
             var operationResult = await SaveUploadedFilesAsync(env);
-            if (operationResult.IsSuccess && operationResult.Data is not null)
+            if (operationResult.Succeed && operationResult.Data is not null)
             {
                 foreach (var uploadedFileRelativePath in operationResult.Data.First().Split(';'))
                 {

@@ -10,7 +10,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         {
             var sender = configuration.GetSection("Email:Sender").Get<EmailSender>() ?? throw new Exception("邮箱配置异常");
             var opResult = await EmailHelper.SendAsync(sender, to, title, content);
-            var requestResult = opResult.IsSuccess ? RequestResult<bool>.Success(true) : RequestResult<bool>.Error(opResult.ErrMsg);
+            var requestResult = opResult.Succeed ? RequestResult<bool>.Success(true) : RequestResult<bool>.Error(opResult.Message);
             return Ok(requestResult);
         }
     }

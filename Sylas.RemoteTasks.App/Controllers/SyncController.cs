@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Sylas.RemoteTasks.App.RequestProcessor;
 using Sylas.RemoteTasks.App.RequestProcessor.Models;
 using Sylas.RemoteTasks.App.RequestProcessor.Models.Dtos;
@@ -14,7 +15,8 @@ namespace Sylas.RemoteTasks.App.Controllers
         private readonly IConfiguration _configuration = configuration;
         private readonly HttpRequestProcessorRepository _repository = repository;
 
-        public IActionResult Index([FromServices] RequestProcessorService service)
+        [AllowAnonymous]
+        public IActionResult Index()
         {
             return View();
         }
@@ -350,25 +352,26 @@ namespace Sylas.RemoteTasks.App.Controllers
         }
         #endregion
 
-        public async Task<IActionResult> SyncDbs(string sourceConnectionString = "", string sourceTable = "", string targetConnectionString = "")
+        [AllowAnonymous]
+        public IActionResult SyncDbs()
         {
-            sourceTable ??= "";
-            if (!string.IsNullOrWhiteSpace($"{sourceConnectionString}{sourceTable}{targetConnectionString}"))
-            {
-                if (string.IsNullOrWhiteSpace(sourceConnectionString) || string.IsNullOrWhiteSpace(targetConnectionString))
-                {
-                    ViewBag.Message = "源和目标连接字符串不能为空";
-                }
-                else
-                {
-                    foreach (var t in sourceTable.Split(','))
-                    {
-                        await DatabaseInfo.TransferDataAsync(sourceConnectionString, targetConnectionString, t);
-                    }
-                    ViewBag.Message = "同步成功";
-                }
-            }
             return View();
+        }
+        public async Task<IActionResult> TransferAsync(string sourceConnectionString = "", string sourceTable = "", string targetConnectionString = "")
+        {
+            sourceTable ??= string.Empty;
+            if (string.IsNullOrWhiteSpace(sourceConnectionString) || string.IsNullOrWhiteSpace(targetConnectionString))
+            {
+                return Ok(RequestResult<bool>.Error("源和目标连接字符串不能为空"));
+            }
+            else
+            {
+                foreach (var t in sourceTable.Split(','))
+                {
+                    await DatabaseInfo.TransferDataAsync(sourceConnectionString, targetConnectionString, t);
+                }
+                return Ok(RequestResult<bool>.Success(true));
+            }
         }
     }
 }

@@ -10,11 +10,11 @@ namespace Sylas.RemoteTasks.Common.Dtos
         /// <summary>
         /// 操作是否成功
         /// </summary>
-        public bool IsSuccess { get; set; }
+        public bool Succeed { get; set; }
         /// <summary>
         /// 错误信息
         /// </summary>
-        public string ErrMsg { get; set; } = string.Empty;
+        public string Message { get; set; } = string.Empty;
         /// <summary>
         /// 查询的数据
         /// </summary>
@@ -22,10 +22,10 @@ namespace Sylas.RemoteTasks.Common.Dtos
         /// <summary>
         /// 是否成功
         /// </summary>
-        /// <param name="isSuccess"></param>
-        public OperationResult(bool isSuccess)
+        /// <param name="succeed"></param>
+        public OperationResult(bool succeed)
         {
-            IsSuccess = isSuccess;
+            Succeed = succeed;
         }
         /// <summary>
         /// 初始化是否成功和错误信息
@@ -34,8 +34,8 @@ namespace Sylas.RemoteTasks.Common.Dtos
         /// <param name="errMsg"></param>
         public OperationResult(bool isSuccess, string errMsg)
         {
-            IsSuccess = isSuccess;
-            ErrMsg = errMsg;
+            Succeed = isSuccess;
+            Message = errMsg;
         }
         /// <summary>
         /// 操作成功返回信息
@@ -44,7 +44,7 @@ namespace Sylas.RemoteTasks.Common.Dtos
         /// <param name="data"></param>
         public OperationResult(bool isSuccess, IEnumerable<string> data)
         {
-            IsSuccess = isSuccess;
+            Succeed = isSuccess;
             Data = data;
         }
     }
