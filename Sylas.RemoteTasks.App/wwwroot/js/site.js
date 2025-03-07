@@ -175,7 +175,7 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableContainerS
                 return;
             }
             if (response && !response.data) {
-                showErrorBox(response.errMsg ?? '请求失败');
+                showErrorBox(response.message ?? '请求失败');
                 return;
             }
             var data = response.data.data;
@@ -721,9 +721,9 @@ async function httpRequestDataAsync(url, spinnerEle = null, method = 'POST', bod
             return response.data;
         } else {
             if (errorHandlerTypeVal === errorHandlerType.returnErrorMessage) {
-                return `<span class="text-warning">${response.errMsg}</span>`;
+                return `<span class="text-warning">${response.message}</span>`;
             } else {
-                showErrorBox(response.errMsg ? response.errMsg : "请求失败");
+                showErrorBox(response.message ? response.message : "请求失败");
             }
         }   
     }
@@ -887,7 +887,7 @@ async function handleDataForm(table, eventTrigger) {
     }
     
     function showResultBox(response) {
-        if (response && (response.code === 1 || response.isSuccess)) {
+        if (response && (response.code === 1 || response.succeed)) {
             table.modal.hide();
             showMsgBox('操作成功', reloadTableData);
 
@@ -899,7 +899,7 @@ async function handleDataForm(table, eventTrigger) {
             }
         } else {
             if (response) {
-                showErrorBox(response.errMsg, '错误提示', [{ class: 'error', content: '关闭' }]);
+                showErrorBox(response.message, '错误提示', [{ class: 'error', content: '关闭' }]);
             }
         }
     }
@@ -1022,11 +1022,11 @@ async function deleteData(eventTrigger) {
         closeSpinner();
     }
 
-    if (response && response.isSuccess) {
+    if (response && response.succeed) {
         window.table = table;
         showMsgBox('操作成功', () => table.loadData());
     } else {
-        showErrorBox(response.errMsg, '错误提示', [{ class: 'error', content: '关闭' }]);
+        showErrorBox(response.message, '错误提示', [{ class: 'error', content: '关闭' }]);
     }
 }
 
@@ -1081,14 +1081,14 @@ async function execute(eventTrigger, callback = null, useSpinner = true) {
             return;
         }
 
-        if (response.isSuccess || response.data) {
+        if (response.succeed || response.data) {
             showMsgBox('操作成功', () => {
                 if (table) {
                     table.loadData();
                 }
             });
         } else {
-            showErrorBox(response.errMsg, '错误提示', [{ class: 'error', content: '关闭' }]);
+            showErrorBox(response.message, '错误提示', [{ class: 'error', content: '关闭' }]);
         }
     }
 }

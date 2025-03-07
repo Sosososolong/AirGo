@@ -49,6 +49,7 @@ async function executeCommand(commandId, commandName, executeBtn) {
                         if (value) {
                             // 将读取到的内容转换为字符串
                             const receivedContent = new TextDecoder().decode(value);
+                            console.log(receivedContent);
                             const jsonList = receivedContent.match(/\{[^\{]+\}/g);
                             for (var i = 0; i < jsonList.length; i++) {
                                 const json = jsonList[i];
