@@ -51,6 +51,10 @@ async function executeCommand(commandId, commandName, executeBtn) {
                             const receivedContent = new TextDecoder().decode(value);
                             console.log(receivedContent);
                             const jsonList = receivedContent.match(/\{[^\{]+\}/g);
+                            if (!jsonList) {
+                                console.warn('jsonList is null', receivedContent);
+                                continue;
+                            }
                             for (var i = 0; i < jsonList.length; i++) {
                                 const json = jsonList[i];
                                 let receivedCommandResult;
@@ -60,11 +64,11 @@ async function executeCommand(commandId, commandName, executeBtn) {
                                     console.warn('json err;', json);
                                     continue;
                                 }
-                                if (!receivedCommandResult.succeed && receivedCommandResult.commandExecuteNo !== '-cmd-end') {
-                                    window.clearInterval(interval);
-                                    showErrorBox(receivedCommandResult.message, null);
-                                    closeSpinner(spinnerEle);
-                                }
+                                //if (!receivedCommandResult.succeed && receivedCommandResult.commandExecuteNo !== '-cmd-end') {
+                                //    window.clearInterval(interval);
+                                //    showErrorBox(receivedCommandResult.message, null);
+                                //    closeSpinner(spinnerEle);
+                                //}
                                 const isLastResult = commandResultHandler(receivedCommandResult, commandName);
                                 if (isLastResult) {
                                     window.clearInterval(interval);
@@ -110,7 +114,11 @@ function commandResultHandler(data, commandName) {
     const rightPannel = document.querySelector('.data-right-pannel');
     if (!data.succeed && data?.commandExecuteNo?.indexOf('-cmd-end') === -1) {
         const errMsg = data.message ? data.message : '操作失败';
-        rightPannel.innerHTML += `<p style="color:red;">${commandName}: ${trimMsg(errMsg, 50)}</p>`
+        const errMsgLines = errMsg.split('\n');
+        rightPannel.innerHTML += `<p style="color:red;">${commandName}: <p>`;
+        for (var i = 0; i < errMsgLines.length; i++) {
+            rightPannel.innerHTML += `<p style="color:red;">&nbsp;&nbsp;&nbsp;&nbsp;${trimMsg(errMsgLines[i], 50)}</p>`
+        }
     } else if (!data.message) {
         if (data.commandExecuteNo.endsWith('-cmd-end')) {
             isLastResult = true;

@@ -1,5 +1,6 @@
 ﻿using Renci.SshNet;
 using Sylas.RemoteTasks.Common;
+using Sylas.RemoteTasks.Common.Dtos;
 using Sylas.RemoteTasks.Utils.Extensions;
 using System;
 using System.Collections.Generic;
@@ -202,32 +203,45 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         /// <param name="command"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public async Task<SshCommand?> RunCommandAsync(string command)
+        public async Task<OperationResult> RunCommandAsync(string command)
         {
-            var cmdMatch = RegexConst.CommandRegex.Match(command);
-            var action = cmdMatch.Groups["action"].Value.Replace('\\', '/');
-            var local = cmdMatch.Groups["local"].Value.Replace('\\', '/');
-            var remote = cmdMatch.Groups["remote"].Value.Replace('\\', '/');
-            // ["form.api.dll", ".pfx", "Dockfile"]
-            var includes = cmdMatch.Groups["include"].Value.Replace('\\', '/')?.Split(',', StringSplitOptions.RemoveEmptyEntries);
-            var excludes = cmdMatch.Groups["exclude"].Value.Replace('\\', '/')?.Split(',', StringSplitOptions.RemoveEmptyEntries);
-            if (action.ToLower() == "upload")
+            if (command.StartsWith("upload", StringComparison.OrdinalIgnoreCase) || command.StartsWith("download", StringComparison.OrdinalIgnoreCase))
             {
-                if (string.IsNullOrWhiteSpace(local) && string.IsNullOrWhiteSpace(remote))
+                string uploadLogs = string.Empty;
+                foreach (var item in command.Split('\n'))
                 {
-                    throw new Exception("上传文件格式错误: " + command);
+                    if (string.IsNullOrWhiteSpace(item))
+                    {
+                        continue;
+                    }
+                    string cmdItem = item.Trim();
+
+                    var cmdMatch = RegexConst.CommandRegex.Match(cmdItem);
+                    var action = cmdMatch.Groups["action"].Value.Replace('\\', '/');
+                    var local = cmdMatch.Groups["local"].Value.Replace('\\', '/');
+                    var remote = cmdMatch.Groups["remote"].Value.Replace('\\', '/');
+                    // ["form.api.dll", ".pfx", "Dockfile"]
+                    var includes = cmdMatch.Groups["include"].Value.Replace('\\', '/')?.Split(',', StringSplitOptions.RemoveEmptyEntries);
+                    var excludes = cmdMatch.Groups["exclude"].Value.Replace('\\', '/')?.Split(',', StringSplitOptions.RemoveEmptyEntries);
+                    if (action.ToLower() == "upload")
+                    {
+                        if (string.IsNullOrWhiteSpace(local) && string.IsNullOrWhiteSpace(remote))
+                        {
+                            throw new Exception("上传文件格式错误: " + cmdItem);
+                        }
+                        string uploadLog = await UploadAsync(local, remote, includes, excludes);
+                        uploadLogs += $"{uploadLog}{Environment.NewLine}";
+                    }
+                    else if (action.ToLower() == "download")
+                    {
+                        if (string.IsNullOrWhiteSpace(local) && string.IsNullOrWhiteSpace(remote))
+                        {
+                            throw new Exception("上传文件格式错误: " + cmdItem);
+                        }
+                        await DownloadAsync(local, remote, includes, excludes);
+                    }
                 }
-                await UploadAsync(local, remote, includes, excludes);
-                return null;
-            }
-            else if (action.ToLower() == "download")
-            {
-                if (string.IsNullOrWhiteSpace(local) && string.IsNullOrWhiteSpace(remote))
-                {
-                    throw new Exception("上传文件格式错误: " + command);
-                }
-                await DownloadAsync(local, remote, includes, excludes);
-                return null;
+                return new OperationResult(true, uploadLogs.TrimEnd());
             }
             else
             {
@@ -245,7 +259,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
 
                     try
                     {
-                        await UploadAsync(localTmpFile, remoteTempScriptsDir, null, null);
+                        _ = await UploadAsync(localTmpFile, remoteTempScriptsDir, null, null);
                         conn.RunCommand($"chmod +x {remoteTempScriptFile}");
                     }
                     catch (Exception)
@@ -259,7 +273,9 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
 
                     command = remoteTempScriptFile;
                 }
-                var sshCommand = conn.RunCommand(command);
+                // conn.RunCommand(command);
+                var sshCommand = conn.CreateCommand(command);
+                await sshCommand.ExecuteAsync();
                 LoggerHelper.LogInformation($"运行命令: {command}; 执行结果: [{sshCommand.Result}]{Environment.NewLine} 错误信息:[{sshCommand.Error}]");
                 if (!string.IsNullOrWhiteSpace(remoteTempScriptFile) && string.IsNullOrEmpty(sshCommand.Error))
                 {
@@ -267,11 +283,13 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                     conn.RunCommand($"rm -f {remoteTempScriptFile}");
                 }
                 ReturnConnection(conn);
-                return sshCommand;
+                bool succeed = string.IsNullOrWhiteSpace(sshCommand.Error);
+                return new OperationResult(succeed, succeed ? sshCommand.Result : sshCommand.Error);
             }
         }
-        private async Task UploadAsync(string local, string remotePath, string[]? includes, string[]? excludes)
+        private async Task<string> UploadAsync(string local, string remotePath, string[]? includes, string[]? excludes)
         {
+            string uploadLog = string.Empty;
             var conn = GetSftpConnection();
 
             var localFiles = new List<string>();
@@ -329,6 +347,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                     using var fs = File.OpenRead(local);
                     if (conn.Exists(remote))
                     {
+                        // 存在的话, 检查一下是目录(放到目录下)还是文件(覆盖)
                         var remoteAttributes = conn.GetAttributes(remote);
                         if (remoteAttributes.IsDirectory)
                         {
@@ -337,13 +356,19 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                     }
                     else
                     {
+                        // 不存在的情况, '/'结尾表示remote是目录, 创建整个目录; 否则把remote当作文件创建上级目录
                         var ssh = await GetConnectionAsync();
-                        ssh.RunCommand($"mkdir -p {remote}");
+                        string remoteDir = remote.EndsWith('/') ? remote : remote[..remote.LastIndexOf('/')];
+                        ssh.RunCommand($"mkdir -p {remoteDir}");
                         ReturnConnection(ssh);
-                        remote = Path.Combine(remote, localFileName).Replace('\\', '/');
+                        if (remote.EndsWith('/'))
+                        {
+                            remote = Path.Combine(remote, localFileName).Replace('\\', '/');
+                        }
                     }
                     conn.UploadFile(fs, remote);
-                    Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 上传文件成功: {localFileName} -> {remote}");
+                    uploadLog = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 上传文件成功: {localFileName} -> {remote}";
+                    Console.WriteLine(uploadLog);
                     localFiles.Add(local);
                     #endregion
                 }
@@ -354,6 +379,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
             }
 
             ReturnConnection(conn);
+            return uploadLog;
         }
 
         private async Task DownloadAsync(string local, string remote, string[]? includes, string[]? excludes)
@@ -487,16 +513,12 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         public async IAsyncEnumerable<CommandResult> ExecuteAsync(string command)
         {
             var cmd = await RunCommandAsync(command);
-            var output = cmd?.Result ?? "";
-            var error = cmd?.Error ?? "";
-
-            if (!string.IsNullOrWhiteSpace(output))
+            if (cmd.Succeed)
             {
-                output = string.IsNullOrWhiteSpace(error) ? output : $"{output}{Environment.NewLine}[ERR]{Environment.NewLine}{error}";
-                yield return new(true, output);
+                yield return new(true, cmd.Message);
                 yield break;
             }
-            yield return new(false, error);
+            yield return new(false, cmd.Message);
         }
 
         /// <summary>

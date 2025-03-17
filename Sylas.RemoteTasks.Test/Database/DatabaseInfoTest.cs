@@ -54,6 +54,26 @@ namespace Sylas.RemoteTasks.Test.Database
         }
 
         /// <summary>
+        /// 根据数据列表获取数据插入的SQL语句
+        /// </summary>
+        /// <returns></returns>
+        [Fact]
+        public async Task GetInsertSqlInfoAsync_ColumnsSortByTargetTable()
+        {
+            using var targetConn = DatabaseInfo.GetDbConnection(_connectionStringDev);
+            List<object> list = [
+                new{ Id = 1, Message = "Hello", MessageTemplate = "Tem123123", Level = "info", TimeStamp = DateTime.Now, Exception = "Exp....", LogEvent = "event...", Properties = "Properties" },
+            ];
+            var insertSqlInfo1 = await DatabaseInfo.GetInsertSqlInfosAsync(list, "log", targetConn);
+
+            List<object> list2 = [
+                new{ Properties = "Properties", LogEvent = "event...", Exception = "Exp....", Message = "Hello", MessageTemplate = "Tem123123", Level = "info", TimeStamp = DateTime.Now, Id = 1 },
+            ];
+            var insertSqlInfo2 = await DatabaseInfo.GetInsertSqlInfosAsync(list, "log", targetConn);
+            Assert.Equal(insertSqlInfo1[0].Sql, insertSqlInfo2[0].Sql);
+        }
+
+        /// <summary>
         /// 同步数据库, 指定库的所有表
         /// </summary>
         /// <returns></returns>
@@ -67,7 +87,7 @@ namespace Sylas.RemoteTasks.Test.Database
             // 生成SQL: 获取所有表SqlGetDbTablesInfo -> 生成SQL: 获取表全名GetTableFullName -> 生成SQL: 获取表数据GetQuerySql
             #endregion
 
-            await DatabaseInfo.TransferDataAsync(sourceConnectionString, targetConnectionString, sourceTable: "userroles", targetTable: "userroles");
+            await DatabaseInfo.TransferDataAsync(sourceConnectionString, targetConnectionString, sourceTable: "DEPARTMENT_20250213", targetTable: "DEPARTMENT_COPY1");
         }
         /// <summary>
         /// 根据连接字符串判断数据库类型

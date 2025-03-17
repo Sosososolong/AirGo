@@ -31,11 +31,11 @@ namespace Sylas.RemoteTasks.Common.Dtos
         /// 初始化是否成功和错误信息
         /// </summary>
         /// <param name="isSuccess"></param>
-        /// <param name="errMsg"></param>
-        public OperationResult(bool isSuccess, string errMsg)
+        /// <param name="msg"></param>
+        public OperationResult(bool isSuccess, string msg)
         {
             Succeed = isSuccess;
-            Message = errMsg;
+            Message = msg;
         }
         /// <summary>
         /// 操作成功返回信息

@@ -42,5 +42,13 @@
         /// </summary>
         public string? DefaultValue { get; set; }
 
+        /// <summary>
+        /// 字段名和类型信息字符串
+        /// </summary>
+        /// <returns></returns>
+        public override string ToString()
+        {
+            return $"{ColumnCode} {ColumnType} {ColumnLength}";
+        }
     }
 }

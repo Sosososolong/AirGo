@@ -41,14 +41,12 @@ namespace Sylas.RemoteTasks.Test.Remote
                     return;
                 }
                 var commandResult = await sshHelper.RunCommandAsync(cmd);
-                if (!string.IsNullOrWhiteSpace(commandResult?.Error))
+                if (commandResult.Succeed)
                 {
-                    _outputHelper.WriteLine(commandResult?.Error);
-                }
-
-                if (!string.IsNullOrWhiteSpace(commandResult?.Result))
+                    _outputHelper.WriteLine(string.IsNullOrWhiteSpace(commandResult.Message) ? "操作成功" : commandResult.Message);
+                } else
                 {
-                    _outputHelper.WriteLine(commandResult?.Result);
+                    _outputHelper.WriteLine(string.IsNullOrWhiteSpace(commandResult.Message) ? "操作失败" : commandResult.Message);
                 }
             }
         }

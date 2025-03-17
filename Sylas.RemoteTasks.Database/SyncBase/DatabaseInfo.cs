@@ -911,7 +911,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// 同步数据库
         /// </summary>
         /// <exception cref="Exception"></exception>
-        public static async Task TransferDataAsync(string sourceConnectionString, string targetConnectionString, string sourceDb = "", string sourceTable = "", string targetTable = "", bool ignoreException = false)
+        public static async Task TransferDataAsync(string sourceConnectionString, string targetConnectionString, string sourceDb = "", string sourceTable = "", string targetTable = "", bool ignoreException = false, Func<string, bool>? tableCondition = null)
         {
             if (!string.IsNullOrWhiteSpace(sourceTable) && string.IsNullOrWhiteSpace(targetTable))
             {
@@ -941,6 +941,10 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             foreach (var table in res)
             {
                 if (!string.IsNullOrWhiteSpace(sourceTable) && !table.Equals(sourceTable, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+                if (tableCondition is not null && !tableCondition(table))
                 {
                     continue;
                 }
@@ -1450,15 +1454,17 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             GetSourceColumnTargetColumnMap(firstRecord, targetTableColumns, sourceColumnMapToTargetColumn);
 
             // 让数据的字段(比如id字段可能是后加的在最后一个)和目标表的字段一一对应; 这样根据目标表字段获取字段表达式和根据数据构建的值表达式就能一一对应上
-            List<ColumnInfo> validColInfos = [];
-            foreach (var recordKey in firstRecord.Keys)
-            {
-                var recordColInfo = targetTableColumns.FirstOrDefault(x => x.ColumnCode.Equals(recordKey, StringComparison.OrdinalIgnoreCase)) ?? throw new Exception($"数据包含不存在的字段:{recordKey}");
-                validColInfos.Add(recordColInfo);
-            }
+            //List<ColumnInfo> validColInfos = [];
+            //foreach (var recordKey in firstRecord.Keys)
+            //{
+            //    var recordColInfo = targetTableColumns.FirstOrDefault(x => x.ColumnCode.Equals(recordKey, StringComparison.OrdinalIgnoreCase)) ?? throw new Exception($"数据包含不存在的字段:{recordKey}");
+            //    validColInfos.Add(recordColInfo);
+            //}
 
-            // 1. 获取字段部分
-            var insertFieldsStatement = GetFieldsStatement(validColInfos, dbType);
+            //// 1. 获取字段部分
+            //var insertFieldsStatement = GetFieldsStatement(validColInfos, dbType);
+            // 以目标表字段为准
+            var insertFieldsStatement = GetFieldsStatement(targetTableColumns, dbType);
 
             var insertValuesStatementBuilder = new StringBuilder();
             int recordIndex = 0;
@@ -1470,7 +1476,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             {
                 #region 2. 为每条数据生成Values部分(@v1,@v2,...),\n
                 insertValuesStatementBuilder.Append("(");
-                insertValuesStatementBuilder.Append(GenerateRecordValuesStatement(sourceRecord, targetTableColumns, parameters, varFlag, recordIndex, sourceColumnMapToTargetColumn));
+                insertValuesStatementBuilder.Append(GenerateRecordValuesStatement(sourceRecord, targetTableColumns, parameters, varFlag, recordIndex));
                 insertValuesStatementBuilder.Append($"),{Environment.NewLine}");
                 #endregion
 
@@ -1648,7 +1654,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                     }
 
                     // "@Name1, @Age1"
-                    string valuesStatement = GenerateRecordValuesStatement(dataItem, targetColInfos, parameters, dbVarFlag, random, sourceColumnMapToTargetColumn);
+                    string valuesStatement = GenerateRecordValuesStatement(dataItem, targetColInfos, parameters, dbVarFlag, random);
                     // ("@Name1, :Age1"),
                     string currentRecordSql = $"({valuesStatement}),{Environment.NewLine}";
 
@@ -2118,20 +2124,19 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// 根据一条数据 生成对应的insert语句的值(参数)部分 @Name1,@Age1
         /// </summary>
         /// <param name="record"></param>
-        /// <param name="colInfos"></param>
+        /// <param name="targetColInfos"></param>
         /// <param name="parameters"></param>
         /// <param name="dbVarFlag"></param>
         /// <param name="random"></param>
-        /// <param name="sourceColumnMapToTargetColumn">数据源字段名与目标表字段的映射</param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        static string GenerateRecordValuesStatement(object record, IEnumerable<ColumnInfo> colInfos, Dictionary<string, object?> parameters, string dbVarFlag, int random = 0, Dictionary<string, ColumnInfo>? sourceColumnMapToTargetColumn = null)
+        static string GenerateRecordValuesStatement(object record, IEnumerable<ColumnInfo> targetColInfos, Dictionary<string, object?> parameters, string dbVarFlag, int random = 0)
         {
             var valueBuilder = new StringBuilder();
             if (record is DataRow dataItem)
             {
                 // 处理一条数据
-                foreach (var colInfo in colInfos)
+                foreach (var colInfo in targetColInfos)
                 {
                     var columnCode = colInfo.ColumnCode;
                     if (string.IsNullOrWhiteSpace(columnCode))
@@ -2149,58 +2154,140 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             }
             else if (record is IDictionary<string, object> recordDictionary)
             {
-                foreach (var k in recordDictionary.Keys)
+                // 遍历targetColInfos目的是以目标表的字段为基准(有哪些字段用哪些字段, 并且生成的SQL语句字段顺序与目标表保持一致)
+                foreach (var targetColInfo in targetColInfos)
                 {
-                    if (sourceColumnMapToTargetColumn is not null && sourceColumnMapToTargetColumn.Any() && !sourceColumnMapToTargetColumn.TryGetValue(k, out ColumnInfo targetCol))
+                    var sourceKey = recordDictionary.Keys.FirstOrDefault(x => x.Equals(targetColInfo.ColumnCode, StringComparison.OrdinalIgnoreCase));
+                    object? parameterValue = null;
+                    if (sourceKey is null)
                     {
-                        continue;
+                        parameterValue = GetColumnDefaultValue(targetColInfo);
                     }
                     else
                     {
-                        targetCol = colInfos.FirstOrDefault(x => x.ColumnCode.Equals(k, StringComparison.OrdinalIgnoreCase));
-                        if (targetCol is null)
-                        {
-                            continue;
-                        }
+                        parameterValue = recordDictionary[sourceKey];
                     }
-                    var paramName = $"{targetCol.ColumnCode}{random}";
+                    //if (sourceColumnMapToTargetColumn is not null && sourceColumnMapToTargetColumn.Any() && !sourceColumnMapToTargetColumn.TryGetValue(sourceKey, out _))
+                    //{
+                    //    continue;
+                    //}
+                    var paramName = $"{targetColInfo.ColumnCode}{random}";
                     valueBuilder.Append($"{dbVarFlag}{paramName},");
-                    var parameterValue = recordDictionary[k];
-                    if (targetCol.ColumnCSharpType == "datetime" && parameterValue is string)
+                    if (targetColInfo.ColumnCSharpType == "datetime" && parameterValue is string)
                     {
                         parameterValue = string.IsNullOrWhiteSpace($"{parameterValue}") ? null : DateTime.Parse(parameterValue.ToString());
                     }
                     parameters.Add(paramName, parameterValue);
                 }
+                //foreach (var k in recordDictionary.Keys)
+                //{
+                //    if (sourceColumnMapToTargetColumn is not null && sourceColumnMapToTargetColumn.Any() && !sourceColumnMapToTargetColumn.TryGetValue(k, out ColumnInfo targetCol))
+                //    {
+                //        continue;
+                //    }
+                //    else
+                //    {
+                //        targetCol = targetColInfos.FirstOrDefault(x => x.ColumnCode.Equals(k, StringComparison.OrdinalIgnoreCase));
+                //        if (targetCol is null)
+                //        {
+                //            continue;
+                //        }
+                //    }
+                //    var paramName = $"{targetCol.ColumnCode}{random}";
+                //    valueBuilder.Append($"{dbVarFlag}{paramName},");
+                //    var parameterValue = recordDictionary[k];
+                //    if (targetCol.ColumnCSharpType == "datetime" && parameterValue is string)
+                //    {
+                //        parameterValue = string.IsNullOrWhiteSpace($"{parameterValue}") ? null : DateTime.Parse(parameterValue.ToString());
+                //    }
+                //    parameters.Add(paramName, parameterValue);
+                //}
             }
             else
             {
                 IEnumerable<JProperty> properties = record is JObject recordJObj ? recordJObj.Properties() : JObject.FromObject(record).Properties() ?? throw new Exception($"record不是DataRow或者记录对应的对象类型");
-                foreach (var p in properties)
+
+                foreach (var targetColInfo in targetColInfos)
                 {
-                    if (sourceColumnMapToTargetColumn is not null && sourceColumnMapToTargetColumn.Any() && !sourceColumnMapToTargetColumn.TryGetValue(p.Name, out ColumnInfo targetCol))
+                    var sourceKey = properties.FirstOrDefault(x => x.Name.Equals(targetColInfo.ColumnCode, StringComparison.OrdinalIgnoreCase));
+                    dynamic? parameterValue = null;
+                    if (sourceKey is null)
                     {
-                        continue;
+                        parameterValue = GetColumnDefaultValue(targetColInfo);
                     }
                     else
                     {
-                        targetCol = colInfos.FirstOrDefault(x => x.ColumnCode.Equals(p.Name, StringComparison.OrdinalIgnoreCase));
-                        if (targetCol is null)
-                        {
-                            continue;
-                        }
+                        parameterValue = GetColumnValue(sourceKey, targetColInfo); ;
                     }
-
-                    var paramName = $"{targetCol.ColumnCode}{random}";
+                    //if (sourceColumnMapToTargetColumn is not null && sourceColumnMapToTargetColumn.Any() && !sourceColumnMapToTargetColumn.TryGetValue(sourceKey.Name, out _))
+                    //{
+                    //    continue;
+                    //}
+                    var paramName = $"{targetColInfo.ColumnCode}{random}";
                     valueBuilder.Append($"{dbVarFlag}{paramName},");
-
-                    dynamic? pVal = GetColumnValue(p, targetCol);
-                    parameters.Add(paramName, pVal);
+                    if (targetColInfo.ColumnCSharpType == "datetime" && parameterValue is string)
+                    {
+                        parameterValue = string.IsNullOrWhiteSpace($"{parameterValue}") ? null : DateTime.Parse(parameterValue.ToString());
+                    }
+                    parameters.Add(paramName, parameterValue);
                 }
+                //foreach (var p in properties)
+                //{
+                //    if (sourceColumnMapToTargetColumn is not null && sourceColumnMapToTargetColumn.Any() && !sourceColumnMapToTargetColumn.TryGetValue(p.Name, out ColumnInfo targetCol))
+                //    {
+                //        continue;
+                //    }
+                //    else
+                //    {
+                //        targetCol = targetColInfos.FirstOrDefault(x => x.ColumnCode.Equals(p.Name, StringComparison.OrdinalIgnoreCase));
+                //        if (targetCol is null)
+                //        {
+                //            continue;
+                //        }
+                //    }
+
+                //    var paramName = $"{targetCol.ColumnCode}{random}";
+                //    valueBuilder.Append($"{dbVarFlag}{paramName},");
+
+                //    dynamic? pVal = GetColumnValue(p, targetCol);
+                //    parameters.Add(paramName, pVal);
+                //}
             }
             return valueBuilder.ToString().TrimEnd(',');
         }
-
+        static object? GetColumnDefaultValue(ColumnInfo targetColInfo)
+        {
+            if (targetColInfo.ColumnCSharpType is null)
+            {
+                if (string.IsNullOrWhiteSpace(targetColInfo.DefaultValue))
+                {
+                    return null;
+                }
+                else
+                {
+                    return targetColInfo.DefaultValue;
+                }
+            }
+            else
+            {
+                if (targetColInfo.ColumnCSharpType.Contains("time"))
+                {
+                    return DateTime.Now;
+                }
+                else if (targetColInfo.ColumnCSharpType.Contains("int") || targetColInfo.ColumnCSharpType.Contains("long")
+                    || targetColInfo.ColumnCSharpType.Contains("float")
+                    || targetColInfo.ColumnCSharpType.Contains("double")
+                    || targetColInfo.ColumnCSharpType.Contains("decimal")
+                    )
+                {
+                    return 0;
+                }
+                else
+                {
+                    return string.Empty;
+                }
+            }
+        }
         /// <summary>
         /// 创建表
         /// </summary>

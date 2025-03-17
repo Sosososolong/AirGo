@@ -444,6 +444,10 @@ namespace Sylas.RemoteTasks.Utils.Template
                 {
                     string exp = stringTmplGroups["name"].Value;
 
+                    if (exp.Trim().Equals("$"))
+                    {
+                        continue;
+                    }
                     if (resolvedExp.Count > 0 && resolvedExp.Contains(stringTmplMatch.Value))
                     {
                         continue;
