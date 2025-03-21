@@ -11,6 +11,7 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
@@ -693,10 +694,12 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         /// <summary>
         /// APP占用内存
         /// </summary>
+        [JsonNumberHandling(JsonNumberHandling.AllowNamedFloatingPointLiterals)]
         public double AppRam { get; set; }
         /// <summary>
         /// APP内存使用率
         /// </summary>
+        [JsonNumberHandling(JsonNumberHandling.AllowNamedFloatingPointLiterals)]
         public double AppRamRate { get; set; }
     }
     /// <summary>

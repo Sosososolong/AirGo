@@ -260,29 +260,38 @@
             var target = typeof(targetId) === 'string' ? document.querySelector(`#${targetId}`) : targetId;
 
             // 获取目标元素的位置和尺寸信息
-            var rect = target.getBoundingClientRect();
+            const nodeList = target instanceof NodeList ? target : [ target ]
+            const overlays = [];
+            nodeList.forEach(node => {
+                var rect = node.getBoundingClientRect();
 
-            // 设置覆盖层基本样式
-            overlay.style.position = 'absolute';
-            overlay.style.backgroundColor = 'rgba(200,200,200,0.2)';
-            overlay.style.zIndex = '999';
-            // 设置覆盖层的位置和尺寸
-            overlay.style.top = rect.top + 'px';
-            overlay.style.left = rect.left + 'px';
-            overlay.style.width = rect.width + 'px';
-            overlay.style.height = rect.height + 'px';
-            // 设置覆盖层水平垂直居中
-            overlay.style.display = 'flex';
-            overlay.style.justifyContent = 'center';
-            overlay.style.alignItems = 'center';
+                // 设置覆盖层基本样式
+                overlay.style.position = 'absolute';
+                overlay.style.backgroundColor = 'rgba(200,200,200,0.2)';
+                overlay.style.zIndex = '999';
+                // 设置覆盖层的位置和尺寸
+                overlay.style.top = rect.top + 'px';
+                overlay.style.left = rect.left + 'px';
+                overlay.style.width = rect.width + 'px';
+                overlay.style.height = rect.height + 'px';
+                // 设置覆盖层水平垂直居中
+                overlay.style.display = 'flex';
+                overlay.style.justifyContent = 'center';
+                overlay.style.alignItems = 'center';
 
-            // 将覆盖层插入到目标元素的父节点中
-            target.parentNode.insertBefore(overlay, target);
-            return overlay;
+                // 将覆盖层插入到目标元素的父节点中
+                node.parentNode.insertBefore(overlay, node);
+                overlays.push(overlay);
+            })
+            return overlays;
         }
 
         function removeOverlay(overlay) {
-            overlay.remove();
+            if (overlay instanceof Array) {
+                overlay.forEach(x => x.remove());
+            } else {
+                overlay.remove();
+            }
         }
     </script>
     @await RenderSectionAsync("Scripts", required: false)

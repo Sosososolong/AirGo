@@ -247,7 +247,7 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableContainerS
             pagination.append('<li class="page-item ' + (targetTable.pageIndex == targetTable.totalPages ? 'disabled' : '') + '"><a class="page-link" href="#" data-page="' + (targetTable.pageIndex + 1) + '">Next</a></li>');
         }
         
-        var response = await fetchData(apiUrl, method, this.pageIndex, this.pageSize, targetTable.dataFilter, this.orderRules, this.tableId);
+        var response = await httpRequestPagedDataAsync(apiUrl, method, this.pageIndex, this.pageSize, targetTable.dataFilter, this.orderRules, this.tableId);
         if (response) {
             await onSuccess(response);
         }
@@ -397,7 +397,7 @@ ${formItemComponent}
         if (dataSourceKeys.indexOf(currentKey) > -1) {
             dataSourceData = dataSources[currentKey]
         } else {
-            let response = await fetchData(url, 'POST', 1, 100, bodyDataFilter, []);
+            let response = await httpRequestPagedDataAsync(url, 'POST', 1, 100, bodyDataFilter, []);
             if (response && response.code === 1) {
                 dataSourceData = response.data.data;
                 dataSources[currentKey] = dataSourceData;
@@ -597,8 +597,19 @@ ${formItemComponent}
     await targetTable.render();
 }
 
-
-async function fetchData(url, method, pageIndex, pageSize, dataFilter, orderRules, renderElementId, finallyAction) {
+/**
+ * 分页查询数据
+ * @param {any} url
+ * @param {any} method
+ * @param {any} pageIndex
+ * @param {any} pageSize
+ * @param {any} dataFilter
+ * @param {any} orderRules
+ * @param {any} renderElementId
+ * @param {any} finallyAction
+ * @returns
+ */
+async function httpRequestPagedDataAsync(url, method, pageIndex, pageSize, dataFilter, orderRules, renderElementId, finallyAction) {
     //showSpinner(renderElementId);
     //let overlay = null;
     //if (renderElementId) {
@@ -653,9 +664,11 @@ function getAccessToken() {
 }
 
 async function httpRequestAsync(url, spinnerEle = null, method = 'POST', body = '', contentType = '') {
+    let o;
     try {
         if (spinnerEle) {
-            showSpinner(spinnerEle);
+            //showSpinner(spinnerEle);
+            o = addOverlay(spinnerEle);
         }
         if (!contentType && method.toUpperCase() === 'POST') {
             contentType = 'application/json';
@@ -688,7 +701,9 @@ async function httpRequestAsync(url, spinnerEle = null, method = 'POST', body = 
             }
         }
 
-        var rspJson = await response.json();
+        //var rspJson = await response.json();
+        var rspJson = await response.text();
+        var rspJson = JSON.parse(rspJson);
 
         return rspJson;
     } catch (e) {
@@ -697,6 +712,7 @@ async function httpRequestAsync(url, spinnerEle = null, method = 'POST', body = 
     } finally {
         if (spinnerEle) {
             closeSpinner(spinnerEle);
+            removeOverlay(o);
         }
     };
 }
@@ -908,7 +924,7 @@ async function showUpdatePannel(eventTrigger, onDataReloading, onDataReloaded) {
             value: ''
         }
     };
-    var fetchedData = await fetchData(fetchUrl, method, 1, 1, findByIdFilter, []);
+    var fetchedData = await httpRequestPagedDataAsync(fetchUrl, method, 1, 1, findByIdFilter, []);
     if (fetchedData && fetchedData.data) {
         await table.createModal();
         let record = fetchedData.data.data[0];

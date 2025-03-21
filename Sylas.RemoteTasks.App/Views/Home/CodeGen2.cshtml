@@ -263,7 +263,7 @@
             tableAliasInput.value = mainTable.name;
 
             // 获取主表所有字段
-            const response = await fetchData(`/Home/GetTableInfo?connectionString=${connectionString}&table=${mainTable.name}`, 'POST');
+            const response = await httpRequestPagedDataAsync(`/Home/GetTableInfo?connectionString=${connectionString}&table=${mainTable.name}`, 'POST');
             if (response) {
                 if (response.code === 1) {
                     mainTable.columns = response.data;
@@ -291,7 +291,7 @@
                 allTableOptions[connectionString] = '';
                 allTables[connectionString] = [];
 
-                let response = await fetchData(`/Home/GetAllTables?connectionString=${connectionString}`, 'POST');
+                let response = await httpRequestPagedDataAsync(`/Home/GetAllTables?connectionString=${connectionString}`, 'POST');
                 if (response && response.code === 1) {
                     const tables = response.data;
                     for (let i = 0; i < tables.length; i++) {
@@ -385,7 +385,7 @@
             document.querySelector(`#leftJoinTableAlias${index}`).value = leftJoinTableAlias;
 
             // 获取联查表的所有字段
-            const response = await fetchData(`/Home/GetTableInfo?connectionString=${document.querySelector(connStrInputSelector).value}&table=${leftJoinTable}`, 'POST');
+            const response = await httpRequestPagedDataAsync(`/Home/GetTableInfo?connectionString=${document.querySelector(connStrInputSelector).value}&table=${leftJoinTable}`, 'POST');
             if (response) {
                 if (response.code === 1) {
                     columns = response.data;
