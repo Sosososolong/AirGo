@@ -1,10 +1,14 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.RequestProcessor;
 using Sylas.RemoteTasks.App.RequestProcessor.Models;
 using Sylas.RemoteTasks.App.RequestProcessor.Models.Dtos;
+using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Common.Dtos;
+using Sylas.RemoteTasks.Database.Dtos;
 using Sylas.RemoteTasks.Database.SyncBase;
+using System;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {
@@ -23,7 +27,6 @@ namespace Sylas.RemoteTasks.App.Controllers
 
         public async Task<IActionResult> ExecuteHttpProcessorAsync([FromServices] RequestProcessorService service, [FromBody] ProcessorExecuteDto dto)
         {
-            //await service.ExecuteFromAppsettingsAsync();
             if (dto is null || dto.ProcessorIds is null)
             {
                 return Ok(new OperationResult(false, "参数不能为空"));
@@ -357,18 +360,45 @@ namespace Sylas.RemoteTasks.App.Controllers
         {
             return View();
         }
-        public async Task<IActionResult> TransferAsync(string sourceConnectionString = "", string sourceTable = "", string targetConnectionString = "")
+        public async Task<IActionResult> TransferAsync([FromServices] RepositoryBase<DbConnectionInfo> repository, [FromBody] TransferDataDto dto)
         {
-            sourceTable ??= string.Empty;
-            if (string.IsNullOrWhiteSpace(sourceConnectionString) || string.IsNullOrWhiteSpace(targetConnectionString))
+            if (string.IsNullOrWhiteSpace(dto.SourceConnectionString) || string.IsNullOrWhiteSpace(dto.SourceConnectionString))
             {
                 return Ok(RequestResult<bool>.Error("源和目标连接字符串不能为空"));
             }
             else
             {
-                foreach (var t in sourceTable.Split(','))
+                var sourceConnInfo = await repository.GetByIdAsync(Convert.ToInt32(dto.SourceConnectionString));
+                if (sourceConnInfo is null)
                 {
-                    await DatabaseInfo.TransferDataAsync(sourceConnectionString, targetConnectionString, t);
+                    return Ok(RequestResult<bool>.Error($"无效的数据库连接字符串: {dto.SourceConnectionString}"));
+                }
+                dto.SourceConnectionString = await SecurityHelper.AesDecryptAsync(sourceConnInfo.ConnectionString);
+                
+                var targetConnInfo = await repository.GetByIdAsync(Convert.ToInt32(dto.TargetConnectionString));
+                if (targetConnInfo is null)
+                {
+                    return Ok(RequestResult<bool>.Error($"无效的数据库连接字符串: {dto.TargetConnectionString}"));
+                }
+                dto.TargetConnectionString = await SecurityHelper.AesDecryptAsync(targetConnInfo.ConnectionString);
+
+                if (string.IsNullOrWhiteSpace($"{dto.SourceTable}{dto.TargetTable}"))
+                {
+                    await DatabaseInfo.TransferDataAsync(dto.SourceConnectionString, dto.SourceConnectionString);
+                }
+                else
+                {
+                    if (string.IsNullOrWhiteSpace(dto.TargetTable))
+                    {
+                        dto.TargetTable = dto.SourceTable;
+                    }
+                    string[] targetTables = dto.TargetTable.Split(',', ';');
+                    int index = 0;
+                    foreach (var t in dto.SourceTable.Split(',', ';'))
+                    {
+                        await DatabaseInfo.TransferDataAsync(dto.SourceConnectionString, dto.SourceConnectionString, sourceTable: t, targetTable: targetTables[index]);
+                        index++;
+                    }
                 }
                 return Ok(RequestResult<bool>.Success(true));
             }

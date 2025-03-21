@@ -20,7 +20,7 @@ namespace Sylas.RemoteTasks.App.ExceptionHandlers
 
                 var exception = exceptionHandlerPathFeature?.Error;
                 var errMsg = exception?.Message ?? "未知的异常";
-                await context.Response.WriteAsJsonAsync(new OperationResult(false, errMsg));
+                await context.Response.WriteAsJsonAsync(RequestResult<bool>.Error(errMsg));
             });
         };
     }

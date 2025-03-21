@@ -815,44 +815,6 @@ async function handleDataForm(table, eventTrigger) {
                 closeSpinner()
                 showMessage()
             });
-
-        //fetch(url, {
-        //    // 你的服务器端接收上传的URL
-        //    method: method,
-        //    body: formData,
-        //    // Content-Type为multipart/form-data
-        //    headers: {
-        //        'X-Requested-With': 'XMLHttpRequest',
-        //        'authorization': `Bearer ${accessToken}`
-        //    },
-        //})
-        //.then(resp => {
-        //    if (resp.ok) {
-        //        return resp.json();
-        //    } else {
-        //        showMessage = () => showErrorBox('操作失败:' + resp.statusText);
-        //        return;
-        //    }
-        //})
-        //.then(data => {
-        //    if (data) {
-        //        showMessage = () => showResultBox(data);
-        //    }
-        //})
-        //.catch(error => {
-        //    if (e.status === 500) {
-        //        showMessage = () => showErrorBox('接口异常, 请联系系统管理员')
-        //    } else if (e.status === 404) {
-        //        showMessage = () => showErrorBox(`接口不存在: ${url}`)
-        //    } else {
-        //        showMessage = () => showErrorBox(e.textStatus);
-        //    }
-        //    console.log(e);
-        //})
-        //.finally(() => {
-        //    closeSpinner();
-        //    showMessage();
-        //});
     } else {
         // 需要提交的数据对应的所有表单项(添加时不需要Id字段, 如果带上了值为""的Id字段, 会因为转为int类型失败从而导致参数自动绑定失败)
         let formItemIds = handleType === "add" ? table.formItemIdsForAddPannel : table.formItemIds;
@@ -861,14 +823,6 @@ async function handleDataForm(table, eventTrigger) {
         let dataJsonString = JSON.stringify(data);
 
         try {
-            //response = await $.ajax({
-            //    url: url,
-            //    method: method,
-            //    data: dataJsonString,
-            //    //contentType: 'application/x-www-form-urlencoded',
-            //    contentType: 'application/json;charset=utf-8',
-            //    dataType: 'json'
-            //});
             response = await httpRequestAsync(url, null, method, dataJsonString)
             showMessage = () => showResultBox(response);
         } catch (e) {
@@ -1029,7 +983,13 @@ async function deleteData(eventTrigger) {
         showErrorBox(response.message, '错误提示', [{ class: 'error', content: '关闭' }]);
     }
 }
-
+/**
+ * 请求一个api执行对应的操作
+ * @param {any} eventTrigger 包含请求信息的触发按钮或对象
+ * @param {any} callback 回调函数
+ * @param {any} useSpinner 是否启用spinner, 是则显示加载动画
+ * @returns
+ */
 async function execute(eventTrigger, callback = null, useSpinner = true) {
     const isEle = eventTrigger instanceof HTMLElement;
     let tableId = isEle ? eventTrigger.getAttribute('data-table-id') : eventTrigger['dataTableId'];
@@ -1053,42 +1013,22 @@ async function execute(eventTrigger, callback = null, useSpinner = true) {
     let url = isEle ? eventTrigger.getAttribute('data-execute-url') : eventTrigger['dataExecuteUrl'];
     let method = isEle ? eventTrigger.getAttribute('data-method') : eventTrigger['dataMethod'];
     let response = null;
-    const spinnerEle = useSpinner ? eventTrigger : null;
-    response = await httpRequestAsync(url, eventTrigger, method, dataContent, 'application/json');
-    //if (useSpinner) {
-    //    showSpinner();
-    //}
-    //try {
-        
-    //    response = await $.ajax({
-    //        url: url,
-    //        method: method,
-    //        data: dataContent.toString(),
-    //        contentType: 'application/json',
-    //        dataType: 'json',
-    //    });
-    //} catch (e) {
-    //    showErrorBox('操作失败');
-    //    console.log(e);
-    //} finally {
-    //    if (useSpinner) {
-    //        closeSpinner();
-    //    }
-    //}
+    const spinnerEle = useSpinner ? (isEle ? eventTrigger : eventTrigger['trigger']) : null;
+    response = await httpRequestAsync(url, spinnerEle, method, dataContent, 'application/json');
     if (response) {
         if (callback) {
             callback(response);
             return;
         }
 
-        if (response.succeed || response.data) {
+        if (response.code === 1 || response.data) {
             showMsgBox('操作成功', () => {
                 if (table) {
                     table.loadData();
                 }
             });
         } else {
-            showErrorBox(response.message, '错误提示', [{ class: 'error', content: '关闭' }]);
+            showErrorBox(response.errMsg, '错误提示', [{ class: 'error', content: '关闭' }]);
         }
     }
 }

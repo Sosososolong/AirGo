@@ -87,7 +87,7 @@ namespace Sylas.RemoteTasks.Test.Database
             // 生成SQL: 获取所有表SqlGetDbTablesInfo -> 生成SQL: 获取表全名GetTableFullName -> 生成SQL: 获取表数据GetQuerySql
             #endregion
 
-            await DatabaseInfo.TransferDataAsync(sourceConnectionString, targetConnectionString, sourceTable: "DEPARTMENT_20250213", targetTable: "DEPARTMENT_COPY1");
+            await DatabaseInfo.TransferDataAsync(sourceConnectionString, targetConnectionString, sourceTable: "userroles_20240318mgrscope已更新", targetTable: "userroles");
         }
         /// <summary>
         /// 根据连接字符串判断数据库类型

@@ -3,32 +3,35 @@
 }
 
 <form method="get" action="SyncDbs" id="requestForm">
-    <label for="sourceConnectionString" class="form-label">sourceConnectionString</label>
-    @* <input type="text" id="sourceConnectionString" name="sourceConnectionString" class="form-control" aria-describedby="sourceConnectionStringHelpBlock"> *@
-    <select id="sourceConnectionString" name="sourceConnectionString" class="form-control form-select-sm">
-    </select>
-    <div id="sourceConnectionStringHelpBlock" class="form-text text-warning">
-        源数据库连接字符串.
-    </div>
+    <div class="row" style="width: 90%; margin: auto;">
+        <div class="col-sm-5 mb-4">
+            <label for="sourceConnectionString" class="form-label">Source:</label>
+            <select id="sourceConnectionString" name="sourceConnectionString" class="form-control form-select-sm"></select>
 
-    <label for="targetConnectionString" class="form-label mt-3">targetConnectionString</label>
-    @* <input type="text" id="targetConnectionString" name="targetConnectionString" class="form-control" aria-describedby="targetConnectionStringHelpBlock"> *@
-    <select id="targetConnectionString" name="targetConnectionString" class="form-control form-select-sm">
-    </select>
-    <div id="targetConnectionStringHelpBlock" class="form-text">
-        目标数据库连接字符串.
-    </div>
+            <label for="sourceTable" class="form-label mt-3">sourceTable:</label>
+            <input type="text" id="sourceTable" name="sourceTable" class="form-control form-control-sm">
+        </div>
+        <div class="col-sm-2" style="margin:auto; text-align:center;">
+            <button class="btn btn-primary btn-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="16" fill="currentColor" class="bi bi-arrow-left-right" viewBox="0 0 16 16">
+                    <path fill-rule="evenodd" d="M1 11.5a.5.5 0 0 0 .5.5h11.793l-3.147 3.146a.5.5 0 0 0 .708.708l4-4a.5.5 0 0 0 0-.708l-4-4a.5.5 0 0 0-.708.708L13.293 11H1.5a.5.5 0 0 0-.5.5m14-7a.5.5 0 0 1-.5.5H2.707l3.147 3.146a.5.5 0 1 1-.708.708l-4-4a.5.5 0 0 1 0-.708l4-4a.5.5 0 1 1 .708.708L2.707 4H14.5a.5.5 0 0 1 .5.5" />
+                </svg>
+            </button>
+        </div>
+        <div class="col-sm-5 mb-4">
+            <label for="targetConnectionString" class="form-label">Target:</label>
+            <select id="targetConnectionString" name="targetConnectionString" class="form-control form-select-sm"></select>
 
-    <label for="sourceTable" class="form-label">sourceTable</label>
-    <input type="text" id="sourceTable" name="sourceTable" class="form-control" aria-describedby="sourceTableHelpBlock">
-    <div id="sourceTableHelpBlock" class="form-text text-warning">
-        要同步的数据表.
+            <label for="targetTable" class="form-label mt-3">targetTable:</label>
+            <input type="text" id="targetTable" name="targetTable" class="form-control form-control-sm">
+        </div>
+        <div class="col-sm-12">
+            <button class="btn btn-primary mt-3 btn-sm sync-btn" type="button" onclick="syncDbAsync()">开始同步</button>
+        </div>
     </div>
-
-    <button class="btn btn-primary mt-3" type="submit">开始同步</button>
-    <label class="text-primary">@ViewBag.Message</label>
 </form>
 
+<script src="~/js/sync.js"></script>
 @section Scripts {
     <script>
         const bodyObj = {
@@ -39,14 +42,43 @@
         httpRequestDataAsync(`/Database/ConnectionStrings`, null, 'POST', body)
             .then(rsp => {
                 connectionStrings = rsp.data;
-                console.log(connectionStrings)
                 let options = '';
+                connectionStrings.sort((item1, item2) => item1['orderNo'] > item2['orderNo'] ? 1 : -1);
                 for (let i = 0; i < connectionStrings.length; i++) {
                     options += `<option value="${connectionStrings[i].id}">${connectionStrings[i].name}</option>`
                 }
-                document.querySelector('select[name="sourceConnectionString"]').innerHTML = options;
-                document.querySelector('select[name="targetConnectionString"]').innerHTML = options;
-            });
+                document.querySelector('#sourceConnectionString').innerHTML = `<option conn-id="0" value="">请选择</options>${options}`;
+                document.querySelector('#targetConnectionString').innerHTML = `<option conn-id="0" value="">请选择</options>${options}`;
+            })
 
+        async function syncDbAsync() {
+            const source = document.querySelector('#sourceConnectionString')
+            if (!source.value) {
+                showErrorBox("请先选择源数据库")
+                return
+            }
+            const sourceConnId = source.value
+
+            const target = document.querySelector('#targetConnectionString')
+            if (!target.value) {
+                showErrorBox("请先选择目标数据库")
+                return
+            }
+            const targetConnId = target.value
+
+            const syncParams = {
+                sourceConnectionString: sourceConnId,
+                sourceTable: document.querySelector('#sourceTable').value,
+                targetConnectionString: targetConnId,
+                targetTable: document.querySelector('#targetTable').value
+            }
+            const exeParams = {
+                dataContent: JSON.stringify(syncParams),
+                dataExecuteUrl: '/Sync/Transfer',
+                dataMethod: 'POST',
+                trigger: document.querySelector('.sync-btn')
+            };
+            await execute(exeParams);
+        }
     </script>
 }

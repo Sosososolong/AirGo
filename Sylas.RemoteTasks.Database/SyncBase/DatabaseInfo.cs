@@ -959,7 +959,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                     if (!string.IsNullOrWhiteSpace(tableSqlsInfo.DeleteExistSqlInfo.Sql))
                     {
                         int deletedRows = await targetConn.ExecuteAsync(tableSqlsInfo.DeleteExistSqlInfo.Sql, tableSqlsInfo.DeleteExistSqlInfo.Parameters, transaction: dbTransaction);
-                        LoggerHelper.LogInformation($"{table}删除已存在的数据: {deletedRows}");
+                        LoggerHelper.LogInformation($"{targetTable}删除已存在的数据: {deletedRows}");
                     }
                     if (!string.IsNullOrEmpty(tableSqlsInfo.BatchInsertSqlInfo.Sql))
                     {
@@ -970,7 +970,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                             {
                                 affectedRowsCount = Regex.Matches(tableSqlsInfo.BatchInsertSqlInfo.Sql, @"insert", RegexOptions.IgnoreCase).Count;
                             }
-                            LoggerHelper.LogInformation($"{table}添加数据: {affectedRowsCount}");
+                            LoggerHelper.LogInformation($"{targetTable}添加数据: {affectedRowsCount}");
                         }
                         catch (Exception ex)
                         {
@@ -978,7 +978,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                             if (Regex.IsMatch(ex.Message, @"Incorrect string value:") && targetDbType == DatabaseType.MySql)
                             {
                                 var affectedRowsCount = await targetConn.ExecuteAsync($"SET NAMES utf8mb4;{tableSqlsInfo.BatchInsertSqlInfo.Sql}", tableSqlsInfo.BatchInsertSqlInfo.Parameters, transaction: dbTransaction);
-                                LoggerHelper.LogInformation($"{table}添加数据: {affectedRowsCount}");
+                                LoggerHelper.LogInformation($"{targetTable}添加数据: {affectedRowsCount}");
                             }
                             else
                             {
@@ -1712,10 +1712,20 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// 获取一个库中的所有表
         /// </summary>
         /// <param name="connStr"></param>
-        /// <param name="dbName"></param>
         /// <returns></returns>
-        public static async Task<IEnumerable<dynamic>> GetAllTablesAsync(string connStr, string dbName = "")
+        public static async Task<IEnumerable<dynamic>> GetAllTablesAsync(string connStr)
         {
+            if (!connStr.Contains(' ') && !connStr.Contains(';'))
+            {
+                try
+                {
+                    connStr = await SecurityHelper.AesDecryptAsync(connStr);
+                }
+                catch (Exception)
+                {
+                    throw new Exception($"无效的数据库连接字符串:{connStr}");
+                }
+            }
             var conn = GetDbConnection(connStr);
             return await GetAllTablesAsync(conn);
         }
