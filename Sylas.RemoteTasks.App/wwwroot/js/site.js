@@ -230,21 +230,21 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableContainerS
                 lastPage = totalPage;
             }
 
-            pagination.append('<li class="page-item ' + (targetTable.pageIndex == 1 ? 'disabled' : '') + '"><a class="page-link" href="#" data-page="' + (targetTable.pageIndex - 1) + '">Previous</a></li>');
+            pagination.append('<li class="page-item ' + (targetTable.pageIndex == 1 ? 'disabled' : '') + '"><a class="page-link bg-dark" href="#" data-page="' + (targetTable.pageIndex - 1) + '">Previous</a></li>');
             if (firstPage > 1) {
                 pagination.append(`<li class="page-item"><a class="page-link" href="#" data-page="1">1</a></li> <li class="page-item disabled"><a class="page-link" href="#">...</a></li>`);
                 // 额外显示第一页占据了两个位置, 所以第一页再向后偏移两个
                 firstPage += 2;
             }
             for (var i = firstPage; i <= lastPage; i++) {
-                pagination.append('<li class="page-item ' + (i == targetTable.pageIndex ? 'active' : '') + '"><a class="page-link" href="#" data-page="' + i + '">' + i + '</a></li>');
+                pagination.append('<li class="page-item ' + (i == targetTable.pageIndex ? 'active' : '') + '"><a class="page-link bg-dark" href="#" data-page="' + i + '">' + i + '</a></li>');
             }
             if (lastPage < totalPage) {
-                pagination.append(`<li class="page-item disabled"><a class="page-link" href="#">...</a></li> <li class="page-item"><a class="page-link" href="#" data-page="${totalPage}">${totalPage}</a></li>`);
+                pagination.append(`<li class="page-item disabled"><a class="page-link" href="#">...</a></li> <li class="page-item"><a class="page-link bg-dark" href="#" data-page="${totalPage}">${totalPage}</a></li>`);
                 // 额外显示最后一页占据了两个位置, 所以最后一页再向左偏移两个
                 lastPage -= 2;
             }
-            pagination.append('<li class="page-item ' + (targetTable.pageIndex == targetTable.totalPages ? 'disabled' : '') + '"><a class="page-link" href="#" data-page="' + (targetTable.pageIndex + 1) + '">Next</a></li>');
+            pagination.append('<li class="page-item ' + (targetTable.pageIndex == targetTable.totalPages ? 'disabled' : '') + '"><a class="page-link bg-dark" href="#" data-page="' + (targetTable.pageIndex + 1) + '">Next</a></li>');
         }
         
         var response = await httpRequestPagedDataAsync(apiUrl, method, this.pageIndex, this.pageSize, targetTable.dataFilter, this.orderRules, this.tableId);
@@ -430,7 +430,7 @@ ${formItemComponent}
         </div>
         {{othersFormItems}}
         <div class="col-sm">
-            <button type="submit" class="btn btn-dark btn-sm">搜索</button>
+            <button type="submit" class="btn btn-outline-primary btn-sm">搜索</button>
             {{others}}
         </div>
     </div>
@@ -525,12 +525,12 @@ ${formItemComponent}
         if (this.hasCustomDataViewBuilder) {
             $(tableContainerSelector).append(`<div id="${tableId}" style="margin-top:50px;"></div>${this.addOptions.modalHtml}`);
         } else {
-            var tableHtml = `<table class="table table-sm table-hover table-bordered mt-3" id="${tableId}">
-        <thead>
+            var tableHtml = `<table class="table table-sm table-hover table-bordered mt-3" style="border-color:#414243;" id="${tableId}">
+        <thead class="text-white">
             <tr>
             </tr>
         </thead>
-        <tbody>
+        <tbody class="text-white">
         </tbody>
     </table>
     <nav aria-label="Page navigation">
@@ -610,11 +610,6 @@ ${formItemComponent}
  * @returns
  */
 async function httpRequestPagedDataAsync(url, method, pageIndex, pageSize, dataFilter, orderRules, renderElementId, finallyAction) {
-    //showSpinner(renderElementId);
-    //let overlay = null;
-    //if (renderElementId) {
-    //    overlay = addOverlay(renderElementId);
-    //}
     let search = {
     };
     if (pageIndex) {
@@ -639,11 +634,6 @@ async function httpRequestPagedDataAsync(url, method, pageIndex, pageSize, dataF
             alert(e.textStatus)
         }
     } finally {
-        //closeSpinner();
-        //if (overlay) {
-        //    overlay.remove();
-        //}
-
         if (finallyAction) {
             finallyAction();
         }
@@ -667,8 +657,8 @@ async function httpRequestAsync(url, spinnerEle = null, method = 'POST', body = 
     let o;
     try {
         if (spinnerEle) {
-            //showSpinner(spinnerEle);
-            o = addOverlay(spinnerEle);
+            showSpinner(spinnerEle);
+            //o = addOverlay(spinnerEle);
         }
         if (!contentType && method.toUpperCase() === 'POST') {
             contentType = 'application/json';
@@ -712,7 +702,9 @@ async function httpRequestAsync(url, spinnerEle = null, method = 'POST', body = 
     } finally {
         if (spinnerEle) {
             closeSpinner(spinnerEle);
-            removeOverlay(o);
+            if (o) {
+                removeOverlay(o);
+            }
         }
     };
 }
