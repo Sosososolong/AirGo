@@ -1214,3 +1214,13 @@ function trimMsg(msg, maxLength = 50) {
     const half = maxLength / 2;
     return msg.substring(0, half) + '...' + msg.substring(msg.length - half)
 }
+
+
+const accessingViewKey = 'view-path'
+function saveAccessingViewPath(url) {
+    localStorage.setItem(accessingViewKey, url)
+}
+
+function getAccessingViewPath() {
+    return localStorage.getItem(accessingViewKey)
+}
