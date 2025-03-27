@@ -103,7 +103,7 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableContainerS
                 var th = ths[i]
                 if (th.type === 'button') {
                     var buttonHtml = th.tmpl.replace(/{{id}}/g, row[idFieldName])
-                    tr.append(`<td>${buttonHtml}</td>`);
+                    tr.append(`<td align="center">${buttonHtml}</td>`);
                 }
                 if (th.name) {
                     // 字段值
@@ -131,14 +131,15 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableContainerS
                         tdValue = tdValue.substring(0, th.showPart) + '...'
                     }
 
+                    const align = th.align ? ` align="${th.align}"` : ''
                     if (j === 0) {
                         var tdWidthProp = '';
                         if (th.width) {
                             tdWidthProp = ` style="width:${th.width}px"`
                         }
-                        tr.append(`<td${tdWidthProp}>` + tdValue + '</td>');
+                        tr.append(`<td${tdWidthProp}${align}>${tdValue}</td>`);
                     } else {
-                        tr.append('<td>' + tdValue + '</td>');
+                        tr.append(`<td${align}>${tdValue}</td>`);
                     }
                 }
             }
@@ -230,21 +231,21 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableContainerS
                 lastPage = totalPage;
             }
 
-            pagination.append('<li class="page-item ' + (targetTable.pageIndex == 1 ? 'disabled' : '') + '"><a class="page-link bg-dark" href="#" data-page="' + (targetTable.pageIndex - 1) + '">Previous</a></li>');
+            pagination.append('<li class="page-item ' + (targetTable.pageIndex == 1 ? 'disabled' : '') + '"><a class="page-link" href="#" data-page="' + (targetTable.pageIndex - 1) + '">Previous</a></li>');
             if (firstPage > 1) {
                 pagination.append(`<li class="page-item"><a class="page-link" href="#" data-page="1">1</a></li> <li class="page-item disabled"><a class="page-link" href="#">...</a></li>`);
                 // 额外显示第一页占据了两个位置, 所以第一页再向后偏移两个
                 firstPage += 2;
             }
             for (var i = firstPage; i <= lastPage; i++) {
-                pagination.append('<li class="page-item ' + (i == targetTable.pageIndex ? 'active' : '') + '"><a class="page-link bg-dark" href="#" data-page="' + i + '">' + i + '</a></li>');
+                pagination.append('<li class="page-item ' + (i == targetTable.pageIndex ? 'active' : '') + '"><a class="page-link" href="#" data-page="' + i + '">' + i + '</a></li>');
             }
             if (lastPage < totalPage) {
-                pagination.append(`<li class="page-item disabled"><a class="page-link" href="#">...</a></li> <li class="page-item"><a class="page-link bg-dark" href="#" data-page="${totalPage}">${totalPage}</a></li>`);
+                pagination.append(`<li class="page-item disabled"><a class="page-link" href="#">...</a></li> <li class="page-item"><a class="page-link" href="#" data-page="${totalPage}">${totalPage}</a></li>`);
                 // 额外显示最后一页占据了两个位置, 所以最后一页再向左偏移两个
                 lastPage -= 2;
             }
-            pagination.append('<li class="page-item ' + (targetTable.pageIndex == targetTable.totalPages ? 'disabled' : '') + '"><a class="page-link bg-dark" href="#" data-page="' + (targetTable.pageIndex + 1) + '">Next</a></li>');
+            pagination.append('<li class="page-item ' + (targetTable.pageIndex == targetTable.totalPages ? 'disabled' : '') + '"><a class="page-link" href="#" data-page="' + (targetTable.pageIndex + 1) + '">Next</a></li>');
         }
         
         var response = await httpRequestPagedDataAsync(apiUrl, method, this.pageIndex, this.pageSize, targetTable.dataFilter, this.orderRules, this.tableId);
@@ -526,11 +527,11 @@ ${formItemComponent}
             $(tableContainerSelector).append(`<div id="${tableId}" style="margin-top:50px;"></div>${this.addOptions.modalHtml}`);
         } else {
             var tableHtml = `<table class="table table-sm table-hover table-bordered mt-3" style="border-color:#414243;" id="${tableId}">
-        <thead class="text-white">
+        <thead>
             <tr>
             </tr>
         </thead>
-        <tbody class="text-white">
+        <tbody>
         </tbody>
     </table>
     <nav aria-label="Page navigation">
@@ -640,17 +641,21 @@ async function httpRequestPagedDataAsync(url, method, pageIndex, pageSize, dataF
     }
 }
 
+const tokenKey = 'access_token';
+const expiresTimeKey = 'access_token_expires_time';
 function getAccessToken() {
-    const tokenKey = 'access_token';
-    const expiresTimeKey = 'access_token_expires_time';
     const token = localStorage.getItem(tokenKey);
     const expiresTime = localStorage.getItem(expiresTimeKey);
-    if (new Date() >= new Date(expiresTime)) {
+    if (!expiresTime || new Date() >= new Date(expiresTime)) {
         localStorage.removeItem("tokenKey");
         localStorage.removeItem("expiresTimeKey");
         return '';
     }
     return token;
+}
+function clearAccessToken() {
+    localStorage.removeItem(tokenKey);
+    localStorage.removeItem(expiresTimeKey);
 }
 
 async function httpRequestAsync(url, spinnerEle = null, method = 'POST', body = '', contentType = '') {
@@ -1207,12 +1212,3 @@ function trimMsg(msg, maxLength = 50) {
     return msg.substring(0, half) + '...' + msg.substring(msg.length - half)
 }
 
-
-const accessingViewKey = 'view-path'
-function saveAccessingViewPath(url) {
-    localStorage.setItem(accessingViewKey, url)
-}
-
-function getAccessingViewPath() {
-    return localStorage.getItem(accessingViewKey)
-}

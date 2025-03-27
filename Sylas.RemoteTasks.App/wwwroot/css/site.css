@@ -30,19 +30,54 @@ body {
     display: none;
 }
 
-tbody {
-    font-size: 12px;
-    color: #333;
+table td {
+    vertical-align: middle;
 }
 
-.table-hover > tbody > tr:hover > td,
-.table-hover > tbody > tr:hover > th {
-    background-color: #201717;
-    color: #fff;
+table td:not([align]) {
+    padding-left: 20px;
+}
+
+tbody {
+    font-size: 12px;
+}
+th {
+    text-align: center;
 }
 
 .sidebar-menu {
     transition: all 0.2s;
+}
+
+.bg-light .sidebar-menu {
+    color: #ccc;
+    box-shadow: 0px 5px 5px 0px rgba(0, 0, 0, 0.5);
+}
+
+.bg-light header {
+    box-shadow: 0px 0px 5px 0px rgba(0, 0, 0, 0.5);
+}
+
+.bg-black tbody, .bg-black thead, .bg-black a, .bg-black label, .bg-black h1,h3,h5 {
+    color: rgba(var(--bs-white-rgb),1);
+}
+
+.bg-black .table-hover > tbody > tr:hover > td,
+.bg-black .table-hover > tbody > tr:hover > th {
+    background-color: #201717;
+    color: #fff;
+}
+
+.bg-black .sidebar-menu,
+.bg-black nav,
+.bg-black ul,
+.bg-black .page-container,
+.bg-black .page-link,
+.bg-black .page-item.disabled .page-link,
+.bg-black .modal-content,
+.bg-black .card,
+.bg-black .command-item {
+    background-color: rgba(var(--bs-dark-rgb), var(--bs-bg-opacity));
 }
 
 .right-data-pannel {

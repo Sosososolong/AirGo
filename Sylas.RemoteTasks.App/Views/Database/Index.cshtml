@@ -20,9 +20,9 @@
                 { name: 'alias', title: '别名', searchedByKeywords: true },
                 { name: 'connectionString', showPart: 12, title: '连接字符串' },
                 { name: 'remark', title: '备注', searchedByKeywords: true },
-                { name: 'orderNo', title: '排序' },
-                { name: 'createTime', title: '创建时间' },
-                { name: 'updateTime', title: '更新时间' },
+                { name: 'orderNo', title: '排序', align: 'center' },
+                { name: 'createTime', title: '创建时间', align: 'center' },
+                { name: 'updateTime', title: '更新时间', align: 'center' },
                 // 操作栏
                 { name: '', title: '操作', type: 'button', tmpl: `
                         <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="{{id}}" data-fetch-url="/Database/ConnectionStrings" data-method="POST" onclick="showUpdatePannel(this)">修改</button>

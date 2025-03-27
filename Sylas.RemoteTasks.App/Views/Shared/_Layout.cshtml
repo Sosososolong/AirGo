@@ -17,7 +17,7 @@
         }
     </script>
 </head>
-<body class="bg-black">
+<body>
     <svg xmlns="https://www.w3.org/2000/svg" style="display: none;">
       <symbol id="bootstrap" viewBox="0 0 118 94">
         <title>Bootstrap</title>
@@ -80,7 +80,7 @@
       </symbol>
     </svg>
     <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm bg-dark"><!--border-bottom box-shadow-->
+        <nav class="navbar navbar-expand-sm navbar-toggleable-sm"><!--border-bottom box-shadow-->
             <div class="container-fluid">
                 <a class="btn btn-sm" role="button" onclick="toggleCollapseSidebar(this)"><svg class="bi me-2 text-primary" width="16" height="16"><use xlink:href="#chevron-bar-left" /></svg></a>
                 <a class="navbar-brand" asp-area="" asp-controller="" asp-action="">Sylas.RemoteTasks.App</a>
@@ -150,18 +150,37 @@
                         </li>
                     </ul>
                 </div>
+
+                <div class="dropdown">
+                    <a href="#" class="d-flex align-items-center text-decoration-none dropdown-toggle" id="dropdownUser" data-bs-toggle="dropdown" aria-expanded="false">
+                        <img src="" alt="" width="32" height="32" class="rounded-circle me-2">
+                        <strong>mdo</strong>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end text-small shadow" aria-labelledby="dropdownUser">
+                        <li>
+                            <div class="dropdown-item custom-control custom-switch">
+                                <input type="checkbox" class="custom-control-input" id="themeSwitch" onchange="switchTheme(this)">
+                                <label class="custom-control-label" for="themeSwitch">暗黑模式</label>
+                            </div>
+                        </li>
+                        <li><a class="dropdown-item" href="#">Settings</a></li>
+                        <li><a class="dropdown-item" href="#">Profile</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="javascript:void(0);" onclick="signOut()">Sign out</a></li>
+                    </ul>
+                </div>
             </div>
         </nav>
     </header>
 
     <!--d-flex flex-row会让子元素x轴排列, **子元素高度会最大化撑满容器(菜单和)**-->
     <div class="d-flex flex-row" style="height:calc(100vh - 56px);max-height:100vh;scrollbar-width:none;">
-        <div class="sidebar-menu bg-dark text-white p-3 hide-scroll-bar" style="width: 290px; overflow:auto;">
-            @* <a href="/" class="d-flex align-items-center mb-3 mb-md-0 me-md-auto text-white text-decoration-none">
+        <div class="sidebar-menu p-3 hide-scroll-bar" style="width: 290px; overflow:auto;">
+            @* <a href="/" class="d-flex align-items-center mb-3 mb-md-0 me-md-auto text-decoration-none">
                 <svg class="bi me-2" width="40" height="32"><use xlink:href="#bootstrap" /></svg>
                 <span class="fs-4">Sidebar</span>
             </a> *@
-            <div class="input-group ">
+            <div class="input-group">
                 <input type="text" class="form-control form-control-sm" name="menuName" placeholder="关键字...">
                 <span class="input-group-btn">
                     <button class="btn btn-default btn-sm text-light" style="background-color:#222d32;" type="button" id="searchBtn">搜索</button>
@@ -170,30 +189,30 @@
             <hr>
             <ul class="nav nav-pills flex-column mb-auto">
                 <li class="nav-item">
-                    <a href="#" class="nav-link text-white" aria-current="page" data-bs-toggle="collapse" data-bs-target="#home-collapse" aria-expanded="false">
+                    <a href="#" class="nav-link" aria-current="page" data-bs-toggle="collapse" data-bs-target="#home-collapse" aria-expanded="false">
                         <svg class="bi me-2" width="16" height="16"><use xlink:href="#home" /></svg>
                         <span>Home</span>
                     </a>
                     <div class="collapse" id="home-collapse">
                         <ul class="btn-toggle-nav list-unstyled fw-normal pb-1 small">
                             <li>
-                                <a href="/Home/Index" class="nav-link text-white" style="margin-left:15px;">
+                                <a href="/Home/Index" class="nav-link" style="margin-left:15px;">
                                     <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid" /></svg>
                                     <span>Index</span>
                                 </a>
                             </li>
                             <li>
-                                <a href="/Home/Prepare" class="nav-link text-white" style="margin-left:15px;">
+                                <a href="/Home/Prepare" class="nav-link" style="margin-left:15px;">
                                     <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid" /></svg>
                                     <span>CodeGen0(项目管理)</span>
                                 </a>
                             </li>
                             <li>
-                                @* <a href="javascript:void(0);" view-url="/Home/CodeGen2" onclick="fetchView(this)" class="nav-link text-white" style="margin-left:15px;">
+                                @* <a href="javascript:void(0);" view-url="/Home/CodeGen2" onclick="fetchView(this)" class="nav-link" style="margin-left:15px;">
                                       <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid"/></svg>
                                       CodeGen2(通用 New)
                                   </a> *@
-                                <a href="/Home/CodeGen2" class="nav-link text-white" style="margin-left:15px;">
+                                <a href="/Home/CodeGen2" class="nav-link" style="margin-left:15px;">
                                     <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid" /></svg>
                                     <span>CodeGen2(通用 New)</span>
                                 </a>
@@ -202,38 +221,38 @@
                     </div>
                 </li>
                 <li>
-                    <a href="#" class="nav-link text-white">
+                    <a href="#" class="nav-link">
                         <svg class="bi me-2" width="16" height="16"><use xlink:href="#speedometer2" /></svg>
                         <span>Dashboard</span>
                     </a>
                 </li>
                 <li>
-                    <a href="/Study/Index" class="nav-link text-white">
+                    <a href="/Study/Index" class="nav-link">
                         <svg class="bi me-2" width="16" height="16"><use xlink:href="#table" /></svg>
                         <span>Study</span>
                     </a>
                 </li>
                 <li>
-                    <a href="#" class="nav-link text-white" data-bs-toggle="collapse" data-bs-target="#hosts-collapse" aria-expanded="false">
+                    <a href="#" class="nav-link" data-bs-toggle="collapse" data-bs-target="#hosts-collapse" aria-expanded="false">
                         <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid" /></svg>
                         <span>Hosts</span>
                     </a>
                     <div class="collapse" id="hosts-collapse">
                         <ul class="btn-toggle-nav list-unstyled fw-normal pb-1 small">
                             <li>
-                                <a href="/Hosts/Index" class="nav-link text-white" style="margin-left:15px;">
+                                <a href="/Hosts/Index" class="nav-link" style="margin-left:15px;">
                                     <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid" /></svg>
                                     <span>Index</span>
                                 </a>
                             </li>
                             <li>
-                                <a href="/Hosts/AnythingInfos" class="nav-link text-white" style="margin-left:15px;">
+                                <a href="/Hosts/AnythingInfos" class="nav-link" style="margin-left:15px;">
                                     <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid" /></svg>
                                     <span>AnythingInfos</span>
                                 </a>
                             </li>
                             <li>
-                                <a href="/Hosts/ServerAndAppStatus" class="nav-link text-white" style="margin-left:15px;">
+                                <a href="/Hosts/ServerAndAppStatus" class="nav-link" style="margin-left:15px;">
                                     <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid" /></svg>
                                     <span>ServerAndAppStatus</span>
                                 </a>
@@ -242,48 +261,48 @@
                     </div>
                 </li>
                 <li>
-                    <a href="/Database/Index" class="nav-link text-white">
+                    <a href="/Database/Index" class="nav-link">
                         <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid" /></svg>
                         <span>Database</span>
                     </a>
                 </li>
                 <li>
-                    <a href="#" class="nav-link text-white">
+                    <a href="#" class="nav-link">
                         <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid" /></svg>
                         <span>OAuth</span>
                     </a>
                 </li>
                 <li>
-                    <a href="/Project/Index" class="nav-link text-white">
+                    <a href="/Project/Index" class="nav-link">
                         <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid" /></svg>
                         <span>Projects</span>
                     </a>
                 </li>
                 <li>
-                    @* <a href="javascript:void(0);" onclick="fetchView(this)" view-url="/Snippet/Index" class="nav-link text-white">
+                    @* <a href="javascript:void(0);" onclick="fetchView(this)" view-url="/Snippet/Index" class="nav-link">
                       <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid"/></svg>
                       Snippets
                     </a> *@
-                    <a href="/Snippet/Index" class="nav-link text-white">
+                    <a href="/Snippet/Index" class="nav-link">
                         <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid" /></svg>
                         <span>Snippets</span>
                     </a>
                 </li>
                 <li>
-                    <a href="#" class="nav-link text-white" data-bs-toggle="collapse" data-bs-target="#sync-collapse" aria-expanded="false">
+                    <a href="#" class="nav-link" data-bs-toggle="collapse" data-bs-target="#sync-collapse" aria-expanded="false">
                         <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid" /></svg>
                         <span>Data Transfer</span>
                     </a>
                     <div class="collapse" id="sync-collapse">
                         <ul class="btn-toggle-nav list-unstyled fw-normal pb-1 small">
                             <li>
-                                <a href="/Sync/Index" class="nav-link text-white" style="margin-left:15px;">
+                                <a href="/Sync/Index" class="nav-link" style="margin-left:15px;">
                                     <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid" /></svg>
                                     <span>Transfer From Http</span>
                                 </a>
                             </li>
                             <li>
-                                <a href="/Sync/SyncDbs" class="nav-link text-white" style="margin-left:15px;">
+                                <a href="/Sync/SyncDbs" class="nav-link" style="margin-left:15px;">
                                     <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid" /></svg>
                                     <span>Transfer From Dbs</span>
                                 </a>
@@ -292,29 +311,15 @@
                     </div>
                 </li>
                 <li>
-                    <a href="#" class="nav-link text-white">
+                    <a href="#" class="nav-link">
                         <svg class="bi me-2" width="16" height="16"><use xlink:href="#people-circle" /></svg>
                         <span>Customers</span>
                     </a>
                 </li>
             </ul>
-            @* <hr>
-                <div class="dropdown">
-                  <a href="#" class="d-flex align-items-center text-white text-decoration-none dropdown-toggle" id="dropdownUser1" data-bs-toggle="dropdown" aria-expanded="false">
-                    <img src="" alt="" width="32" height="32" class="rounded-circle me-2">
-                    <strong>mdo</strong>
-                  </a>
-                  <ul class="dropdown-menu dropdown-menu-dark text-small shadow" aria-labelledby="dropdownUser1">
-                    <li><a class="dropdown-item" href="#">New project...</a></li>
-                    <li><a class="dropdown-item" href="#">Settings</a></li>
-                    <li><a class="dropdown-item" href="#">Profile</a></li>
-                    <li><hr class="dropdown-divider"></li>
-                    <li><a class="dropdown-item" href="#">Sign out</a></li>
-                  </ul>
-                </div> *@
         </div>
         <main role="main" class="p-3 container-fluid view-container overflow-auto">
-            <div style="min-height:100%;border-radius:5px" class="bg-dark p-3">
+            <div style="min-height:100%;border-radius:5px" class="p-3 page-container">
                 @RenderBody()
             </div>
         </main>
@@ -537,32 +542,49 @@
             document.querySelectorAll('.sidebar-menu a').forEach(a => {
                 if (a.getAttribute('data-bs-toggle') === 'collapse') {
                     a.classList.remove('active')
-                    a.classList.add('text-white')
-                    a.onclick = e => e.target.classList.toggle('text-white')
+                    // a.classList.add('text-white')
+                    // a.onclick = e => e.target.classList.toggle('text-white')
                 }
                 else if (a.getAttribute('href').length > 1) {
+                    // 菜单点击事件 - 跳转
                     a.onclick = e => {
                         e.preventDefault();
                         e.stopPropagation();
-                        const url = e.target.getAttribute('href')
-                        location.href = url
-                        saveAccessingViewPath(url)
+                        const linkEle = e.target.tagName === 'SPAN' ? e.target.closest('a') : e.target
+                        const url = linkEle.getAttribute('href')
+                        location.href = url;
                     }
                 }
             })
 
-            let viewPath = getAccessingViewPath()
-            if (!viewPath || viewPath === '#') {
+            let viewPath = location.pathname.replace('#', '')
+            if (!viewPath) {
                 viewPath = "/Sync/SyncDbs"
             }
-            const viewLink = document.querySelector('.sidebar-menu').querySelector(`a[href="${viewPath}"]`)
+            const viewLink = document.querySelector(`.sidebar-menu a[href="${viewPath}"]`)
             if (viewLink) {
-                viewLink.classList.toggle('text-white')
+                viewLink.classList.add('active')
                 const collapseEle = viewLink.closest('.collapse')
                 if (collapseEle) {
                     collapseEle.previousElementSibling.click()
-                    collapseEle.previousElementSibling.classList.add('active')
+                    // collapseEle.previousElementSibling.classList.add('active')
                 }
+            }
+
+            // 当前主题是否是暗黑模式
+            let theme = localStorage.getItem('site-theme')
+            if (!theme) {
+                theme = 'bg-black'
+                localStorage.setItem('site-theme', theme);
+            }
+            if (theme === 'bg-black') {
+                document.body.classList.remove('bg-light')
+            } else {
+                document.body.classList.remove('bg-black')
+            }
+            document.body.classList.add(theme)
+            if (document.querySelector('body').classList.contains('bg-black')) {
+                document.querySelector('#themeSwitch').setAttribute('checked', 'checked')
             }
         }
 
@@ -570,7 +592,7 @@
             // 当前页面对应的菜单保持高亮
             document.querySelectorAll('.sidebar-menu li a').forEach(a => {
                 if (location.href.indexOf(a.getAttribute('href')) === -1) {
-                    a.classList.add('text-white')
+                    // a.classList.add('text-white')
                 }
             })
 
@@ -597,7 +619,7 @@
                        collapseEle.previousElementSibling.click()
                    }
                    
-                   x.classList.remove('text-white');
+                   // x.classList.remove('text-white');
                    x.classList.add('text-warning');
                }
             })
@@ -605,8 +627,8 @@
 
         function toggleCollapseSidebar(btn) {
             const sidebar = document.querySelector('.sidebar-menu')
-            if (sidebar.clientWidth > 80) {
-                sidebar.style.width = '80px'
+            if (sidebar.clientWidth > 70) {
+                sidebar.style.width = '70px'
                 document.querySelector('#searchBtn').style.display = 'none'
                 document.querySelectorAll('.sidebar-menu span').forEach(x => x.style.display = 'none')
                 document.querySelectorAll('.sidebar-menu .collapse ul').forEach(x => x.style.display = 'none')
@@ -616,6 +638,22 @@
                 document.querySelectorAll('.sidebar-menu span').forEach(x => x.style.display = 'inline')
                 document.querySelectorAll('.sidebar-menu .collapse ul').forEach(x => x.style.display = 'block')
             }
+        }
+        function switchTheme(switchEle) {
+            const checked = switchEle.getAttribute('checked')
+            if (checked === 'checked') {
+                localStorage.setItem('site-theme', 'bg-light')
+                document.querySelector('body').classList.remove('bg-black')
+                document.querySelector('body').classList.add('bg-light')
+            } else {
+                localStorage.setItem('site-theme', 'bg-black')
+                document.querySelector('body').classList.remove('bg-light')
+                document.querySelector('body').classList.add('bg-black')
+            }
+        }
+        function signOut() {
+            clearAccessToken();
+            location.reload();
         }
     </script>
     @await RenderSectionAsync("Scripts", required: false)
