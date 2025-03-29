@@ -1,6 +1,8 @@
 ﻿using Newtonsoft.Json.Linq;
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace Sylas.RemoteTasks.Utils.Template.Parser
@@ -33,18 +35,27 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
                 var group = expression.Groups["groupname"].Value;
 
                 List<string> result = [];
-                var source = JArray.FromObject(parseResult.Value ?? throw new Exception($"ITmplParser -> CollectionSelectThenRegexSubStringParser select 结果为空"));
-                foreach (var item in source)
+                if (parseResult.Value is IEnumerable valueEnumerable)
                 {
-                    var itemVal = item.ToString();
-                    var catchedSubStr = Regex.Match(itemVal, regexPattern).Groups[group].Value;
-                    if (!string.IsNullOrWhiteSpace(catchedSubStr))
+                    // 这里应是一个字符串集合
+                    var source = valueEnumerable.Cast<object>();
+                    foreach (var item in source)
                     {
-                        result.Add(catchedSubStr);
+                        var itemVal = item.ToString();
+                        // 正则匹配每个字符串项的部分子字符串
+                        var catchedSubStr = Regex.Match(itemVal, regexPattern).Groups[group].Value;
+                        if (!string.IsNullOrWhiteSpace(catchedSubStr))
+                        {
+                            result.Add(catchedSubStr);
+                        }
                     }
+                    parseResult.Value = result;
+                    return parseResult;
                 }
-                parseResult.Value = result;
-                return parseResult;
+                else
+                {
+                    throw new Exception($"获取集合{key}的所有\"{prop}\"属性结果为空");
+                }
             }
             return new ParseResult(false);
         }

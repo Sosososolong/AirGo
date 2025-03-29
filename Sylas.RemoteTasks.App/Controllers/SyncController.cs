@@ -1,5 +1,6 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.RequestProcessor;
 using Sylas.RemoteTasks.App.RequestProcessor.Models;
@@ -32,9 +33,14 @@ namespace Sylas.RemoteTasks.App.Controllers
                 return Ok(new OperationResult(false, "参数不能为空"));
             }
             await service.ExecuteHttpRequestProcessorsAsync(dto.ProcessorIds, dto.StepId);
-            return Ok(new OperationResult(true));
+            return Ok(RequestResult<bool>.Success(true));
         }
 
+        /// <summary>
+        /// 获取Http处理器
+        /// </summary>
+        /// <param name="search"></param>
+        /// <returns></returns>
         public async Task<IActionResult> GetHttpRequestProcessorsAsync([FromBody] DataSearch search)
         {
             var processors = await _repository.GetPageAsync(search);
@@ -402,6 +408,45 @@ namespace Sylas.RemoteTasks.App.Controllers
                 }
                 return Ok(RequestResult<bool>.Success(true));
             }
+        }
+
+        [AllowAnonymous]
+        public IActionResult FromJson()
+        {
+            return View();
+        }
+
+        /// <summary>
+        /// 从json文件同步数据到数据库中
+        /// </summary>
+        /// <returns></returns>
+        public async Task<IActionResult> SyncFromJsonsAsync([FromServices] RepositoryBase<DbConnectionInfo> dbConnRepository, [FromServices] IWebHostEnvironment env, [FromForm] SyncFromJsonsDto dto)
+        {
+            var uploadResult = await SaveUploadedFilesAsync(env);
+            if (!uploadResult.Succeed)
+            {
+                return Ok(RequestResult<bool>.Error(uploadResult.Message));
+            }
+            var files = uploadResult.Data?.ToArray() ?? throw new Exception("文件上传异常");
+            var tables = dto.TargetTables.Split(',', ';');
+
+            var targetConnInfo = await dbConnRepository.GetByIdAsync(Convert.ToInt32(dto.TargetConnectionString));
+            List<Task> tasks = [];
+            for (int i = 0; i < files.Length; i++)
+            {
+                var file = files[i];
+                var json = await System.IO.File.ReadAllTextAsync(Path.Combine(env.WebRootPath, file));
+                var sourceRecords = JsonConvert.DeserializeObject<List<IDictionary<string, object>>>(json) ?? throw new Exception($"json文件{file}反序列化失败");
+
+                if (targetConnInfo is null)
+                {
+                    return Ok(RequestResult<bool>.Error($"无效的数据库连接字符串: {dto.TargetConnectionString}"));
+                }
+                dto.TargetConnectionString = await SecurityHelper.AesDecryptAsync(targetConnInfo.ConnectionString);
+                tasks.Add(DatabaseInfo.TransferDataAsync(sourceRecords, dto.TargetConnectionString, tables[i]));
+            }
+            await Task.WhenAll(tasks);
+            return Ok(RequestResult<bool>.Success(true));
         }
     }
 }

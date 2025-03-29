@@ -433,83 +433,101 @@ namespace Sylas.RemoteTasks.Utils.Template
             }
 
             tmplWithParser = tmplWithParser.Replace("$$", _doubleFlag);
+            string originTmplParser = tmplWithParser;
             var stringTmplMatches = RegexConst.StringTmpl.Matches(tmplWithParser);
 
+            string exceptTmplExp = tmplWithParser;
             List<object> result = [];
             List<string> resolvedExp = [];
-            foreach (var stringTmplMatch in stringTmplMatches.Cast<Match>())
+            if (stringTmplMatches.Count == 0)
             {
-                var stringTmplGroups = stringTmplMatch.Groups;
-                if (stringTmplGroups.Count > 1)
+                return tmplWithParser;
+            }
+            else
+            {
+                foreach (var stringTmplMatch in stringTmplMatches.Cast<Match>())
                 {
-                    string exp = stringTmplGroups["name"].Value;
+                    exceptTmplExp = exceptTmplExp.Replace(stringTmplMatch.Value, string.Empty);
+                    var stringTmplGroups = stringTmplMatch.Groups;
+                    if (stringTmplGroups.Count > 1)
+                    {
+                        string exp = stringTmplGroups["name"].Value;
 
-                    if (exp.Trim().Equals("$"))
-                    {
-                        continue;
-                    }
-                    if (resolvedExp.Count > 0 && resolvedExp.Contains(stringTmplMatch.Value))
-                    {
-                        continue;
-                    }
-                    resolvedExp.Add(exp);
-
-                    var tmplValue = ResolveFromDictionary(exp, dataContextDictionary);
-                    if (tmplValue is null)
-                    {
-                        continue;
-                    }
-                    if (tmplValue is JsonElement || tmplValue is string)
-                    {
-                        // 有可能只是不断地替换表达式, 直到没有表达式为止, 那么最终result为空, 返回值为最终的tmplWithParser
-                        tmplWithParser = tmplWithParser.Replace(exp, tmplValue.ToString()).Replace(_doubleFlag, "$");
-                        continue;
-                    }
-                    else if (tmplValue is IEnumerable array)
-                    {
-                        var arrayValue = array.Cast<object>();
-                        List<object> newResults = [];
-                        foreach (var valueItem in arrayValue)
+                        if (exp.Trim().Equals("$"))
                         {
-                            if (valueItem is string)
-                            {
-                                var expValue = valueItem.ToString();
-                                newResults.Add(tmplWithParser.ToString().Replace(exp, expValue));
-                            }
-                            else
-                            {
-                                // BOOKMARK: Tmpl-JToken http请求获取数据源的时候, 默认使用JToken(JObject)处理; 后续DataHandler中也会默认数据源为IEnumerable<JToken>类型进行进一步的处理
-                                newResults.Add(valueItem);
-                            }
+                            continue;
                         }
-                        result.AddRange(newResults);
-                    }
-                    else
-                    {
-                        // tmplWithParser中只有一个表达式
-                        if (stringTmplMatches.Count == 1)
+                        if (resolvedExp.Count > 0 && resolvedExp.Contains(stringTmplMatch.Value))
                         {
-                            // tmplWithParser: 源模板, 例如: .*${name}.*
-                            // stringTmplMatch.Value: tmplWithParser中的表达式${name}
-                            //   -> 两者相等, 说明tmplWithParser中只有一个表达式, 直接返回解析后的值
-                            if (tmplWithParser == stringTmplMatch.Value)
+                            continue;
+                        }
+                        resolvedExp.Add(exp);
+
+                        var tmplValue = ResolveFromDictionary(exp, dataContextDictionary);
+                        if (tmplValue is null)
+                        {
+                            continue;
+                        }
+                        if ((tmplValue is JsonElement je && je.ValueKind == JsonValueKind.String) || tmplValue is string)
+                        {
+                            // 有可能只是不断地替换表达式, 直到没有表达式为止, 那么最终result为空, 返回值为最终的tmplWithParser
+                            tmplWithParser = tmplWithParser.Replace(exp, tmplValue.ToString()).Replace(_doubleFlag, "$");
+                            continue;
+                        }
+                        else if (tmplValue is IEnumerable array)
+                        {
+                            var arrayValue = array.Cast<object>();
+                            List<object> newResults = [];
+                            foreach (var valueItem in arrayValue)
                             {
-                                return tmplValue;
+                                if (valueItem is string)
+                                {
+                                    var expValue = valueItem.ToString();
+                                    newResults.Add(tmplWithParser.ToString().Replace(exp, expValue));
+                                }
+                                else
+                                {
+                                    // BOOKMARK: Tmpl-JToken http请求获取数据源的时候, 默认使用JToken(JObject)处理; 后续DataHandler中也会默认数据源为IEnumerable<JToken>类型进行进一步的处理
+                                    newResults.Add(valueItem);
+                                }
                             }
-                            else
-                            {
-                                // 不相等, 将源模板中的表达式替换为解析后的值
-                                tmplWithParser = tmplWithParser.Replace(stringTmplMatch.Value, tmplValue.ToString());
-                            }
+                            result.AddRange(newResults);
                         }
                         else
                         {
-                            result.Add(tmplValue);
+                            // tmplWithParser中只有一个表达式
+                            if (stringTmplMatches.Count == 1)
+                            {
+                                // tmplWithParser: 源模板, 例如: .*${name}.*
+                                // stringTmplMatch.Value: tmplWithParser中的表达式${name}
+                                //   -> 两者相等, 说明tmplWithParser中只有一个表达式, 直接返回解析后的值
+                                if (tmplWithParser == stringTmplMatch.Value)
+                                {
+                                    return tmplValue;
+                                }
+                                else
+                                {
+                                    // 不相等, 将源模板中的表达式替换为解析后的值
+                                    tmplWithParser = tmplWithParser.Replace(stringTmplMatch.Value, tmplValue.ToString());
+                                }
+                            }
+                            else
+                            {
+                                result.Add(tmplValue);
+                            }
                         }
                     }
                 }
+                if (result.Count > 0)
+                {
+                    return result;
+                }
+                else
+                {
+                    return string.IsNullOrWhiteSpace(exceptTmplExp) && originTmplParser == tmplWithParser ? result : tmplWithParser.Replace(_doubleFlag, "$");
+                }
             }
-            return result.Count > 0 ? result : tmplWithParser.Replace(_doubleFlag, "$");
+            
 
             object ResolveFromDictionary(string tmplExpressionWithParser, Dictionary<string, object> dataContext)
             {
@@ -570,7 +588,7 @@ namespace Sylas.RemoteTasks.Utils.Template
             var tmplExpressionMatchs = Regex.Matches(source, @"(?<exp>\$\w+)|(?<exp>\$\{[^\{\}]+\})|(?<exp>\{\{[^\{\}]+\}\})");
             if (!tmplExpressionMatchs.Any())
             {
-                expressions = Enumerable.Empty<string>();
+                expressions = [];
                 return false;
             }
 

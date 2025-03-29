@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Sylas.RemoteTasks.Common;
 using System;
 using System.Collections;
@@ -96,6 +97,10 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
                         {
                             var records = recordCollection.Cast<object>();
                             pObj = JObject.FromObject(records.FirstOrDefault());
+                        }
+                        else if (propertyValue is string propertyStrVal && propertyStrVal.StartsWith("{"))
+                        {
+                            pObj = JsonConvert.DeserializeObject<JObject>(propertyStrVal)!;
                         }
                         else
                         {

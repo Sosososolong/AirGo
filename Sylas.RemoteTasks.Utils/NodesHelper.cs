@@ -337,10 +337,23 @@ namespace Sylas.RemoteTasks.Utils
                 if (children is not null && children is IEnumerable childrenData)
                 {
                     var childrenList = childrenData.Cast<object>();
-                    foreach (var childItem in GetAll(childrenList.Cast<IDictionary<string, object>>(), childrenField))
+                    if (childrenList.Any())
                     {
-                        yield return childItem;
-                    };
+                        var first = childrenList.First();
+                        IEnumerable<IDictionary<string, object>> childrenDictionary;
+                        if (first.GetType() == typeof(JObject))
+                        {
+                            childrenDictionary = childrenList.Select(x => ((JObject)x).ToObject<Dictionary<string, object>>()!).ToList();
+                        }
+                        else
+                        {
+                            childrenDictionary = childrenList.Cast<IDictionary<string, object>>();
+                        }
+                        foreach (var childItem in GetAll(childrenDictionary, childrenField))
+                        {
+                            yield return childItem;
+                        }
+                    }
                 }
             }
         }

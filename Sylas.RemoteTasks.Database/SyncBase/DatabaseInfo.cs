@@ -1,4 +1,4 @@
-﻿//using MySqlConnector;
+//using MySqlConnector;
 //using Microsoft.Data.SqlClient;
 using Dapper;
 using Dm;
@@ -514,7 +514,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         {
             return await DeleteAsync(_connectionString, tableName, ids);
         }
-        static readonly ConcurrentDictionary<string, ConcurrentDictionary<string, Func<string, object>>> _tableAndStringFieldsConverter = [];
+        static readonly ConcurrentDictionary<string, ConcurrentDictionary<string, (Type, Func<string, object>)>> _tableAndStringFieldsConverter = [];
         /// <summary>
         /// 获取表字段转换器, 可以将表字段的字符串值形式转换为对应的数据类型(如int, long, float, double, decimal, datetime)
         /// </summary>
@@ -522,7 +522,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="tableName"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        static async Task<ConcurrentDictionary<string, Func<string, object>>> GetTableFieldsConverterAsync(IDbConnection conn, string tableName)
+        static async Task<ConcurrentDictionary<string, (Type, Func<string, object>)>> GetTableFieldsConverterAsync(IDbConnection conn, string tableName)
         {
             string tableKey = $"{conn.ConnectionString}_{tableName}";
             if (_tableAndStringFieldsConverter.TryGetValue(tableKey, out var stringFieldsConvert))
@@ -530,7 +530,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 return stringFieldsConvert;
             }
             var colInfos = await GetTableColumnsInfoAsync(conn, tableName);
-            ConcurrentDictionary<string, Func<string, object>> fieldsConverter = [];
+            ConcurrentDictionary<string, (Type, Func<string, object>)> fieldsConverter = [];
             foreach (var colInfo in colInfos)
             {
                 if (colInfo.ColumnCSharpType == "string")
@@ -543,7 +543,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                     Type columnType = GetCSharpType(colInfo.ColumnCSharpType);
                     Func<string, object> converter = ExpressionBuilder.CreateStringConverter(columnType);
 
-                    fieldsConverter.TryAdd(colInfo.ColumnCode, converter);
+                    fieldsConverter.TryAdd(colInfo.ColumnCode, (columnType, converter));
                 }
             }
             _tableAndStringFieldsConverter.TryAdd(tableKey, fieldsConverter);
@@ -625,7 +625,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 var fieldToConvert = tableFieldsConverter.Keys.ToList().FirstOrDefault(x => x.Equals(idOrUpdatingField.Key, StringComparison.OrdinalIgnoreCase));
                 if (fieldToConvert is not null)
                 {
-                    parameters.Add(idOrUpdatingField.Key, tableFieldsConverter[fieldToConvert](idOrUpdatingField.Value.ToString()));
+                    parameters.Add(idOrUpdatingField.Key, tableFieldsConverter[fieldToConvert].Item2(idOrUpdatingField.Value.ToString()));
                 }
                 else
                 {
@@ -817,11 +817,16 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="targetConn"></param>
         /// <param name="tableName"></param>
         /// <param name="sourceConn"></param>
+        /// <param name="sourceTable"></param>
         /// <param name="db"></param>
         /// <returns></returns>
-        public static async Task CreateTableIfNotExistAsync(IDbConnection targetConn, string tableName, IDbConnection sourceConn, string db = "")
+        public static async Task CreateTableIfNotExistAsync(IDbConnection targetConn, string tableName, IDbConnection sourceConn, string sourceTable = "", string db = "")
         {
-            var sourceColInfos = await GetTableColumnsInfoAsync(sourceConn, tableName);
+            if (string.IsNullOrWhiteSpace(sourceTable))
+            {
+                sourceTable = tableName;
+            }
+            var sourceColInfos = await GetTableColumnsInfoAsync(sourceConn, sourceTable);
             await CreateTableIfNotExistAsync(targetConn, tableName, sourceColInfos, db);
         }
         /// <summary>
@@ -1039,6 +1044,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         public static async Task TransferDataAsync(IEnumerable<object> sourceRecords, IDbConnection targetConn, string targetTable, string sourceIdField = "", ILogger? logger = null)
         {
             var varFlag = GetDbParameterFlag(targetConn.ConnectionString);
+            await CreateTableIfNotExistAsync(targetConn, targetTable, targetConn, targetTable.Split('_')[0]);
             // 先获取数据
             var dbRecords = (await targetConn.QueryAsync($"select * from {GetDatabaseName(targetConn)}.{targetTable}") ?? throw new Exception($"获取{targetTable}数据失败"))
                 .Select(row => (IDictionary<string, object>)row);
@@ -1080,7 +1086,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
 
             var t1 = DateTime.Now;
             #region 处理数据 - 类型转换, 检查是否需要补充主键字段, 给创建/更新时间字段赋值
-            List<Dictionary<string, object>> list = [];
+            List<Dictionary<string, object?>> list = [];
             var tableFieldsConverter = await GetTableFieldsConverterAsync(conn, table);
 
             var first = records.First();
@@ -1092,14 +1098,39 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             foreach (var record in records)
             {
                 // 1.先处理数据类型转换, 得到新的数据dataItem
-                Dictionary<string, object> dataItem = [];
+                Dictionary<string, object?> dataItem = [];
                 list.Add(dataItem);
                 foreach (var item in record)
                 {
                     var fieldToConvert = tableFieldsConverter.Keys.ToList().FirstOrDefault(x => x.Equals(item.Key, StringComparison.OrdinalIgnoreCase));
                     if (fieldToConvert is not null)
                     {
-                        dataItem.Add(item.Key, tableFieldsConverter[fieldToConvert]($"{item.Value}"));
+                        var fieldStringValue = $"{item.Value}";
+                        var fieldType = tableFieldsConverter[fieldToConvert].Item1;
+                        var fieldConverter = tableFieldsConverter[fieldToConvert].Item2;
+                        if (string.IsNullOrWhiteSpace(fieldStringValue))
+                        {
+                            dataItem.Add(item.Key, null);
+                        }
+                        else
+                        {
+                            if (fieldType == typeof(DateTime))
+                            {
+                                if (fieldStringValue.Contains('/'))
+                                {
+                                    var match = Regex.Match(fieldStringValue, @"(?<day>\d+)/(?<month>\d+)/(?<year>\d{4}) (?<time>\d{1,2}:\d{1,2}:\d{1,2})");
+                                    if (match.Success)
+                                    {
+                                        string year = match.Groups["year"].Value;
+                                        string month = match.Groups["month"].Value;
+                                        string day = match.Groups["day"].Value;
+                                        string time = match.Groups["time"].Value;
+                                        fieldStringValue = Convert.ToInt32(month) <= 12 ? $"{year}/{month}/{day} {time}" : $"{year}/{day}/{month} {time}";
+                                    }
+                                }
+                            }
+                            dataItem.Add(item.Key, fieldConverter(fieldStringValue));
+                        }
                     }
                     else
                     {
@@ -1108,7 +1139,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 }
 
                 // 2. 处理主键字段
-                if (!recordKeys.Any(x => x.Equals("id", StringComparison.OrdinalIgnoreCase)) || string.IsNullOrWhiteSpace(first.First(x => x.Key.Equals("id")).Value?.ToString()))
+                if (!recordKeys.Any(x => x.Equals("id", StringComparison.OrdinalIgnoreCase)) || string.IsNullOrWhiteSpace(first.FirstOrDefault(x => x.Key.Equals("id")).Value?.ToString()))
                 {
                     var pkColInfos = colInfos.Where(x => x.IsPK == 1);
                     // 为每条数据的所有字符串类型的主键赋值

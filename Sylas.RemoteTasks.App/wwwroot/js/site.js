@@ -1,4 +1,4 @@
-﻿// Please see documentation at https://docs.microsoft.com/aspnet/core/client-side/bundling-and-minification
+// Please see documentation at https://docs.microsoft.com/aspnet/core/client-side/bundling-and-minification
 // for details on configuring this project to bundle and minify static web assets.
 
 // Write your JavaScript code.
@@ -665,21 +665,21 @@ async function httpRequestAsync(url, spinnerEle = null, method = 'POST', body = 
             showSpinner(spinnerEle);
             //o = addOverlay(spinnerEle);
         }
-        if (!contentType && method.toUpperCase() === 'POST') {
-            contentType = 'application/json';
-        }
         const accessToken = getAccessToken();
         if (!accessToken) {
             showWarningBox('身份已过期, 请重新登录', () => location.href = `/Home/Login?redirect_path=${location.pathname}`);
             return null;
         }
+        const headers = {
+            'X-Requested-With': 'XMLHttpRequest',
+            'authorization': `Bearer ${accessToken}`
+        }
+        if (contentType) {
+            headers['Content-Type'] = contentType
+        }
         const response = await fetch(url, {
             method: method,
-            headers: {
-                'Content-Type': contentType,
-                'X-Requested-With': 'XMLHttpRequest',
-                'authorization': `Bearer ${accessToken}`
-            },
+            headers: headers,
             body: body
         })
 
@@ -727,7 +727,7 @@ const errorHandlerType = {
  * @param {any} contentType
  * @returns
  */
-async function httpRequestDataAsync(url, spinnerEle = null, method = 'POST', body = '', contentType = '', errorHandlerTypeVal = 0) {
+async function httpRequestDataAsync(url, spinnerEle = null, method = 'POST', body = '', contentType = 'application/json', errorHandlerTypeVal = 0) {
     var response = await httpRequestAsync(url, spinnerEle, method, body, contentType);
     if (response) {
         if (response.code === 1) {
@@ -836,7 +836,7 @@ async function handleDataForm(table, eventTrigger) {
         let dataJsonString = JSON.stringify(data);
 
         try {
-            response = await httpRequestAsync(url, null, method, dataJsonString)
+            response = await httpRequestAsync(url, null, method, dataJsonString, 'application/json')
             showMessage = () => showResultBox(response);
         } catch (e) {
             if (e.status === 500) {
@@ -866,7 +866,7 @@ async function handleDataForm(table, eventTrigger) {
             }
         } else {
             if (response) {
-                showErrorBox(response.message, '错误提示', [{ class: 'error', content: '关闭' }]);
+                showErrorBox(response.errMsg, '错误提示', [{ class: 'error', content: '关闭' }]);
             }
         }
     }
@@ -1008,7 +1008,7 @@ async function execute(eventTrigger, callback = null, useSpinner = true) {
     let tableId = isEle ? eventTrigger.getAttribute('data-table-id') : eventTrigger['dataTableId'];
     let table = tableId ? tables[tableId] : null;
     let dataContent = isEle ? eventTrigger.getAttribute('data-content') : eventTrigger['dataContent'];
-    if (dataContent && dataContent.indexOf('formItemIds') > -1) {
+    if (dataContent && typeof(dataContent) === 'string' && dataContent.indexOf('formItemIds') > -1) {
         const regex = /\s*formItemIds\s*:\s*/;
         const formItemIds = dataContent.replace(regex, '');
         const formItemIdArr = formItemIds.split(';');
@@ -1027,7 +1027,8 @@ async function execute(eventTrigger, callback = null, useSpinner = true) {
     let method = isEle ? eventTrigger.getAttribute('data-method') : eventTrigger['dataMethod'];
     let response = null;
     const spinnerEle = useSpinner ? (isEle ? eventTrigger : eventTrigger['trigger']) : null;
-    response = await httpRequestAsync(url, spinnerEle, method, dataContent, 'application/json');
+    const contentType = typeof (dataContent) === 'object' ? null : 'application/json'
+    response = await httpRequestAsync(url, spinnerEle, method, dataContent, contentType);
     if (response) {
         if (callback) {
             callback(response);
@@ -1212,3 +1213,17 @@ function trimMsg(msg, maxLength = 50) {
     return msg.substring(0, half) + '...' + msg.substring(msg.length - half)
 }
 
+function formatFileSize(size) {
+    const kb = size / 1024
+    if (kb > 1 && kb < 1024) {
+        return kb.toFixed(2) + 'KB'
+    }
+    const mb = kb / 1024
+    if (mb > 1 && mb < 1024) {
+        return mb.toFixed(2) + 'MB'
+    }
+    const gb = mb / 1024
+    if (gb > 1 && gb < 1024) {
+        return gb.toFixed(2) + 'GB'
+    }
+}

@@ -55,14 +55,23 @@ namespace Sylas.RemoteTasks.Common
 
             foreach (string segment in pathSegments)
             {
-                // 区分大小写
-                if (currentElement.TryGetProperty(segment, out JsonElement nextElement))
+                JsonElement? nextElement = null;
+                foreach (var item in currentElement.EnumerateObject())
                 {
-                    currentElement = nextElement;
+                    if (item.Name.Equals(segment, StringComparison.OrdinalIgnoreCase))
+                    {
+                        nextElement = item.Value;
+                        break;
+                    }
+                }
+                // 区分大小写
+                if (nextElement is null)
+                {
+                    currentElement = default;
                 }
                 else
                 {
-                    currentElement = default;
+                    currentElement = nextElement.Value;
                 }
             }
 
@@ -81,7 +90,7 @@ namespace Sylas.RemoteTasks.Common
             {
                 return root;
             }
-            string[] pathSegments = configPath.Split(new char[] { ':', '.' }, StringSplitOptions.RemoveEmptyEntries);
+            string[] pathSegments = configPath.Split([':', '.'], StringSplitOptions.RemoveEmptyEntries);
             return GetDataElement(root, pathSegments);
         }
         /// <summary>

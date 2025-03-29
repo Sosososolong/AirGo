@@ -226,7 +226,7 @@ namespace Sylas.RemoteTasks.Common
         /// <returns>转换函数</returns>
         public static Func<string, object> CreateStringConverter(Type type)
         {
-            if (type.Equals("Byte[]"))
+            if (type.Equals(typeof(Byte[])))
             {
                 return input => Convert.FromBase64String(input);
             }

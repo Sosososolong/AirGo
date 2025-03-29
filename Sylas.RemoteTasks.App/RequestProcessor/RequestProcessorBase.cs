@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Sylas.RemoteTasks.App.DataHandlers;
 using Sylas.RemoteTasks.App.RequestProcessor.Models;
@@ -119,7 +119,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                 }
 
                 // 只执行指定步骤
-                requestProcessorStepsArray = new HttpRequestProcessorStep[] { targetStep };
+                requestProcessorStepsArray = [targetStep];
             }
             var stepCount = requestProcessorStepsArray.Length;
             var backtrackingNextStep = false;

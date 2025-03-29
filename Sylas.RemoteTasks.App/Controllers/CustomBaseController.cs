@@ -42,7 +42,7 @@ namespace Sylas.RemoteTasks.App.Controllers
                     await fileStream.WriteAsync(bArr.AsMemory(0, size));
                 }
             }
-            return new OperationResult(true, [imgPathBuilder.ToString().TrimEnd(';')]);
+            return new OperationResult(true, imgPathBuilder.ToString().TrimEnd(';').Split(';'));
         }
 
         /// <summary>

@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Utils.Dtos;
