@@ -5,7 +5,7 @@ using System.Data;
 using System.Linq;
 using System.Text.Json;
 
-namespace Sylas.RemoteTasks.Utils.Extensions
+namespace Sylas.RemoteTasks.Common.Extensions
 {
     /// <summary>
     /// 对IEnumerable进行扩展

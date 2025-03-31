@@ -1,7 +1,7 @@
 ﻿using Renci.SshNet;
 using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Common.Dtos;
-using Sylas.RemoteTasks.Utils.Extensions;
+using Sylas.RemoteTasks.Common.Extensions;
 using System;
 using System.Collections.Generic;
 using System.IO;

@@ -1,4 +1,6 @@
-﻿using RazorEngine.Templating;
+using RazorEngine.Templating;
+using Sylas.RemoteTasks.Common.Extensions;
+using Sylas.RemoteTasks.Utils.Template;
 using System.Dynamic;
 using Xunit.Abstractions;
 
@@ -6,6 +8,7 @@ namespace Sylas.RemoteTasks.Test.Tmpl
 {
     public class RazorEngineTest(ITestOutputHelper outputHelper) : IClassFixture<TestFixture>
     {
+        #region RazorEngine基础测试
         /// <summary>
         /// 模板中使用变量 - Model是匿名对象
         /// </summary>
@@ -81,5 +84,6 @@ namespace Sylas.RemoteTasks.Test.Tmpl
         {
             return "Hello";
         }
+        #endregion
     }
 }

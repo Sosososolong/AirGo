@@ -3,8 +3,8 @@
 using Newtonsoft.Json.Linq;
 using Oracle.ManagedDataAccess.Client;
 using Sylas.RemoteTasks.Common;
+using Sylas.RemoteTasks.Common.Extensions;
 using Sylas.RemoteTasks.Database.SyncBase;
-using Sylas.RemoteTasks.Utils.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Data;

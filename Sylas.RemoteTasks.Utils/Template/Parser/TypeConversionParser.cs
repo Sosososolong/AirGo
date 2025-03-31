@@ -1,9 +1,10 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace Sylas.RemoteTasks.Utils.Template.Parser
@@ -41,6 +42,29 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
                     else if (string.Equals(type, "Object", StringComparison.OrdinalIgnoreCase))
                     {
                         var val = JsonConvert.DeserializeObject<Dictionary<string, object>>(keyValString);
+                        return new ParseResult(true, [key], val);
+                    }
+                    else
+                    {
+                        throw new NotImplementedException("当前类型转换未实现");
+                    }
+                }
+                else if (keyVal is JsonElement jEVal)
+                {
+                    if (string.Equals(type, "List", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (jEVal.ValueKind == JsonValueKind.Array)
+                        {
+                            return new ParseResult(true, [key], jEVal.EnumerateArray().Select(x => x).ToList());
+                        }
+                        else
+                        {
+                            throw new Exception($"上下文{key}的值无法转换为List集合");
+                        }
+                    }
+                    else if (string.Equals(type, "Object", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return new ParseResult(true, [key], jEVal);
                     }
                     else
                     {

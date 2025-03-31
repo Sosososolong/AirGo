@@ -1,6 +1,5 @@
 using IdentityModel;
 using Sylas.RemoteTasks.App.BackgroundServices;
-using Sylas.RemoteTasks.App.Database;
 using Sylas.RemoteTasks.App.DataHandlers;
 using Sylas.RemoteTasks.App.ExceptionHandlers;
 using Sylas.RemoteTasks.App.Helpers;
@@ -8,6 +7,7 @@ using Sylas.RemoteTasks.App.Hubs;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
 using Sylas.RemoteTasks.App.RequestProcessor;
+using Sylas.RemoteTasks.Database;
 using Sylas.RemoteTasks.Utils.Constants;
 var builder = WebApplication.CreateBuilder(args);
 

@@ -1,11 +1,10 @@
-﻿using Newtonsoft.Json.Linq;
-using Sylas.RemoteTasks.Common;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 
-namespace Sylas.RemoteTasks.Utils.Extensions
+namespace Sylas.RemoteTasks.Common.Extensions
 {
     /// <summary>
     /// object类型类型扩展
@@ -37,6 +36,20 @@ namespace Sylas.RemoteTasks.Utils.Extensions
                 }
                 return dataContextJObj[propName] ?? throw new Exception($"无法获取属性{propName}的值");
             }
+        }
+        /// <summary>
+        /// 复制字典
+        /// </summary>
+        /// <param name="source"></param>
+        /// <returns></returns>
+        public static Dictionary<string, object> Copy(this Dictionary<string, object> source)
+        {
+            var result = new Dictionary<string, object>();
+            foreach (var item in source)
+            {
+                result.Add(item.Key, item.Value);
+            }
+            return result;
         }
     }
 }

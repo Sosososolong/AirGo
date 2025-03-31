@@ -1,4 +1,3 @@
-﻿using Newtonsoft.Json.Linq;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -35,24 +34,29 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
                 if (target.GetType().Name != "String")
                 {
                     IEnumerable<object> enumerableData;
-                    if (target is not IEnumerable enumerableObj)
+                    if (target is JsonElement targetJE && targetJE.ValueKind == JsonValueKind.Array)
+                    {
+                        enumerableData = targetJE.EnumerateArray().Select(x => x as object);
+                    }
+                    else if (target is not IEnumerable enumerableObj)
                     {
                         throw new Exception($"{nameof(CollectionJoinParser)} 数据不是集合类型,无法进行Join操作");
                     }
                     else
                     {
                         enumerableData = enumerableObj.Cast<object>();
-                        if (!enumerableData.Any())
-                        {
-                            joinValue = string.Empty;
-                        }
-                        else
-                        {
-                            var first = enumerableData.First();
-                            // 可能是JToken, 可能是JsonElement类型, 也可能是基本类型, 都直接ToString()
-                            joinValue = string.Join(splitor, enumerableData.Select(x => x.ToString()).ToArray());
-                        }
                         //joinValue = string.Join(splitor, JArray.FromObject(target).Select(x => x.ToString()).ToArray());
+                    }
+
+
+                    if (!enumerableData.Any())
+                    {
+                        joinValue = string.Empty;
+                    }
+                    else
+                    {
+                        // 可能是JToken, 可能是JsonElement类型, 也可能是基本类型, 都直接ToString()
+                        joinValue = string.Join(splitor, enumerableData.Select(x => x.ToString()).ToArray());
                     }
                 }
                 else

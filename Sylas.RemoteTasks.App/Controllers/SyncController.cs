@@ -435,7 +435,10 @@ namespace Sylas.RemoteTasks.App.Controllers
             for (int i = 0; i < files.Length; i++)
             {
                 var file = files[i];
-                var json = await System.IO.File.ReadAllTextAsync(Path.Combine(env.WebRootPath, file));
+                var fileAbsolutePath = Path.Combine(env.WebRootPath, file);
+                var json = await System.IO.File.ReadAllTextAsync(fileAbsolutePath);
+                System.IO.File.Delete(fileAbsolutePath);
+                
                 var sourceRecords = JsonConvert.DeserializeObject<List<IDictionary<string, object>>>(json) ?? throw new Exception($"json文件{file}反序列化失败");
 
                 if (targetConnInfo is null)

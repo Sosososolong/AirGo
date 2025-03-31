@@ -1,10 +1,8 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json.Linq;
 using Sylas.RemoteTasks.Common;
-using Sylas.RemoteTasks.Database;
 using Sylas.RemoteTasks.Database.Dtos;
 using Sylas.RemoteTasks.Database.SyncBase;
-using Sylas.RemoteTasks.Utils;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -13,7 +11,7 @@ using System.Data.SqlClient;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace Sylas.RemoteTasks.App.Database;
+namespace Sylas.RemoteTasks.Database;
 
 /// <summary>
 /// 数据库操作
@@ -156,7 +154,7 @@ public class DatabaseProvider : IDatabaseProvider
             {
                 if (parameter != null)
                 {
-                    if (((parameter.Direction == ParameterDirection.InputOutput) || (parameter.Direction == ParameterDirection.Input)) && (parameter.Value == null))
+                    if ((parameter.Direction == ParameterDirection.InputOutput || parameter.Direction == ParameterDirection.Input) && parameter.Value == null)
                     {
                         parameter.Value = DBNull.Value;
                     }

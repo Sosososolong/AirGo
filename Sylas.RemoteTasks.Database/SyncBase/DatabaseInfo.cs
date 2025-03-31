@@ -13,9 +13,7 @@ using Npgsql;
 using Oracle.ManagedDataAccess.Client;
 using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Common.Extensions;
-using Sylas.RemoteTasks.Database.Attributes;
 using Sylas.RemoteTasks.Database.Dtos;
-using Sylas.RemoteTasks.Utils.Extensions;
 using System;
 using System.Collections;
 using System.Collections.Concurrent;
@@ -895,7 +893,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 // 使用DataReader一条一条地读取数据, 避免一次性读取数据量过大
                 using var reader = await conn.ExecuteReaderAsync(sql);
                 string backupFile = Path.Combine(backupDir, table);
-                
+
                 using var writer = new StreamWriter(backupFile, false);
                 await writer.WriteLineAsync(string.Join("|||", columns.Select(x => $"{x.ColumnCode}:{x.ColumnCSharpType}")));
 
@@ -1885,12 +1883,12 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             string sql = dbType switch
             {
                 DatabaseType.Oracle => $@"select * from 
-	(
-	select t.*,rownum no from 
-		(
-		{baseSqlTxt}{orderClause}
-		) t 
-	)
+    (
+    select t.*,rownum no from 
+        (
+        {baseSqlTxt}{orderClause}
+        ) t 
+    )
 where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                 DatabaseType.MySql => $@"{baseSqlTxt}{orderClause} limit {(pageIndex - 1) * pageSize},{pageSize}",
                 DatabaseType.SqlServer => $"{baseSqlTxt}{(string.IsNullOrEmpty(orderClause) ? " order by id desc" : orderClause)} OFFSET ({pageIndex}-1)*{pageSize} ROWS FETCH NEXT {pageSize} ROW ONLY",
@@ -2940,18 +2938,18 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             {
                 sql = $"""
                     SELECT
-                        C.name 										as [ColumnCode]
-                        ,T.name 										as [ColumnType]
-                        ,COLUMNPROPERTY(C.id,C.name,'PRECISION') 		as [ColumnLength]
+                        C.name                                          as [ColumnCode]
+                        ,T.name                                         as [ColumnType]
+                        ,COLUMNPROPERTY(C.id,C.name,'PRECISION')        as [ColumnLength]
                         ,'textbox' as [ControlType] 
                         ,convert(bit,case when exists(SELECT 1 FROM sysobjects where xtype='PK' and parent_obj=c.id and name in (
                             SELECT name FROM sysindexes WHERE indid in(
                                 SELECT indid FROM sysindexkeys WHERE id = c.id AND colid=c.colid))) then 1 else 0 end) 
-                                                                 	as [IsPK]
-                        ,convert(bit,C.IsNullable)  					as [IsNullable]
-                        ,ISNULL(CM.text,'') 							as [DefaultValue]
-                    	,C.colid										as [OrderNo]
-                    	,ETP.value										as [Remark]
+                                                                    as [IsPK]
+                        ,convert(bit,C.IsNullable)                  as [IsNullable]
+                        ,ISNULL(CM.text,'')                         as [DefaultValue]
+                        ,C.colid                                    as [OrderNo]
+                        ,ETP.value                                  as [Remark]
                     FROM syscolumns C
                     INNER JOIN systypes T ON C.xusertype = T.xusertype 
                     left JOIN sys.extended_properties ETP   ON  ETP.major_id = c.id AND ETP.minor_id = C.colid AND ETP.name ='MS_Description' 
@@ -2989,11 +2987,11 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             {
                 sql = $"""
                     select
-                        column_name 									ColumnCode,
-                        data_type 										ColumnType,
+                        column_name                                     ColumnCode,
+                        data_type                                       ColumnType,
                         CASE data_type
                         WHEN 'varchar' THEN
-                    	    character_maximum_length
+                            character_maximum_length
                         WHEN 'nvarchar' THEN
                             character_maximum_length
                         WHEN 'text' THEN
@@ -3005,13 +3003,13 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                         WHEN 'datetime' THEN
                             datetime_precision
                         ELSE
-                    	    0
-                        END 											ColumnLength,
-                        CASE is_nullable  WHEN 'NO' then 0 ELSE 1 END  	IsNullable,
-                    	CASE WHEN column_key='PRI' THEN 1 ELSE 0 END 	IsPK,
-                        column_default 									DefaultValue,
-                    	ORDINAL_POSITION 								OrderNo,
-                    	COLUMN_COMMENT  								Remark
+                            0
+                        END                                             ColumnLength,
+                        CASE is_nullable  WHEN 'NO' then 0 ELSE 1 END   IsNullable,
+                        CASE WHEN column_key='PRI' THEN 1 ELSE 0 END    IsPK,
+                        column_default                                  DefaultValue,
+                        ORDINAL_POSITION                                OrderNo,
+                        COLUMN_COMMENT                                  Remark
                     from information_schema.columns where table_schema = '{GetDatabaseName(conn)}' and table_name = '{tableName}' 
                     order by ORDINAL_POSITION asc
                     """;
@@ -3064,8 +3062,8 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                                         ELSE 1
                                         END  IsNullable,
                                     A.Data_default      DefaultValue,
-									A.COLUMN_ID		    OrderNo,
-									B.comments		    Remark
+                                    A.COLUMN_ID         OrderNo,
+                                    B.comments          Remark
                             from  user_tab_columns A,user_col_comments B
                             WHERE a.COLUMN_NAME=b.column_name and A.Table_Name = B.Table_Name and 
                                 A.Table_Name=upper('{tableName}')
@@ -3084,7 +3082,12 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             _tableColumnsInfo.TryAdd(tableKey, result);
             return result;
         }
-
+        /// <summary>
+        /// 获取CSharp中对应的Type
+        /// </summary>
+        /// <param name="csharpType"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
         static Type GetCSharpType(string csharpType)
         {
             return csharpType switch

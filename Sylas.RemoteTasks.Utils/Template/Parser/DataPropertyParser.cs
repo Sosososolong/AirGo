@@ -54,6 +54,10 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
                 {
                     propertyValue = listData[indexVal];
                 }
+                else if (currentData is JsonElement currentJE && currentJE.ValueKind == JsonValueKind.Array)
+                {
+                    propertyValue = currentJE.EnumerateArray().ToList()[indexVal];
+                }
                 else if(currentData is not string && currentData is IEnumerable ienumerableCollection)
                 {
                     IEnumerable<object> ienumerableData = ienumerableCollection.Cast<object>();
@@ -71,7 +75,7 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
             if (propertyValue is JsonElement jsonElement)
             {
                 var result = JsonHelper.GetDataElement(jsonElement, props);
-                return new ParseResult(true, [key], result);
+                return new ParseResult(true, [key], result.ValueKind == JsonValueKind.String ? result.ToString() : result);
             }
             foreach (var p in props)
             {

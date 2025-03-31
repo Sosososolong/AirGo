@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Linq;
 using Sylas.RemoteTasks.Common;
 using System;
 using System.Collections;

@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Sylas.RemoteTasks.Common;
@@ -8,6 +8,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -211,6 +212,8 @@ namespace Sylas.RemoteTasks.Utils.Template
         /// <returns></returns>
         public static Dictionary<string, object?> BuildDataContextBySource(this Dictionary<string, object> dataContext, object source, List<string> dataContextBuilderTmpls, ILogger? logger = null)
         {
+            LogTmplResolving(Environment.NewLine + Environment.NewLine, "------------------->");
+            LogTmplResolving(source, "上下文");
             // key为要构建的dataContext的key, value为给key赋的值, 有可能会赋多次值
             Dictionary<string, object?> dataContextBuildDetail = [];
             // 1. source不能确定是什么类型, 只能定位object;
@@ -220,6 +223,7 @@ namespace Sylas.RemoteTasks.Utils.Template
             // 解析DataContext
             foreach (var dataContextBuilderTmpl in dataContextBuilderTmpls)
             {
+                LogTmplResolving(dataContextBuilderTmpl, "模板表达式");
                 object? variableValueResolved = null;
                 string[]? sourceKeys = null;
                 var originResponseMatch = Regex.Match(dataContextBuilderTmpl, @"(?<dataContextNewKey>^\$\w+)=\$data$");
@@ -257,12 +261,49 @@ namespace Sylas.RemoteTasks.Utils.Template
                     }
                     else
                     {
+                        LogTmplResolving(variableValueResolved, "模板解析结果");
                         dataContext[dataContextNewKey] = variableValueResolved;
                     }
                 }
                 #endregion
             }
             return dataContextBuildDetail;
+        }
+
+        static void LogTmplResolving(object source, string sourceName = "上下文")
+        {
+            LoggerHelper.RecordLog($"正在记录{sourceName}", "TmplResoving");
+            if (source is string sourceStr)
+            {
+                LoggerHelper.RecordLog(sourceStr, "TmplResoving");
+            }
+            else if (source is IEnumerable sourceEnumerable)
+            {
+                IEnumerable<object> sourceObjs = sourceEnumerable.Cast<object>();
+                if (sourceObjs.Any())
+                {
+                    object first = sourceObjs.First();
+                    if (first is JsonElement)
+                    {
+                        IEnumerable<JsonElement> sourceJsonEles = sourceObjs.Cast<JsonElement>();
+                        LoggerHelper.RecordLog($"集合每一项为JsonElement集合:", "TmplResoving");
+                        StringBuilder itemBuilder = new();
+                        foreach (var item in sourceJsonEles)
+                        {
+                            itemBuilder.AppendLine(item.ToString());
+                        }
+                        LoggerHelper.RecordLog($"[{itemBuilder}]", "TmplResoving");
+                    }
+                }
+                else
+                {
+                    LoggerHelper.RecordLog(JsonConvert.SerializeObject(sourceObjs), "TmplResoving");
+                }
+            }
+            else
+            {
+                LoggerHelper.RecordLog(source is JsonElement ? source.ToString() : JsonConvert.SerializeObject(source), "TmplResoving");
+            }
         }
 
         /// <summary>
@@ -436,98 +477,108 @@ namespace Sylas.RemoteTasks.Utils.Template
             string originTmplParser = tmplWithParser;
             var stringTmplMatches = RegexConst.StringTmpl.Matches(tmplWithParser);
 
-            string exceptTmplExp = tmplWithParser;
             List<object> result = [];
             List<string> resolvedExp = [];
             if (stringTmplMatches.Count == 0)
             {
                 return tmplWithParser;
             }
-            else
+
+            // 如果只有一个表达式, 且表达式与源模板相等, 则直接返回解析后的值
+            string firstExpression = stringTmplMatches[0].Value;
+            if (stringTmplMatches.Count == 1 && tmplWithParser == firstExpression)
             {
-                foreach (var stringTmplMatch in stringTmplMatches.Cast<Match>())
+                var tmplValue = ResolveFromDictionary(firstExpression, dataContextDictionary);
+                return tmplValue;
+            }
+
+            bool returnCollection = false;
+            // 否则, 逐个解析表达式, 并使用解析的值替换源模板中的表达式
+            foreach (var stringTmplMatch in stringTmplMatches.Cast<Match>())
+            {
+                var stringTmplGroups = stringTmplMatch.Groups;
+                if (stringTmplGroups.Count > 1)
                 {
-                    exceptTmplExp = exceptTmplExp.Replace(stringTmplMatch.Value, string.Empty);
-                    var stringTmplGroups = stringTmplMatch.Groups;
-                    if (stringTmplGroups.Count > 1)
+                    string exp = stringTmplGroups["name"].Value;
+
+                    if (exp.Trim().Equals("$"))
                     {
-                        string exp = stringTmplGroups["name"].Value;
+                        continue;
+                    }
+                    // 当前表达式已经解析过, 跳过
+                    if (resolvedExp.Count > 0 && resolvedExp.Contains(stringTmplMatch.Value))
+                    {
+                        continue;
+                    }
 
-                        if (exp.Trim().Equals("$"))
-                        {
-                            continue;
-                        }
-                        if (resolvedExp.Count > 0 && resolvedExp.Contains(stringTmplMatch.Value))
-                        {
-                            continue;
-                        }
-                        resolvedExp.Add(exp);
+                    resolvedExp.Add(exp);
 
-                        var tmplValue = ResolveFromDictionary(exp, dataContextDictionary);
-                        if (tmplValue is null)
+                    var tmplValue = ResolveFromDictionary(exp, dataContextDictionary);
+                    if (tmplValue is null)
+                    {
+                        continue;
+                    }
+
+                    IEnumerable<object>? arrayValue = null;
+                    if (tmplValue is not string && tmplValue is IEnumerable enumerableVal)
+                    {
+                        arrayValue = enumerableVal.Cast<object>();
+                    }
+                    else if (tmplValue is JsonElement jEVal && jEVal.ValueKind == JsonValueKind.Array)
+                    {
+                        arrayValue = jEVal.EnumerateArray().Cast<object>();
+                    }
+                    // 字符串中包含数组表达式, 那么数组中的每一项都替换掉模板生成一个新的字符串(生成一个字符串集合)
+                    if (arrayValue is not null)
+                    {
+                        if (!returnCollection)
                         {
-                            continue;
+                            returnCollection = true;
                         }
-                        if ((tmplValue is JsonElement je && je.ValueKind == JsonValueKind.String) || tmplValue is string)
+
+                        List<object> newResults = [];
+                        foreach (var valueItem in arrayValue)
                         {
-                            // 有可能只是不断地替换表达式, 直到没有表达式为止, 那么最终result为空, 返回值为最终的tmplWithParser
-                            tmplWithParser = tmplWithParser.Replace(exp, tmplValue.ToString()).Replace(_doubleFlag, "$");
-                            continue;
-                        }
-                        else if (tmplValue is IEnumerable array)
-                        {
-                            var arrayValue = array.Cast<object>();
-                            List<object> newResults = [];
-                            foreach (var valueItem in arrayValue)
+                            if (valueItem is string)
                             {
-                                if (valueItem is string)
-                                {
-                                    var expValue = valueItem.ToString();
-                                    newResults.Add(tmplWithParser.ToString().Replace(exp, expValue));
-                                }
-                                else
-                                {
-                                    // BOOKMARK: Tmpl-JToken http请求获取数据源的时候, 默认使用JToken(JObject)处理; 后续DataHandler中也会默认数据源为IEnumerable<JToken>类型进行进一步的处理
-                                    newResults.Add(valueItem);
-                                }
+                                var expValue = valueItem.ToString();
+                                newResults.Add(tmplWithParser.ToString().Replace(exp, expValue).Replace(_doubleFlag, "$"));
                             }
-                            result.AddRange(newResults);
-                        }
-                        else
-                        {
-                            // tmplWithParser中只有一个表达式
-                            if (stringTmplMatches.Count == 1)
+                            else if (valueItem is JsonElement valueItemJE && valueItemJE.ValueKind == JsonValueKind.String)
                             {
-                                // tmplWithParser: 源模板, 例如: .*${name}.*
-                                // stringTmplMatch.Value: tmplWithParser中的表达式${name}
-                                //   -> 两者相等, 说明tmplWithParser中只有一个表达式, 直接返回解析后的值
-                                if (tmplWithParser == stringTmplMatch.Value)
-                                {
-                                    return tmplValue;
-                                }
-                                else
-                                {
-                                    // 不相等, 将源模板中的表达式替换为解析后的值
-                                    tmplWithParser = tmplWithParser.Replace(stringTmplMatch.Value, tmplValue.ToString());
-                                }
+                                newResults.Add(tmplWithParser.ToString().Replace(exp, valueItemJE.GetString()).Replace(_doubleFlag, "$"));
                             }
                             else
                             {
-                                result.Add(tmplValue);
+                                newResults.Add(tmplWithParser.ToString().Replace(exp, valueItem.ToString()).Replace(_doubleFlag, "$"));
                             }
                         }
+                        result.AddRange(newResults);
+                    }
+                    // 有可能只是不断地替换表达式, 直到没有表达式为止, 那么最终result为空, 返回值为最终的tmplWithParser
+                    else if (tmplValue is string tmplStrVal)
+                    {
+                        tmplWithParser = tmplWithParser.Replace(exp, tmplStrVal);
+                    }
+                    else if (tmplValue is JsonElement je && je.ValueKind == JsonValueKind.String)
+                    {
+                        tmplWithParser = tmplWithParser.Replace(exp, tmplValue.ToString());
+                    }
+                    else
+                    {
+                        tmplWithParser = tmplWithParser.Replace(exp, tmplValue.ToString());
                     }
                 }
-                if (result.Count > 0)
-                {
-                    return result;
-                }
-                else
-                {
-                    return string.IsNullOrWhiteSpace(exceptTmplExp) && originTmplParser == tmplWithParser ? result : tmplWithParser.Replace(_doubleFlag, "$");
-                }
             }
-            
+            if (returnCollection)
+            {
+                return result;
+            }
+            else
+            {
+                return tmplWithParser.Replace(_doubleFlag, "$");
+            }
+
 
             object ResolveFromDictionary(string tmplExpressionWithParser, Dictionary<string, object> dataContext)
             {

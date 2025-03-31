@@ -16,12 +16,12 @@
             const tableParentSelector = "#tableContainer";
             // TODO: 像克隆这样按钮支持自定义表单, 可以传入克隆的处理器Title, Name等参数
             const ths = [
-                { name: 'title', title: '标题' },
-                { name: 'name', title: '名称/编码' },
-                { name: 'url', title: 'Url地址' },
+                { name: 'title', title: '标题', searchedByKeywords: true },
+                { name: 'name', title: '名称/编码', searchedByKeywords: true },
+                { name: 'url', title: 'Url地址', searchedByKeywords: true },
                 { name: 'headers', showPart: 12, title: '请求头' },
                 { name: 'stepCirleRunningWhenLastStepHasData', title: '步骤循环', enumValus: [ false, true ] },
-                { name: 'remark', title: '备注', width: 50, showPart: 12 },
+                { name: 'remark', title: '备注', width: 50, showPart: 12, searchedByKeywords: true },
                 // 操作栏
                 { name: '', title: '操作', type: 'button', tmpl: `<button type="button" class="btn btn-primary btn-sm" data-bs-toggle="collapse" href="#collapse${tableId}{{id}}" role="button" aria-expanded="true" aria-controls="collapse${tableId}{{id}}">步骤</button>
                         <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="{{id}}" data-fetch-url="/Sync/GetHttpRequestProcessors" data-method="POST" onclick="showUpdatePannel(this)">修改</button>

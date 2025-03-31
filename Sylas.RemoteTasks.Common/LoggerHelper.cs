@@ -74,5 +74,41 @@ namespace Sylas.RemoteTasks.Common
                 LogInformation($"心跳日志异常:{ex.Message}");
             }
         }
+        /// <summary>
+        /// 记录日志
+        /// </summary>
+        /// <param name="msg"></param>
+        /// <param name="logDirectory"></param>
+        /// <param name="logFileName"></param>
+        /// <returns></returns>
+        public static void RecordLog(string msg, string logDirectory = "", string logFileName = "")
+        {
+            if (string.IsNullOrWhiteSpace(logDirectory))
+            {
+                logDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "Others");
+            }
+            else if (!Path.IsPathRooted(logDirectory))
+            {
+                logDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", logDirectory);
+            }
+            if (!Directory.Exists(logDirectory))
+            {
+                Directory.CreateDirectory(logDirectory);
+            }
+
+            if (string.IsNullOrWhiteSpace(logFileName))
+            {
+                logFileName = $"{DateTime.Now:yyyy-MM-dd}.log";
+            }
+            string logFilePath = Path.Combine(logDirectory, logFileName);
+            try
+            {
+                File.AppendAllText(logFilePath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {msg}{Environment.NewLine}");
+            }
+            catch (Exception ex)
+            {
+                LogInformation($"心跳日志异常:{ex.Message}");
+            }
+        }
     }
 }
