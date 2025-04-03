@@ -1,4 +1,5 @@
-﻿using Sylas.RemoteTasks.App.RequestProcessor.Models;
+using Sylas.RemoteTasks.App.Infrastructure;
+using Sylas.RemoteTasks.App.RequestProcessor.Models;
 using Sylas.RemoteTasks.App.RequestProcessor.Models.Dtos;
 using Sylas.RemoteTasks.Database;
 using Sylas.RemoteTasks.Database.SyncBase;
@@ -7,7 +8,9 @@ using System.Text;
 
 namespace Sylas.RemoteTasks.App.RequestProcessor
 {
-    public class HttpRequestProcessorRepository(IDatabaseProvider databaseProvider)
+    public class HttpRequestProcessorRepository(IDatabaseProvider databaseProvider,
+        RepositoryBase<HttpRequestProcessorEntity> repository,
+        RepositoryBase<HttpRequestProcessorStepEntity> stepRepository)
     {
         private readonly IDatabaseProvider _db = databaseProvider;
 
@@ -78,17 +81,17 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
         /// <returns></returns>
         public async Task<int> AddAsync(HttpRequestProcessorCreateDto processor)
         {
-            string sql = $"insert into {HttpRequestProcessor.TableName} (Name, Title, Url, Headers, Remark, StepCirleRunningWhenLastStepHasData) values(@Name, @Title, @Url, @Headers, @Remark, @StepCirleRunningWhenLastStepHasData);SELECT last_insert_rowid();";
-            var parameters = new Dictionary<string, object?>
+            HttpRequestProcessorEntity entity = new()
             {
-                { "Name", processor.Name },
-                { "Title", processor.Title },
-                { "Url", processor.Url },
-                { "Headers", processor.Headers },
-                { "Remark", processor.Remark },
-                { "StepCirleRunningWhenLastStepHasData", processor.StepCirleRunningWhenLastStepHasData }
+                Title = processor.Title,
+                Name = processor.Name,
+                Url = processor.Url,
+                Headers = processor.Headers,
+                Remark = processor.Remark,
+                StepCirleRunningWhenLastStepHasData = processor.StepCirleRunningWhenLastStepHasData
             };
-            return await _db.ExecuteScalarAsync(sql, parameters);
+            int id = await repository.AddAsync(entity);
+            return id;
         }
         /// <summary>
         /// 更新Http请求处理器
@@ -134,6 +137,8 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
             }
             setStatement.Append($"stepCirleRunningWhenLastStepHasData=@stepCirleRunningWhenLastStepHasData,");
             parameters.Add("stepCirleRunningWhenLastStepHasData", processor.StepCirleRunningWhenLastStepHasData.HasValue && processor.StepCirleRunningWhenLastStepHasData.Value ? 1 : 0);
+            setStatement.Append($"updatetime=@UpdateTime");
+            parameters.Add("UpdateTime", DateTime.Now);
 
             string sql = $"update {HttpRequestProcessor.TableName} set {setStatement.ToString().TrimEnd(',')} where id=@id";
             return await _db.ExecuteSqlAsync(sql, parameters);
@@ -146,11 +151,11 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
         /// <returns></returns>
         public async Task<int> DeleteAsync(int id)
         {
-            var deleted = await _db.ExecuteSqlsAsync(new string[] {
+            var deleted = await _db.ExecuteSqlsAsync([
                 $"DELETE FROM {HttpRequestProcessorStepDataHandler.TableName} WHERE StepId IN(SELECT Id FROM HttpRequestProcessorSteps WHERE ProcessorId=@id)",
                 $"DELETE FROM {HttpRequestProcessorStep.TableName} WHERE ProcessorId=@id",
                 $"DELETE FROM {HttpRequestProcessor.TableName} WHERE Id=@id",
-            },
+            ],
             new Dictionary<string, object?> { { "id", id } });
             return deleted;
         }
@@ -226,17 +231,18 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
         /// <returns></returns>
         public async Task<int> AddStepAsync(HttpRequestProcessorStepCreateDto step)
         {
-            string sql = $"insert into {HttpRequestProcessorStep.TableName} (parameters, RequestBody, dataContextBuilder, remark, processorId, presetDataContext) values(@parameters, @RequestBody, @dataContextBuilder, @remark, @processorId, @presetDataContext);SELECT last_insert_rowid();";
-            var parameters = new Dictionary<string, object?>
+            var stepEntity = new HttpRequestProcessorStepEntity
             {
-                { "parameters", step.Parameters },
-                { "RequestBody", step.RequestBody },
-                { "dataContextBuilder", step.DataContextBuilder },
-                { "remark", step.Remark },
-                { "processorId", step.ProcessorId },
-                { "presetDataContext", step.PresetDataContext },
+                Parameters = step.Parameters,
+                RequestBody = step.RequestBody,
+                PresetDataContext = step.PresetDataContext,
+                DataContextBuilder = step.DataContextBuilder,
+                Remark = step.Remark,
+                OrderNo = step.OrderNo,
+                ProcessorId = step.ProcessorId
             };
-            return await _db.ExecuteScalarAsync(sql, parameters);
+            var id = await stepRepository.AddAsync(stepEntity);
+            return id;
         }
         /// <summary>
         /// 更新Http请求处理器
@@ -275,6 +281,9 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
 
             setStatement.Append($"OrderNo=@OrderNo,");
             parameters.Add("OrderNo", step.OrderNo);
+
+            setStatement.Append($"updatetime=@UpdateTime,");
+            parameters.Add("UpdateTime", DateTime.Now);
 
             if (step.ProcessorId > 0)
             {
@@ -338,7 +347,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
                 { "remark", dataHandler.Remark },
                 { "stepId" , dataHandler.StepId },
                 { "OrderNo" , dataHandler.OrderNo },
-                { "enabled" , dataHandler.Enabled ? 1 : 0 }
+                { "enabled" , dataHandler.Enabled }
             };
             return await _db.ExecuteSqlAsync(sql, parameters);
         }
@@ -382,7 +391,7 @@ namespace Sylas.RemoteTasks.App.RequestProcessor
             setStatement.Append($"OrderNo=@OrderNo,");
             parameters.Add("OrderNo", dataHandler.OrderNo);
             setStatement.Append($"Enabled=@Enabled,");
-            parameters.Add("Enabled", dataHandler.Enabled ? 1 : 0);
+            parameters.Add("Enabled", dataHandler.Enabled);
             string sql = $"update {HttpRequestProcessorStepDataHandler.TableName} set {setStatement.ToString().TrimEnd(',')} where id=@id";
             return await _db.ExecuteSqlAsync(sql, parameters);
         }

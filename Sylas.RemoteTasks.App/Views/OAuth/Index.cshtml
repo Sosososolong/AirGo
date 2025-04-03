@@ -1,4 +1,5 @@
-﻿@{
+@{
+    Layout = null;
     ViewData["Title"] = "OAuth2.0 Debug";
 }
 
@@ -74,7 +75,7 @@
     <button class="btn btn-primary mt-3" type="submit" data-idp="Weixin">企业微信授权</button>
 </form>
 
-@section Scripts{
+@* @section Scripts{ *@
     <script>
         var buttons = document.querySelectorAll("button.btn[type='submit']");
         var inputIdp = document.getElementById("acr_values");
@@ -123,4 +124,4 @@
             document.getElementById('scope').value = scope;
         }
     </script>
-}
+@* } *@

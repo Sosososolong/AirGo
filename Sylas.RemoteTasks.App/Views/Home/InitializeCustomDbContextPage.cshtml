@@ -1,5 +1,6 @@
-﻿
+
 @{
+    Layout = null;
     ViewData["Title"] = "InitializeCustomDbContextPage";
 }
 
@@ -94,7 +95,7 @@
         }
     </div>
 		
-@section Scripts{
+@* @section Scripts{ *@
     <script>
         $(function () {            
             // 因为每次刷新页面, 其实只有第一个radio有checked属性, 但是radio的选中状态还保留上次的选择状态, 第一个radio的UI不一定是选中状态, 所以每次刷新页面后, 需要点击一次第一个radio, 使得它被选中
@@ -303,5 +304,5 @@
             
         })
     </script>
-}
+@* } *@
 

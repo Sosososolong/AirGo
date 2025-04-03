@@ -13,23 +13,23 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.WebHost.ConfigureKestrel((context, serverOptions) =>
 {
-    serverOptions.Limits.MaxRequestBodySize = null; // ÉÏ´«ÎÄ¼şÎŞÏŞÖÆ, Ä¬ÈÏ28.6M
+    serverOptions.Limits.MaxRequestBodySize = null; // ä¸Šä¼ æ–‡ä»¶æ— é™åˆ¶, é»˜è®¤28.6M
 });
 
-// Ìí¼ÓÅäÖÃÎÄ¼ş
+// æ·»åŠ é…ç½®æ–‡ä»¶
 builder.AddConfiguration();
 
-// ¶ÁÈ¡·şÎñÆ÷×´Ì¬µÈĞÅÏ¢
+// è¯»å–æœåŠ¡å™¨çŠ¶æ€ç­‰ä¿¡æ¯
 StartupHelper.GetAppStatus(builder.Configuration);
-// Ìí¼ÓAI·şÎñÏà¹ØÅäÖÃ
+// æ·»åŠ AIæœåŠ¡ç›¸å…³é…ç½®
 builder.Services.AddAiConfig(builder.Configuration);
-// ×¢²áExecutor(Í¨¹ıExecutorAttributeÖ»×¢²áÒÀÀµDIÈİÆ÷ÖĞÆäËû¶ÔÏóµÄ)
+// æ³¨å†ŒExecutor(é€šè¿‡ExecutorAttributeåªæ³¨å†Œä¾èµ–DIå®¹å™¨ä¸­å…¶ä»–å¯¹è±¡çš„)
 builder.Services.AddExecutor();
 
-// ×¢²áÈ«¾ÖÈÈ¼ü
+// æ³¨å†Œå…¨å±€çƒ­é”®
 builder.Services.AddGlobalHotKeys(builder.Configuration);
 
-// Ìí¼Ó»º´æ
+// æ·»åŠ ç¼“å­˜
 builder.Services.AddCache();
 
 // Add services to the container.
@@ -40,40 +40,40 @@ builder.Services.AddSignalR();
 builder.Services.AddHttpClient();
 builder.Services.AddHttpContextAccessor();
 
-// Ìí¼Ó"ÍøÂçÇëÇóÈÎÎñ"¹¤³§
+// æ·»åŠ "ç½‘ç»œè¯·æ±‚ä»»åŠ¡"å·¥å‚
 builder.Services.AddSingleton<RequestProcessorBase>();
 
-// Ìí¼Ó²Ö´¢ - ·ºĞÍ²Ö´¢
+// æ·»åŠ ä»“å‚¨ - æ³›å‹ä»“å‚¨
 builder.Services.AddScoped(typeof(RepositoryBase<>), typeof(RepositoryBase<>));
 builder.Services.AddScoped<HttpRequestProcessorRepository>();
 
-// TODO: ¶¯Ì¬×¢²áËùÓĞDataHandler·şÎñ
+// TODO: åŠ¨æ€æ³¨å†Œæ‰€æœ‰DataHandleræœåŠ¡
 builder.Services.AddTransient<DataHandlerSyncDataToDb>();
 builder.Services.AddTransient<DataHandlerCreateTable>();
 builder.Services.AddTransient<DataHandlerAnonymization>();
 
-// Ìí¼Ó°ïÖúÀà
+// æ·»åŠ å¸®åŠ©ç±»
 builder.Services.AddSingleton<DatabaseProvider>();
 
 builder.Services.AddDatabaseUtils();
 
-// Ìí¼Ó·şÎñ
+// æ·»åŠ æœåŠ¡
 builder.Services.AddTransient<AnythingService>();
 builder.Services.AddTransient<RequestProcessorService>();
 
 // MailKit
 
-// ºóÌ¨ÈÎÎñ
+// åå°ä»»åŠ¡
 builder.Services.AddHostedService<PublishService>();
 builder.Services.AddHostedService<ServerRegistrationService>();
 
-// BOOKMARK: Action¹ıÂËÆ÷
+// BOOKMARK: Actionè¿‡æ»¤å™¨
 builder.Services.AddScoped<CustomActionFilter>();
 builder.Services.AddScoped<MvcParameterFilter>();
 
-// BOOKMARK: Ìí¼Ó¼øÈ¨(Éí·İÈÏÖ¤)
+// BOOKMARK: æ·»åŠ é‰´æƒ(èº«ä»½è®¤è¯)
 builder.Services.AddAuthenticationService(builder.Configuration);
-// BOOKMARK: Ìí¼ÓÊÚÈ¨²ßÂÔ
+// BOOKMARK: æ·»åŠ æˆæƒç­–ç•¥
 builder.Services.AddAuthorization(options =>
 {
     var adminApiConfiguration = new { AdministrationRole = builder.Configuration["IdentityServerConfiguration:AdministrationRole"], OidcApiName = builder.Configuration["IdentityServerConfiguration:ApiName"] };
@@ -88,10 +88,10 @@ builder.Services.AddAuthorization(options =>
 
 var app = builder.Build();
 
-// ·şÎñÒÑ¾­È«²¿×¢²á, ±©Â¶¸øÈ«¾ÖÊ¹ÓÃ
-//    ÕâÊÇÒ»ÖÖ·´Ä£Ê½
-// 1. ÄÇÃ´Ê¹ÓÃµ½µÄµØ·½Ïàµ±ÓÚ»ñÈ¡¶ÔÏóµÄ·½Ê½ÓÖñîºÏÁËDIÈİÆ÷¶ÔÏóÁË(ÒÀÀµ×¢ÈëµÄ·½Ê½, ÎÒÃÇÖ»¹ØĞÄÎÒÃÇÒª»ñÈ¡µÄ·şÎñ¶ÔÏóÀàĞÍ, ÆäËûÎÒÃÇ¿´²»¼ûÒ²²»¹ØĞÄ, Ò²¾ÍÊÇºÍÆäËûµÄ±³ºóÊµÏÖµÄ¶ÔÏóñîºÏ¶ÈºÜµÍ, ÎÒÃÇ¿ÉÒÔÈÎÒâµØÌæ»»ÆäËûµÄDIÊµÏÖ)
-// 2. È«¾ÖµÄÎ¨Ò»¶ÔÏóÊÇÒ»ÖÖ²»¹»°²È«µÄÉè¼Æ, ¾­³£»á´øÀ´Ïß³Ì°²È«ÎÊÌâ(ËäÈ»ÕâÀïËüÊÇÒ»¸öÖ»¶Á¶ÔÏó)
+// æœåŠ¡å·²ç»å…¨éƒ¨æ³¨å†Œ, æš´éœ²ç»™å…¨å±€ä½¿ç”¨
+//    è¿™æ˜¯ä¸€ç§åæ¨¡å¼
+// 1. é‚£ä¹ˆä½¿ç”¨åˆ°çš„åœ°æ–¹ç›¸å½“äºè·å–å¯¹è±¡çš„æ–¹å¼åˆè€¦åˆäº†DIå®¹å™¨å¯¹è±¡äº†(ä¾èµ–æ³¨å…¥çš„æ–¹å¼, æˆ‘ä»¬åªå…³å¿ƒæˆ‘ä»¬è¦è·å–çš„æœåŠ¡å¯¹è±¡ç±»å‹, å…¶ä»–æˆ‘ä»¬çœ‹ä¸è§ä¹Ÿä¸å…³å¿ƒ, ä¹Ÿå°±æ˜¯å’Œå…¶ä»–çš„èƒŒåå®ç°çš„å¯¹è±¡è€¦åˆåº¦å¾ˆä½, æˆ‘ä»¬å¯ä»¥ä»»æ„åœ°æ›¿æ¢å…¶ä»–çš„DIå®ç°)
+// 2. å…¨å±€çš„å”¯ä¸€å¯¹è±¡æ˜¯ä¸€ç§ä¸å¤Ÿå®‰å…¨çš„è®¾è®¡, ç»å¸¸ä¼šå¸¦æ¥çº¿ç¨‹å®‰å…¨é—®é¢˜(è™½ç„¶è¿™é‡Œå®ƒæ˜¯ä¸€ä¸ªåªè¯»å¯¹è±¡)
 //ServiceLocator.Instance = app.Services;
 
 app.UseSession();
@@ -114,20 +114,7 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
-var defaultController = app.Configuration["DefaultController"];
-var defaultAction = app.Configuration["DefaultAction"] ?? "Index";
-//if (app.Environment.IsDevelopment())
-if (!string.IsNullOrWhiteSpace(defaultController))
-{
-    app.MapControllerRoute(
-        name: "default",
-        //pattern: "{controller=Hosts}/{action=Index}/{id?}");
-        pattern: $"{{controller={defaultController}}}/{{action={defaultAction}}}/{{id?}}");
-}
-else
-{
-    app.MapControllerRoute(name: "default", pattern: "{controller=Home}/{action=Index}/{id?}");
-}
+app.MapControllerRoute(name: "default", pattern: "{controller=Home}/{action=Index}/{id?}");
 
 app.MapHub<InformationHub>("informationHub");
 

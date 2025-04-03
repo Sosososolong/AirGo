@@ -1,4 +1,5 @@
-﻿@{
+@{
+    Layout = null;
     ViewData["Title"] = "Database Manager";
 }
 
@@ -7,48 +8,46 @@
     <div id="tableContainer"></div>
 </div>
 
-@section Scripts{
-    <script>
-        $(function () {
-            const apiUrl = "/Database/ConnectionStrings";
-            const pageIndex = 1;
-            const pageSize = 10;
-            const tableId = 'dataTable';
-            const tableParentSelector = "#tableContainer";
-            const ths = [
-                { name: 'name', title: '名称', searchedByKeywords: true },
-                { name: 'alias', title: '别名', searchedByKeywords: true },
-                { name: 'connectionString', showPart: 12, title: '连接字符串' },
-                { name: 'remark', title: '备注', searchedByKeywords: true },
-                { name: 'orderNo', title: '排序', align: 'center' },
-                { name: 'createTime', title: '创建时间', align: 'center' },
-                { name: 'updateTime', title: '更新时间', align: 'center' },
-                // 操作栏
-                { name: '', title: '操作', type: 'button', tmpl: `
-                        <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="{{id}}" data-fetch-url="/Database/ConnectionStrings" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
-                        <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-content="&quot;{{id}}&quot;" data-execute-url="/Database/DeleteConnectionStrings" data-method="POST" onclick="showConfirmBox('确定删除? 此操作无法撤销!', () => execute(this))">删除</button>
-                        <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-content="&quot;{{id}}&quot;" data-execute-url="/Database/CloneConnectionString" data-method="POST" onclick="showConfirmBox('您确定要克隆数据吗', () => execute(this))">克隆</button>
-                        `
-                }
-            ]
-            const idFieldName = "id";
-
-            /**
-             * HttpRequestProcessors
-             */
-            createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, ths, idFieldName, null, null, onDataLoaded, ''
-                , { url: '/Database/AddConnectionString', method: 'POST', updateUrl: '/Database/UpdateConnectionString', updateMethod: 'POST' }
-                , true
-                , ''
-                , null
-                , [{ fieldName: 'orderNo', isAsc: true }]
-            )
-
-            /**
-             * 数据加载时, 可以对每一行加载的数据进行相关处理
-             */
-            function onDataLoaded(row) {
+<script>
+    $(function () {
+        const apiUrl = "/Database/ConnectionStrings";
+        const pageIndex = 1;
+        const pageSize = 10;
+        const tableId = 'dataTable';
+        const tableParentSelector = "#tableContainer";
+        const ths = [
+            { name: 'name', title: '名称', searchedByKeywords: true },
+            { name: 'alias', title: '别名', searchedByKeywords: true },
+            { name: 'connectionString', showPart: 12, title: '连接字符串' },
+            { name: 'remark', title: '备注', searchedByKeywords: true },
+            { name: 'orderNo', title: '排序', align: 'center' },
+            { name: 'createTime', title: '创建时间', align: 'center' },
+            { name: 'updateTime', title: '更新时间', align: 'center' },
+            // 操作栏
+            { name: '', title: '操作', type: 'button', tmpl: `
+                    <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="{{id}}" data-fetch-url="/Database/ConnectionStrings" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
+                    <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-content="&quot;{{id}}&quot;" data-execute-url="/Database/DeleteConnectionStrings" data-method="POST" onclick="showConfirmBox('确定删除? 此操作无法撤销!', () => execute(this))">删除</button>
+                    <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-content="&quot;{{id}}&quot;" data-execute-url="/Database/CloneConnectionString" data-method="POST" onclick="showConfirmBox('您确定要克隆数据吗', () => execute(this))">克隆</button>
+                    `
             }
-        });
-    </script>
-}
+        ]
+        const idFieldName = "id";
+
+        /**
+         * HttpRequestProcessors
+         */
+        createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, ths, idFieldName, null, null, onDataLoaded, ''
+            , { url: '/Database/AddConnectionString', method: 'POST', updateUrl: '/Database/UpdateConnectionString', updateMethod: 'POST' }
+            , true
+            , ''
+            , null
+            , [{ fieldName: 'orderNo', isAsc: true }]
+        )
+
+        /**
+         * 数据加载时, 可以对每一行加载的数据进行相关处理
+         */
+        function onDataLoaded(row) {
+        }
+    });
+</script>

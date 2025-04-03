@@ -26,54 +26,51 @@ const dataSources = {};
  * @param {Object} orderRules 排序规则
  */
 async function createTable(apiUrl, pageIndex, pageSize, tableId, tableContainerSelector, ths, idFieldName, filterItems = null, data = null, onDataLoaded = undefined, wrapper = '', modalSettings = {}, primaryKeyIsInt = true, addButtonSelector = '', dataViewBuilder = null, orderRules = null) {
-    if (!tables[tableId]) {
-        tables[tableId] = {
-            tableId: tableId,
-            primaryKeyIsInt: primaryKeyIsInt,
-            pageIndex: pageIndex,
-            pageSize: pageSize,
-            totalPages: 0,
-            orderRules: !orderRules ? [{ fieldName: 'updateTime', isAsc: false }] : orderRules,
-            dataFilter: {
-                filterItems: [
-                    {
-                        fieldName: '',
-                        compareType: '',
-                        value: null
-                    }
-                ],
-                keywords: {
-                    fields: [],
-                    value: ''
+    tables[tableId] = {
+        tableId: tableId,
+        primaryKeyIsInt: primaryKeyIsInt,
+        pageIndex: pageIndex,
+        pageSize: pageSize,
+        totalPages: 0,
+        orderRules: !orderRules ? [{ fieldName: 'updateTime', isAsc: false }] : orderRules,
+        dataFilter: {
+            filterItems: [
+                {
+                    fieldName: '',
+                    compareType: '',
+                    value: null
                 }
-            },
-            onDataLoaded: onDataLoaded,
-            wrapper: wrapper,
-            formItemIds: [], // `${this.tableId}FormInput_${th.name}`
-            formItemIdsForAddPannel: [], // 比formItems少一个Id字段的表单项dom的id
-            formItemIdsMapper: {},
-            modalSettings: modalSettings, // 添加数据面板
-            ths: ths,
-            dataSourceField: {
-                // xxFieldName: [
-                //     { id: 1, value: 'xxx' }
-                // ]
-            },
-            modalId: '',
-            modal: {}, // 当前table的bootstrap.Modal对象
-            addOptions: {
-                button: '',
-                modalHtml: '',
-            },
-            tableForm: {
-                formHtml: '',
-                formHtmlFieldPk: '',
-            },
-            hasCustomDataViewBuilder: dataViewBuilder && typeof (dataViewBuilder) === 'function',
-        }
+            ],
+            keywords: {
+                fields: [],
+                value: ''
+            }
+        },
+        onDataLoaded: onDataLoaded,
+        wrapper: wrapper,
+        formItemIds: [], // `${this.tableId}FormInput_${th.name}`
+        formItemIdsForAddPannel: [], // 比formItems少一个Id字段的表单项dom的id
+        formItemIdsMapper: {},
+        modalSettings: modalSettings, // 添加数据面板
+        ths: ths,
+        dataSourceField: {
+            // xxFieldName: [
+            //     { id: 1, value: 'xxx' }
+            // ]
+        },
+        modalId: '',
+        modal: {}, // 当前table的bootstrap.Modal对象
+        addOptions: {
+            button: '',
+            modalHtml: '',
+        },
+        tableForm: {
+            formHtml: '',
+            formHtmlFieldPk: '',
+        },
+        hasCustomDataViewBuilder: dataViewBuilder && typeof (dataViewBuilder) === 'function',
     }
-    
-    var targetTable = tables[tableId];
+    const targetTable = tables[tableId]
 
     if (addButtonSelector) {
         targetTable.addOptions.button = document.querySelector(addButtonSelector);

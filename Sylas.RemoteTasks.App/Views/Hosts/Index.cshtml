@@ -1,4 +1,5 @@
-﻿@{
+@{
+    Layout = null;
     ViewData["Title"] = "Remote Hosts Manager ...";
 }
 <div class="my-4">
@@ -48,7 +49,7 @@
     </div>
 </div>
 
-@section Scripts{
+@* @section Scripts{ *@
     <script>
         function executeCommand(hostIp, hostInfoName, commandName, command) {
             fetch('/Hosts/Execute', {
@@ -88,4 +89,4 @@
             });
         }
     </script>
-}
+@* } *@

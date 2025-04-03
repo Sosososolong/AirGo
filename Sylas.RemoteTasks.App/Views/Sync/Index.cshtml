@@ -1,4 +1,5 @@
-﻿@{
+@{
+    Layout = null;
     ViewData["Title"] = "Http Request Processor ...";
 }
 
@@ -6,7 +7,7 @@
     <div id="tableContainer"></div>
 </div>
 
-@section Scripts{
+@* @section Scripts{ *@
     <script>
         $(async function () {
             const apiUrl = "/Sync/GetHttpRequestProcessors";
@@ -156,4 +157,4 @@
             }
         });
     </script>
-}
+@* } *@

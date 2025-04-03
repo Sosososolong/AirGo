@@ -1,4 +1,5 @@
-﻿@{
+@{
+    Layout = null;
     ViewData["Title"] = "Study";
 }
 <style>
@@ -10,7 +11,7 @@
     <h1>Study</h1>
     <div id="questions"></div>
 </div>
-@section Scripts{
+@* @section Scripts{ *@
     <script>
         function showRemark(input) {
             const remark = input.parentElement.querySelector('.remark');
@@ -150,4 +151,4 @@
             lastPrepended = null;
         }
     </script>
-}
+@* } *@

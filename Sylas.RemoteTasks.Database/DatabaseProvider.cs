@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json.Linq;
 using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Database.Dtos;
@@ -471,5 +471,15 @@ public class DatabaseProvider : IDatabaseProvider
     public async Task CreateTableIfNotExistAsync(string tableName, IEnumerable<ColumnInfo> colInfos, string db = "")
     {
         await DatabaseInfo.CreateTableIfNotExistAsync(ConnectionString, tableName, colInfos, db);
+    }
+    /// <summary>
+    /// 获取指定表的列信息
+    /// </summary>
+    /// <param name="tableName"></param>
+    /// <param name="db"></param>
+    /// <returns></returns>
+    public async Task<IEnumerable<ColumnInfo>> GetTableColumnsInfoAsync(string tableName)
+    {
+        return await DatabaseInfo.GetTableColumnsInfoAsync(ConnectionString, tableName);
     }
 }

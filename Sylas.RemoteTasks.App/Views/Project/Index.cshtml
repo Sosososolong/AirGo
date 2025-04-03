@@ -1,5 +1,6 @@
-﻿@using Sylas.RemoteTasks.Database.SyncBase;
+@using Sylas.RemoteTasks.Database.SyncBase;
 @{
+    Layout = null;
     ViewData["Title"] = "Core";
 }
 <div>
@@ -29,7 +30,7 @@
     <button class="btn btn-primary mt-3" formtarget="_blank" id="switching_database">Switching</button>
 </div>
 
-@section Scripts{
+@* @section Scripts{ *@
     <script>
         $("#generate_project").click(async (e) => {
             var logined = await $.ajax({
@@ -104,4 +105,4 @@
             });
         })
     </script>
-}
+@* } *@

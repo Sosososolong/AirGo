@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using Newtonsoft.Json;
@@ -49,7 +49,8 @@ namespace Sylas.RemoteTasks.App.Controllers
         private readonly IWebHostEnvironment _webHostEnv = webHostEnvironment;
         private readonly ILogger<HomeController> _logger = logger;
 
-        public async Task<IActionResult> Index()
+        [AllowAnonymous]
+        public IActionResult Index()
         {
             if (Request.Query.TryGetValue("ip", out _))
             {
@@ -69,213 +70,7 @@ namespace Sylas.RemoteTasks.App.Controllers
                 }
                 return Content(ipInfoBuilder.ToString());
             }
-            //准备所需要的数据
-            string sql = $@"select
-	                            top (@pageSize) *
-                            from
-
-	                            (select
-		                            ROW_NUMBER() over(order by users.F_UserId desc) as RowNumber, *
-	                            from {configuration["FirstTable"]} as users
-                                ) as temp
-
-                            where temp.RowNumber>(@pageIndex-1)*@pageSize
-                            
-                            select
-	                            COUNT(*)
-                            from {configuration["FirstTable"]} as users
-                            ";
-            if (Request.Method.Equals("post", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(Request.Form["sql"]))
-            {
-                sql = Request.Form["sql"].ToString();
-            }
-            if (Request.Method.Equals("post", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(Request.Form["connectionString"]))
-            {
-                _db.ConnectionString = Request.Form["connectionString"].ToString();
-            }
-
-            if (Request.Method.Equals("post", StringComparison.OrdinalIgnoreCase) && sql.StartsWith("@pageIndex") || sql.StartsWith("@pageSize"))
-            {
-                return Content($"sql语句: {sql}中, 没有@pageIndex和@pageSize参数");
-            }
-            var parameters =
-            //    new DbParameter[2]
-            //{
-            //    db.CreateDbParameter("pageIndex", 1),
-            //    db.CreateDbParameter("pageSize", 10)
-            //};
-            new Dictionary<string, object?> {
-                { "pageIndex", 1 }, { "pageSize", 10 }
-            };
-
-            DataSet set = await _db.QueryAsync(sql, parameters);
-            DataTable dataTable = set.Tables[0];
-            List<string> columnNames = [];
-            foreach (DataColumn column in dataTable.Columns)
-            {
-                columnNames.Add(column.ColumnName);
-            }
-
-            string newLine = Environment.NewLine;
-            StringBuilder builder = new();
-            builder.Append(@"    <title>用户管理</title>
-    <link href = ""../Content/bootstrap.min.css"" rel = ""stylesheet"" />
-    <script src = ""../Scripts/jquery-3.3.1.min.js"" ></ script>").Append(newLine).Append(newLine)
-                .Append("----------------------------------------Body---------------------------------------").Append(newLine).Append(newLine)
-                .Append(@"    <form id=""form1"" runat = ""server"" >
-        < div class=""popover-content"">
-            <asp:ScriptManager runat = ""server"" ID = ""MyScriptManager""></asp:ScriptManager>
-            <%--UpdateMode属性的值: Always:一个UpdatePanel中的按钮将会触发所有UpdatePanel的更新; Conditional: 每个UpdatePanel中的控件只触发控件所在UpdatePanel中内容的更新--%>
-            <asp:UpdatePanel runat = ""server"" ID=""TableUpdatePanel"" UpdateMode=""Conditional"">
-                <ContentTemplate>
-                    <table class=""table table-bordered"">
-                        <tr>").Append(newLine);
-
-            //拼接表格所有的列
-            foreach (string columnName in columnNames)
-            {
-                builder.AppendFormat(@"                            <th class=""need - order"" field_name=""{0}"">{0}</th>", columnName).Append(newLine);
-            }
-
-            builder.Append(@"                        </tr>
-
-
-                        <asp:Repeater runat=""server"" ID=""MyRepeater"">
-                            <ItemTemplate>
-                                <tr>").Append(newLine);
-
-            //拼接Repeater控件中的行
-            foreach (string columnName in columnNames)
-            {
-                builder.AppendFormat(@"                                    <td><%# Eval(""{0}"") %></td>", columnName).Append(newLine);
-            }
-
-            builder.Append(@"                                </tr>
-                            </ItemTemplate>
-                        </asp:Repeater>                        
-                        <asp:Button runat=""server"" ID =""ReOrderBtn"" CssClass =""hidden"" OnClick =""ReOrderBtn_Click"" />
-                        < asp:HiddenField runat = ""server"" ID = ""OrderFieldName"" ClientIDMode = ""Static"" />
-                    </ table >
-
-                    < div >
-                        < webdiyer:AspNetPager ID = ""anpPage"" CssClass = ""pager""  CurrentPageButtonClass = ""cpb""
-                            PageSize = ""10"" runat = ""server"" HorizontalAlign = ""Center"" Width = ""100% "" FirstPageText = ""首页""
-                            LastPageText = ""尾页"" NextPageText = ""下一页"" PrevPageText = ""上一页"" CustomInfoHTML = ""第 %currentPageIndex%页/共%PageCount%页 每页%PageSize%条/共%RecordCount%条""
-                            ShowPageIndexBox = ""Always"" ShowCustomInfoSection = ""Right""
-                            CustomInfoSectionWidth = ""250px"" OnPageChanged = ""anpPage_PageChanging"" SubmitButtonClass = ""Button"" SubmitButtonText = ""转 到"" CurrentPageButtonPosition = ""Center"" >
-                        </ webdiyer:AspNetPager >
-                        <% --假设当前页码为2, 点击6欲跳到第6页, onpagechanging触发时CurrentPageIndex值为2, OnPageChanged触发时: CurrentPageIndex值为6-- %>
-                    </ div >
-                </ ContentTemplate>
-                <Triggers>
-                    <%--异步 可指定触发当前UpdatePanel更新的控件以及控件的事件, 如果指定的是另一个UpdatePanel中的Button, 那么这个Button被点击时将会触发这两个UpdatePanel内容的更新--%>
-                    <%--若干个UpdatePanel中的""AsyncPostBackTrigger""的ControlID可设置为同一个Button(或其他控件)的ID, 这样那个Button(或其他控件)可以一次触发若干个UpdatePanel内容的更新--%>
-                    <%--如果页面不是很复杂, 完全可以不设置""AsyncPostBackTrigger""控件, 在UpdatePanel的UpdateModel值为""Conditional""的情况下, 每个UpdatePanel中的控件只触发当前UpdatePanel中的内容--%>
-                    <%--<asp:AsyncPostBackTrigger ControlID=""Button2"" EventName=""Click"" />--%>
-                </Triggers>
-            </ asp:UpdatePanel>
-        </ div>
-    </ form>").Append(newLine).Append(newLine);
-
-            //拼接基本的js部分
-            builder.Append(@"    <script>
-        //updatepanel请求结束后触发
-        var prm = Sys.WebForms.PageRequestManager.getInstance();
-        prm.add_endRequest(function () {
-            //异步刷新后也要执行 ""给列头绑定click事件的代码"", 否则异步刷新后""th""的click事件失效
-            bindOrder();
-        });
-
-        function bindOrder()
-        {
-            $(""th"").click(function() {
-                var fieldName = $(this).attr(""field_name"")
-                if (fieldName.length > 0)
-                {
-                    OrderFieldName.value = fieldName;
-                    ReOrderBtn.click();
-                }
-            });
-        }
-        bindOrder();
-    </script>").Append(newLine).Append(newLine)
-    .Append("----------------------------------------Code---------------------------------------").Append(newLine).Append(newLine)
-    .Append(@"    {
-        private DemonProvider db = new DemonProvider();
-        private static string _orderByField = ""Id"";
-        private static bool _isAsc = false;
-        protected void Page_Load(object sender, EventArgs e)
-        {
-            if (!IsPostBack)
-            {
-                BindData();
-            }
-        }
-
-
-        private void BindData()
-        {
-            int pageIndex = anpPage.CurrentPageIndex;
-            int pageSize = anpPage.PageSize;
-            //""asc"" or ""desc""
-            string orderDirection = _isAsc ? ""asc"" : ""desc"";
-
-            //查询过滤条件
-            string searchCmd = """";
-
-            //注意查询参数, pageIndex, pageSize, _orderByField, orderDirection
-            string sql = $@""select
-	                            top (@pageSize) *
-                            from
-
-	                            (select
-		                            ROW_NUMBER() over(order by users.{_orderByField} {orderDirection}) as RowNumber, *
-	                            from UserInfo as users
-	                            where users.IsDelete=0
-                                {searchCmd}) as temp
-
-                            where temp.RowNumber>(@pageIndex-1)*@pageSize
-                            
-                            select
-	                            COUNT(*)
-                            from UserInfo as users
-                            where users.IsDelete=0
-                            {searchCmd}"";
-
-
-            DbParameter[] parameters = new DbParameter[2]
-            {
-                db.CreateDbParameter(""pageIndex"", pageIndex),
-                db.CreateDbParameter(""pageSize"",pageSize)
-            };
-            DataSet set = db.ExecuteQuerySql(sql, parameters);
-
-            //计算总页数所需要的记录总数            
-            DataTable myDataTable = set.Tables[0];
-            anpPage.RecordCount = Convert.ToInt32(set.Tables[1].Rows[0][0]);
-            MyRepeater.DataSource = myDataTable;
-            MyRepeater.DataBind();
-        }
-
-        protected void anpPage_PageChanging(object sender, EventArgs e)
-        {
-            BindData();
-        }
-
-        protected void ReOrderBtn_Click(object sender, EventArgs e)
-        {
-            anpPage.CurrentPageIndex = 1;
-            if (!string.IsNullOrEmpty(OrderFieldName.Value))
-            {
-                _orderByField = OrderFieldName.Value == ""RowNumber"" ? ""Id"" : OrderFieldName.Value;
-            }
-
-            _isAsc = !_isAsc;
-            BindData();
-
-        }
-    }").Append(newLine).Append(newLine);
-            return Content(builder.ToString(), "text/plain", Encoding.UTF8);
+            return View();
         }
 
         public async Task<IActionResult> GameBackend()
@@ -294,7 +89,7 @@ namespace Sylas.RemoteTasks.App.Controllers
 
             DataSet set = await _db.QueryAsync(sql, parameters);
             DataTable dataTable = set.Tables[0];
-            List<string> columnNames = new();
+            List<string> columnNames = [];
             foreach (DataColumn column in dataTable.Columns)
             {
                 columnNames.Add(column.ColumnName);

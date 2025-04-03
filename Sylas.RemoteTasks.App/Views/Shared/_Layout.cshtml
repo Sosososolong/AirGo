@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
@@ -16,6 +16,26 @@
             location.href = `/Home/Login?redirect_path=${path}`;
         }
     </script>
+    <style>
+        /* 主菜单项样式 */
+        .nav-link {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+        }
+
+        /* 右侧箭头图标 */
+        .nav-link > .bi-chevron-right {
+            margin-left: auto;
+            transition: transform 0.3s ease; /* 添加旋转动画 */
+            vertical-align: central;
+        }
+
+        /* 当菜单展开时旋转箭头 */
+        .nav-link[aria-expanded="true"] > .bi-chevron-right {
+            transform: rotate(90deg);
+        }
+    </style>
 </head>
 <body>
     <svg xmlns="https://www.w3.org/2000/svg" style="display: none;">
@@ -190,30 +210,29 @@
             <ul class="nav nav-pills flex-column mb-auto">
                 <li class="nav-item">
                     <a href="#" class="nav-link" aria-current="page" data-bs-toggle="collapse" data-bs-target="#home-collapse" aria-expanded="false">
-                        <svg class="bi me-2" width="16" height="16"><use xlink:href="#home" /></svg>
+                        <svg class="bi me-3" width="16" height="16"><use xlink:href="#home" /></svg>
                         <span>Home</span>
+                        <svg class="bi bi-chevron-right" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                            <path fill-rule="evenodd" stroke="currentColor" stroke-width="1" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z" />
+                        </svg>
                     </a>
                     <div class="collapse" id="home-collapse">
                         <ul class="btn-toggle-nav list-unstyled fw-normal pb-1 small">
                             <li>
                                 <a href="/Home/Index" class="nav-link" style="margin-left:15px;">
-                                    <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid" /></svg>
+                                    <svg class="bi me-3" width="16" height="16"><use xlink:href="#grid" /></svg>
                                     <span>Index</span>
                                 </a>
                             </li>
                             <li>
                                 <a href="/Home/Prepare" class="nav-link" style="margin-left:15px;">
-                                    <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid" /></svg>
+                                    <svg class="bi me-3" width="16" height="16"><use xlink:href="#grid" /></svg>
                                     <span>CodeGen0(项目管理)</span>
                                 </a>
                             </li>
                             <li>
-                                @* <a href="javascript:void(0);" view-url="/Home/CodeGen2" onclick="fetchView(this)" class="nav-link" style="margin-left:15px;">
-                                      <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid"/></svg>
-                                      CodeGen2(通用 New)
-                                  </a> *@
                                 <a href="/Home/CodeGen2" class="nav-link" style="margin-left:15px;">
-                                    <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid" /></svg>
+                                    <svg class="bi me-3" width="16" height="16"><use xlink:href="#grid" /></svg>
                                     <span>CodeGen2(通用 New)</span>
                                 </a>
                             </li>
@@ -221,39 +240,42 @@
                     </div>
                 </li>
                 <li>
-                    <a href="#" class="nav-link">
-                        <svg class="bi me-2" width="16" height="16"><use xlink:href="#speedometer2" /></svg>
+                    <a href="javascript:void(0);" class="nav-link">
+                        <svg class="bi me-3" width="16" height="16"><use xlink:href="#speedometer2" /></svg>
                         <span>Dashboard</span>
                     </a>
                 </li>
                 <li>
                     <a href="/Study/Index" class="nav-link">
-                        <svg class="bi me-2" width="16" height="16"><use xlink:href="#table" /></svg>
+                        <svg class="bi me-3" width="16" height="16"><use xlink:href="#table" /></svg>
                         <span>Study</span>
                     </a>
                 </li>
                 <li>
                     <a href="#" class="nav-link" data-bs-toggle="collapse" data-bs-target="#hosts-collapse" aria-expanded="false">
-                        <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid" /></svg>
+                        <svg class="bi me-3" width="16" height="16"><use xlink:href="#grid" /></svg>
                         <span>Hosts</span>
+                        <svg class="bi bi-chevron-right" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                            <path fill-rule="evenodd" stroke="currentColor" stroke-width="1" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z" />
+                        </svg>
                     </a>
                     <div class="collapse" id="hosts-collapse">
                         <ul class="btn-toggle-nav list-unstyled fw-normal pb-1 small">
                             <li>
                                 <a href="/Hosts/Index" class="nav-link" style="margin-left:15px;">
-                                    <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid" /></svg>
+                                    <svg class="bi me-3" width="16" height="16"><use xlink:href="#grid" /></svg>
                                     <span>Index</span>
                                 </a>
                             </li>
                             <li>
                                 <a href="/Hosts/AnythingInfos" class="nav-link" style="margin-left:15px;">
-                                    <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid" /></svg>
+                                    <svg class="bi me-3" width="16" height="16"><use xlink:href="#grid" /></svg>
                                     <span>AnythingInfos</span>
                                 </a>
                             </li>
                             <li>
                                 <a href="/Hosts/ServerAndAppStatus" class="nav-link" style="margin-left:15px;">
-                                    <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid" /></svg>
+                                    <svg class="bi me-3" width="16" height="16"><use xlink:href="#grid" /></svg>
                                     <span>ServerAndAppStatus</span>
                                 </a>
                             </li>
@@ -262,54 +284,72 @@
                 </li>
                 <li>
                     <a href="/Database/Index" class="nav-link">
-                        <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid" /></svg>
+                        <svg class="bi me-3" width="16" height="16"><use xlink:href="#grid" /></svg>
                         <span>Database</span>
                     </a>
                 </li>
                 <li>
-                    <a href="#" class="nav-link">
-                        <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid" /></svg>
+                    <a href="#" class="nav-link" data-bs-toggle="collapse" data-bs-target="#oauth-collapse" aria-expanded="false">
+                        <svg class="bi me-3" width="16" height="16"><use xlink:href="#grid" /></svg>
                         <span>OAuth</span>
+                        <svg class="bi bi-chevron-right" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                            <path fill-rule="evenodd" stroke="currentColor" stroke-width="1" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z" />
+                        </svg>
                     </a>
+                    <div class="collapse" id="oauth-collapse">
+                        <ul class="btn-toggle-nav list-unstyled fw-normal pb-1 small">
+                            <li>
+                                <a href="/OAuth/Index" class="nav-link" style="margin-left:15px;">
+                                    <svg class="bi me-3" width="16" height="16"><use xlink:href="#grid" /></svg>
+                                    <span>微信钉钉第三方登录</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="/OAuth/Password" class="nav-link" style="margin-left:15px;">
+                                    <svg class="bi me-3" width="16" height="16"><use xlink:href="#grid" /></svg>
+                                    <span>密码模式登录</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
                 </li>
                 <li>
                     <a href="/Project/Index" class="nav-link">
-                        <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid" /></svg>
+                        <svg class="bi me-3" width="16" height="16"><use xlink:href="#grid" /></svg>
                         <span>Projects</span>
                     </a>
                 </li>
                 <li>
-                    @* <a href="javascript:void(0);" onclick="fetchView(this)" view-url="/Snippet/Index" class="nav-link">
-                      <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid"/></svg>
-                      Snippets
-                    </a> *@
                     <a href="/Snippet/Index" class="nav-link">
-                        <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid" /></svg>
+                        <svg class="bi me-3" width="16" height="16"><use xlink:href="#grid" /></svg>
                         <span>Snippets</span>
                     </a>
                 </li>
                 <li>
                     <a href="#" class="nav-link" data-bs-toggle="collapse" data-bs-target="#sync-collapse" aria-expanded="false">
-                        <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid" /></svg>
+                        <svg class="bi me-3" width="16" height="16"><use xlink:href="#grid" /></svg>
                         <span>Data Transfer</span>
+                        <svg class="bi bi-chevron-right" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                            <path fill-rule="evenodd" stroke="currentColor" stroke-width="1" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z" />
+                        </svg>
                     </a>
                     <div class="collapse" id="sync-collapse">
                         <ul class="btn-toggle-nav list-unstyled fw-normal pb-1 small">
                             <li>
                                 <a href="/Sync/Index" class="nav-link" style="margin-left:15px;">
-                                    <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid" /></svg>
+                                    <svg class="bi me-3" width="16" height="16"><use xlink:href="#grid" /></svg>
                                     <span>Transfer From Http</span>
                                 </a>
                             </li>
                             <li>
                                 <a href="/Sync/SyncDbs" class="nav-link" style="margin-left:15px;">
-                                    <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid" /></svg>
+                                    <svg class="bi me-3" width="16" height="16"><use xlink:href="#grid" /></svg>
                                     <span>Transfer From Dbs</span>
                                 </a>
                             </li>
                             <li>
                                 <a href="/Sync/FromJson" class="nav-link" style="margin-left:15px;">
-                                    <svg class="bi me-2" width="16" height="16"><use xlink:href="#grid" /></svg>
+                                    <svg class="bi me-3" width="16" height="16"><use xlink:href="#grid" /></svg>
                                     <span>Transfer From Json</span>
                                 </a>
                             </li>
@@ -318,7 +358,7 @@
                 </li>
                 <li>
                     <a href="#" class="nav-link">
-                        <svg class="bi me-2" width="16" height="16"><use xlink:href="#people-circle" /></svg>
+                        <svg class="bi me-3" width="16" height="16"><use xlink:href="#people-circle" /></svg>
                         <span>Customers</span>
                     </a>
                 </li>
@@ -542,14 +582,58 @@
             mainCon.innerHTML = html
         }
 
-        
-        
+        const addedScripts = []
+        function loadPage(pagePath) {
+            // JQuery可以直接加载并运行script中的js脚本
+            //$('.page-container').load(pagePath)
+
+            fetch(pagePath).then(response => response.text()).then(html => {
+                document.querySelector('.page-container').innerHTML = html
+                // addedScripts.forEach(x => x.remove());
+
+                // 单独处理脚本
+                const scripts = document.querySelector('.page-container').getElementsByTagName('script')
+                for (let i = 0; i < scripts.length; i++) {
+                    const newScript = document.createElement('script')
+                    newScript.text = scripts[i].innerHTML
+                    if (scripts[i].src) {
+                        newScript.src = scripts[i].src
+                    }
+                    // 脚本中的变量可能在当前页面脚本中已经声明, 会冲突
+                    newScript.setAttribute('type', 'module')
+                    // document.querySelector('.page-container').appendChild(newScript).parentNode.removeChild(newScript)
+                    document.querySelector('.page-container').appendChild(newScript)
+                    document.querySelector('.page-container').removeChild(scripts[i])
+                    // addedScripts.push(newScript)
+                }
+
+                // 更新浏览器地址栏，但不刷新页面
+                // history.pushState(null, null, pagePath);
+            }).catch(err => console.error('加载内容失败:', err));
+        }
+        /**
+         * 高亮当前访问视图(页面)对应的菜单
+         */
+        function activeVisitingView(viewPath) {
+            const viewLink = document.querySelector(`.sidebar-menu a[href="${viewPath}"]`)
+            if (!viewLink) {
+                console.error(`view path "${viewPath}" not exist!`)
+                return
+            }
+
+            // 展开上级菜单
+            const collapse = viewLink.closest('.collapse')
+            if (collapse) {
+                collapse.previousElementSibling.click()
+            }
+            // 高亮菜单
+            viewLink.classList.add('active')
+        }
+
         window.onload = function() {
             document.querySelectorAll('.sidebar-menu a').forEach(a => {
                 if (a.getAttribute('data-bs-toggle') === 'collapse') {
                     a.classList.remove('active')
-                    // a.classList.add('text-white')
-                    // a.onclick = e => e.target.classList.toggle('text-white')
                 }
                 else if (a.getAttribute('href').length > 1) {
                     // 菜单点击事件 - 跳转
@@ -558,14 +642,23 @@
                         e.stopPropagation();
                         const linkEle = e.target.tagName === 'SPAN' ? e.target.closest('a') : e.target
                         const url = linkEle.getAttribute('href')
-                        location.href = url;
+                        if (url !== 'javascript:void(0);') {
+                            // 移除上一个active菜单
+                            document.querySelector('.sidebar-menu a.active')?.classList.remove('active')
+                            // 当前菜单active
+                            linkEle.classList.add('active')
+                            // 显示目标页面
+                            loadPage(url)
+                            // 缓存最后一次访问的页面
+                            localStorage.setItem('lastVisitingView', url)
+                        }
                     }
                 }
             })
 
             let viewPath = location.pathname.replace('#', '')
             if (!viewPath) {
-                viewPath = "/Sync/SyncDbs"
+                viewPath = "/Home/Index"
             }
             const viewLink = document.querySelector(`.sidebar-menu a[href="${viewPath}"]`)
             if (viewLink) {
@@ -573,7 +666,6 @@
                 const collapseEle = viewLink.closest('.collapse')
                 if (collapseEle) {
                     collapseEle.previousElementSibling.click()
-                    // collapseEle.previousElementSibling.classList.add('active')
                 }
             }
 
@@ -592,26 +684,30 @@
             if (document.querySelector('body').classList.contains('bg-black')) {
                 document.querySelector('#themeSwitch').setAttribute('checked', 'checked')
             }
+
+            const lastVisitingView = localStorage.getItem('lastVisitingView')
+            const visitingView = lastVisitingView ? lastVisitingView : '/Sync/Index'
+            activeVisitingView(visitingView)
+            loadPage(visitingView)
         }
 
-        function recoverMenuItems() {
-            // 当前页面对应的菜单保持高亮
-            document.querySelectorAll('.sidebar-menu li a').forEach(a => {
-                if (location.href.indexOf(a.getAttribute('href')) === -1) {
-                    // a.classList.add('text-white')
-                }
-            })
+        // 处理浏览器前进/后退
+        window.addEventListener('popstate', () => {
+            console.log('pathname', window.location.pathname)
+            loadPage(window.location.pathname)
+        });
 
+        function recoverMenuItems() {
             // 打开的collapse对应的a标签 点击事件触发, 即收起菜单
             const openedMenu = document.querySelector('.sidebar-menu a[aria-expanded="true"]')
-            if (openedMenu && openedMenu.nextElementSibling.innerHTML.indexOf(location.pathname) === -1) {
+            if (openedMenu && openedMenu.parent && !openedMenu.parent.querySelector('a[class~="active"]')) {
                 openedMenu.click()
             }
         }
         document.querySelector('#searchBtn').addEventListener("click", function (e) {
             e.preventDefault();
             e.stopPropagation();
-            var keyword = $("#searchBtn").parent().prev().val();
+            var keyword = this.parentElement.previousElementSibling.value;
             // 恢复菜单后(恢复菜单字体的颜色, 隐藏所有菜单), 如果没有搜索内容就停止搜索
             recoverMenuItems();
             if (keyword === '' || !keyword === true) {
@@ -619,9 +715,12 @@
             }
             
             document.querySelectorAll(".sidebar-menu li a").forEach(x => {
-               if (x.textContent.indexOf(keyword) > -1) {
+               if (x.querySelector('span').textContent.indexOf(keyword) > -1) {
                    const collapseEle = x.closest('.collapse')
-                   if (collapseEle && collapseEle.innerHTML.indexOf(location.pathname) === -1) {
+                   // if (collapseEle && collapseEle.innerHTML.indexOf(location.pathname) === -1) {
+                   //     collapseEle.previousElementSibling.click()
+                   // }
+                   if (collapseEle && collapseEle.previousElementSibling) {
                        collapseEle.previousElementSibling.click()
                    }
                    
@@ -638,11 +737,13 @@
                 document.querySelector('#searchBtn').style.display = 'none'
                 document.querySelectorAll('.sidebar-menu span').forEach(x => x.style.display = 'none')
                 document.querySelectorAll('.sidebar-menu .collapse ul').forEach(x => x.style.display = 'none')
+                document.querySelectorAll('.sidebar-menu .bi-chevron-right').forEach(x => x.style.display = 'none')
             } else {
                 sidebar.style.width = '290px'
                 document.querySelector('#searchBtn').style.display = 'inline-block'
                 document.querySelectorAll('.sidebar-menu span').forEach(x => x.style.display = 'inline')
                 document.querySelectorAll('.sidebar-menu .collapse ul').forEach(x => x.style.display = 'block')
+                document.querySelectorAll('.sidebar-menu .bi-chevron-right').forEach(x => x.style.display = 'inline')
             }
         }
         function switchTheme(switchEle) {

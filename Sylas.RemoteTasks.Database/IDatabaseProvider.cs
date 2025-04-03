@@ -1,4 +1,4 @@
-﻿using Sylas.RemoteTasks.Database.Dtos;
+using Sylas.RemoteTasks.Database.Dtos;
 using Sylas.RemoteTasks.Database.SyncBase;
 using System;
 using System.Collections.Generic;
@@ -88,5 +88,11 @@ namespace Sylas.RemoteTasks.Database
         /// <param name="db"></param>
         /// <returns></returns>
         Task CreateTableIfNotExistAsync(string tableName, IEnumerable<ColumnInfo> colInfos, string db = "");
+        /// <summary>
+        /// 获取指定表的列信息
+        /// </summary>
+        /// <param name="tableName"></param>
+        /// <returns></returns>
+        Task<IEnumerable<ColumnInfo>> GetTableColumnsInfoAsync(string tableName);
     }
 }

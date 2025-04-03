@@ -1,5 +1,6 @@
-﻿@using Sylas.RemoteTasks.App.Snippets
+@using Sylas.RemoteTasks.App.Snippets
 @{
+    Layout = null;
     ViewData["Title"] = "Code Gen";
 }
 
@@ -85,7 +86,7 @@
     </div>
 </div>
 
-@section Scripts {
+@* @section Scripts { *@
     <script>
         httpRequestDataAsync("/Home/GetTemplates", document.querySelector('form')).then(templates => {
             const templatesSelect = document.querySelector('#codeTemplate');
@@ -558,4 +559,4 @@
             leftJoinTables[index].relatedColumn = relatedColumn;
         }
     </script>
-}
+@* } *@

@@ -1,7 +1,8 @@
-﻿using Dapper;
+using Dapper;
 using Sylas.RemoteTasks.App.Database;
 using Sylas.RemoteTasks.Database;
 using Sylas.RemoteTasks.Database.SyncBase;
+using System.Data;
 using System.Text.RegularExpressions;
 
 namespace Sylas.RemoteTasks.App.Infrastructure
@@ -69,12 +70,35 @@ namespace Sylas.RemoteTasks.App.Infrastructure
         public async Task<int> AddAsync(T t)
         {
             var start = DateTime.Now;
+            string tableName = DbTableInfo<T>._tableName;
             string sql = DbTableInfo<T>._insertSql;
-            var parameters = DbTableInfo<T>._getInsertSqlParameters(t);
+            var cols = await _db.GetTableColumnsInfoAsync(tableName);
+            var parameters = DbTableInfo<T>._getInsertSqlParameters(t, cols);
             await Console.Out.WriteLineAsync($"仓储获取Insert语句信息耗时: {(DateTime.Now - start).TotalMilliseconds}/ms");
             if (_db.DbType == DatabaseType.Pg)
             {
-                sql = $"{sql} RETURNING id";
+                sql = $"{sql}; SELECT lastval()";
+            }
+            else if (_db.DbType == DatabaseType.Sqlite)
+            {
+                sql = $"{sql}; SELECT last_insert_rowid()";
+            }
+            else if (_db.DbType == DatabaseType.MySql)
+            {
+                sql = $"{sql}; SELECT LAST_INSERT_ID();";
+            }
+            else if (_db.DbType == DatabaseType.MsSqlLocalDb || _db.DbType == DatabaseType.SqlServer)
+            {
+                sql = $"{sql}; SELECT SCOPE_IDENTITY();";
+            }
+            else if (_db.DbType == DatabaseType.Oracle || _db.DbType == DatabaseType.Dm)
+            {
+                // 对于Oracle，通常需要参数绑定
+                sql = $"{sql} SELECTRETURNING ID INTO :id";
+            }
+            else
+            {
+                throw new Exception($"不支持的数据库类型:{_db.DbType}");
             }
             return await _db.ExecuteScalarAsync(sql, parameters);
         }
@@ -89,7 +113,8 @@ namespace Sylas.RemoteTasks.App.Infrastructure
         {
             var start = DateTime.Now;
             var sql = DbTableInfo<T>._updateSql;
-            var parameters = DbTableInfo<T>._getUpdateSqlParameters(t);
+            var cols = await _db.GetTableColumnsInfoAsync(DbTableInfo<T>._tableName);
+            var parameters = DbTableInfo<T>._getUpdateSqlParameters(t, cols);
             await Console.Out.WriteLineAsync($"仓储获取Update语句信息耗时: {(DateTime.Now - start).TotalMilliseconds}/ms");
             return await _db.ExecuteSqlAsync(sql, parameters);
         }

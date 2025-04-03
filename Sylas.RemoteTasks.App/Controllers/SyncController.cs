@@ -66,24 +66,24 @@ namespace Sylas.RemoteTasks.App.Controllers
         {
             if (processor == null)
             {
-                return Json(new OperationResult(false, "处理器不能为空"));
+                return Json(RequestResult<bool>.Error("处理器不能为空"));
             }
             if (string.IsNullOrWhiteSpace(processor.Title))
             {
-                return Json(new OperationResult(false, "处理器标题不能为空"));
+                return Json(RequestResult<bool>.Error("处理器标题不能为空"));
             }
             if (string.IsNullOrWhiteSpace(processor.Name))
             {
-                return Json(new OperationResult(false, "处理器名称/编码不能为空"));
+                return Json(RequestResult<bool>.Error("处理器名称/编码不能为空"));
             }
             if (string.IsNullOrWhiteSpace(processor.Url))
             {
-                return Json(new OperationResult(false, "处理器Url不能为空"));
+                return Json(RequestResult<bool>.Error("处理器Url不能为空"));
             }
             var result = await _repository.AddAsync(processor);
             if (result > 0)
             {
-                return Ok(new OperationResult(true, string.Empty));
+                return Ok(RequestResult<bool>.Success(true));
             }
             return BadRequest(result);
         }
@@ -91,23 +91,23 @@ namespace Sylas.RemoteTasks.App.Controllers
         {
             if (processor == null)
             {
-                return Json(new OperationResult(false, "处理器不能为空"));
+                return Json(RequestResult<bool>.Error("处理器不能为空"));
             }
             if (processor.Id == 0)
             {
-                return Json(new OperationResult(false, "处理器Id不能为空"));
+                return Json(RequestResult<bool>.Error("处理器Id不能为空"));
             }
             if (string.IsNullOrWhiteSpace(processor.Title))
             {
-                return Json(new OperationResult(false, "处理器标题不能为空"));
+                return Json(RequestResult<bool>.Error("处理器标题不能为空"));
             }
             if (string.IsNullOrWhiteSpace(processor.Name))
             {
-                return Json(new OperationResult(false, "处理器名称/编码不能为空"));
+                return Json(RequestResult<bool>.Error("处理器名称/编码不能为空"));
             }
             if (string.IsNullOrWhiteSpace(processor.Url))
             {
-                return Json(new OperationResult(false, "处理器Url不能为空"));
+                return Json(RequestResult<bool>.Error("处理器Url不能为空"));
             }
             var dbProcessor = await _repository.GetByIdAsync(processor.Id);
             if (dbProcessor is null)
@@ -118,9 +118,9 @@ namespace Sylas.RemoteTasks.App.Controllers
             int affectedRows = await _repository.UpdateAsync(processor);
             if (affectedRows > 0)
             {
-                return Ok(new OperationResult(true, string.Empty));
+                return Ok(RequestResult<bool>.Success(true));
             }
-            return Ok(new OperationResult(false, "数据没有变化"));
+            return Ok(RequestResult<bool>.Error("数据没有变化"));
         }
         public async Task<IActionResult> DeleteHttpRequestProcessorAsync([FromBody] string ids)
         {
@@ -133,9 +133,10 @@ namespace Sylas.RemoteTasks.App.Controllers
 
             if (affectedRows > 0)
             {
-                return Ok(new OperationResult(true, string.Empty) { Data = new string[] { $"{affectedRows}" } });
+                var result = RequestResult<string[]>.Success([$"{affectedRows}"]);
+                return Ok(result);
             }
-            return Ok(new OperationResult(false, "数据没有变化"));
+            return Ok(RequestResult<bool>.Error("数据没有变化"));
         }
 
         /// <summary>
@@ -150,7 +151,7 @@ namespace Sylas.RemoteTasks.App.Controllers
                 return BadRequest("克隆对象不能为空");
             }
             var clonedProcessorId = await _repository.CloneAsync(id);
-            return Ok(new OperationResult(clonedProcessorId > 0, ""));
+            return Ok(RequestResult<bool>.Success(clonedProcessorId > 0));
         }
         #endregion
 

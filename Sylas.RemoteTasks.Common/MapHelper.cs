@@ -1,4 +1,4 @@
-﻿using Dapper;
+using Dapper;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -178,47 +178,6 @@ namespace Sylas.RemoteTasks.Common
             return typeof(string);
         }
 
-        /// <summary>
-        /// 构建一个 将指定对象转换为DynamicParameters 的lambda表达式
-        /// </summary>
-        /// <param name="parameterFields"></param>
-        /// <returns></returns>
-        /// <exception cref="Exception"></exception>
-        public static Func<T, DynamicParameters> BuildGetterSqlExecutionParameters<T>(IEnumerable<string> parameterFields)
-        {
-            Type entityType = typeof(T);
-
-            if (parameterFields is null || !parameterFields.Any())
-            {
-                parameterFields = entityType.GetProperties(BindingFlags.Public | BindingFlags.Instance).Select(x => x.Name);
-            }
-
-            var type = typeof(DynamicParameters);
-            var entity = Expression.Parameter(entityType, "sp");
-            var result = Expression.Variable(type, "result");
-            var init = Expression.Assign(result, Expression.New(type));
-            var addMethod = type.GetMethod("Add", [typeof(string), typeof(object), typeof(DbType?), typeof(ParameterDirection?), typeof(int?)]) ?? throw new Exception($"{type.Name}没有找到Add方法");
-            List<Expression> expressions = [init];
-            foreach (var fieldName in parameterFields)
-            {
-                var call = Expression.Call(result,
-                    addMethod,
-                    Expression.Constant(fieldName),
-                    Expression.Convert(Expression.Property(entity, fieldName), typeof(object)),
-                    Expression.Default(typeof(DbType?)), Expression.Default(typeof(ParameterDirection?)), Expression.Default(typeof(int?)));
-                expressions.Add(call);
-            }
-
-            var returnLabel = Expression.Label(type);
-            var returnExpression = Expression.Return(returnLabel, result, type);
-            var returnLableTarget = Expression.Label(returnLabel, result);
-
-            expressions.Add(returnExpression);
-            expressions.Add(returnLableTarget);
-            var block = Expression.Block([result], expressions);
-            var lambda = Expression.Lambda<Func<T, DynamicParameters>>(block, entity).Compile();
-            return lambda;
-        }
         /// <summary>
         /// 创建将字符串转换为指定类型的lambda表达式
         /// </summary>
