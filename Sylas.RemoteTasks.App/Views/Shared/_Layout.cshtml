@@ -443,7 +443,11 @@
         function showBox(msg, onClose, title = '提示', titleClass = '', confirmBtnContent = '确定', confirmBtnClass = 'btn-success') {
             $('#msgBox .modal-title').text(title);
             if (titleClass) {
-                $('#msgBox .modal-title').parent().addClass(titleClass);
+                const title = $('#msgBox .modal-title').parent()
+                title.removeClass('bg-success')
+                title.removeClass('bg-danger')
+                title.removeClass('bg-warning')
+                title.addClass(titleClass);
             }
             $('#msgBox .modal-body').text(msg);
             $('#msgBox .modal-footer').html(`<button type="button" class="btn ${confirmBtnClass}" data-bs-dismiss="modal" onclick="">${confirmBtnContent}</button>`);

@@ -916,6 +916,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <exception cref="Exception"></exception>
         public static async Task TransferDataAsync(string sourceConnectionString, string targetConnectionString, string sourceDb = "", string sourceTable = "", string targetTable = "", bool ignoreException = false, Func<string, bool>? tableCondition = null)
         {
+            DateTime start = DateTime.Now;
             if (!string.IsNullOrWhiteSpace(sourceTable) && string.IsNullOrWhiteSpace(targetTable))
             {
                 targetTable = sourceTable;
@@ -939,66 +940,93 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             DatabaseType targetDbType = GetDbType(targetConnectionString);
             DatabaseType sourceDbType = GetDbType(sourceConnectionString);
 
-            using var targetConn = GetDbConnection(targetConnectionString);
-            targetConn.Open();
-            foreach (var table in res)
+            foreach (var sourceTableName in res)
             {
-                if (!string.IsNullOrWhiteSpace(sourceTable) && !table.Equals(sourceTable, StringComparison.OrdinalIgnoreCase))
+                if (!string.IsNullOrWhiteSpace(sourceTable) && !sourceTableName.Equals(sourceTable, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
-                if (tableCondition is not null && !tableCondition(table))
+                if (tableCondition is not null && !tableCondition(sourceTableName))
                 {
                     continue;
                 }
 
+                using var targetConnQuery = GetDbConnection(targetConnectionString);
+                targetConnQuery.Open();
                 // 1.生成所有表的insert语句; 异步迭代器(每个子对象包含一个批量插入数据的SQL语句)
-                IAsyncEnumerable<TableSqlInfo> tableSqlsInfoCollection = GetDataTransferSqlInfosAsync(sourceConn, table, targetConn, targetTable);
+                //IAsyncEnumerable<List<TableSqlInfo>> tableSqlsInfoCollection = GetDataTransferSqlInfosAsync(sourceConnectionString, sourceTableName, targetConnQuery, targetTable);
+                IAsyncEnumerable<List<TableSqlInfo>> tableSqlsInfoCollection = GetDataTransferSqlInfosByDataReaderAsync(sourceConnectionString, sourceTableName, targetConnQuery, targetTable);
 
+                List<Task<(int, int)>> transferTasks = [];
                 // 2. 执行每个表的insert语句
-                using var dbTransaction = targetConn.BeginTransaction();
-                await foreach (var tableSqlsInfo in tableSqlsInfoCollection)
+                int deletedRows = 0;
+                int addedRows = 0;
+                await foreach (var tableSqlsInfos in tableSqlsInfoCollection)
                 {
-                    if (!string.IsNullOrWhiteSpace(tableSqlsInfo.DeleteExistSqlInfo.Sql))
+                    transferTasks.AddRange(tableSqlsInfos.Select(tableSqlsInfo => TransferByTableSqlsInfoAsync(tableSqlsInfo, targetConnectionString, targetTable, ignoreException)));
+                    // 3. 等待所有迁移语句执行完成
+                    await Task.WhenAll(transferTasks);
+                    foreach (var t in transferTasks)
                     {
-                        int deletedRows = await targetConn.ExecuteAsync(tableSqlsInfo.DeleteExistSqlInfo.Sql, tableSqlsInfo.DeleteExistSqlInfo.Parameters, transaction: dbTransaction);
-                        LoggerHelper.LogInformation($"{targetTable}删除已存在的数据: {deletedRows}");
+                        var transferResult = await t;
+                        deletedRows += transferResult.Item1;
+                        addedRows += transferResult.Item2;
                     }
-                    if (!string.IsNullOrEmpty(tableSqlsInfo.BatchInsertSqlInfo.Sql))
+                    LoggerHelper.LogInformation($"已删除{deletedRows}; 已添加{addedRows}");
+
+                    transferTasks.Clear();
+                }
+            }
+            LoggerHelper.LogInformation($"迁移结束, 耗时:{DateTimeHelper.FormatSeconds((DateTime.Now - start).TotalSeconds)}");
+        }
+
+        static async Task<(int, int)> TransferByTableSqlsInfoAsync(TableSqlInfo tableSqlsInfo, string targetConnectionString, string targetTable, bool ignoreException = false)
+        {
+            var targetDbType = GetDbType(targetConnectionString);
+            using var targetConnTransfer = GetDbConnection(targetConnectionString);
+            targetConnTransfer.Open();
+            using var transferTransaction = targetConnTransfer.BeginTransaction();
+            int deletedRows = 0;
+            int affectedRowsCount = 0;
+            if (!string.IsNullOrWhiteSpace(tableSqlsInfo.DeleteExistSqlInfo.Sql))
+            {
+                deletedRows = await targetConnTransfer.ExecuteAsync(tableSqlsInfo.DeleteExistSqlInfo.Sql, tableSqlsInfo.DeleteExistSqlInfo.Parameters, transaction: transferTransaction);
+                //LoggerHelper.LogInformation($"{targetTable}删除已存在的数据: {deletedRows}");
+            }
+            if (!string.IsNullOrEmpty(tableSqlsInfo.BatchInsertSqlInfo.Sql))
+            {
+                try
+                {
+                    affectedRowsCount = await targetConnTransfer.ExecuteAsync(tableSqlsInfo.BatchInsertSqlInfo.Sql, tableSqlsInfo.BatchInsertSqlInfo.Parameters, transaction: transferTransaction);
+                    if (targetDbType == DatabaseType.Oracle && affectedRowsCount == -1)
                     {
-                        try
+                        affectedRowsCount = Regex.Matches(tableSqlsInfo.BatchInsertSqlInfo.Sql, @"insert", RegexOptions.IgnoreCase).Count;
+                    }
+                    //LoggerHelper.LogInformation($"{targetTable}添加数据: {affectedRowsCount}");
+                }
+                catch (Exception ex)
+                {
+                    // MySQL偶现了一次表情包无法插入的问题(表和字段字符集都是utf8mb4); 后面测试又都正常了
+                    if (Regex.IsMatch(ex.Message, @"Incorrect string value:") && targetDbType == DatabaseType.MySql)
+                    {
+                        affectedRowsCount = await targetConnTransfer.ExecuteAsync($"SET NAMES utf8mb4;{tableSqlsInfo.BatchInsertSqlInfo.Sql}", tableSqlsInfo.BatchInsertSqlInfo.Parameters, transaction: transferTransaction);
+                        LoggerHelper.LogInformation($"{targetTable}添加数据: {affectedRowsCount}");
+                    }
+                    else
+                    {
+                        LoggerHelper.LogInformation(ex.ToString());
+                        LoggerHelper.LogInformation($"tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql: {tableSqlsInfo.BatchInsertSqlInfo.Sql}");
+                        if (!ignoreException)
                         {
-                            var affectedRowsCount = await targetConn.ExecuteAsync(tableSqlsInfo.BatchInsertSqlInfo.Sql, tableSqlsInfo.BatchInsertSqlInfo.Parameters, transaction: dbTransaction);
-                            if (targetDbType == DatabaseType.Oracle && affectedRowsCount == -1)
-                            {
-                                affectedRowsCount = Regex.Matches(tableSqlsInfo.BatchInsertSqlInfo.Sql, @"insert", RegexOptions.IgnoreCase).Count;
-                            }
-                            LoggerHelper.LogInformation($"{targetTable}添加数据: {affectedRowsCount}");
+                            transferTransaction.Rollback();
+                            throw;
                         }
-                        catch (Exception ex)
-                        {
-                            // MySQL偶现了一次表情包无法插入的问题(表和字段字符集都是utf8mb4); 后面测试又都正常了
-                            if (Regex.IsMatch(ex.Message, @"Incorrect string value:") && targetDbType == DatabaseType.MySql)
-                            {
-                                var affectedRowsCount = await targetConn.ExecuteAsync($"SET NAMES utf8mb4;{tableSqlsInfo.BatchInsertSqlInfo.Sql}", tableSqlsInfo.BatchInsertSqlInfo.Parameters, transaction: dbTransaction);
-                                LoggerHelper.LogInformation($"{targetTable}添加数据: {affectedRowsCount}");
-                            }
-                            else
-                            {
-                                LoggerHelper.LogInformation(ex.ToString());
-                                LoggerHelper.LogInformation($"tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql: {tableSqlsInfo.BatchInsertSqlInfo.Sql}");
-                                if (!ignoreException)
-                                {
-                                    dbTransaction.Rollback();
-                                    throw;
-                                }
-                                dbTransaction.Commit();
-                            }
-                        }
+                        transferTransaction.Commit();
                     }
                 }
-                dbTransaction.Commit();
             }
+            transferTransaction.Commit();
+            return (deletedRows, affectedRowsCount);
         }
 
         /// <summary>
@@ -1478,21 +1506,11 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 return insertSqls;
             }
 
-            // 获取数据源字段和目标表字段的映射关系
-            Dictionary<string, ColumnInfo> sourceColumnMapToTargetColumn = [];
-            GetSourceColumnTargetColumnMap(firstRecord, targetTableColumns, sourceColumnMapToTargetColumn);
+            // 目标字段和源字段的映射
+            Dictionary<string, string> targetColumnMapToSource = [];
+            GetSourceColumnTargetColumnMap(firstRecord, targetTableColumns, targetColumnMapToSource);
 
-            // 让数据的字段(比如id字段可能是后加的在最后一个)和目标表的字段一一对应; 这样根据目标表字段获取字段表达式和根据数据构建的值表达式就能一一对应上
-            //List<ColumnInfo> validColInfos = [];
-            //foreach (var recordKey in firstRecord.Keys)
-            //{
-            //    var recordColInfo = targetTableColumns.FirstOrDefault(x => x.ColumnCode.Equals(recordKey, StringComparison.OrdinalIgnoreCase)) ?? throw new Exception($"数据包含不存在的字段:{recordKey}");
-            //    validColInfos.Add(recordColInfo);
-            //}
-
-            //// 1. 获取字段部分
-            //var insertFieldsStatement = GetFieldsStatement(validColInfos, dbType);
-            // 以目标表字段为准
+            // 1. 获取字段部分, 以目标表字段为准
             var insertFieldsStatement = GetFieldsStatement(targetTableColumns, dbType);
 
             var insertValuesStatementBuilder = new StringBuilder();
@@ -1505,7 +1523,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             {
                 #region 2. 为每条数据生成Values部分(@v1,@v2,...),\n
                 insertValuesStatementBuilder.Append("(");
-                insertValuesStatementBuilder.Append(GenerateRecordValuesStatement(sourceRecord, targetTableColumns, parameters, varFlag, recordIndex));
+                insertValuesStatementBuilder.Append(GenerateRecordValuesStatement(sourceRecord, targetTableColumns, parameters, varFlag, targetColumnMapToSource, recordIndex));
                 insertValuesStatementBuilder.Append($"),{Environment.NewLine}");
                 #endregion
 
@@ -1534,13 +1552,13 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// </summary>
         /// <param name="sourceRecord">一条源数据</param>
         /// <param name="targetTableColumns">目标表的所有字段信息</param>
-        /// <param name="sourceColumnMapToTargetColumn">用来保存映射信息的字典</param>
-        static void GetSourceColumnTargetColumnMap(IDictionary<string, object> sourceRecord, IEnumerable<ColumnInfo> targetTableColumns, Dictionary<string, ColumnInfo> sourceColumnMapToTargetColumn)
+        /// <param name="targetColumnMapToSourceColumn">用来保存映射信息的字典</param>
+        static void GetSourceColumnTargetColumnMap(IDictionary<string, object?> sourceRecord, IEnumerable<ColumnInfo> targetTableColumns, Dictionary<string, string> targetColumnMapToSourceColumn)
         {
-            sourceColumnMapToTargetColumn ??= [];
-            if (sourceColumnMapToTargetColumn.Any())
+            targetColumnMapToSourceColumn ??= [];
+            if (targetColumnMapToSourceColumn.Any())
             {
-                sourceColumnMapToTargetColumn.Clear();
+                targetColumnMapToSourceColumn.Clear();
             }
 
             var sourceKeys = sourceRecord.Keys;
@@ -1549,31 +1567,31 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 var sourceKey = sourceKeys.FirstOrDefault(x => x.Equals(colInfo.ColumnCode, StringComparison.OrdinalIgnoreCase));
                 if (sourceKey is not null)
                 {
-                    sourceColumnMapToTargetColumn.Add(sourceKey, colInfo);
+                    targetColumnMapToSourceColumn.Add(colInfo.ColumnCode, sourceKey);
                 }
             }
         }
         /// <summary>
         /// 获取数据迁移的SQL语句, 包含删除已存在的数据和插入新数据的SQL语句; 目标表不存在则创建
         /// </summary>
-        /// <param name="sourceConn"></param>
+        /// <param name="sourceConnStr"></param>
         /// <param name="sourceTableName"></param>
         /// <param name="targetConn"></param>
         /// <param name="targetTable"></param>
         /// <param name="filter"></param>
         /// <returns></returns>
-        public static async IAsyncEnumerable<TableSqlInfo> GetDataTransferSqlInfosAsync(
-            IDbConnection sourceConn,
+        public static async IAsyncEnumerable<List<TableSqlInfo>> GetDataTransferSqlInfosAsync(
+            string sourceConnStr,
             string sourceTableName,
             IDbConnection targetConn,
             string? targetTable = null,
             DataFilter? filter = null)
         {
             #region 获取源表的所有字段信息
-            var sourceDbType = GetDbType(sourceConn.ConnectionString);
+            var sourceDbType = GetDbType(sourceConnStr);
             var sourceTableStatement = GetTableStatement(sourceTableName, sourceDbType);
 
-            IEnumerable<ColumnInfo> sourceColInfos = await GetTableColumnsInfoAsync(sourceConn, sourceTableName);
+            IEnumerable<ColumnInfo> sourceColInfos = await GetTableColumnsInfoAsync(sourceConnStr, sourceTableName);
             string[] sourcePrimaryKeys = sourceColInfos.Where(x => x.IsPK == 1 && !string.IsNullOrWhiteSpace(x.ColumnCode)).Select(x => x.ColumnCode).ToArray();
             if (sourcePrimaryKeys.Length == 0)
             {
@@ -1597,19 +1615,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
 
             // 目标数据表不存在则创建
             await CreateTableIfNotExistAsync(targetConn, targetTable, sourceColInfos);
-
-            var readAllPkValuesStart = DateTime.Now;
-            List<string> targetPkValues = await GetTableAllPkValuesAsync(targetConn, targetTableStatement, sourcePrimaryKeys, null);
-            var readAllPkValuesEnd = DateTime.Now;
-            var readAllPkValuesSeconds = (readAllPkValuesEnd - readAllPkValuesStart).TotalSeconds;
-            if (readAllPkValuesSeconds > 30)
-            {
-                LoggerHelper.LogCritical($"获取目标表{targetTable}所有记录({targetPkValues.Count})的主键值完毕, 消耗{DateTimeHelper.FormatSeconds(readAllPkValuesSeconds)}/s");
-            }
             #endregion
-
-            // null表示未查询过目标表的主键值, 查询一次; 若为空集合则认为目标表数据为空, 保留空集合
-            targetPkValues ??= (await targetConn.QueryAsync<string>($"select {string.Join(',', sourcePrimaryKeys)} from {targetTableStatement}")).ToList();
 
             if (sourceTableName.StartsWith('_'))
             {
@@ -1618,48 +1624,319 @@ namespace Sylas.RemoteTasks.Database.SyncBase
 
             int pageIndex = 1;
 
-            #region 获取目标表的数据
-            // : @
-            var dbVarFlag = GetDbParameterFlag(targetConn.ConnectionString);
-
+            #region 获取目标表的信息
             IEnumerable<ColumnInfo> targetColInfos = await GetTableColumnsInfoAsync(targetConn, targetTable);
             string[] sourceFields = sourceColInfos.Select(x => x.ColumnCode).ToArray();
             targetColInfos = targetColInfos.Where(x => sourceFields.Contains(x.ColumnCode, StringComparer.OrdinalIgnoreCase));
-            // columnsStatement =           "Name, Age"
-            string columnsStatement = GetFieldsStatement(targetColInfos, targetDbType);
             #endregion
 
-            // 记录数据源字段名和目标表字段的映射关系
-            Dictionary<string, ColumnInfo> sourceColumnMapToTargetColumn = [];
+            // 目标字段和源字段的映射
+            Dictionary<string, string> targetColumnMapToSource = [];
+            bool queryEnd = false;
+            const int queryConnCount = 100;
             while (true)
             {
                 #region 获取源表数据
-                IEnumerable<IDictionary<string, object>> datalist = [];
+                ConcurrentBag<IEnumerable<IDictionary<string, object?>>> datalists = [];
+                DateTime start = DateTime.Now;
                 try
                 {
-                    List<OrderField> orderRules = sourcePrimaryKeys.Select(x => new OrderField { FieldName = x, IsAsc = true }).ToList();
-                    datalist = (await QueryPagedDataAsync<IDictionary<string, object>>(sourceTableStatement, pageIndex, 3000, sourceConn, filter, orderRules)).Data;
+                    List<Task> queryTasks = [];
+                    LoggerHelper.LogInformation($"开始{queryConnCount}线程同时查询源表(pageIndex:{pageIndex} - {pageIndex + queryConnCount - 1})");
+                    for (int i = 0; i < queryConnCount; i++)
+                    {
+                        int page = pageIndex + i;
+                        Task task = Task.Run(async () =>
+                        {
+                            using var targetConnQuery = GetDbConnection(sourceConnStr);
+                            targetConnQuery.Open();
+                            List<OrderField> orderRules = sourcePrimaryKeys.Select(x => new OrderField { FieldName = x, IsAsc = true }).ToList();
+                            var datalist = (await QueryPagedDataAsync<IDictionary<string, object?>>(sourceTableStatement, page, 1000, targetConnQuery, filter, orderRules)).Data;
+                            if (datalist.Any())
+                            {
+                                datalists.Add(datalist);
+                            }
+                            else
+                            {
+                                queryEnd = true;
+                            }
+                        });
+                        queryTasks.Add(task);
+                    }
+                    await Task.WhenAll(queryTasks);
                 }
                 catch (Exception ex)
                 {
                     LoggerHelper.LogInformation($"查询数据出错sourceTable: {sourceTableName}");
                     LoggerHelper.LogInformation(ex.ToString());
                 }
-                if (!datalist.Any())
+                DateTime t1 = DateTime.Now;
+                LoggerHelper.LogInformation($"获取源表{datalists.Select(x => x.Count()).Sum()}条数据(PageIndex:{pageIndex})耗时:{(t1 - start).TotalSeconds}/s");
+                if (!datalists.Any())
                 {
                     yield break;
                 }
                 #endregion
 
                 #region 数据源字段名和目标表字段的映射关系
-                if (sourceColumnMapToTargetColumn.Count == 0)
+                if (targetColumnMapToSource.Count == 0)
                 {
-                    var first = datalist.First();
-                    GetSourceColumnTargetColumnMap(first, sourceColInfos, sourceColumnMapToTargetColumn);
+                    var first = datalists.First().First();
+                    GetSourceColumnTargetColumnMap(first, sourceColInfos, targetColumnMapToSource);
                 }
                 #endregion
 
-                #region 对比原表和目标表数据, 目标表没有的数据就创建对应的insert语句
+                yield return GetDataTransferSqlInfoAsync(
+                    datalists,
+                    sourcePrimaryKeys,
+                    targetTableStatement,
+                    targetColInfos,
+                    targetDbType,
+                    targetColumnMapToSource
+                );
+
+                if (queryEnd)
+                {
+                    LoggerHelper.LogCritical($"queryEnd:{queryEnd}, 查询结束");
+                    yield break;
+                }
+                pageIndex += queryConnCount;
+            }
+        }
+
+        /// <summary>
+        /// 获取数据迁移的SQL语句, 包含删除已存在的数据和插入新数据的SQL语句; 目标表不存在则创建
+        /// </summary>
+        /// <param name="sourceConnStr"></param>
+        /// <param name="sourceTableName"></param>
+        /// <param name="targetConn"></param>
+        /// <param name="targetTable"></param>
+        /// <param name="filter"></param>
+        /// <returns></returns>
+        public static async IAsyncEnumerable<List<TableSqlInfo>> GetDataTransferSqlInfosByDataReaderAsync(
+            string sourceConnStr,
+            string sourceTableName,
+            IDbConnection targetConn,
+            string? targetTable = null,
+            DataFilter? filter = null)
+        {
+            #region 获取源表的所有字段信息
+            var sourceDbType = GetDbType(sourceConnStr);
+            var sourceTableStatement = GetTableStatement(sourceTableName, sourceDbType);
+
+            IEnumerable<ColumnInfo> sourceColInfos = await GetTableColumnsInfoAsync(sourceConnStr, sourceTableName);
+            string[] sourcePrimaryKeys = sourceColInfos.Where(x => x.IsPK == 1 && !string.IsNullOrWhiteSpace(x.ColumnCode)).Select(x => x.ColumnCode).ToArray();
+            if (sourcePrimaryKeys.Length == 0)
+            {
+                sourcePrimaryKeys = [sourceColInfos.First().ColumnCode];
+            }
+            #endregion
+
+            #region 获取表在目标库中的所有数据的主键值集合
+            var targetDbType = GetDbType(targetConn.ConnectionString);
+            if (string.IsNullOrWhiteSpace(targetTable))
+            {
+                targetTable = sourceTableName;
+            }
+
+            string targetTableStatement = GetTableStatement(targetTable, targetDbType);
+
+            if (targetDbType == DatabaseType.SqlServer)
+            {
+                targetTableStatement = $"[dbo].{targetTableStatement}";
+            }
+
+            // 目标数据表不存在则创建
+            await CreateTableIfNotExistAsync(targetConn, targetTable, sourceColInfos);
+            #endregion
+
+            if (sourceTableName.StartsWith('_'))
+            {
+                yield break;
+            }
+
+            #region 获取目标表的信息
+            IEnumerable<ColumnInfo> targetColInfos = await GetTableColumnsInfoAsync(targetConn, targetTable);
+            string[] sourceFields = sourceColInfos.Select(x => x.ColumnCode).ToArray();
+            targetColInfos = targetColInfos.Where(x => sourceFields.Contains(x.ColumnCode, StringComparer.OrdinalIgnoreCase));
+            #endregion
+
+            Queue<List<IDictionary<string, object?>>> _transferQueue = new();
+            bool _stopEnqueue = false;
+            bool _queryCompleteCompleted = false;
+            const int _transferQueueMaxLength = 100;
+            // 目标字段和源字段的映射
+            Dictionary<string, string> targetColumnMapToSource = [];
+            while (true)
+            {
+                //ConcurrentBag<IEnumerable<IDictionary<string, object>>> datalists = [];
+                DateTime start = DateTime.Now;
+                #region 获取100组数据
+                List<IDictionary<string, object?>> datalist = [];
+                Task queryTask = Task.Run(async () =>
+                {
+                    using var sourceConn = GetDbConnection(sourceConnStr);
+                    try
+                    {
+                        using var reader = await sourceConn.ExecuteReaderAsync($"select * from {sourceTableStatement}", commandTimeout: 60 * 60);
+                        int queryedRecordsCount = 0;
+                        while (true)
+                        {
+                            if (queryedRecordsCount == 0)
+                            {
+                                start = DateTime.Now;
+                            }
+                            if (sourceConn.State == ConnectionState.Closed)
+                            {
+                                sourceConn.Open();
+                            }
+                            bool readed = reader.Read();
+                            if (!readed)
+                            {
+                                break;
+                            }
+                            IDictionary<string, object?> record = new Dictionary<string, object?>();
+                            int sourceColIndex = 0;
+                            foreach (var sourceColInfo in sourceColInfos)
+                            {
+                                var val = reader.GetValue(sourceColIndex);
+                                if (val.GetType() == typeof(DBNull))
+                                {
+                                    val = null;
+                                }
+                                record[sourceColInfo.ColumnCode] = val;
+                                sourceColIndex++;
+                            }
+                            datalist.Add(record);
+                            queryedRecordsCount++;
+                            
+                            if (datalist.Count > 0 && datalist.Count % 1000 == 0)
+                            {
+                                _transferQueue.Enqueue(datalist);
+                                datalist = [];
+
+                                if (_transferQueue.Count >= _transferQueueMaxLength)
+                                {
+                                    DateTime t1 = DateTime.Now;
+                                    LoggerHelper.LogInformation($"已获取源表{queryedRecordsCount}条数据(队列长度{_transferQueue.Count}到达队列最大长度{_transferQueueMaxLength}), 耗时:{DateTimeHelper.FormatSeconds((t1 - start).TotalSeconds)}");
+                                    _stopEnqueue = true;
+                                }
+                            }
+
+                            int waitedSeconds = 0;
+                            while (_stopEnqueue)
+                            {
+                                await Task.Delay(1000);
+                                waitedSeconds++;
+                                if (waitedSeconds == 1 || waitedSeconds % 10 == 0)
+                                {
+                                    LoggerHelper.LogInformation($"数据迁移中, 暂停查询, 已经等待{DateTimeHelper.FormatSeconds(waitedSeconds)}");
+                                }
+                                if (_transferQueue.Count < _transferQueueMaxLength)
+                                {
+                                    _stopEnqueue = false;
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        LoggerHelper.LogInformation($"查询数据出错sourceTable: {sourceTableName}");
+                        LoggerHelper.LogInformation(ex.ToString());
+                        LoggerHelper.LogError($"连接状态:{sourceConn.State};超时时间:{sourceConn.ConnectionTimeout}");
+                    }
+                    _queryCompleteCompleted = true;
+                });
+                #endregion
+
+                List<List<IDictionary<string, object?>>> datalists = [];
+                while (true)
+                {
+                    if (_transferQueue.TryDequeue(out List<IDictionary<string, object?>> list))
+                    {
+                        datalists.Add(list);
+                        // 一次取10个元素(每个1000条数据, 供10000)
+                        if (datalists.Count > 0 && datalists.Count % 10 == 0)
+                        {
+                            #region 数据源字段名和目标表字段的映射关系
+                            if (targetColumnMapToSource.Count == 0)
+                            {
+                                var first = datalists.First().First();
+                                GetSourceColumnTargetColumnMap(first, sourceColInfos, targetColumnMapToSource);
+                            }
+                            #endregion
+
+                            yield return GetDataTransferSqlInfoAsync(
+                                datalists,
+                                sourcePrimaryKeys,
+                                targetTableStatement,
+                                targetColInfos,
+                                targetDbType,
+                                targetColumnMapToSource
+                            );
+
+                            _stopEnqueue = false;
+                            // 重置datalists
+                            datalists.Clear();
+                        }
+                    }
+                    else if (_queryCompleteCompleted)
+                    {
+                        if (datalists.Count > 0 || datalist.Count > 0)
+                        {
+                            datalists.Add(datalist);
+                            LoggerHelper.LogInformation($"最后一次迁移, 剩余数据: {datalists.Select(x => x.Count).Sum()}");
+                            #region 数据源字段名和目标表字段的映射关系
+                            if (targetColumnMapToSource.Count == 0)
+                            {
+                                var first = datalists.First().First();
+                                GetSourceColumnTargetColumnMap(first, sourceColInfos, targetColumnMapToSource);
+                            }
+                            #endregion
+
+                            yield return GetDataTransferSqlInfoAsync(
+                                datalists,
+                                sourcePrimaryKeys,
+                                targetTableStatement,
+                                targetColInfos,
+                                targetDbType,
+                                targetColumnMapToSource
+                            );
+                        }
+                        Console.WriteLine($"队列中无数据并且查询状态标记为已结束, 后台查询任务状态:{queryTask.Status}");
+                        yield break;
+                    }
+                    else
+                    {
+                        await Task.Delay(100);
+                    }
+                }
+            }
+        }
+        /// <summary>
+        /// 获取数据迁移的SQL语句, 包含删除已存在的数据和插入新数据的SQL语句
+        /// </summary>
+        /// <param name="datalists"></param>
+        /// <param name="sourcePrimaryKeys"></param>
+        /// <param name="targetTableStatement"></param>
+        /// <param name="targetColInfos"></param>
+        /// <param name="targetDbType"></param>
+        /// <param name="targetColumnMapToSource"></param>
+        /// <returns></returns>
+        static List<TableSqlInfo> GetDataTransferSqlInfoAsync(
+            IEnumerable<IEnumerable<IDictionary<string, object?>>> datalists,
+            string[] sourcePrimaryKeys,
+            string targetTableStatement,
+            IEnumerable<ColumnInfo> targetColInfos,
+            DatabaseType targetDbType,
+            Dictionary<string, string> targetColumnMapToSource
+        )
+        {
+            List<TableSqlInfo> tableSqlInfos = [];
+            // 为数据源中的每一条数据生成对应的insert语句的部分
+            foreach (var datalist in datalists)
+            {
+                #region 创建对应的insert, delete语句
                 var insertSqlBuilder = new StringBuilder();
                 var deleteExistSqlBuilder = new StringBuilder();
                 // sql语句参数
@@ -1668,22 +1945,18 @@ namespace Sylas.RemoteTasks.Database.SyncBase
 
                 // 参数名后缀(第一条数据的Name字段, 参数名为Name1, 第二条为Name2, ...)
                 var random = 0;
-
-                // 为数据源中的每一条数据生成对应的insert语句的部分
-                foreach (IDictionary<string, object> dataItem in datalist)
+                
+                foreach (IDictionary<string, object?> dataItem in datalist)
                 {
-                    var dataItemPkValues = sourcePrimaryKeys.Select(x => dataItem[x].ToString()).ToArray();
+                    var dataItemPkValues = sourcePrimaryKeys.Select(x => dataItem[x]?.ToString() ?? string.Empty).ToArray();
                     string dataItemPkValue = string.Join(',', dataItemPkValues);
-                    // 重复的数据先删除老的再插入新的达到更新的目的
-                    if (targetPkValues.Count > 0 && targetPkValues.Contains(dataItemPkValue))
-                    {
-                        // ,@Id1
-                        string deleteSqlCurrentRecordPart = GenerateDeleteExistSql(targetTableStatement, sourcePrimaryKeys, dataItemPkValues, deleteExistParameters, dbVarFlag, random);
-                        deleteExistSqlBuilder.Append(deleteSqlCurrentRecordPart);
-                    }
+
+                    string targetDbVarFlag = GetDbParameterFlag(targetDbType);
+                    string deleteSqlCurrentRecordPart = GenerateDeleteExistSql(targetTableStatement, sourcePrimaryKeys, dataItemPkValues, deleteExistParameters, targetDbVarFlag, random);
+                    deleteExistSqlBuilder.Append(deleteSqlCurrentRecordPart);
 
                     // "@Name1, @Age1"
-                    string valuesStatement = GenerateRecordValuesStatement(dataItem, targetColInfos, parameters, dbVarFlag, random);
+                    string valuesStatement = GenerateRecordValuesStatement(dataItem, targetColInfos, parameters, targetDbVarFlag, targetColumnMapToSource, random);
                     // ("@Name1, :Age1"),
                     string currentRecordSql = $"({valuesStatement}),{Environment.NewLine}";
 
@@ -1691,13 +1964,15 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                     random++;
                 }
 
+                // columnsStatement =           "Name, Age"
+                string targetColumnsStatement = GetFieldsStatement(targetColInfos, targetDbType);
                 // 最终的insert语句
-                var targetTableAllDataInsertSql = GetBatchInsertSql(targetTableStatement, columnsStatement, insertSqlBuilder.ToString(), targetDbType);
+                var targetTableAllDataInsertSql = GetBatchInsertSql(targetTableStatement, targetColumnsStatement, insertSqlBuilder.ToString(), targetDbType);
                 var targetTableDeleteExistSql = GetBatchDeleteSql(targetTableStatement, deleteExistSqlBuilder.ToString(), sourcePrimaryKeys, targetDbType);
                 #endregion
-                yield return new TableSqlInfo
+                var tableSqlInfo = new TableSqlInfo
                 {
-                    TableName = sourceTableName,
+                    TableName = GetTableOriginName(targetTableStatement),
 
                     BatchInsertSqlInfo = new SqlInfo()
                     {
@@ -1711,8 +1986,9 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                         Parameters = deleteExistParameters
                     }
                 };
-                pageIndex++;
+                tableSqlInfos.Add(tableSqlInfo);
             }
+            return tableSqlInfos;
         }
         /// <summary>
         /// 获取一个库中的所有表
@@ -2162,17 +2438,24 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// <summary>
         /// 根据一条数据 生成对应的insert语句的值(参数)部分 @Name1,@Age1
         /// </summary>
-        /// <param name="record"></param>
+        /// <param name="sourceRecord"></param>
         /// <param name="targetColInfos"></param>
         /// <param name="parameters"></param>
         /// <param name="dbVarFlag"></param>
+        /// <param name="targetColumnMapToSource"></param>
         /// <param name="random"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        static string GenerateRecordValuesStatement(object record, IEnumerable<ColumnInfo> targetColInfos, Dictionary<string, object?> parameters, string dbVarFlag, int random = 0)
+        static string GenerateRecordValuesStatement(object sourceRecord,
+            IEnumerable<ColumnInfo> targetColInfos,
+            Dictionary<string, object?> parameters,
+            string dbVarFlag,
+            Dictionary<string, string> targetColumnMapToSource,
+            int random = 0
+        )
         {
             var valueBuilder = new StringBuilder();
-            if (record is DataRow dataItem)
+            if (sourceRecord is DataRow dataItem)
             {
                 // 处理一条数据
                 foreach (var colInfo in targetColInfos)
@@ -2182,7 +2465,8 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                     {
                         throw new Exception($"包含空字段");
                     }
-                    var columnValue = dataItem[columnCode];
+                    string dataKey = targetColumnMapToSource is null || targetColumnMapToSource.Count == 0 ? columnCode : targetColumnMapToSource[columnCode];
+                    var columnValue = dataItem[dataKey];
                     var columnType = colInfo.ColumnType ?? string.Empty;
                     var parameterName = $"{columnCode}{random}";
 
@@ -2191,7 +2475,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                     parameters.Add(parameterName, GetColumnValue(columnValue, columnType));
                 }
             }
-            else if (record is IDictionary<string, object> recordDictionary)
+            else if (sourceRecord is IDictionary<string, object> recordDictionary)
             {
                 // 遍历targetColInfos目的是以目标表的字段为基准(有哪些字段用哪些字段, 并且生成的SQL语句字段顺序与目标表保持一致)
                 foreach (var targetColInfo in targetColInfos)
@@ -2218,33 +2502,10 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                     }
                     parameters.Add(paramName, parameterValue);
                 }
-                //foreach (var k in recordDictionary.Keys)
-                //{
-                //    if (sourceColumnMapToTargetColumn is not null && sourceColumnMapToTargetColumn.Any() && !sourceColumnMapToTargetColumn.TryGetValue(k, out ColumnInfo targetCol))
-                //    {
-                //        continue;
-                //    }
-                //    else
-                //    {
-                //        targetCol = targetColInfos.FirstOrDefault(x => x.ColumnCode.Equals(k, StringComparison.OrdinalIgnoreCase));
-                //        if (targetCol is null)
-                //        {
-                //            continue;
-                //        }
-                //    }
-                //    var paramName = $"{targetCol.ColumnCode}{random}";
-                //    valueBuilder.Append($"{dbVarFlag}{paramName},");
-                //    var parameterValue = recordDictionary[k];
-                //    if (targetCol.ColumnCSharpType == "datetime" && parameterValue is string)
-                //    {
-                //        parameterValue = string.IsNullOrWhiteSpace($"{parameterValue}") ? null : DateTime.Parse(parameterValue.ToString());
-                //    }
-                //    parameters.Add(paramName, parameterValue);
-                //}
             }
             else
             {
-                IEnumerable<JProperty> properties = record is JObject recordJObj ? recordJObj.Properties() : JObject.FromObject(record).Properties() ?? throw new Exception($"record不是DataRow或者记录对应的对象类型");
+                IEnumerable<JProperty> properties = sourceRecord is JObject recordJObj ? recordJObj.Properties() : JObject.FromObject(sourceRecord).Properties() ?? throw new Exception($"record不是DataRow或者记录对应的对象类型");
 
                 foreach (var targetColInfo in targetColInfos)
                 {
@@ -2270,27 +2531,6 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                     }
                     parameters.Add(paramName, parameterValue);
                 }
-                //foreach (var p in properties)
-                //{
-                //    if (sourceColumnMapToTargetColumn is not null && sourceColumnMapToTargetColumn.Any() && !sourceColumnMapToTargetColumn.TryGetValue(p.Name, out ColumnInfo targetCol))
-                //    {
-                //        continue;
-                //    }
-                //    else
-                //    {
-                //        targetCol = targetColInfos.FirstOrDefault(x => x.ColumnCode.Equals(p.Name, StringComparison.OrdinalIgnoreCase));
-                //        if (targetCol is null)
-                //        {
-                //            continue;
-                //        }
-                //    }
-
-                //    var paramName = $"{targetCol.ColumnCode}{random}";
-                //    valueBuilder.Append($"{dbVarFlag}{paramName},");
-
-                //    dynamic? pVal = GetColumnValue(p, targetCol);
-                //    parameters.Add(paramName, pVal);
-                //}
             }
             return valueBuilder.ToString().TrimEnd(',');
         }
@@ -3150,6 +3390,20 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             var reader = await conn.ExecuteReaderAsync(sql, param: parameters, transaction: transaction);
             dataTable.Load(reader);
             return dataTable;
+        }
+        /// <summary>
+        /// 执行查询
+        /// </summary>
+        /// <param name="conn"></param>
+        /// <param name="sql"></param>
+        /// <param name="parameters"></param>
+        /// <param name="transaction"></param>
+        /// <returns></returns>
+        public static async Task<IDataReader> QueryReaderAsync(IDbConnection conn, string sql, object? parameters, IDbTransaction? transaction)
+        {
+            var dataTable = new DataTable();
+            var reader = await conn.ExecuteReaderAsync(sql, param: parameters, transaction: transaction);
+            return reader;
         }
         /// <summary>
         /// 是否已经存在于Target中

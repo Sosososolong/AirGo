@@ -8,9 +8,10 @@
 @* @section Scripts
 {
 } *@
-<script src="/js/anything.js"></script>
-@* <script>
-         const frequency = 200;
+@*只有第一次会加载js文件, 再次打开页面不会加载js*@
+@* <script src="/js/anything.js"></script> *@
+<script>
+    const frequency = 200;
     async function executeCommand(commandId, commandName, executeBtn) {
         document.querySelector('.data-right-pannel').innerHTML = '';
         const requestBody = JSON.stringify({ commandId });
@@ -681,7 +682,4 @@
             () => loadCommandsAsync(document.querySelector(`.anything-card-${id}`).closest('.card').querySelector('.card-title'), id, true)
         );
     }
-
 </script>
-
- *@

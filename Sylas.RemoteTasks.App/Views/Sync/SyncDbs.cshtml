@@ -1,4 +1,6 @@
 @{
+
+    Layout = null;
     ViewData["Title"] = "Sync Databases";
 }
 
@@ -26,76 +28,78 @@
             <input type="text" id="targetTable" name="targetTable" class="form-control form-control-sm">
         </div>
         <div class="col-sm-12">
-            <button class="btn btn-primary mt-3 btn-sm sync-btn" type="button" onclick="syncDbAsync()">开始同步</button>
+            <button class="btn btn-primary mt-3 btn-sm sync-btn" type="button">开始同步</button>
         </div>
     </div>
 </form>
 
-@section Scripts {
-    <script>
-        const bodyObj = {
-            pageIndex: 1,
-            pageSize: 100
+@* @section Scripts {
+} *@
+<script>
+    const bodyObj = {
+        pageIndex: 1,
+        pageSize: 100
+    };
+    const body = JSON.stringify(bodyObj);
+    httpRequestDataAsync(`/Database/ConnectionStrings`, null, 'POST', body)
+        .then(rsp => {
+            const connectionStrings = rsp.data;
+            let options = '';
+            connectionStrings.sort((item1, item2) => item1['orderNo'] > item2['orderNo'] ? 1 : -1);
+            for (let i = 0; i < connectionStrings.length; i++) {
+                options += `<option value="${connectionStrings[i].id}">${connectionStrings[i].name}</option>`
+            }
+            document.querySelector('#sourceConnectionString').innerHTML = `<option conn-id="0" value="">请选择</options>${options}`;
+            document.querySelector('#targetConnectionString').innerHTML = `<option conn-id="0" value="">请选择</options>${options}`;
+        })
+    
+    async function syncDbAsync() {
+        const source = document.querySelector('#sourceConnectionString')
+        if (!source.value) {
+            showErrorBox("请先选择源数据库")
+            return
+        }
+        const sourceConnId = source.value
+
+        const target = document.querySelector('#targetConnectionString')
+        if (!target.value) {
+            showErrorBox("请先选择目标数据库")
+            return
+        }
+        const targetConnId = target.value
+
+        const syncParams = {
+            sourceConnectionString: sourceConnId,
+            sourceTable: document.querySelector('#sourceTable').value,
+            targetConnectionString: targetConnId,
+            targetTable: document.querySelector('#targetTable').value
+        }
+        const exeParams = {
+            dataContent: JSON.stringify(syncParams),
+            dataExecuteUrl: '/Sync/Transfer',
+            dataMethod: 'POST',
+            trigger: document.querySelector('.sync-btn')
         };
-        const body = JSON.stringify(bodyObj);
-        httpRequestDataAsync(`/Database/ConnectionStrings`, null, 'POST', body)
-            .then(rsp => {
-                connectionStrings = rsp.data;
-                let options = '';
-                connectionStrings.sort((item1, item2) => item1['orderNo'] > item2['orderNo'] ? 1 : -1);
-                for (let i = 0; i < connectionStrings.length; i++) {
-                    options += `<option value="${connectionStrings[i].id}">${connectionStrings[i].name}</option>`
-                }
-                document.querySelector('#sourceConnectionString').innerHTML = `<option conn-id="0" value="">请选择</options>${options}`;
-                document.querySelector('#targetConnectionString').innerHTML = `<option conn-id="0" value="">请选择</options>${options}`;
-            })
+        await execute(exeParams);
+    }
 
-        async function syncDbAsync() {
-            const source = document.querySelector('#sourceConnectionString')
-            if (!source.value) {
-                showErrorBox("请先选择源数据库")
-                return
-            }
-            const sourceConnId = source.value
-
-            const target = document.querySelector('#targetConnectionString')
-            if (!target.value) {
-                showErrorBox("请先选择目标数据库")
-                return
-            }
-            const targetConnId = target.value
-
-            const syncParams = {
-                sourceConnectionString: sourceConnId,
-                sourceTable: document.querySelector('#sourceTable').value,
-                targetConnectionString: targetConnId,
-                targetTable: document.querySelector('#targetTable').value
-            }
-            const exeParams = {
-                dataContent: JSON.stringify(syncParams),
-                dataExecuteUrl: '/Sync/Transfer',
-                dataMethod: 'POST',
-                trigger: document.querySelector('.sync-btn')
-            };
-            await execute(exeParams);
+    function switchSourceAndTarget() {
+        const sourceControl = document.querySelector('#sourceConnectionString')
+        const targetControl = document.querySelector('#targetConnectionString')
+        if (sourceControl.value || targetControl.value) {
+            const sourceTempValue = sourceControl.value;
+            sourceControl.value = targetControl.value
+            targetControl.value = sourceTempValue
         }
 
-        function switchSourceAndTarget() {
-            const sourceControl = document.querySelector('#sourceConnectionString')
-            const targetControl = document.querySelector('#targetConnectionString')
-            if (sourceControl.value || targetControl.value) {
-                const sourceTempValue = sourceControl.value;
-                sourceControl.value = targetControl.value
-                targetControl.value = sourceTempValue
-            }
-
-            const sourceTable = document.querySelector('#sourceTable')
-            const targetTable = document.querySelector('#targetTable')
-            if (sourceTable.value || targetTable.value) {
-                const sourceTempValue = sourceTable.value;
-                sourceTable.value = targetTable.value
-                targetTable.value = sourceTempValue
-            }
+        const sourceTable = document.querySelector('#sourceTable')
+        const targetTable = document.querySelector('#targetTable')
+        if (sourceTable.value || targetTable.value) {
+            const sourceTempValue = sourceTable.value;
+            sourceTable.value = targetTable.value
+            targetTable.value = sourceTempValue
         }
-    </script>
-}
+    }
+
+    document.querySelector('.sync-btn').onclick = syncDbAsync
+</script>
