@@ -914,7 +914,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// 同步数据库
         /// </summary>
         /// <exception cref="Exception"></exception>
-        public static async Task TransferDataAsync(string sourceConnectionString, string targetConnectionString, string sourceDb = "", string sourceTable = "", string targetTable = "", bool ignoreException = false, Func<string, bool>? tableCondition = null)
+        public static async Task TransferDataAsync(string sourceConnectionString, string targetConnectionString, string sourceDb = "", string sourceTable = "", string targetTable = "", bool ignoreException = false, Func<string, bool>? tableCondition = null, bool insertOnly = false)
         {
             DateTime start = DateTime.Now;
             if (!string.IsNullOrWhiteSpace(sourceTable) && string.IsNullOrWhiteSpace(targetTable))
@@ -957,75 +957,90 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 //IAsyncEnumerable<List<TableSqlInfo>> tableSqlsInfoCollection = GetDataTransferSqlInfosAsync(sourceConnectionString, sourceTableName, targetConnQuery, targetTable);
                 IAsyncEnumerable<List<TableSqlInfo>> tableSqlsInfoCollection = GetDataTransferSqlInfosByDataReaderAsync(sourceConnectionString, sourceTableName, targetConnQuery, targetTable);
 
-                List<Task<(int, int)>> transferTasks = [];
+                List<Task> transferTasks = [];
                 // 2. 执行每个表的insert语句
-                int deletedRows = 0;
-                int addedRows = 0;
+                int allTransferCount = 0;
+                DateTime t1 = DateTime.Now;
                 await foreach (var tableSqlsInfos in tableSqlsInfoCollection)
                 {
-                    transferTasks.AddRange(tableSqlsInfos.Select(tableSqlsInfo => TransferByTableSqlsInfoAsync(tableSqlsInfo, targetConnectionString, targetTable, ignoreException)));
+                    int perBatchCount = Convert.ToInt32(Regex.Match(tableSqlsInfos.First().BatchInsertSqlInfo.Parameters.Last().Key, @"\d+").Value) + 1;
+                    int batchNumber = 1;
+                    foreach (var tableSqlsInfo in tableSqlsInfos)
+                    {
+                        // TODO: 这里不知道为什么不用Task.Run是串行执行
+                        var task = insertOnly
+                            ? Task.Run(() => TransferByTableSqlsInfoAsync(tableSqlsInfo, targetConnectionString, targetTable, ignoreException, insertOnly))
+                            : TransferByTableSqlsInfoAsync(tableSqlsInfo, targetConnectionString, targetTable, ignoreException, insertOnly);
+                        transferTasks.Add(task);
+                        batchNumber++;
+                    }
                     // 3. 等待所有迁移语句执行完成
                     await Task.WhenAll(transferTasks);
-                    foreach (var t in transferTasks)
-                    {
-                        var transferResult = await t;
-                        deletedRows += transferResult.Item1;
-                        addedRows += transferResult.Item2;
-                    }
-                    LoggerHelper.LogInformation($"已删除{deletedRows}; 已添加{addedRows}");
-
+                    int transferCount = tableSqlsInfos.Count * perBatchCount;
+                    allTransferCount += transferCount;
+                    LoggerHelper.LogInformation($"表{sourceTableName}迁移{transferCount}/{allTransferCount}条记录, 耗时:{DateTimeHelper.FormatSeconds((DateTime.Now - t1).TotalSeconds)}");
+                    
                     transferTasks.Clear();
+                    t1 = DateTime.Now;
                 }
             }
             LoggerHelper.LogInformation($"迁移结束, 耗时:{DateTimeHelper.FormatSeconds((DateTime.Now - start).TotalSeconds)}");
         }
 
-        static async Task<(int, int)> TransferByTableSqlsInfoAsync(TableSqlInfo tableSqlsInfo, string targetConnectionString, string targetTable, bool ignoreException = false)
+        static async Task<(int, int)> TransferByTableSqlsInfoAsync(TableSqlInfo tableSqlsInfo, string targetConnectionString, string targetTable, bool ignoreException = false, bool insertOnly = false)
         {
+            int deletedRows = 0;
+            int affectedRowsCount = 0;
             var targetDbType = GetDbType(targetConnectionString);
             using var targetConnTransfer = GetDbConnection(targetConnectionString);
             targetConnTransfer.Open();
-            using var transferTransaction = targetConnTransfer.BeginTransaction();
-            int deletedRows = 0;
-            int affectedRowsCount = 0;
-            if (!string.IsNullOrWhiteSpace(tableSqlsInfo.DeleteExistSqlInfo.Sql))
+            try
             {
-                deletedRows = await targetConnTransfer.ExecuteAsync(tableSqlsInfo.DeleteExistSqlInfo.Sql, tableSqlsInfo.DeleteExistSqlInfo.Parameters, transaction: transferTransaction);
-                //LoggerHelper.LogInformation($"{targetTable}删除已存在的数据: {deletedRows}");
-            }
-            if (!string.IsNullOrEmpty(tableSqlsInfo.BatchInsertSqlInfo.Sql))
-            {
-                try
+                if (insertOnly)
                 {
-                    affectedRowsCount = await targetConnTransfer.ExecuteAsync(tableSqlsInfo.BatchInsertSqlInfo.Sql, tableSqlsInfo.BatchInsertSqlInfo.Parameters, transaction: transferTransaction);
-                    if (targetDbType == DatabaseType.Oracle && affectedRowsCount == -1)
+                    if (!string.IsNullOrEmpty(tableSqlsInfo.BatchInsertSqlInfo.Sql))
                     {
-                        affectedRowsCount = Regex.Matches(tableSqlsInfo.BatchInsertSqlInfo.Sql, @"insert", RegexOptions.IgnoreCase).Count;
-                    }
-                    //LoggerHelper.LogInformation($"{targetTable}添加数据: {affectedRowsCount}");
-                }
-                catch (Exception ex)
-                {
-                    // MySQL偶现了一次表情包无法插入的问题(表和字段字符集都是utf8mb4); 后面测试又都正常了
-                    if (Regex.IsMatch(ex.Message, @"Incorrect string value:") && targetDbType == DatabaseType.MySql)
-                    {
-                        affectedRowsCount = await targetConnTransfer.ExecuteAsync($"SET NAMES utf8mb4;{tableSqlsInfo.BatchInsertSqlInfo.Sql}", tableSqlsInfo.BatchInsertSqlInfo.Parameters, transaction: transferTransaction);
-                        LoggerHelper.LogInformation($"{targetTable}添加数据: {affectedRowsCount}");
-                    }
-                    else
-                    {
-                        LoggerHelper.LogInformation(ex.ToString());
-                        LoggerHelper.LogInformation($"tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql: {tableSqlsInfo.BatchInsertSqlInfo.Sql}");
-                        if (!ignoreException)
+                        affectedRowsCount = await targetConnTransfer.ExecuteAsync(tableSqlsInfo.BatchInsertSqlInfo.Sql, tableSqlsInfo.BatchInsertSqlInfo.Parameters);
+                        if (targetDbType == DatabaseType.Oracle && affectedRowsCount == -1)
                         {
-                            transferTransaction.Rollback();
-                            throw;
+                            affectedRowsCount = Regex.Matches(tableSqlsInfo.BatchInsertSqlInfo.Sql, @"insert", RegexOptions.IgnoreCase).Count;
                         }
-                        transferTransaction.Commit();
                     }
                 }
+                else
+                {
+                    using var transferTransaction = targetConnTransfer.BeginTransaction();
+                    if (!string.IsNullOrWhiteSpace(tableSqlsInfo.DeleteExistSqlInfo.Sql))
+                    {
+                        deletedRows = await targetConnTransfer.ExecuteAsync(tableSqlsInfo.DeleteExistSqlInfo.Sql, tableSqlsInfo.DeleteExistSqlInfo.Parameters, transaction: transferTransaction);
+                        //LoggerHelper.LogInformation($"{targetTable}删除已存在的数据: {deletedRows}");
+                    }
+                    if (!string.IsNullOrEmpty(tableSqlsInfo.BatchInsertSqlInfo.Sql))
+                    {
+                        affectedRowsCount = await targetConnTransfer.ExecuteAsync(tableSqlsInfo.BatchInsertSqlInfo.Sql, tableSqlsInfo.BatchInsertSqlInfo.Parameters, transaction: transferTransaction);
+                        if (targetDbType == DatabaseType.Oracle && affectedRowsCount == -1)
+                        {
+                            affectedRowsCount = Regex.Matches(tableSqlsInfo.BatchInsertSqlInfo.Sql, @"insert", RegexOptions.IgnoreCase).Count;
+                        }
+                    }
+                    transferTransaction.Commit();
+                }
             }
-            transferTransaction.Commit();
+            catch (Exception ex)
+            {
+                // MySQL偶现了一次表情包无法插入的问题(表和字段字符集都是utf8mb4); 后面测试又都正常了
+                if (Regex.IsMatch(ex.Message, @"Incorrect string value:") && targetDbType == DatabaseType.MySql)
+                {
+                    affectedRowsCount = await targetConnTransfer.ExecuteAsync($"SET NAMES utf8mb4;{tableSqlsInfo.BatchInsertSqlInfo.Sql}", tableSqlsInfo.BatchInsertSqlInfo.Parameters);
+                    LoggerHelper.LogInformation($"{targetTable}添加数据: {affectedRowsCount}");
+                }
+                else
+                {
+                    LoggerHelper.LogInformation(ex.ToString());
+                    LoggerHelper.LogInformation($"tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql: {tableSqlsInfo.BatchInsertSqlInfo.Sql}");
+                }
+            }
+
             return (deletedRows, affectedRowsCount);
         }
 
@@ -1856,7 +1871,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                     {
                         datalists.Add(list);
                         // 一次取10个元素(每个1000条数据, 供10000)
-                        if (datalists.Count > 0 && datalists.Count % 10 == 0)
+                        if (datalists.Count > 0 && datalists.Count % 20 == 0)
                         {
                             #region 数据源字段名和目标表字段的映射关系
                             if (targetColumnMapToSource.Count == 0)
