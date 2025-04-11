@@ -79,7 +79,7 @@ namespace Sylas.RemoteTasks.Database
         /// <param name="table"></param>
         /// <param name="records"></param>
         /// <returns></returns>
-        Task<int> InsertDataAsync(string table, IEnumerable<Dictionary<string, object>> records);
+        Task<int> InsertDataAsync(string table, IEnumerable<Dictionary<string, object?>> records);
         /// <summary>
         /// 如果表不存在则创建表
         /// </summary>

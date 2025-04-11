@@ -22,6 +22,7 @@ using System.Data;
 using System.Data.SqlClient;
 using System.IO;
 using System.Linq;
+using System.Net.NetworkInformation;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -717,7 +718,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="table"></param>
         /// <param name="records"></param>
         /// <returns></returns>
-        public async Task<int> InsertDataAsync(string table, IEnumerable<Dictionary<string, object>> records)
+        public async Task<int> InsertDataAsync(string table, IEnumerable<Dictionary<string, object?>> records)
         {
             using var conn = GetDbConnection(_connectionString);
 
@@ -856,10 +857,9 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// </summary>
         /// <param name="connectionString"></param>
         /// <param name="tables"></param>
-        /// <param name="backupPath"></param>
-        /// <param name="backupPointName">备份点名称, 为空则默认以当前时间点为名</param>
+        /// <param name="backupDir"></param>
         /// <returns></returns>
-        public static async Task BackupDataAsync(string connectionString, string tables, string backupPath, string backupPointName = "")
+        public static async Task<string> BackupDataAsync(string connectionString, string tables = "", string backupDir = "")
         {
             IEnumerable<string> tableList;
             using var conn = GetDbConnection(connectionString);
@@ -871,11 +871,16 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             {
                 tableList = tables.Split(';', ',');
             }
-            if (string.IsNullOrWhiteSpace(backupPointName))
+            if (string.IsNullOrWhiteSpace(backupDir))
             {
-                backupPointName = DateTime.Now.ToString("yyyyMMddHHmmss");
+                backupDir = Path.Combine(AppStatus.StaticDirectory, "Backup");
             }
-            string backupDir = Path.Combine(backupPath, backupPointName);
+            else
+            {
+                backupDir = Path.Combine(AppStatus.StaticDirectory, "Backup", backupDir);
+            }
+            string backupNumber = DateTime.Now.ToString("yyyyMMddHHmmss");
+            backupDir = Path.Combine(backupDir, backupNumber);
             if (!Directory.Exists(backupDir))
             {
                 Directory.CreateDirectory(backupDir);
@@ -885,7 +890,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             using var logWriter = new StreamWriter(logFile, false);
             foreach (var table in tableList)
             {
-                string sql = $"select * from {table}";
+                string sql = $"select * from {GetTableStatement(table, GetDbType(conn.ConnectionString))}";
 
                 // 打开一个DataReader之前, 先获取表的字段信息
                 var columns = await GetTableColumnsInfoAsync(conn, table);
@@ -895,20 +900,180 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 string backupFile = Path.Combine(backupDir, table);
 
                 using var writer = new StreamWriter(backupFile, false);
-                await writer.WriteLineAsync(string.Join("|||", columns.Select(x => $"{x.ColumnCode}:{x.ColumnCSharpType}")));
-
+                // 1.第一行记录表字段
+                await writer.WriteLineAsync(JsonConvert.SerializeObject(columns));
                 logWriter.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 开始备份表:{table}");
-
+                // 2. 记录所有行
                 int lines = 0;
                 while (reader.Read())
                 {
                     var values = new object[reader.FieldCount];
                     reader.GetValues(values);
-                    await writer.WriteLineAsync(string.Join("|||", values.Select(x => x.ToString())));
+
+                    var fieldStrVals = GetFieldsStringValues(values, columns.ToArray());
+                    string recordLine = string.Join(',', fieldStrVals);
+                    await writer.WriteLineAsync(recordLine);
                     lines++;
                 }
                 logWriter.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {lines}条记录备份结束");
             }
+            return backupDir;
+        }
+        const int batchSize = 1000;
+        /// <summary>
+        /// 还原数据表
+        /// </summary>
+        /// <param name="connectionString"></param>
+        /// <param name="backupDir"></param>
+        /// <param name="tables"></param>
+        /// <returns></returns>
+        public static async Task RestoreTablesAsync(string connectionString, string backupDir, string tables = "")
+        {
+            tables ??= string.Empty;
+            using var conn = GetDbConnection(connectionString);
+            string[] tableList = [];
+            if (!string.IsNullOrWhiteSpace(tables))
+            {
+                tableList = tables.Split(';', ',');
+            }
+            
+            if (string.IsNullOrWhiteSpace(backupDir))
+            {
+                throw new Exception("数据备份目录不能为空");
+            }
+
+            string logFile = Path.Combine(backupDir, $"restore.log");
+            var files = Directory.GetFiles(backupDir).Where(x => !x.EndsWith(".log"));
+            foreach (var tableFile in files)
+            {
+                string table = tableFile.Replace('\\', '/').Split('/').Last();
+                if (tableList.Length > 0 && !tableList.Contains(table))
+                {
+                    continue;
+                }
+
+                int i = 0;
+                ColumnInfo[] cols = [];
+                //string[] cols = [];
+                List<Dictionary<string, object?>> records = [];
+
+                //string paramFlag = GetDbParameterFlag(GetDbType(conn.ConnectionString));
+                //string colsStatement = string.Empty;
+                //string valuesStatement = string.Empty;
+                foreach (var line in File.ReadLines(tableFile))
+                {
+                    if (i == 0)
+                    {
+                        // 第一行, 字段信息
+                        cols = JsonConvert.DeserializeObject<ColumnInfo[]>(line) ?? throw new Exception("从备份文件解析字段信息失败");
+                        await CreateTableIfNotExistAsync(conn, table, cols);
+                    }
+                    else
+                    {
+                        // 其他行, 数据
+                        var values = line.Split(',');
+                        var parameters = new Dictionary<string, object?>();
+                        for (int j = 0; j < cols.Length; j++)
+                        {
+                            if (j >= values.Length)
+                            {
+                                break;
+                            }
+                            var colInfo = cols[j];
+                            parameters.Add(colInfo.ColumnCode, GetFieldValue(values[j], colInfo.ColumnCSharpType));
+                        }
+                        //if (string.IsNullOrWhiteSpace(colsStatement))
+                        //{
+                        //    colsStatement = string.Join(',', parameters.Select(x => x.Key));
+                        //}
+                        //if (string.IsNullOrWhiteSpace(valuesStatement))
+                        //{
+                        //    valuesStatement = string.Join(',', parameters.Select(x => $"{paramFlag}{x.Key}"));
+                        //}
+                        //try
+                        //{
+                        //    await conn.ExecuteAsync($"SET foreign_key_checks=0; INSERT INTO {table}({colsStatement}) values({valuesStatement}); SET foreign_key_checks=1;", parameters);
+                        //}
+                        //catch (Exception e)
+                        //{
+                        //    LoggerHelper.LogError($"表{table}:" + e.Message);
+                        //}
+                        records.Add(parameters);
+
+                        if (records.Count > 0 && records.Count % batchSize == 0)
+                        {
+                            await InsertDataAsync(conn, table, records);
+                            await File.AppendAllLinesAsync(logFile, [$"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {batchSize}条记录备份结束"]);
+                            records.Clear();
+                        }
+                    }
+                    i++;
+                }
+                if (records.Any())
+                {
+                    await InsertDataAsync(conn, table, records);
+                    await File.AppendAllLinesAsync(logFile, [$"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {records.Count}条记录备份结束, 已还原所有数据"]);
+                }
+                LoggerHelper.LogInformation($"表{table}已还原");
+            }
+        }
+        const string _randomStringForComma = "COMMAFLAGlsjflajflajf238024***%666666^^^^-+Oo)ukj(";
+        const string _randomStringForEnter = "ENTERFLAGlsjflajflajf238024***%666666^^^^-+Oo)ukj(";
+        static string GetFieldStringValue(object origin, ColumnInfo columnInfo)
+        {
+            string strVal;
+            if (columnInfo.ColumnCSharpType == "byte[]")
+            {
+                strVal = origin is not byte[] bytes ? "null" : Convert.ToBase64String(bytes, Base64FormattingOptions.None);
+            }
+            else if (origin is null || origin.GetType() == typeof(DBNull))
+            {
+                strVal = "null";
+            }
+            else
+            {
+                strVal = origin.ToString();
+            }
+            return strVal.Replace(",", _randomStringForComma).Replace("\r\n", _randomStringForEnter).Replace("\n", _randomStringForEnter);
+        }
+        static string[] GetFieldsStringValues(object[] origins, ColumnInfo[] columnInfos)
+        {
+            string[] strVals = new string[origins.Length];
+            for (int i = 0; i < origins.Length; i++)
+            {
+                strVals[i] = GetFieldStringValue(origins[i], columnInfos[i]);
+            }
+            return strVals;
+        }
+        static object? GetFieldValue(string fieldStringValue, string csharpType)
+        {
+            if (fieldStringValue == "null")
+            {
+                return null;
+            }
+            if (csharpType.Equals("int"))
+            {
+                if (fieldStringValue == "True")
+                {
+                    return 1;
+                }
+                if (fieldStringValue == "False")
+                {
+                    return 0;
+                }
+            }
+            object? value = csharpType switch
+            {
+                "int" => Convert.ToInt32(fieldStringValue),
+                "long" => Convert.ToInt64(fieldStringValue),
+                "decimal" => Convert.ToDecimal(fieldStringValue),
+                "double" or "float" => Convert.ToDouble(fieldStringValue),
+                "byte[]" => Convert.FromBase64String(fieldStringValue),
+                "bool" => fieldStringValue == "1",
+                "datetime" => DateTime.TryParse(fieldStringValue, out DateTime datetimeValue) ? datetimeValue : null,
+                _ => fieldStringValue.Replace(_randomStringForComma, ",").Replace(_randomStringForEnter, "\n")
+            };
+            return value;
         }
         /// <summary>
         /// 同步数据库
@@ -1106,7 +1271,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="table"></param>
         /// <param name="records"></param>
         /// <returns></returns>
-        public static async Task<int> InsertDataAsync(string connectionString, string table, IEnumerable<IDictionary<string, object>> records)
+        public static async Task<int> InsertDataAsync(string connectionString, string table, IEnumerable<IDictionary<string, object?>> records)
         {
             using var conn = GetDbConnection(connectionString);
             return await InsertDataAsync(conn, table, records);
@@ -1118,11 +1283,15 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="table"></param>
         /// <param name="records"></param>
         /// <returns></returns>
-        public static async Task<int> InsertDataAsync(IDbConnection conn, string table, IEnumerable<IDictionary<string, object>> records)
+        public static async Task<int> InsertDataAsync(IDbConnection conn, string table, IEnumerable<IDictionary<string, object?>> records)
         {
             if (!records.Any())
             {
                 return 0;
+            }
+            if (string.IsNullOrWhiteSpace(table))
+            {
+                throw new Exception("表名不能为空");
             }
 
             var t1 = DateTime.Now;
@@ -1133,6 +1302,15 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             var first = records.First();
             var recordKeys = first.Keys.ToArray();
             var colInfos = await GetTableColumnsInfoAsync(conn, table);
+            List<string> notNeedConvertColumns = [];
+            foreach (var colItem in first)
+            {
+                var colInfo = colInfos.First(x => x.ColumnCode.Equals(colItem.Key));
+                if (colInfo.ColumnCSharpType is not null && colItem.Value.GetType().Equals(GetCSharpType(colInfo.ColumnCSharpType)))
+                {
+                    notNeedConvertColumns.Add(colInfo.ColumnCode);
+                }
+            }
 
             var createTimeColInfo = colInfos.FirstOrDefault(x => x.ColumnCode.Contains("create", StringComparison.OrdinalIgnoreCase) && x.ColumnCode.Contains("time", StringComparison.OrdinalIgnoreCase));
             var updateTimeColInfo = colInfos.FirstOrDefault(x => x.ColumnCode.Contains("update", StringComparison.OrdinalIgnoreCase) && x.ColumnCode.Contains("time", StringComparison.OrdinalIgnoreCase));
@@ -1144,7 +1322,12 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 foreach (var item in record)
                 {
                     var fieldToConvert = tableFieldsConverter.Keys.ToList().FirstOrDefault(x => x.Equals(item.Key, StringComparison.OrdinalIgnoreCase));
-                    if (fieldToConvert is not null)
+                    var colInfo = colInfos.First(x => x.ColumnCode.Equals(item.Key));
+                    if (notNeedConvertColumns.Contains(item.Key))
+                    {
+                        dataItem.Add(item.Key, $"{item.Value}");
+                    }
+                    else if (fieldToConvert is not null)
                     {
                         var fieldStringValue = $"{item.Value}";
                         var fieldType = tableFieldsConverter[fieldToConvert].Item1;
@@ -1232,8 +1415,9 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                     LoggerHelper.LogInformation($"执行insert SQL语句耗时:{(DateTime.Now - t3).TotalSeconds}/ms");
                     affectedRows += inserted;
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
+                    LoggerHelper.LogInformation(ex.Message);
                     LoggerHelper.LogInformation(sqlInfo.Sql);
                     LoggerHelper.LogInformation(JsonConvert.SerializeObject(sqlInfo.Parameters));
                     throw;
@@ -1257,7 +1441,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         public static async Task<int> InsertDataAsync(IDbConnection sourceConn, string sourceQuerySql, object? sourceQueryParameters, string targetTable, IDbConnection targetConn)
         {
             var records = await sourceConn.QueryAsync(sourceQuerySql, sourceQueryParameters);
-            var inserts = records.Cast<IDictionary<string, object>>();
+            var inserts = records.Cast<IDictionary<string, object?>>();
             return await InsertDataAsync(targetConn, targetTable, inserts);
         }
         /// <summary>
@@ -1273,7 +1457,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         {
             using var sourceConn = GetDbConnection(sourceConnectionString);
             var records = await sourceConn.QueryAsync(sourceQuerySql, sourceQueryParameters);
-            var inserts = records.Cast<IDictionary<string, object>>();
+            var inserts = records.Cast<IDictionary<string, object?>>();
             using var targetConn = GetDbConnection(targetConnectionString);
             return await InsertDataAsync(targetConn, targetTable, inserts);
         }
@@ -2059,10 +2243,8 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         {
             return GetDbType(conn.ConnectionString) switch
             {
-                DatabaseType.MySql => conn.Database,
-                DatabaseType.SqlServer => conn.Database,
+                DatabaseType.MySql or DatabaseType.Pg or DatabaseType.SqlServer or DatabaseType.Sqlite => conn.Database,
                 DatabaseType.Oracle => GetOracleDatabaseName(conn),
-                DatabaseType.Sqlite => conn.Database,
                 DatabaseType.Dm => GetDmDatabaseName(conn),
                 _ => throw new NotImplementedException(),
             };
@@ -2990,8 +3172,8 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         public static async Task<DataComparedResult> CompareRecordsAsync(IEnumerable<object> sourceRecordsData, IEnumerable<object> targetRecordsData, string sourceIdField)
         {
             #region 先将集合转换为JArray类型; 处理DataRow对象
-            IEnumerable<IDictionary<string, object>> sourceArray = sourceRecordsData.CastToDictionaries();
-            IEnumerable<IDictionary<string, object>> targetArray = targetRecordsData.CastToDictionaries();
+            IEnumerable<IDictionary<string, object?>> sourceArray = sourceRecordsData.CastToDictionaries();
+            IEnumerable<IDictionary<string, object?>> targetArray = targetRecordsData.CastToDictionaries();
 
             if (sourceArray.Count() == 0 && targetArray.Count() == 0)
             {
@@ -3106,15 +3288,15 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             /// <summary>
             /// 仅存在于Source中
             /// </summary>
-            public List<IDictionary<string, object>> ExistInSourceOnly { get; set; } = [];
+            public List<IDictionary<string, object?>> ExistInSourceOnly { get; set; } = [];
             /// <summary>
             /// 仅存在于Target中
             /// </summary>
-            public List<IDictionary<string, object>> ExistInTargetOnly { get; set; } = [];
+            public List<IDictionary<string, object?>> ExistInTargetOnly { get; set; } = [];
             /// <summary>
             /// Source和Target中存在, 改变了的数据
             /// </summary>
-            public List<IDictionary<string, object>> Intersection { get; set; } = [];
+            public List<IDictionary<string, object?>> Intersection { get; set; } = [];
         }
         /// <summary>
         /// 改变了的数据
@@ -3347,6 +3529,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         {
             return csharpType switch
             {
+                "string" => typeof(string),
                 "bool" => typeof(bool),
                 "int" => typeof(int),
                 "long" => typeof(long),

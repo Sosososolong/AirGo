@@ -1,4 +1,4 @@
-﻿using Sylas.RemoteTasks.Database;
+using Sylas.RemoteTasks.Database;
 using Sylas.RemoteTasks.Database.Dtos;
 using Sylas.RemoteTasks.Database.SyncBase;
 using System.DirectoryServices.ActiveDirectory;
@@ -61,7 +61,7 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
             }
             else
             {
-                var newServerNode = new Dictionary<string, object>{
+                var newServerNode = new Dictionary<string, object?>{
                     { "host", _hostName },
                     { "iplist", _serverips },
                     { "state", 1 },

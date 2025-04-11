@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -36,9 +36,9 @@ namespace Sylas.RemoteTasks.Common.Extensions
         /// <param name="objects"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static IEnumerable<IDictionary<string, object>> CastToDictionaries(this IEnumerable<object> objects)
+        public static IEnumerable<IDictionary<string, object?>> CastToDictionaries(this IEnumerable<object> objects)
         {
-            IEnumerable<IDictionary<string, object>> batchDictionaries = [];
+            IEnumerable<IDictionary<string, object?>> batchDictionaries = [];
 
             if (objects.Any())
             {
@@ -48,7 +48,7 @@ namespace Sylas.RemoteTasks.Common.Extensions
                     var columns = firstRow.Table.Columns;
                     batchDictionaries = objects.Cast<DataRow>().Select(record =>
                     {
-                        Dictionary<string, object> recordDictionary = [];
+                        Dictionary<string, object?> recordDictionary = [];
                         foreach (DataColumn column in columns)
                         {
                             recordDictionary[column.ColumnName] = record[column];
@@ -56,26 +56,26 @@ namespace Sylas.RemoteTasks.Common.Extensions
                         return recordDictionary;
                     });
                 }
-                else if (first is Dictionary<string, object>)
+                else if (first is Dictionary<string, object?>)
                 {
-                    batchDictionaries = objects.Cast<Dictionary<string, object>>();
+                    batchDictionaries = objects.Cast<Dictionary<string, object?>>();
                 }
                 else if (first is IDictionary<string, object>)
                 {
-                    batchDictionaries = objects.Cast<IDictionary<string, object>>();
+                    batchDictionaries = objects.Cast<IDictionary<string, object?>>();
                 }
                 else if (first is JsonElement)
                 {
                     batchDictionaries = objects.Cast<JsonElement>().Select(x =>
                     {
                         var rawText = x.GetRawText();
-                        var dictionary = JsonConvert.DeserializeObject<Dictionary<string, object>>(rawText) ?? throw new Exception("JsonElement转换为字典失败");
+                        var dictionary = JsonConvert.DeserializeObject<Dictionary<string, object?>>(rawText) ?? throw new Exception("JsonElement转换为字典失败");
                         return dictionary;
                     });
                 }
                 else
                 {
-                    batchDictionaries = JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(JsonConvert.SerializeObject(objects)) ?? throw new Exception("对象集合转换为字典结合失败");
+                    batchDictionaries = JsonConvert.DeserializeObject<List<Dictionary<string, object?>>>(JsonConvert.SerializeObject(objects)) ?? throw new Exception("对象集合转换为字典结合失败");
                 }
             }
             return batchDictionaries;

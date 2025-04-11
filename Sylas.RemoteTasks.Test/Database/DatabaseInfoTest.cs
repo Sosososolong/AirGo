@@ -1,4 +1,4 @@
-﻿using Dapper;
+using Dapper;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Sylas.RemoteTasks.Database.SyncBase;
@@ -118,7 +118,7 @@ namespace Sylas.RemoteTasks.Test.Database
                 await targetConn.ExecuteAsync($"DELETE FROM {targetTable}");
 
                 var records = await sourceConn.QueryAsync($"select * from {sourceTable}");
-                await DatabaseInfo.InsertDataAsync(targetConn, targetTable, records.Cast<IDictionary<string, object>>());
+                await DatabaseInfo.InsertDataAsync(targetConn, targetTable, records.Cast<IDictionary<string, object?>>());
             }
         }
 
@@ -163,7 +163,7 @@ namespace Sylas.RemoteTasks.Test.Database
                     File.AppendAllText(log, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {new string('-', 50)}创建表结束{new string('-', 50)}{Environment.NewLine}{Environment.NewLine}");
 
                     var records = await sourceConn.QueryAsync($"select * from {table}");
-                    await DatabaseInfo.InsertDataAsync(targetConn, targetTable, records.Cast<IDictionary<string, object>>());
+                    await DatabaseInfo.InsertDataAsync(targetConn, targetTable, records.Cast<IDictionary<string, object?>>());
                 }
 
                 File.AppendAllText(log, Environment.NewLine + Environment.NewLine);
@@ -177,7 +177,17 @@ namespace Sylas.RemoteTasks.Test.Database
         [Fact]
         public async Task BackupTablesTest()
         {
-            await DatabaseInfo.BackupDataAsync(_connectionStringDev, "", "D:\\.NET\\iduo\\routine\\db\\bak\\自定义数据表备份到文件", "DEV");
+            await DatabaseInfo.BackupDataAsync(_connectionStringDev.Replace("ids4", "engine2"), "deploymentresource2");
+        }
+        /// <summary>
+        /// 还原数据表
+        /// </summary>
+        /// <returns></returns>
+        [Fact]
+        public async Task RestoreTablesTest()
+        {
+            string connStr = _connectionStringDev.Replace("ids4", "engine2");
+            await DatabaseInfo.RestoreTablesAsync(connStr, "D:\\.NET\\my\\Sylas.RemoteTasks\\Sylas.RemoteTasks.Test\\bin\\Debug\\net9.0\\Backup\\20250411233906");
         }
     }
 }

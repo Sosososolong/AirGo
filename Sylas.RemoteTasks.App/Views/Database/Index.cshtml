@@ -28,6 +28,7 @@
                     <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="{{id}}" data-fetch-url="/Database/ConnectionStrings" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
                     <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-content="&quot;{{id}}&quot;" data-execute-url="/Database/DeleteConnectionStrings" data-method="POST" onclick="showConfirmBox('确定删除? 此操作无法撤销!', () => execute(this))">删除</button>
                     <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-content="&quot;{{id}}&quot;" data-execute-url="/Database/CloneConnectionString" data-method="POST" onclick="showConfirmBox('您确定要克隆数据吗', () => execute(this))">克隆</button>
+                    <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-content="" data-execute-url="/Database/Backup?id={{id}}&tables=" data-method="POST" onclick="showConfirmBox('您确定要备份数据库吗', () => execute(this))">备份</button>
                     `
             }
         ]

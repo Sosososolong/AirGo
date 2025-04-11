@@ -1,7 +1,7 @@
-﻿using IdentityModel;
+using IdentityModel;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
-using Sylas.RemoteTasks.App.Infrastructure;
+using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Common.Extensions;
 using Sylas.RemoteTasks.Database;
 using Sylas.RemoteTasks.Database.SyncBase;
@@ -71,6 +71,7 @@ namespace Sylas.RemoteTasks.App.Helpers
             AppStatus.Domain = Dns.GetHostName();
 
             AppStatus.InstancePath = AppDomain.CurrentDomain.BaseDirectory.ToBase64();
+            AppStatus.StaticDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Static");
         }
 
         public static void AddAiConfig(this IServiceCollection services, IConfiguration configuration)

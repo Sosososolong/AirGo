@@ -391,7 +391,7 @@ namespace Sylas.RemoteTasks.App.Controllers
 
                 if (string.IsNullOrWhiteSpace($"{dto.SourceTable}{dto.TargetTable}"))
                 {
-                    await DatabaseInfo.TransferDataAsync(dto.SourceConnectionString, dto.TargetConnectionString);
+                    await DatabaseInfo.TransferDataAsync(dto.SourceConnectionString, dto.TargetConnectionString, insertOnly: dto.InsertOnly);
                 }
                 else
                 {
@@ -403,7 +403,7 @@ namespace Sylas.RemoteTasks.App.Controllers
                     int index = 0;
                     foreach (var t in dto.SourceTable.Split(',', ';'))
                     {
-                        await DatabaseInfo.TransferDataAsync(dto.SourceConnectionString, dto.TargetConnectionString, sourceTable: t, targetTable: targetTables[index]);
+                        await DatabaseInfo.TransferDataAsync(dto.SourceConnectionString, dto.TargetConnectionString, sourceTable: t, targetTable: targetTables[index], insertOnly: dto.InsertOnly);
                         index++;
                     }
                 }

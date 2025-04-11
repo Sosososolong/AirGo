@@ -1,4 +1,4 @@
-﻿namespace Sylas.RemoteTasks.Database.Dtos
+namespace Sylas.RemoteTasks.Database.Dtos
 {
     /// <summary>
     /// 数据传输Dto
@@ -21,5 +21,9 @@
         /// 目标表名
         /// </summary>
         public string TargetTable { get; set; } = string.Empty;
+        /// <summary>
+        /// 是否不删除只插入数据(不会插入重复数据)
+        /// </summary>
+        public bool InsertOnly { get; set; } = false;
     }
 }

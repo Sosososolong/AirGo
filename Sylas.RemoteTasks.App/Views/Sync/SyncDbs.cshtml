@@ -27,6 +27,10 @@
             <label for="targetTable" class="form-label mt-3">targetTable:</label>
             <input type="text" id="targetTable" name="targetTable" class="form-control form-control-sm">
         </div>
+        <div class="col-sm-5 mb-4">
+            <input type="checkbox" class="form-check-input" id="insertOnly">
+            <label class="form-check-label" for="insertOnly">Insert Only?</label>
+        </div>
         <div class="col-sm-12">
             <button class="btn btn-primary mt-3 btn-sm sync-btn" type="button">开始同步</button>
         </div>
@@ -72,7 +76,8 @@
             sourceConnectionString: sourceConnId,
             sourceTable: document.querySelector('#sourceTable').value,
             targetConnectionString: targetConnId,
-            targetTable: document.querySelector('#targetTable').value
+            targetTable: document.querySelector('#targetTable').value,
+            insertOnly: document.querySelector('#insertOnly').checked,
         }
         const exeParams = {
             dataContent: JSON.stringify(syncParams),

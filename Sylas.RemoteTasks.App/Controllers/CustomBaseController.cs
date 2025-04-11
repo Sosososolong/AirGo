@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Filters;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.Common.Dtos;
 using Sylas.RemoteTasks.Utils.Constants;
@@ -101,7 +100,7 @@ namespace Sylas.RemoteTasks.App.Controllers
                     if (!string.IsNullOrWhiteSpace(sameFile))
                     {
                         currentFiles.Remove(sameFile);
-                        
+
                     }
                     currentFiles.Add(uploadedFileRelativePath);
                 }
@@ -134,7 +133,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         Tuple<string, string> GetFilePathInfo(IWebHostEnvironment env, string filename)
         {
             string controllerName = GetType().Name.Replace("Controller", string.Empty);
-            string staticDirName = "Static";
+            const string staticDirName = "Static";
             string moduleStaticDir = Path.Combine(env.WebRootPath, staticDirName, controllerName);
             if (!Directory.Exists(moduleStaticDir))
             {

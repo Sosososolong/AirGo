@@ -283,10 +283,29 @@
                     </div>
                 </li>
                 <li>
-                    <a href="/Database/Index" class="nav-link">
+                    <a href="#" class="nav-link" data-bs-toggle="collapse" data-bs-target="#database-collapse" aria-expanded="false">
                         <svg class="bi me-3" width="16" height="16"><use xlink:href="#grid" /></svg>
                         <span>Database</span>
+                        <svg class="bi bi-chevron-right" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                            <path fill-rule="evenodd" stroke="currentColor" stroke-width="1" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z" />
+                        </svg>
                     </a>
+                    <div class="collapse" id="database-collapse">
+                        <ul class="btn-toggle-nav list-unstyled fw-normal pb-1 small">
+                            <li>
+                                <a href="/Database/Index" class="nav-link" style="margin-left:15px;">
+                                    <svg class="bi me-3" width="16" height="16"><use xlink:href="#grid" /></svg>
+                                    <span>Connections</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="/Database/Backups" class="nav-link" style="margin-left:15px;">
+                                    <svg class="bi me-3" width="16" height="16"><use xlink:href="#grid" /></svg>
+                                    <span>Backups</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
                 </li>
                 <li>
                     <a href="#" class="nav-link" data-bs-toggle="collapse" data-bs-target="#oauth-collapse" aria-expanded="false">
