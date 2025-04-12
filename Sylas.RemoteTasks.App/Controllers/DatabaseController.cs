@@ -8,7 +8,6 @@ using Sylas.RemoteTasks.Common.Dtos;
 using Sylas.RemoteTasks.Database.Dtos;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils.Constants;
-using System.Xml.Linq;
 
 namespace Sylas.RemoteTasks.App.Controllers
 {
@@ -31,6 +30,13 @@ namespace Sylas.RemoteTasks.App.Controllers
         public async Task<IActionResult> ConnectionStringsAsync([FromBody] DataSearch? search = null)
         {
             search ??= new();
+            if (search.Rules is null || search.Rules.Count == 0)
+            {
+                search.Rules =
+                [
+                    new(nameof(DbConnectionInfo.OrderNo), true)
+                ];
+            }
             var page = await repository.GetPageAsync(search);
             var result = new RequestResult<PagedData<DbConnectionInfo>>(page);
             return Ok(result);
@@ -173,31 +179,46 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// <param name="backups"></param>
         /// <param name="id"></param>
         /// <returns></returns>
-        public async Task<IActionResult> DeleteBackupAsync([FromServices] RepositoryBase<DbBackup> backups, int id)
+        public async Task<IActionResult> DeleteBackupAsync([FromServices] RepositoryBase<DbBackup> backups, [FromBody] int id)
         {
+            DbBackup? backup = await backups.GetByIdAsync(id);
+            if (backup is null)
+            {
+                return Ok(RequestResult<bool>.Error("未找到备份信息"));
+            }
+            // 删除备份记录
             int affectedRows = await backups.DeleteAsync(id);
+
+            // 删除备份目录
+            Directory.Delete(backup.BackupDir, true);
+
             return Ok(affectedRows > 0 ? RequestResult<bool>.Success(true) : RequestResult<bool>.Error("删除备份数据失败"));
         }
         /// <summary>
         /// 还原数据库
         /// </summary>
         /// <param name="backups"></param>
-        /// <param name="id">备份记录Id</param>
-        /// <param name="restoreConnectionId">要还原的数据库Id</param>
+        /// <param name="dto"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public async Task<IActionResult> RestoreAsync([FromServices] RepositoryBase<DbBackup> backups, int id, int restoreConnectionId)
+        public async Task<IActionResult> RestoreAsync([FromServices] RepositoryBase<DbBackup> backups, [FromServices] IConfiguration configuration, [FromBody] RestoreInDto dto)
         {
-            var backup = await backups.GetByIdAsync(id);
+            var backup = await backups.GetByIdAsync(dto.Id);
             if (backup is null)
             {
-                return Ok(RequestResult<bool>.Error($"备份数据{id}不存在"));
+                return Ok(RequestResult<bool>.Error($"备份数据{dto.Id}不存在"));
             }
-            
-            DbConnectionInfo conn = await repository.GetByIdAsync(restoreConnectionId) ?? throw new Exception($"数据库连接{backup.DbConnectionInfoId}不存在");
+
+            DbConnectionInfo conn = await repository.GetByIdAsync(dto.RestoreConnectionId) ?? throw new Exception($"要还原的数据库连接{dto.RestoreConnectionId}不存在");
             string connStr = await SecurityHelper.AesDecryptAsync(conn.ConnectionString);
 
-            await DatabaseInfo.RestoreTablesAsync(connStr, backup.BackupDir);
+            var allowedConnectionStringKeywords = configuration.GetSection("AllowedConnectionStringKeywords").Get<string[]>();
+            if (allowedConnectionStringKeywords is null || !allowedConnectionStringKeywords.Any(x => connStr.Contains($"{x}")))
+            {
+                return Ok(RequestResult<bool>.Error($"不允许还原到数据库\"{conn.Name}\""));
+            }
+
+            await DatabaseInfo.RestoreTablesAsync(connStr, backup.BackupDir, dto.Tables);
             return Ok(RequestResult<bool>.Success(true));
         }
     }

@@ -982,6 +982,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                             var colInfo = cols[j];
                             parameters.Add(colInfo.ColumnCode, GetFieldValue(values[j], colInfo.ColumnCSharpType));
                         }
+                        // 出错时, 一条一条地处理每一条记录, 以找到出错的数据
                         //if (string.IsNullOrWhiteSpace(colsStatement))
                         //{
                         //    colsStatement = string.Join(',', parameters.Select(x => x.Key));
@@ -1002,7 +1003,8 @@ namespace Sylas.RemoteTasks.Database.SyncBase
 
                         if (records.Count > 0 && records.Count % batchSize == 0)
                         {
-                            await InsertDataAsync(conn, table, records);
+                            await TransferDataAsync(records, conn, table);
+                            //await InsertDataAsync(conn, table, records);
                             await File.AppendAllLinesAsync(logFile, [$"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {batchSize}条记录备份结束"]);
                             records.Clear();
                         }
@@ -1011,7 +1013,8 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 }
                 if (records.Any())
                 {
-                    await InsertDataAsync(conn, table, records);
+                    await TransferDataAsync(records, conn, table);
+                    //await InsertDataAsync(conn, table, records);
                     await File.AppendAllLinesAsync(logFile, [$"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {records.Count}条记录备份结束, 已还原所有数据"]);
                 }
                 LoggerHelper.LogInformation($"表{table}已还原");
@@ -1306,7 +1309,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             foreach (var colItem in first)
             {
                 var colInfo = colInfos.First(x => x.ColumnCode.Equals(colItem.Key));
-                if (colInfo.ColumnCSharpType is not null && colItem.Value.GetType().Equals(GetCSharpType(colInfo.ColumnCSharpType)))
+                if ($"{colInfo.ColumnCSharpType}".Equals("string") || (colItem.Value is not null && colInfo.ColumnCSharpType is not null && colItem.Value.GetType().Equals(GetCSharpType(colInfo.ColumnCSharpType))))
                 {
                     notNeedConvertColumns.Add(colInfo.ColumnCode);
                 }
@@ -1321,44 +1324,47 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 list.Add(dataItem);
                 foreach (var item in record)
                 {
-                    var fieldToConvert = tableFieldsConverter.Keys.ToList().FirstOrDefault(x => x.Equals(item.Key, StringComparison.OrdinalIgnoreCase));
                     var colInfo = colInfos.First(x => x.ColumnCode.Equals(item.Key));
-                    if (notNeedConvertColumns.Contains(item.Key))
+                    if (item.Value is null || notNeedConvertColumns.Contains(item.Key))
                     {
-                        dataItem.Add(item.Key, $"{item.Value}");
-                    }
-                    else if (fieldToConvert is not null)
-                    {
-                        var fieldStringValue = $"{item.Value}";
-                        var fieldType = tableFieldsConverter[fieldToConvert].Item1;
-                        var fieldConverter = tableFieldsConverter[fieldToConvert].Item2;
-                        if (string.IsNullOrWhiteSpace(fieldStringValue))
-                        {
-                            dataItem.Add(item.Key, null);
-                        }
-                        else
-                        {
-                            if (fieldType == typeof(DateTime))
-                            {
-                                if (fieldStringValue.Contains('/'))
-                                {
-                                    var match = Regex.Match(fieldStringValue, @"(?<day>\d+)/(?<month>\d+)/(?<year>\d{4}) (?<time>\d{1,2}:\d{1,2}:\d{1,2})");
-                                    if (match.Success)
-                                    {
-                                        string year = match.Groups["year"].Value;
-                                        string month = match.Groups["month"].Value;
-                                        string day = match.Groups["day"].Value;
-                                        string time = match.Groups["time"].Value;
-                                        fieldStringValue = Convert.ToInt32(month) <= 12 ? $"{year}/{month}/{day} {time}" : $"{year}/{day}/{month} {time}";
-                                    }
-                                }
-                            }
-                            dataItem.Add(item.Key, fieldConverter(fieldStringValue));
-                        }
+                        dataItem.Add(item.Key, item.Value);
                     }
                     else
                     {
-                        dataItem.Add(item.Key, $"{item.Value}");
+                        var fieldToConvert = tableFieldsConverter.Keys.ToList().FirstOrDefault(x => x.Equals(item.Key, StringComparison.OrdinalIgnoreCase));
+                        if (fieldToConvert is not null)
+                        {
+                            var fieldStringValue = $"{item.Value}";
+                            var fieldType = tableFieldsConverter[fieldToConvert].Item1;
+                            var fieldConverter = tableFieldsConverter[fieldToConvert].Item2;
+                            if (string.IsNullOrWhiteSpace(fieldStringValue))
+                            {
+                                dataItem.Add(item.Key, null);
+                            }
+                            else
+                            {
+                                if (fieldType == typeof(DateTime))
+                                {
+                                    if (fieldStringValue.Contains('/'))
+                                    {
+                                        var match = Regex.Match(fieldStringValue, @"(?<day>\d+)/(?<month>\d+)/(?<year>\d{4}) (?<time>\d{1,2}:\d{1,2}:\d{1,2})");
+                                        if (match.Success)
+                                        {
+                                            string year = match.Groups["year"].Value;
+                                            string month = match.Groups["month"].Value;
+                                            string day = match.Groups["day"].Value;
+                                            string time = match.Groups["time"].Value;
+                                            fieldStringValue = Convert.ToInt32(month) <= 12 ? $"{year}/{month}/{day} {time}" : $"{year}/{day}/{month} {time}";
+                                        }
+                                    }
+                                }
+                                dataItem.Add(item.Key, fieldConverter(fieldStringValue));
+                            }
+                        }
+                        else
+                        {
+                            dataItem.Add(item.Key, $"{item.Value}");
+                        }
                     }
                 }
 

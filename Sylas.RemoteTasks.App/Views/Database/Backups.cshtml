@@ -37,14 +37,17 @@
             const restoreConnectionId = document.querySelector('#restoreConnectionId').value
             const exeParams = {
                 'dataTableId': tableId,
-                'dataContent': `{"id": 1, "name": "张三"}`,
-                'dataExecuteUrl': `/Database/Restore?id=${backupId}&restoreConnectionId=${restoreConnectionId}`,
-                'dataMethod': 'POST'
+                'dataContent': `{"id": ${backupId}, "restoreConnectionId": "${restoreConnectionId}", "tables": "${document.querySelector('#tables').value}"}`,
+                'dataExecuteUrl': '/Database/Restore',
+                'dataMethod': 'POST',
+                'trigger': trigger
             }
-            await execute(exeParams, callback, trigger)
+            await execute(exeParams, callback)
 
             function callback(response) {
-
+                document.querySelector('#restore-modal').remove()
+                showMsgBox('操作成功', () => {
+                });
             }
         }
         function showRestorePannel(trigger) {
@@ -65,10 +68,14 @@
           </div>
           <div class="modal-body">
             <div>
-              <label for="connectionString" class="form-label">数据库连接</label>
+                <label for="restoreConnectionId" class="form-label">数据库连接</label>
                 <select class="form-control form-select-sm" aria-label="Default select" name="restoreConnectionId" id="restoreConnectionId">
                     ${tables['dataTable'].dataSourceField.dbConnectionInfoId_options}
                 </select>
+            </div>
+            <div>
+                <label for="tables" class="form-label">同步的表</label>
+                <input class="form-control form-control-sm" type="text" name="tables" id="tables" placeholder="要同步的表, 多个用逗号隔开" />
             </div>
           </div>
           <div class="modal-footer">

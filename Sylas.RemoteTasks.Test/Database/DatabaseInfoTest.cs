@@ -169,25 +169,5 @@ namespace Sylas.RemoteTasks.Test.Database
                 File.AppendAllText(log, Environment.NewLine + Environment.NewLine);
             }
         }
-
-        /// <summary>
-        /// 备份数据表到文件中
-        /// </summary>
-        /// <returns></returns>
-        [Fact]
-        public async Task BackupTablesTest()
-        {
-            await DatabaseInfo.BackupDataAsync(_connectionStringDev.Replace("ids4", "engine2"), "deploymentresource2");
-        }
-        /// <summary>
-        /// 还原数据表
-        /// </summary>
-        /// <returns></returns>
-        [Fact]
-        public async Task RestoreTablesTest()
-        {
-            string connStr = _connectionStringDev.Replace("ids4", "engine2");
-            await DatabaseInfo.RestoreTablesAsync(connStr, "D:\\.NET\\my\\Sylas.RemoteTasks\\Sylas.RemoteTasks.Test\\bin\\Debug\\net9.0\\Backup\\20250411233906");
-        }
     }
 }
