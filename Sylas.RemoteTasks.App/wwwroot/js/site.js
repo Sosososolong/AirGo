@@ -24,35 +24,62 @@ const dataSources = {};
  * @param {String} addButtonSelector 添加按钮的选择器, 不传将创建添加按钮
  * @param {Function} dataViewBuilder 不使用table标签展示数据时使用, 该函数根据传入的数据集返回展示数据的元素对象
  * @param {Object} orderRules 排序规则
+ * apiUrl, pageIndex, pageSize, tableId, tableContainerSelector, ths, idFieldName, filterItems = null, data = null, onDataLoaded = undefined, wrapper = '', modalSettings = {}, primaryKeyIsInt = true, addButtonSelector = '', dataViewBuilder = null, orderRules = null
  */
-async function createTable(apiUrl, pageIndex, pageSize, tableId, tableContainerSelector, ths, idFieldName, filterItems = null, data = null, onDataLoaded = undefined, wrapper = '', modalSettings = {}, primaryKeyIsInt = true, addButtonSelector = '', dataViewBuilder = null, orderRules = null) {
-    tables[tableId] = {
-        tableId: tableId,
-        primaryKeyIsInt: primaryKeyIsInt,
-        pageIndex: pageIndex,
-        pageSize: pageSize,
+async function createTable(customOptions) {
+    const options = {
+        apiUrl: '',
+        pageIndex: 1,
+        pageSize: 10,
+        tableId: '',
+        tableContainerSelector: '',
+        ths: [],
+        idFieldName: '',
+        filterItems: [
+            {
+                fieldName: '',
+                compareType: '',
+                value: null
+            }
+        ],
+        data: null,
+        onDataLoaded: undefined,
+        wrapper: '',
+        modalSettings: {},
+        primaryKeyIsInt: true,
+        addButtonSelector: '',
+        dataViewBuilder: null,
+        orderRules: [{ fieldName: 'updateTime', isAsc: false }],
+        onDataAllLoaded: undefined,
+    }
+    for (const key in customOptions) {
+        if (Object.prototype.hasOwnProperty.call(customOptions, key)) {
+            options[key] = customOptions[key];
+        }
+    }
+    tables[options.tableId] = {
+        apiUrl: options.apiUrl,
+        tableId: options.tableId,
+        tableContainerSelector: options.tableContainerSelector,
+        primaryKeyIsInt: options.primaryKeyIsInt,
+        pageIndex: options.pageIndex,
+        pageSize: options.pageSize,
         totalPages: 0,
-        orderRules: !orderRules ? [{ fieldName: 'updateTime', isAsc: false }] : orderRules,
+        orderRules: !options.orderRules ? [{ fieldName: 'updateTime', isAsc: false }] : options.orderRules,
         dataFilter: {
-            filterItems: [
-                {
-                    fieldName: '',
-                    compareType: '',
-                    value: null
-                }
-            ],
+            filterItems: options.filterItems,
             keywords: {
                 fields: [],
                 value: ''
             }
         },
-        onDataLoaded: onDataLoaded,
-        wrapper: wrapper,
+        onDataLoaded: options.onDataLoaded,
+        wrapper: options.wrapper,
         formItemIds: [], // `${this.tableId}FormInput_${th.name}`
         formItemIdsForAddPannel: [], // 比formItems少一个Id字段的表单项dom的id
         formItemIdsMapper: {},
-        modalSettings: modalSettings, // 添加数据面板
-        ths: ths,
+        modalSettings: options.modalSettings, // 添加数据面板
+        ths: options.ths,
         dataSourceField: {
             // xxFieldName: [
             //     { id: 1, value: 'xxx' }
@@ -68,38 +95,40 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableContainerS
             formHtml: '',
             formHtmlFieldPk: '',
         },
-        hasCustomDataViewBuilder: dataViewBuilder && typeof (dataViewBuilder) === 'function',
+        hasCustomDataViewBuilder: options.dataViewBuilder && typeof (options.dataViewBuilder) === 'function',
+        onDataAllLoaded: options.onDataAllLoaded,
     }
-    const targetTable = tables[tableId]
+    const targetTable = tables[options.tableId]
 
-    if (addButtonSelector) {
-        targetTable.addOptions.button = document.querySelector(addButtonSelector);
+    if (options.addButtonSelector) {
+        targetTable.addOptions.button = document.querySelector(options.addButtonSelector);
     }
 
-    if (filterItems) {
-        targetTable.dataFilter.filterItems = filterItems;
-    }
-    targetTable.dataFilter.keywords.fields = ths.filter(th => th.searchedByKeywords).map(th => th.name);
+    //if (filterItems) {
+    //    targetTable.dataFilter.filterItems = filterItems;
+    //}
+    targetTable.dataFilter.keywords.fields = targetTable.ths.filter(th => th.searchedByKeywords).map(th => th.name);
 
     targetTable.renderBody = async function (data) {
+        const tid = this.tableId
         // BOOKMARK: sitejs 3 loadData -> renderBody 渲染数据到页面
         if (this.hasCustomDataViewBuilder) {
-            let dataPannel = dataViewBuilder(data);
-            dataPannel.id = this.tableId;
-            const t = document.querySelector(`#${this.tableId}`);
+            let dataPannel = options.dataViewBuilder(data);
+            dataPannel.id = tid;
+            const t = document.querySelector(`#${tid}`);
             t.parentNode.replaceChild(dataPannel, t);
             return;
         }
-        var tbody = $(`#${this.tableId} tbody`);
+        var tbody = $(`#${tid} tbody`);
         tbody.empty();
         for (var j = 0; j < data.length; j++) {
             var row = data[j];
             var tr = $('<tr>');
 
-            for (var i = 0; i < ths.length; i++) {
-                var th = ths[i]
+            for (var i = 0; i < this.ths.length; i++) {
+                var th = this.ths[i]
                 if (th.type === 'button') {
-                    var buttonHtml = th.tmpl.replace(/{{id}}/g, row[idFieldName])
+                    var buttonHtml = th.tmpl.replace(/{{id}}/g, row[options.idFieldName])
                     tr.append(`<td align="center">${buttonHtml}</td>`);
                 }
                 if (th.name) {
@@ -108,7 +137,9 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableContainerS
                     if (th.title.indexOf('时间') > -1) {
                         tdValue = tdValue.replace('T', ' ');
                     }
-
+                    if (th.formatter) {
+                        tdValue = th.formatter(tdValue)
+                    }
                     if (th.type && th.type.indexOf('dataSource') === 0) {
                         if (!this.dataSourceField || !this.dataSourceField[th.name]) {
                             await this.resolveDataSourceField(th);
@@ -129,15 +160,7 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableContainerS
                     }
 
                     const align = th.align ? ` align="${th.align}"` : ''
-                    if (j === 0) {
-                        var tdWidthProp = '';
-                        if (th.width) {
-                            tdWidthProp = ` style="width:${th.width}px"`
-                        }
-                        tr.append(`<td${tdWidthProp}${align}>${tdValue}</td>`);
-                    } else {
-                        tr.append(`<td${align}>${tdValue}</td>`);
-                    }
+                    tr.append(`<td${align}>${tdValue}</td>`);
                 }
             }
             tbody.append(tr);
@@ -148,6 +171,9 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableContainerS
                 await this.onDataLoaded(row);
             }
         }
+        if (this.onDataAllLoaded) {
+            this.onDataAllLoaded(data);
+        }
     }
 
     // this指向的是window对象, 因为它的父作用域就是createTable()方法, createTable中的this就是window对象
@@ -157,8 +183,8 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableContainerS
         // 分页条
         var pagination = $(`#page-${this.tableId}`);
 
-        if (data) {
-            await this.renderBody(data);
+        if (options.data) {
+            await this.renderBody(options.data);
             pagination.hide();
             data = null;
             return;
@@ -201,8 +227,8 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableContainerS
             const totalPage = targetTable.totalPages;
 
             if (totalPage > maxPage) {
-                firstPage = pageIndex - halfPage;
-                lastPage = pageIndex + rightPage;
+                firstPage = this.pageIndex - halfPage;
+                lastPage = this.pageIndex + rightPage;
 
                 if (firstPage <= 0) {
                     // 需要向右偏移至1(即firstPage + rightOffset = 1), 计算偏移
@@ -245,7 +271,7 @@ async function createTable(apiUrl, pageIndex, pageSize, tableId, tableContainerS
             pagination.append('<li class="page-item ' + (targetTable.pageIndex == targetTable.totalPages ? 'disabled' : '') + '"><a class="page-link" href="#" data-page="' + (targetTable.pageIndex + 1) + '">Next</a></li>');
         }
         
-        var response = await httpRequestPagedDataAsync(apiUrl, method, this.pageIndex, this.pageSize, targetTable.dataFilter, this.orderRules, this.tableId);
+        var response = await httpRequestPagedDataAsync(this.apiUrl, method, this.pageIndex, this.pageSize, targetTable.dataFilter, this.orderRules, this.tableId);
         if (response) {
             await onSuccess(response);
         }
@@ -286,8 +312,8 @@ ${formItemComponent}
         this.modalId = tableDataModalId;
 
         // BOOKMARK: 前端/frontend封装site.js - 创建模态框 2.表单项 除Id字段外的其他表单项
-        for (var i = 0; i < ths.length; i++) {
-            var th = ths[i]
+        for (var i = 0; i < this.ths.length; i++) {
+            var th = this.ths[i]
             if (th.name) {
                 if (th.name === 'createTime' || th.name === 'updateTime' || th.notShowInForm) {
                     continue;
@@ -303,9 +329,10 @@ ${formItemComponent}
                         const formItemComponent = `<select class="form-control form-select-sm" aria-label="Default select" name="${th.name}" id="${formItemId}">${dataSourceOptions}</select>`;
                         this.buildFormItemHtml(th, formItemId, formItemComponent);
                     } else {
+                        const intputType = th.isNumber ? 'number' : 'text'
                         const formItemComponent = th.multiLines
                             ? `<textarea class="form-control form-control-sm" rows="5" placeholder="${th.title}" name="${th.name}" id="${formItemId}" ondblclick="textareaDbClicked(this)"></textarea>`
-                            : `<input class="form-control form-control-sm" type="text" placeholder="${th.title}" name="${th.name}" id="${formItemId}">`
+                            : `<input class="form-control form-control-sm" type="${intputType}" placeholder="${th.title}" name="${th.name}" id="${formItemId}">`
                         // BOOKMARK: 前端/frontend封装site.js - 创建模态框 3.2表单项 除Id字段外的其他表单项 - 普通字段
                         this.buildFormItemHtml(th, formItemId, formItemComponent);
                     }
@@ -455,7 +482,7 @@ ${formItemComponent}
             // BOOKMARK: 前端/frontend封装site.js - 创建模态框 1."添加"按钮(弹出表单)
             //data-bs-toggle="modal" data-bs-target="#${tableDataModalId}"
             if (!this.addOptions.button) {
-                this.addOptions.button = `<button type="button" class="btn btn-primary btn-sm" onclick="showAddPannel(tables['${tableId}'])">添加</button>`;
+                this.addOptions.button = `<button type="button" class="btn btn-primary btn-sm" onclick="showAddPannel(tables['${this.tableId}'])">添加</button>`;
                 searchFormHtmlBase = searchFormHtmlBase.replace('{{others}}', this.addOptions.button);
             } else {
                 this.addOptions.button.onclick = function(event) {
@@ -464,9 +491,9 @@ ${formItemComponent}
                 searchFormHtmlBase = searchFormHtmlBase.replace('{{others}}', '');
             }
         }
-        const searchForm = document.querySelector(tableContainerSelector).querySelector("#search-form");
+        const searchForm = document.querySelector(this.tableContainerSelector).querySelector("#search-form");
         if (!searchForm) {
-            $(tableContainerSelector).prepend(searchFormHtmlBase);
+            $(this.tableContainerSelector).prepend(searchFormHtmlBase);
         }
 
         // 搜索表单提交事件
@@ -510,8 +537,9 @@ ${formItemComponent}
      * 初始化数据展示的容器(表格或者自定义), 数据分页栏和数据管理表单的html基本结构
      * @returns {void}
      */
-    targetTable.initDataViewStructs = async function() {
-        if ($(`#${this.tableId}`).length) {
+    targetTable.initDataViewStructs = async function () {
+        const tid = this.tableId
+        if ($(`#${tid}`).length) {
             return;
         }
 
@@ -521,9 +549,9 @@ ${formItemComponent}
 
         // BOOKMARK: sitejs 1. initDataViewStructs 构建数据展示的容器结构
         if (this.hasCustomDataViewBuilder) {
-            $(tableContainerSelector).append(`<div id="${tableId}" style="margin-top:50px;"></div>${this.addOptions.modalHtml}`);
+            $(this.tableContainerSelector).append(`<div id="${this.tableId}" style="margin-top:50px;"></div>${this.addOptions.modalHtml}`);
         } else {
-            var tableHtml = `<table class="table table-sm table-hover table-bordered mt-3" style="border-color:#414243;" id="${tableId}">
+            var tableHtml = `<table class="table table-sm table-hover table-bordered mt-3" style="border-color:#414243;" id="${this.tableId}">
         <thead>
             <tr>
             </tr>
@@ -547,14 +575,19 @@ ${formItemComponent}
     ${this.addOptions.modalHtml}`;
 
             if (this.wrapper) {
-                tableHtml = $(tableContainerSelector).append(this.wrapper.replace('{{tableHtml}}', tableHtml));
+                tableHtml = $(this.tableContainerSelector).append(this.wrapper.replace('{{tableHtml}}', tableHtml));
             }
 
             // 初始化数据表格结构
-            $(tableContainerSelector).append(tableHtml);
+            $(this.tableContainerSelector).append(tableHtml);
 
-            ths.forEach(th => {
-                $(`#${this.tableId} thead tr`).append(`<th>${th.title}</th>`);
+            // 设置表头(及样式)
+            this.ths.forEach(th => {
+                if (th.width) {
+                    $(`#${this.tableId} thead tr`).append(`<th width="${th.width}">${th.title}</th>`);
+                } else {
+                    $(`#${this.tableId} thead tr`).append(`<th>${th.title}</th>`);
+                }
             });
         }
 
@@ -863,9 +896,35 @@ async function handleDataForm(table, eventTrigger) {
             }
         } else {
             if (response) {
-                showErrorBox(response.errMsg, '错误提示', [{ class: 'error', content: '关闭' }]);
+                let errMsg = response.errMsg;
+                if (!errMsg && response.data) {
+                    errMsg = response.data instanceof Array ? response.data.join('\n') : response.data.toString();
+                }
+                if (!errMsg) {
+                    errMsg = "操作异常";
+                }
+                showErrorBox(errMsg, '错误提示', [{ class: 'error', content: '关闭' }]);
             }
         }
+    }
+}
+
+function showResultBox(response, table) {
+    if (!response || response.code === 1) {
+        showMsgBox('操作成功', () => {
+            if (table) {
+                table.loadData();
+            }
+        });
+    } else {
+        let errMsg = response.errMsg;
+        if (!errMsg && response.data) {
+            errMsg = response.data instanceof Array ? response.data.join('\n') : response.data.toString();
+        }
+        if (!errMsg) {
+            errMsg = "操作异常";
+        }
+        showErrorBox(errMsg, '错误提示', [{ class: 'error', content: '关闭' }]);
     }
 }
 
@@ -1028,19 +1087,10 @@ async function execute(eventTrigger, callback = null, useSpinner = true) {
     response = await httpRequestAsync(url, spinnerEle, method, dataContent, contentType);
     if (response) {
         if (callback) {
-            callback(response);
-            return;
+            callback(response)
         }
 
-        if (response.code === 1 || response.data) {
-            showMsgBox('操作成功', () => {
-                if (table) {
-                    table.loadData();
-                }
-            });
-        } else {
-            showErrorBox(response.errMsg, '错误提示', [{ class: 'error', content: '关闭' }]);
-        }
+        showResultBox(response, table)
     }
 }
 
@@ -1209,18 +1259,26 @@ function trimMsg(msg, maxLength = 50) {
     const half = maxLength / 2;
     return msg.substring(0, half) + '...' + msg.substring(msg.length - half)
 }
-
+/**
+ * 格式化文件大小
+ * @param {any} size
+ * @returns
+ */
 function formatFileSize(size) {
+    if (!size) {
+        return ''
+    }
     const kb = size / 1024
-    if (kb > 1 && kb < 1024) {
+    if (kb < 1024) {
         return kb.toFixed(2) + 'KB'
     }
     const mb = kb / 1024
-    if (mb > 1 && mb < 1024) {
+    if (mb < 1024) {
         return mb.toFixed(2) + 'MB'
     }
     const gb = mb / 1024
-    if (gb > 1 && gb < 1024) {
+    if (gb < 1024) {
         return gb.toFixed(2) + 'GB'
     }
+    return (gb / 1024).toFixed(2) + 'TB'
 }

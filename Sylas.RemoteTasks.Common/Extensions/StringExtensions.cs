@@ -168,6 +168,7 @@ namespace Sylas.RemoteTasks.Common.Extensions
             return word + "s";
         }
 
+        static readonly string[] _keySymbolsInRegexPattern = ["(", ")", "?", "[", "]"];
         /// <summary>
         /// 解析一对符号之间(可能包含嵌套符号)的内容Groups["x"](Value包含符号)
         /// </summary>
@@ -177,10 +178,51 @@ namespace Sylas.RemoteTasks.Common.Extensions
         /// <param name="leftPattern">匹配符号范围左边文本的正则表达式</param>
         /// <param name="rightPattern">匹配符号范围右边文本的正则表达式</param>
         /// <returns></returns>
-        public static IEnumerable<Match> ResolvePairedSymbolsContent(this string text, string leftSymbol, string rightSymbol, string leftPattern, string rightPattern)
+        public static IEnumerable<Match> ResolvePairedSymbolsContent(this string text, string leftSymbol, string rightSymbol, string leftPattern, string rightPattern, bool isSymbolOptional = false)
         {
-            string pattern = $@"{leftPattern}{leftSymbol}(?<x>[^{leftSymbol}{rightSymbol}]*(((?'Open'{leftSymbol})[^{leftSymbol}{rightSymbol}]*)+((?'-Open'{rightSymbol})[^{leftSymbol}{rightSymbol}]*)+)*)\){rightPattern}";
-            var matches = Regex.Matches(text, pattern);
+            //var matches = Regex.Matches(text, @"[\w-]+
+            //                          (\(
+            //                            (?<x>
+            //                                [^\(\)]*
+            //                                (
+            //                                    ((?'Open'\()[^\(\)]*)+
+            //                                    ((?'-Open'\))[^\(\)]*)+
+            //                                )*
+            //                            )
+            //                          \)){0,1}", RegexOptions.IgnorePatternWhitespace);
+            //var matches = Regex.Matches(text, $@"{leftPattern}{leftSymbol}(?<x>[^{leftSymbol}{rightSymbol}]*(((?'Open'{leftSymbol})[^{leftSymbol}{rightSymbol}]*)+((?'-Open'{rightSymbol})[^{leftSymbol}{rightSymbol}]*)+)*)\){rightPattern}");
+
+            if (_keySymbolsInRegexPattern.Contains(leftSymbol))
+            {
+                leftSymbol = "\\" + leftSymbol;
+            }
+            if (_keySymbolsInRegexPattern.Contains(rightSymbol))
+            {
+                rightSymbol = "\\" + rightSymbol;
+            }
+            var matches = isSymbolOptional
+                ? Regex.Matches(text, $@"{leftPattern}
+                                      ({leftSymbol}
+                                        (?<x>
+                                            [^{leftSymbol}{rightSymbol}]*
+                                            (
+                                                ((?'Open'{leftSymbol})[^{leftSymbol}{rightSymbol}]*)+
+                                                ((?'-Open'{rightSymbol})[^{leftSymbol}{rightSymbol}]*)+
+                                            )*
+                                        )
+                                      {rightSymbol}
+                                      ){{0,1}}{rightPattern}", RegexOptions.IgnorePatternWhitespace)
+                : Regex.Matches(text, $@"{leftPattern}
+                                      {leftSymbol}
+                                        (?<x>
+                                            [^{leftSymbol}{rightSymbol}]*
+                                            (
+                                                ((?'Open'{leftSymbol})[^{leftSymbol}{rightSymbol}]*)+
+                                                ((?'-Open'{rightSymbol})[^{leftSymbol}{rightSymbol}]*)+
+                                            )*
+                                        )
+                                      {rightSymbol}
+                                      {rightPattern}", RegexOptions.IgnorePatternWhitespace);
             List<Match> result = [];
             // 去重
             foreach (Match match in matches.Cast<Match>())

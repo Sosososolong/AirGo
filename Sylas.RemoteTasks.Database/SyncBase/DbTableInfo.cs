@@ -52,7 +52,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <summary>
         /// 非字符串属性和转换器(将给定字符串转换为属性的类型, 如属性Id类型为int, 转换器将给定的"1"转换为1)
         /// </summary>
-        public readonly static Dictionary<string, Func<string, object>> _propertyConverterMappers;
+        public readonly static Dictionary<string, Func<string, object?>> _propertyConverterMappers;
         static DbTableInfo()
         {
             #region 反射获取实体类的基本信息

@@ -22,7 +22,6 @@ using System.Data;
 using System.Data.SqlClient;
 using System.IO;
 using System.Linq;
-using System.Net.NetworkInformation;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -513,7 +512,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         {
             return await DeleteAsync(_connectionString, tableName, ids);
         }
-        static readonly ConcurrentDictionary<string, ConcurrentDictionary<string, (Type, Func<string, object>)>> _tableAndStringFieldsConverter = [];
+        static readonly ConcurrentDictionary<string, ConcurrentDictionary<string, (Type, Func<string, object?>)>> _tableAndStringFieldsConverter = [];
         /// <summary>
         /// 获取表字段转换器, 可以将表字段的字符串值形式转换为对应的数据类型(如int, long, float, double, decimal, datetime)
         /// </summary>
@@ -521,7 +520,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="tableName"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        static async Task<ConcurrentDictionary<string, (Type, Func<string, object>)>> GetTableFieldsConverterAsync(IDbConnection conn, string tableName)
+        static async Task<ConcurrentDictionary<string, (Type, Func<string, object?>)>> GetTableFieldsConverterAsync(IDbConnection conn, string tableName)
         {
             string tableKey = $"{conn.ConnectionString}_{tableName}";
             if (_tableAndStringFieldsConverter.TryGetValue(tableKey, out var stringFieldsConvert))
@@ -529,7 +528,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 return stringFieldsConvert;
             }
             var colInfos = await GetTableColumnsInfoAsync(conn, tableName);
-            ConcurrentDictionary<string, (Type, Func<string, object>)> fieldsConverter = [];
+            ConcurrentDictionary<string, (Type, Func<string, object?>)> fieldsConverter = [];
             foreach (var colInfo in colInfos)
             {
                 if (colInfo.ColumnCSharpType == "string")
@@ -540,7 +539,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 if (!string.IsNullOrWhiteSpace(colInfo.ColumnCSharpType))
                 {
                     Type columnType = GetCSharpType(colInfo.ColumnCSharpType);
-                    Func<string, object> converter = ExpressionBuilder.CreateStringConverter(columnType);
+                    Func<string, object?> converter = ExpressionBuilder.CreateStringConverter(columnType);
 
                     fieldsConverter.TryAdd(colInfo.ColumnCode, (columnType, converter));
                 }
@@ -617,7 +616,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             DateTime start = DateTime.Now;
 
             // 检查参数值是否需要转换(不是字符串就需要转换)
-            Dictionary<string, object> parameters = [];
+            Dictionary<string, object?> parameters = [];
             var tableFieldsConverter = await GetTableFieldsConverterAsync(conn, tableName);
             foreach (var idOrUpdatingField in idAndUpdatingFields)
             {
@@ -856,10 +855,11 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// 备份数据表到指定目录中
         /// </summary>
         /// <param name="connectionString"></param>
+        /// <param name="backupDbName"></param>
         /// <param name="tables"></param>
-        /// <param name="backupDir"></param>
+        /// <param name="backupName"></param>
         /// <returns></returns>
-        public static async Task<string> BackupDataAsync(string connectionString, string tables = "", string backupDir = "")
+        public static async Task<string> BackupDataAsync(string connectionString, string backupDbName, string tables = "", string backupName = "")
         {
             IEnumerable<string> tableList;
             using var conn = GetDbConnection(connectionString);
@@ -871,25 +871,27 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             {
                 tableList = tables.Split(';', ',');
             }
-            if (string.IsNullOrWhiteSpace(backupDir))
+            if (string.IsNullOrWhiteSpace(backupName))
             {
-                backupDir = Path.Combine(AppStatus.StaticDirectory, "Backup");
+                backupName = DateTime.Now.ToString("yyyyMMddHHmmss");
             }
-            else
+            if (string.IsNullOrWhiteSpace(backupDbName))
             {
-                backupDir = Path.Combine(AppStatus.StaticDirectory, "Backup", backupDir);
+                throw new Exception("backupName不能为空");
             }
-            string backupNumber = DateTime.Now.ToString("yyyyMMddHHmmss");
-            backupDir = Path.Combine(backupDir, backupNumber);
-            if (!Directory.Exists(backupDir))
+            backupDbName = Path.Combine(AppStatus.StaticDirectory, "Backup", backupDbName, backupName);
+            if (!Directory.Exists(backupDbName))
             {
-                Directory.CreateDirectory(backupDir);
+                Directory.CreateDirectory(backupDbName);
             }
 
-            string logFile = Path.Combine(backupDir, $"backup.log");
-            using var logWriter = new StreamWriter(logFile, false);
+            string logFile = Path.Combine(backupDbName, $"backup.log");
             foreach (var table in tableList)
             {
+                if (table.Contains("2025") || table.Contains("2024") || table.Contains("copy") || table.ToLower().Contains("login") || table.ToLower().Contains("logs"))
+                {
+                    continue;
+                }
                 string sql = $"select * from {GetTableStatement(table, GetDbType(conn.ConnectionString))}";
 
                 // 打开一个DataReader之前, 先获取表的字段信息
@@ -897,12 +899,13 @@ namespace Sylas.RemoteTasks.Database.SyncBase
 
                 // 使用DataReader一条一条地读取数据, 避免一次性读取数据量过大
                 using var reader = await conn.ExecuteReaderAsync(sql);
-                string backupFile = Path.Combine(backupDir, table);
+                string backupFile = Path.Combine(backupDbName, table);
 
                 using var writer = new StreamWriter(backupFile, false);
                 // 1.第一行记录表字段
                 await writer.WriteLineAsync(JsonConvert.SerializeObject(columns));
-                logWriter.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 开始备份表:{table}");
+                //File.AppendAllLines(logFile, [$"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 开始备份表:{table}"]);
+                LoggerHelper.LogInformation($"开始备份表:{table}");
                 // 2. 记录所有行
                 int lines = 0;
                 while (reader.Read())
@@ -915,9 +918,10 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                     await writer.WriteLineAsync(recordLine);
                     lines++;
                 }
-                logWriter.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {lines}条记录备份结束");
+                //File.AppendAllLines(logFile, [$"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {lines}条记录备份结束{Environment.NewLine}"]);
+                LoggerHelper.LogInformation($"{lines}条记录备份结束{Environment.NewLine}");
             }
-            return backupDir;
+            return backupDbName;
         }
         const int batchSize = 1000;
         /// <summary>
@@ -931,12 +935,41 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         {
             tables ??= string.Empty;
             using var conn = GetDbConnection(connectionString);
-            string[] tableList = [];
+            Dictionary<string, string> tableList = [];
             if (!string.IsNullOrWhiteSpace(tables))
             {
-                tableList = tables.Split(';', ',');
+                //var matches = Regex.Matches(tables, @"[\w-]+
+                //                      (\(
+                //                        (?<x>
+                //                            [^\(\)]*
+                //                            (
+                //                                ((?'Open'\()[^\(\)]*)+
+                //                                ((?'-Open'\))[^\(\)]*)+
+                //                            )*
+                //                        )
+                //                      \)){0,1}", RegexOptions.IgnorePatternWhitespace);
+                
+                var matches = tables.ResolvePairedSymbolsContent("(", ")", @"[\w-]+", @"", true);
+                var tableStatements = matches.Select(x => x.Value);
+                foreach (var tableStatement in tableStatements)
+                {
+                    int firstLeftParenIndex = tableStatement.IndexOf('(');
+                    string tableName = tableStatement.ToLower();
+                    string tableCondition = string.Empty;
+                    if (firstLeftParenIndex > 0 && tableStatement.EndsWith(')'))
+                    {
+                        tableName = tableStatement[..firstLeftParenIndex];
+                        tableList[tableName.ToLower()] = string.Empty;
+                        var condition = tableStatement[(firstLeftParenIndex + 1)..].TrimEnd(')');
+                        if (!string.IsNullOrWhiteSpace(condition) && Regex.IsMatch(condition, @"(((and)|(or)){0,1}\s*\w+\s*(>|<|(>=)|(<=))\s*[\w\.]+)+"))
+                        {
+                            tableCondition = condition;
+                        }
+                    }
+                    tableList[tableName] = tableCondition;
+                }
             }
-            
+
             if (string.IsNullOrWhiteSpace(backupDir))
             {
                 throw new Exception("数据备份目录不能为空");
@@ -947,10 +980,12 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             foreach (var tableFile in files)
             {
                 string table = tableFile.Replace('\\', '/').Split('/').Last();
-                if (tableList.Length > 0 && !tableList.Contains(table))
+                if (tableList.Count > 0 && !tableList.ContainsKey(table.ToLower()))
                 {
                     continue;
                 }
+
+                Dictionary<string, Func<object?, bool>>? recordColIsMatchCondition = [];
 
                 int i = 0;
                 ColumnInfo[] cols = [];
@@ -967,11 +1002,68 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                         // 第一行, 字段信息
                         cols = JsonConvert.DeserializeObject<ColumnInfo[]>(line) ?? throw new Exception("从备份文件解析字段信息失败");
                         await CreateTableIfNotExistAsync(conn, table, cols);
+                        
+                        string tableCondition = tableList[table.ToLower()];
+                        if (!string.IsNullOrWhiteSpace(tableCondition))
+                        {
+                            var conditionMatch = Regex.Match(tableCondition, @"(?<l>\w+)(?<op>(>=)|(<=)|>|<|=|(==))(?<r>.+)");
+                            if (conditionMatch.Groups.Count >= 3)
+                            {
+                                string l = conditionMatch.Groups["l"].Value;
+                                string op = conditionMatch.Groups["op"].Value;
+                                string r = conditionMatch.Groups["r"].Value;
+                                ColumnInfo col = cols.FirstOrDefault(x => x.ColumnCode.Equals(l, StringComparison.OrdinalIgnoreCase));
+                                recordColIsMatchCondition[col.ColumnCode] = (object? colVal) =>
+                                {
+                                    if (col.ColumnCSharpType == "int")
+                                    {
+                                        return (colVal as int? ?? 0) == Convert.ToInt32(r);
+                                    }
+                                    else if (col.ColumnCSharpType == "string")
+                                    {
+                                        string strVal = $"{r}";
+                                        return op.StartsWith('>') ? string.Compare($"{colVal}", strVal) >= 0 : string.Compare($"{colVal}", strVal) <= 0;
+                                    }
+                                    else if (col.ColumnCSharpType == "long")
+                                    {
+                                        long longVal = Convert.ToInt64(r);
+                                        return op.StartsWith('>') ? (colVal as long? ?? 0) >= longVal : (colVal as long? ?? 0) <= longVal;
+                                    }
+                                    else if (col.ColumnCSharpType == "decimal")
+                                    {
+                                        decimal decimalVal = Convert.ToDecimal(r);
+                                        return op.StartsWith('>') ? (colVal as decimal? ?? 0) >= decimalVal : (colVal as decimal? ?? 0) <= decimalVal;
+                                    }
+                                    else if (col.ColumnCSharpType == "double" || col.ColumnCSharpType == "float")
+                                    {
+                                        double doubleVal = Convert.ToDouble(r);
+                                        return op.StartsWith('>') ? (colVal as double? ?? 0) >= doubleVal : (colVal as double? ?? 0) <= doubleVal;
+                                    }
+                                    else if (col.ColumnCSharpType == "datetime")
+                                    {
+                                        if (colVal is null || colVal is not DateTime colDateTimeVal)
+                                        {
+                                            return false;
+                                        }
+                                        var datetimeVal = Convert.ToDateTime(r);
+                                        return op.StartsWith('>') ? colDateTimeVal >= datetimeVal : colDateTimeVal <= datetimeVal;
+                                    }
+                                    else
+                                    {
+                                        LoggerHelper.LogCritical($"不支持比较大小的字段类型: {col.ColumnCSharpType}");
+                                        return false;
+                                    }
+                                };
+                            } 
+                        }
                     }
                     else
                     {
                         // 其他行, 数据
                         var values = line.Split(',');
+                        
+                        bool ignoreRecord = false;
+
                         var parameters = new Dictionary<string, object?>();
                         for (int j = 0; j < cols.Length; j++)
                         {
@@ -980,7 +1072,17 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                                 break;
                             }
                             var colInfo = cols[j];
-                            parameters.Add(colInfo.ColumnCode, GetFieldValue(values[j], colInfo.ColumnCSharpType));
+                            object? fieldValue = GetFieldValue(values[j], colInfo.ColumnCSharpType ?? "string");
+                            if (recordColIsMatchCondition.ContainsKey(colInfo.ColumnCode) && !recordColIsMatchCondition[colInfo.ColumnCode](fieldValue))
+                            {
+                                ignoreRecord = true;
+                                break; ;
+                            }
+                            parameters.Add(colInfo.ColumnCode, fieldValue);
+                        }
+                        if (ignoreRecord)
+                        {
+                            continue;
                         }
                         // 出错时, 一条一条地处理每一条记录, 以找到出错的数据
                         //if (string.IsNullOrWhiteSpace(colsStatement))
@@ -1147,7 +1249,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                     int transferCount = tableSqlsInfos.Count * perBatchCount;
                     allTransferCount += transferCount;
                     LoggerHelper.LogInformation($"表{sourceTableName}迁移{transferCount}/{allTransferCount}条记录, 耗时:{DateTimeHelper.FormatSeconds((DateTime.Now - t1).TotalSeconds)}");
-                    
+
                     transferTasks.Clear();
                     t1 = DateTime.Now;
                 }
@@ -1308,7 +1410,12 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             List<string> notNeedConvertColumns = [];
             foreach (var colItem in first)
             {
-                var colInfo = colInfos.First(x => x.ColumnCode.Equals(colItem.Key));
+                var colInfo = colInfos.FirstOrDefault(x => x.ColumnCode.Equals(colItem.Key, StringComparison.OrdinalIgnoreCase));
+                if (colInfo is null)
+                {
+                    // 额外添加的字段
+                    continue;
+                }
                 if ($"{colInfo.ColumnCSharpType}".Equals("string") || (colItem.Value is not null && colInfo.ColumnCSharpType is not null && colItem.Value.GetType().Equals(GetCSharpType(colInfo.ColumnCSharpType))))
                 {
                     notNeedConvertColumns.Add(colInfo.ColumnCode);
@@ -1324,7 +1431,11 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 list.Add(dataItem);
                 foreach (var item in record)
                 {
-                    var colInfo = colInfos.First(x => x.ColumnCode.Equals(item.Key));
+                    var colInfo = colInfos.FirstOrDefault(x => x.ColumnCode.Equals(item.Key, StringComparison.OrdinalIgnoreCase));
+                    if (colInfo is null)
+                    {
+                        continue;
+                    }
                     if (item.Value is null || notNeedConvertColumns.Contains(item.Key))
                     {
                         dataItem.Add(item.Key, item.Value);
@@ -1636,11 +1747,19 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                         }
                         var deleted = await conn.ExecuteAsync(deleteSqls, parameters);
                         logger?.LogInformation($"已经删除{deleted}条记录");
+                        if (logger is null)
+                        {
+                            LoggerHelper.LogInformation($"已经删除{deleted}条记录");
+                        }
                         deleteSqlsBuilder.Clear();
                     }
                     else
                     {
-                        logger?.LogInformation($"没有旧数据需要删除");
+                        logger?.LogInformation("没有旧数据需要删除");
+                        if (logger is null)
+                        {
+                            LoggerHelper.LogInformation("没有旧数据需要删除");
+                        }
                     }
                 }
             }
@@ -2014,7 +2133,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                             }
                             datalist.Add(record);
                             queryedRecordsCount++;
-                            
+
                             if (datalist.Count > 0 && datalist.Count % 1000 == 0)
                             {
                                 _transferQueue.Enqueue(datalist);
@@ -2150,7 +2269,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
 
                 // 参数名后缀(第一条数据的Name字段, 参数名为Name1, 第二条为Name2, ...)
                 var random = 0;
-                
+
                 foreach (IDictionary<string, object?> dataItem in datalist)
                 {
                     var dataItemPkValues = sourcePrimaryKeys.Select(x => dataItem[x]?.ToString() ?? string.Empty).ToArray();

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
+using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Common.Extensions;
 using Sylas.RemoteTasks.Utils.Extensions.Text;
 using Sylas.RemoteTasks.Utils.Template;
@@ -410,6 +411,27 @@ namespace Sylas.RemoteTasks.Test.Tmpl
                 Assert.Equal(i, line.Line.LineIndex);
                 outputHelper.WriteLine($"{line.Line.LineIndex}: {line.Line.Content}");
                 i++;
+            }
+        }
+        [Fact]
+        public void GetFunctionsTest()
+        {
+            string originTxt = """
+                BuildEntityClassCodeAsync({{数据库连接字符串}}|||{{数据表表名}})->EntityClassCode->["EntityCalssName", "EntityClassSourceCode", "PrimaryKeyType", "DtoExceptIdPropsCode", "DtoExceptIdAndDateTimePropsCode", "TimeRangeFilterProps"]
+                GetDateTimePropAssignCode({EntityClassSourceCode})->DateTimePropAssignCode->[AssignDateTimeWhenAddEntity, AssignDateTimeWhenUpdateEntity]
+                {{数据表业务名称}}
+                GetFileProjDirAndNamespace({WorkingDir}|||/service/)->ServiceInfo->[ServiceRootDir,ServiceRootNS]
+                Pluralize({EntityCalssName})->EntityPluralizeName->[EntityPluralizeName]
+                """;
+            var matches = originTxt.ResolvePairedSymbolsContent("\\(", "\\)", "(?<FunctionName>[A-Z]\\w+)", "->(?<SavedKey>\\w+)->\\[(?<index>\\d+|[,A-Za-z,\\s,\"]+)\\]");
+            foreach (var match in matches)
+            {
+                outputHelper.WriteLine(match.Value);
+                outputHelper.WriteLine($"FunctionName: {match.Groups["FunctionName"]}");
+                outputHelper.WriteLine($"SavedKey: {match.Groups["SavedKey"]}");
+                outputHelper.WriteLine($"Index: {match.Groups["Index"]}");
+                outputHelper.WriteLine($"Content: {match.Groups["Content"]}");
+                outputHelper.WriteLine($"OriginText: {match.Groups["OriginText"]}{Environment.NewLine}");
             }
         }
     }

@@ -32,16 +32,27 @@
                 }
             ]
             const idFieldName = "id";
-
+            
             /**
              * HttpRequestProcessors
              */
-            await createTable(apiUrl, 1, 10, tableId, tableParentSelector, ths, idFieldName, null, null, onProcessorsDataLoaded, ''
-                , { url: 'Sync/AddHttpRequestProcessor', method: 'POST', updateUrl: '/Sync/UpdateHttpRequestProcessor', updateMethod: 'POST' }
-                , true
-                , null
-                , null
-                , []
+            await createTable(
+                {
+                    apiUrl: apiUrl,
+                    pageIndex: 1,
+                    pageSize: 10,
+                    tableId: tableId,
+                    tableContainerSelector: tableParentSelector,
+                    ths: ths,
+                    idFieldName: idFieldName,
+                    onDataLoaded: onProcessorsDataLoaded,
+                    wrapper: '',
+                    modalSettings: { url: 'Sync/AddHttpRequestProcessor', method: 'POST', updateUrl: '/Sync/UpdateHttpRequestProcessor', updateMethod: 'POST' },
+                    primaryKeyIsInt: true,
+                    addButtonSelector: '',
+                    dataViewBuilder: null,
+                    orderRules: [{ fieldName: 'title', isAsc: true }]
+                }
             )
 
             /**
@@ -55,11 +66,15 @@
                 if (!steps || !(steps.length) || tableLength) {
                     return;
                 }
+                
                 await createTable(
-                    "/Sync/GetHttpRequestProcessorSteps", 1, 1000,
-                    tableStepsId,
-                    tableParentSelector,
-                    [
+                    {
+                    apiUrl: "/Sync/GetHttpRequestProcessorSteps",
+                    pageIndex: 1,
+                    pageSize: 1000,
+                    tableId: tableStepsId,
+                    tableContainerSelector: tableParentSelector,
+                    ths: [
                         { name: 'id', title: 'ID' },
                         { name: 'parameters', title: '执行参数' },
                         { name: 'requestBody', title: '请求体' },
@@ -77,25 +92,23 @@
                                 `
                         }
                     ],
-                    idFieldName,
-                    [
+                    idFieldName: idFieldName,
+                    filterItems: [
                         {
                             fieldName: 'processorId',
                             compareType: '=',
                             value: processorId
                         }
                     ],
-                    steps,
-                    null,
-                    // wrapper 每一张表关联的是Processor表的某一行数据
-                    `<div id="collapse${tableId}${row[idFieldName]}" class="collapse" aria-labelledby="${tableParentSelector}" data-bs-parent="#accordion"><div class="card-body">{{tableHtml}}</div></div>`
-                    // Modal Settings
-                    , { url: 'Sync/AddHttpRequestProcessorStep', method: 'POST', updateUrl: '/Sync/UpdateHttpRequestProcessorStep', updateMethod: 'POST' }
-                    , true
-                    , null
-                    , null
-                    , []
-                );
+                    data: steps,
+                    onDataLoaded: null,
+                    wrapper: `<div id="collapse${tableId}${row[idFieldName]}" class="collapse" aria-labelledby="${tableParentSelector}" data-bs-parent="#accordion"><div class="card-body">{{tableHtml}}</div></div>`, // wrapper 每一张表关联的是Processor表的某一行数据
+                    modalSettings: { url: 'Sync/AddHttpRequestProcessorStep', method: 'POST', updateUrl: '/Sync/UpdateHttpRequestProcessorStep', updateMethod: 'POST' },
+                    primaryKeyIsInt: true,
+                    addButtonSelector: '',
+                    dataViewBuilder: null,
+                    orderRules: []
+                });
 
 
                 await createTableDataHandlers(steps, tableStepsId);
@@ -114,43 +127,45 @@
                     const tableDataHandlersId = `tableDataHandlersForStep${stepId}`;
                     if (loadingData && (loadingData.length) && !$(`#${tableDataHandlersId}`).length) {
                         await createTable(
-                            "/Sync/GetHttpRequestProcessorStepDataHandlers", 1, 1000,
-                            tableDataHandlersId,
-                            tableParentSelector,
-                            [
-                                { name: 'dataHandler', title: '数据处理器' },
-                                { name: 'parametersInput', title: '参数' },
-                                { name: 'stepId', title: '步骤' },
-                                //{ name: 'previous', title: '上一个数据处理器', type: `dataSource|dataSourceApi=Sync/GetHttpRequestProcessorStepDataHandlers|displayField=remark|body={"filterItems":[{"fieldName":"stepId","compareType": "=","value":"${stepId}"}],"keywords": {"fields": [],"value": ""}}|defaultValue=0` },
-                                { name: 'enabled', title: '是否启用', enumValus: [false, true] },
-                                { name: 'remark', title: '备注', width: 200 },
-                                {
-                                    name: '',
-                                    title: '操作',
-                                    type: 'button',
-                                    tmpl: `
-                                        <button type="button" class="btn btn-primary btn-sm mt-1" data-table-id="${tableDataHandlersId}" data-id="{{id}}" data-fetch-url="/Sync/GetHttpRequestProcessorStepDataHandlers" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
-                                        <button type="button" class="btn btn-primary btn-sm mt-1 d-none" data-table-id="${tableDataHandlersId}" data-id="{{id}}" data-delete-url="/Sync/DeleteHttpRequestProcessorStepDataHandler" data-method="POST" onclick="deleteData(this)">删除</button>`
-                                }
-                            ],
-                            idFieldName,
-                            [
-                                {
-                                    fieldName: 'stepId',
-                                    compareType: '=',
-                                    value: stepId
-                                }
-                            ],
-                            loadingData,
-                            null,
-                            // wrapper 每一张表关联的是Steps表的某一行数据
-                            `<div id="collapse${tableStepsId}${stepId}" class="collapse" aria-labelledby="${tableParentSelector}" data-bs-parent="#accordion"><div class="card-body">{{tableHtml}}</div></div>`
-                            // Modal Settings
-                            , { url: 'Sync/AddHttpRequestProcessorStepDataHandler', method: 'POST', updateUrl: '/Sync/UpdateHttpRequestProcessorStepDataHandler', updateMethod: 'POST', }
-                            , true
-                            , null
-                            , null
-                            , []
+                            {
+                                apiUrl: "/Sync/GetHttpRequestProcessorStepDataHandlers", pageIndex: 1, pageSize: 1000,
+                                tableId: tableDataHandlersId,
+                                tableContainerSelector: tableParentSelector,
+                                ths: [
+                                    { name: 'dataHandler', title: '数据处理器' },
+                                    { name: 'parametersInput', title: '参数' },
+                                    { name: 'stepId', title: '步骤' },
+                                    //{ name: 'previous', title: '上一个数据处理器', type: `dataSource|dataSourceApi=Sync/GetHttpRequestProcessorStepDataHandlers|displayField=remark|body={"filterItems":[{"fieldName":"stepId","compareType": "=","value":"${stepId}"}],"keywords": {"fields": [],"value": ""}}|defaultValue=0` },
+                                    { name: 'enabled', title: '是否启用', enumValus: [false, true] },
+                                    { name: 'remark', title: '备注', width: 200 },
+                                    {
+                                        name: '',
+                                        title: '操作',
+                                        type: 'button',
+                                        tmpl: `
+                                            <button type="button" class="btn btn-primary btn-sm mt-1" data-table-id="${tableDataHandlersId}" data-id="{{id}}" data-fetch-url="/Sync/GetHttpRequestProcessorStepDataHandlers" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
+                                            <button type="button" class="btn btn-primary btn-sm mt-1 d-none" data-table-id="${tableDataHandlersId}" data-id="{{id}}" data-delete-url="/Sync/DeleteHttpRequestProcessorStepDataHandler" data-method="POST" onclick="deleteData(this)">删除</button>`
+                                    }
+                                ],
+                                idFieldName: idFieldName,
+                                filterItems: [
+                                    {
+                                        fieldName: 'stepId',
+                                        compareType: '=',
+                                        value: stepId
+                                    }
+                                ],
+                                data: loadingData,
+                                onDataLoaded: null,
+                                // wrapper 每一张表关联的是Steps表的某一行数据
+                                wrapper: `<div id="collapse${tableStepsId}${stepId}" class="collapse" aria-labelledby="${tableParentSelector}" data-bs-parent="#accordion"><div class="card-body">{{tableHtml}}</div></div>`
+                                // Modal Settings
+                                , modalSettings: { url: 'Sync/AddHttpRequestProcessorStepDataHandler', method: 'POST', updateUrl: '/Sync/UpdateHttpRequestProcessorStepDataHandler', updateMethod: 'POST', }
+                                , primaryKeyIsInt: true
+                                , addButtonSelector: ''
+                                , dataViewBuilder: null
+                                , orderRules: []
+                            }
                         );
                     }
                 }

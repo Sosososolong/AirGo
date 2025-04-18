@@ -10,13 +10,14 @@ namespace Sylas.RemoteTasks.App.DatabaseManager.Models
     public class DbBackup : EntityBase<int>
     {
         public DbBackup() { }
-        public DbBackup(int connInfoId, string domain, string name, string backupDir, string remark)
+        public DbBackup(int connInfoId, string domain, string name, string backupDir, string remark, long size)
         {
             DbConnectionInfoId = connInfoId;
             Name = name;
             Domain = domain;
             BackupDir = backupDir;
             Remark = remark;
+            Size = size;
         }
         /// <summary>
         /// 备份的数据库连接信息Id
@@ -38,5 +39,9 @@ namespace Sylas.RemoteTasks.App.DatabaseManager.Models
         /// 备注
         /// </summary>
         public string Remark { get; set; } = "";
+        /// <summary>
+        /// 备份目录大小
+        /// </summary>
+        public long? Size { get; set; } = 0;
     }
 }

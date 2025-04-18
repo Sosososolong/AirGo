@@ -32,22 +32,24 @@
             ]
             const idFieldName = "id";
 
-            /**
+        
+        /**
              * Snippet
              */
             createTable(
-                apiUrl,                     // 接口地址
-                1,                          // pageIndex
-                10,                         // pageSize
-                tableId,                    // 给数据表一个标识符, 方便一个页面操作多个数据表
-                tableParentSelector,        // 数据表父元素
-                ths,                        // 数据表列配置
-                idFieldName,                // 数据的Id字段名
-                null,                       // 数据过滤条件集合 FilterItems
-                null,                       // 初始化数据(有的话就渲染此数据, 不会请求接口)
-                onDataLoaded,               // 订阅数据渲染完成事件
-                '',                         // 对数据表添加父元素, 使用{{tableHtml}}变量代表整个数据表html
-                { url: 'Snippet/AddSnippet', method: 'POST', updateUrl: '/Snippet/UpdateSnippet', updateMethod: 'POST' }   // 添加修改数据表单弹窗; url为添加数据的url(修改的url放到修改按钮上); method也是请求添加数据接口的请求方法
+                {
+                    apiUrl: apiUrl,                                 // 接口地址
+                    pageIndex: 1,                                   // pageIndex
+                    pageSize: 10,                                   // pageSize
+                    tableId: tableId,                               // 给数据表一个标识符, 方便一个页面操作多个数据表
+                    tableContainerSelector: tableParentSelector,    // 数据表父元素
+                    ths: ths,                                       // 数据表列配置
+                    idFieldName: idFieldName,                       // 数据的Id字段名
+                    onDataLoaded: onDataLoaded,                     // 订阅数据渲染完成事件
+                    wrapper: '',                                    // 对数据表添加父元素, 使用{{tableHtml}}变量代表整个数据表html
+                    modalSettings: { url: 'Snippet/AddSnippet', method: 'POST', updateUrl: '/Snippet/UpdateSnippet', updateMethod: 'POST' },   // 添加修改数据表单弹窗; url为添加数据的url(修改的url放到修改按钮上); method也是请求添加数据接口的请求方法
+                    orderRules: [{ fieldName: 'createTime', isAsc: false }] // 排序
+                }
             )
 
             /**

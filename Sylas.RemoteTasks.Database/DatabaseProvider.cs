@@ -457,7 +457,7 @@ public class DatabaseProvider : IDatabaseProvider
     /// <param name="table"></param>
     /// <param name="records"></param>
     /// <returns></returns>
-    public async Task<int> InsertDataAsync(string table, IEnumerable<Dictionary<string, object>> records)
+    public async Task<int> InsertDataAsync(string table, IEnumerable<Dictionary<string, object?>> records)
     {
         return await DatabaseInfo.InsertDataAsync(ConnectionString, table, records);
     }

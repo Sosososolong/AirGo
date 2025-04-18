@@ -66,27 +66,26 @@
             });
             return container;
         }
-
         /**
             * 初始化数据表格
             */
         createTable(
-            apiUrl,                     // 接口地址
-            1,                          // pageIndex
-            100,                        // pageSize
-            tableId,                    // 给数据表一个标识符, 方便一个页面操作多个数据表
-            tableParentSelector,        // 数据表父元素
-            ths,                        // 数据表列配置
-            idFieldName,                // 数据的Id字段名
-            null,                       // 数据过滤条件集合 FilterItems
-            null,                       // 初始化数据(有的话就渲染此数据, 不会请求接口)
-            onDataLoaded,               // 订阅数据渲染完成事件
-            '',                         // 对数据表添加父元素, 使用{{tableHtml}}变量代表整个数据表html
-            { url: 'Study/AddQuestion', method: 'POST', updateUrl: '/Study/UpdateQuestion', updateMethod: 'POST' },   // 添加修改数据表单弹窗; url为添加数据的url(修改的url放到修改按钮上); method也是请求添加数据接口的请求方法
-            true,
-            'h1',
-            buildDataView,
-            [{ fieldName: 'errorCount', isAsc: false }, {orderField: 'correctCount', isAsc: true}]
+            {
+                apiUrl: apiUrl,
+                pageIndex: 1,
+                pageSize: 100,
+                tableId: tableId,
+                tableContainerSelector: tableParentSelector,
+                ths: ths,
+                idFieldName: idFieldName,
+                onDataLoaded: onDataLoaded,
+                wrapper: '',
+                modalSettings: { url: 'Study/AddQuestion', method: 'POST', updateUrl: '/Study/UpdateQuestion', updateMethod: 'POST' },   // 添加修改数据表单弹窗; url为添加数据的url(修改的url放到修改按钮上); method也是请求添加数据接口的请求方法
+                primaryKeyIsInt: true,
+                addButtonSelector: 'h1',
+                dataViewBuilder: buildDataView,
+                orderRules: [{ fieldName: 'errorCount', isAsc: false }, {orderField: 'correctCount', isAsc: true}]
+            }
         )
 
         /**

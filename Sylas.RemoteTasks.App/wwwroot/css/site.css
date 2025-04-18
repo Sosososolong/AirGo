@@ -30,7 +30,7 @@ body {
     display: none;
 }
 
-table td {
+table tr {
     vertical-align: middle;
 }
 
@@ -79,6 +79,12 @@ th {
 .bg-black .command-item
 {
     background-color: rgba(var(--bs-dark-rgb), var(--bs-bg-opacity));
+}
+.bg-black .modal-footer {
+    border-top: 1px solid #414243;
+}
+.bg-black .modal-header {
+    border-bottom: 1px solid #414243;
 }
 
 .right-data-pannel {

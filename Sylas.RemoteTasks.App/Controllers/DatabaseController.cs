@@ -120,8 +120,14 @@ namespace Sylas.RemoteTasks.App.Controllers
                 return Ok(new RequestResult<bool>(false) { ErrMsg = "记录不存在" });
             }
             string connectionString = await SecurityHelper.AesDecryptAsync(connInfo.ConnectionString);
-            string backupDir = await DatabaseInfo.BackupDataAsync(connectionString, backupDto.Tables, connInfo.Name.Replace(":", string.Empty));
-            int affectedRows = await backups.AddAsync(new DbBackup(backupDto.DbConnectionInfoId, AppStatus.Domain, backupDto.Name, backupDir, backupDto.Remark));
+            if (string.IsNullOrWhiteSpace(backupDto.Name))
+            {
+                backupDto.Name = DateTime.Now.ToString("yyyyMMddHHmmss");
+            }
+            string backupDir = await DatabaseInfo.BackupDataAsync(connectionString, connInfo.Name.Replace(":", string.Empty), backupDto.Tables, backupDto.Name);
+            long backupSize = Directory.EnumerateFiles(backupDir, "*", SearchOption.AllDirectories)
+                       .Sum(s => new FileInfo(s).Length);
+            int affectedRows = await backups.AddAsync(new DbBackup(backupDto.DbConnectionInfoId, AppStatus.Domain, backupDto.Name, backupDir, backupDto.Remark, backupSize));
             var result = RequestResult<bool>.Success(true);
             if (affectedRows == 0)
             {
@@ -190,7 +196,10 @@ namespace Sylas.RemoteTasks.App.Controllers
             int affectedRows = await backups.DeleteAsync(id);
 
             // 删除备份目录
-            Directory.Delete(backup.BackupDir, true);
+            if (Directory.Exists(backup.BackupDir))
+            {
+                Directory.Delete(backup.BackupDir, true);
+            }
 
             return Ok(affectedRows > 0 ? RequestResult<bool>.Success(true) : RequestResult<bool>.Error("删除备份数据失败"));
         }

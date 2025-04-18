@@ -10,22 +10,22 @@
 
 <script>
     $(function () {
-        window.addedRestoreEvent = false
         const apiUrl = "/Database/BackupRecords";
         const pageIndex = 1;
         const pageSize = 10;
         const tableId = 'dataTable';
         const tableParentSelector = "#tableContainer";
         const ths = [
-            { name: 'name', title: '名称', searchedByKeywords: true },
             { name: 'dbConnectionInfoId', title: '数据库连接', type: 'dataSource|dataSourceApi=/Database/ConnectionStrings?pageIndex=1&pageSize=1000|displayField=name' },
+            { name: 'name', title: '名称', searchedByKeywords: true },
             { name: 'domain', title: '备份主机' },
             { name: 'backupDir', searchedByKeywords: true, title: '备份目录' },
-            { name: 'remark', title: '备注', searchedByKeywords: true },
+            { name: 'remark', title: '备注', searchedByKeywords: true, align: 'center' },
+            { name: 'size', title: '备份大小', isNumber: true, formatter: formatFileSize, align: 'center' },
             { name: 'createTime', title: '创建时间', align: 'center' },
             { name: 'updateTime', title: '更新时间', align: 'center' },
             // 操作栏
-            { name: '', title: '操作', type: 'button', tmpl: `
+            { name: '', title: '操作', width: '200', type: 'button', tmpl: `
                     <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="{{id}}" data-fetch-url="/Database/BackupRecords" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
                     <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-content="&quot;{{id}}&quot;" data-execute-url="/Database/DeleteBackup" data-method="POST" onclick="showConfirmBox('确定删除? 此操作无法撤销!', () => execute(this))">删除</button>
                     <button type="button" class="btn btn-primary btn-sm restore" data-table-id="${tableId}" data-id="{{id}}" data-content="" data-execute-url="/Database/Restore?id={{id}}&tables=" data-method="POST">还原</button>
@@ -45,9 +45,11 @@
             await execute(exeParams, callback)
 
             function callback(response) {
+                // 不能仅移除modal, 因为这样仅仅移除了modal, modal还有background存在, 会挡住整个页面, 所以调用click方法关闭modal
+                document.querySelector('#restore-modal .btn-close').click()
+                // 然后移除modal, 移除它是因为每次都会重新生成新的modal, 所以旧的要移除
                 document.querySelector('#restore-modal').remove()
-                showMsgBox('操作成功', () => {
-                });
+                showResultBox(response)
             }
         }
         function showRestorePannel(trigger) {
@@ -63,7 +65,7 @@
             div.innerHTML = `<div class="modal-dialog">
         <div class="modal-content">
           <div class="modal-header">
-            <h1 class="modal-title fs-5" id="restore-modal-title">选择需要还原的数据库</h1>
+            <h1 class="modal-title fs-5" id="restore-modal-title">选择需要还原的数据库和表</h1>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body">
@@ -73,14 +75,14 @@
                     ${tables['dataTable'].dataSourceField.dbConnectionInfoId_options}
                 </select>
             </div>
-            <div>
+            <div class="mt-3">
                 <label for="tables" class="form-label">同步的表</label>
                 <input class="form-control form-control-sm" type="text" name="tables" id="tables" placeholder="要同步的表, 多个用逗号隔开" />
             </div>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
-            <button type="button" class="btn btn-primary start-restore" data-id="${backupId}">开始还原</button>
+            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">关闭</button>
+            <button type="button" class="btn btn-primary btn-sm start-restore" data-id="${backupId}">开始还原</button>
           </div>
         </div>
       </div>`
@@ -98,25 +100,36 @@
 
         const idFieldName = "id";
 
+        
         /**
          * HttpRequestProcessors
          */
-        createTable(apiUrl, pageIndex, pageSize, tableId, tableParentSelector, ths, idFieldName, null, null, onDataLoaded, ''
-            , { url: '/Database/AddBackup', method: 'POST', updateUrl: '/Database/UpdateBackup', updateMethod: 'POST' }
-            , true
-            , ''
-            , null
-            , [{ fieldName: 'createTime', isAsc: false }]
-        )
+        createTable({
+            apiUrl: apiUrl,
+            pageIndex: pageIndex,
+            pageSize: pageSize,
+            tableId: tableId,
+            tableContainerSelector: tableParentSelector,
+            ths: ths,
+            idFieldName: idFieldName,
+            onDataAllLoaded: onDataAllLoaded,
+            wrapper: '',
+            modalSettings: { url: '/Database/AddBackup', method: 'POST', updateUrl: '/Database/UpdateBackup', updateMethod: 'POST' },
+            primaryKeyIsInt: true,
+            addButtonSelector: '',
+            dataViewBuilder: null,
+            orderRules: [{ fieldName: 'createTime', isAsc: false }]
+        })
 
         /**
          * 数据加载时, 可以对每一行加载的数据进行相关处理
          */
-        function onDataLoaded(row) {
-            if (!window.addedRestoreEvent) {
-                window.addedRestoreEvent = true
-                document.querySelectorAll('.restore').forEach(restoreBtn => restoreBtn.onclick = () => showRestorePannel(restoreBtn))
-            }
+        function onDataAllLoaded(row) {
+            document.querySelectorAll('.restore').forEach(restoreBtn => restoreBtn.onclick = () => showRestorePannel(restoreBtn))
         }
+
+        // function addRestoreBtnsEventListener() {
+        //     document.querySelectorAll('.restore').forEach(restoreBtn => restoreBtn.onclick = () => showRestorePannel(restoreBtn))
+        // }
     });
 </script>
