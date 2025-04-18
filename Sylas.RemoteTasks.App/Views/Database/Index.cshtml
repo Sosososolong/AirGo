@@ -61,10 +61,7 @@
         function onDataLoaded(row) {
         }
         function onDataAllLoaded(data) {
-            const btn = document.querySelector('.backup-btn')
-            btn.onclick = () => {
-                showBackupPannel(btn)
-            }
+            document.querySelectorAll('.backup-btn').forEach(backupBtn => backupBtn.onclick = () => showBackupPannel(backupBtn))
         }
 
         function showBackupPannel(trigger) {
