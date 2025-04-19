@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -16,10 +16,10 @@ namespace Sylas.RemoteTasks.Common
         /// <param name="target"></param>
         /// <param name="handleBatch"></param>
         /// <returns></returns>
-        public static async Task CpuTasksExecuteAsync(IEnumerable<IDictionary<string, object>> target, Action<IEnumerable<IDictionary<string, object>>> handleBatch)
+        public static async Task CpuTasksExecuteAsync(IEnumerable<IDictionary<string, object?>> target, Action<IEnumerable<IDictionary<string, object?>>> handleBatch)
         {
             var tasks = new List<Task>();
-            var batches = new List<List<IDictionary<string, object>>>();
+            var batches = new List<List<IDictionary<string, object?>>>();
             var batchIndex = 0;
 
             double processorCount = Environment.ProcessorCount;

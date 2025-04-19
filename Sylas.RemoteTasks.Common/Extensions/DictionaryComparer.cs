@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -9,7 +9,7 @@ namespace Sylas.RemoteTasks.Common.Extensions
     /// </summary>
     /// <param name="equals"></param>
     /// <param name="getHashCode"></param>
-    public class DictionaryComparer(Func<IDictionary<string, object>, IDictionary<string, object>, bool>? equals = null, Func<IDictionary<string, object>, int>? getHashCode = null) : IEqualityComparer<IDictionary<string, object>>
+    public class DictionaryComparer(Func<IDictionary<string, object?>, IDictionary<string, object?>, bool>? equals = null, Func<IDictionary<string, object?>, int>? getHashCode = null) : IEqualityComparer<IDictionary<string, object?>>
     {
         /// <summary>
         /// 两个字典相等的逻辑
@@ -17,7 +17,7 @@ namespace Sylas.RemoteTasks.Common.Extensions
         /// <param name="x"></param>
         /// <param name="y"></param>
         /// <returns></returns>
-        public bool Equals(IDictionary<string, object> x, IDictionary<string, object> y)
+        public bool Equals(IDictionary<string, object?> x, IDictionary<string, object?> y)
         {
             return equals is null ? DefaultEquals(x, y) : equals(x, y);
         }
@@ -27,15 +27,15 @@ namespace Sylas.RemoteTasks.Common.Extensions
         /// </summary>
         /// <param name="obj"></param>
         /// <returns></returns>
-        public int GetHashCode(IDictionary<string, object> obj)
+        public int GetHashCode(IDictionary<string, object?> obj)
         {
             return getHashCode is null ? DefaultGetHashCode(obj) : getHashCode(obj);
         }
 
-        private bool DefaultEquals(IDictionary<string, object> x, IDictionary<string, object> y)
+        private bool DefaultEquals(IDictionary<string, object?> x, IDictionary<string, object?> y)
         {
-            if (x == y) return true;
             if (x == null || y == null) return false;
+            if (x == y) return true;
             if (x.Count != y.Count) return false;
 
             foreach (var kvp in x)
@@ -47,7 +47,7 @@ namespace Sylas.RemoteTasks.Common.Extensions
             }
             return true;
         }
-        private int DefaultGetHashCode(IDictionary<string, object> obj)
+        private int DefaultGetHashCode(IDictionary<string, object?> obj)
         {
             int hash = 17;
             foreach (var kvp in obj)
@@ -65,7 +65,7 @@ namespace Sylas.RemoteTasks.Common.Extensions
         /// <param name="y"></param>
         /// <param name="sourcePrimaryKeys"></param>
         /// <returns></returns>
-        public static bool EqualsByPrimaryKeys(IDictionary<string, object> x, IDictionary<string, object> y, IEnumerable<string> sourcePrimaryKeys)
+        public static bool EqualsByPrimaryKeys(IDictionary<string, object?> x, IDictionary<string, object?> y, IEnumerable<string> sourcePrimaryKeys)
         {
             // target 主键值; 支持多个
             foreach (var pk in sourcePrimaryKeys)
@@ -80,7 +80,7 @@ namespace Sylas.RemoteTasks.Common.Extensions
                 {
                     return false;
                 }
-                if (!x[xkey].Equals(y[ykey]))
+                if (x[xkey] is null || y[ykey] is null || !x[xkey]!.Equals(y[ykey]))
                 {
                     return false;
                 }
@@ -94,7 +94,7 @@ namespace Sylas.RemoteTasks.Common.Extensions
         /// <param name="primaryKeys"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static int GetHashCodeByPrimaryKeys(IDictionary<string, object> obj, IEnumerable<string> primaryKeys)
+        public static int GetHashCodeByPrimaryKeys(IDictionary<string, object?> obj, IEnumerable<string> primaryKeys)
         {
             int hash = 17;
             foreach (var key in primaryKeys)

@@ -999,13 +999,14 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 {
                     if (i == 0)
                     {
-                        // 第一行, 字段信息
+                        #region 第一行, 字段信息, 解析条件
                         cols = JsonConvert.DeserializeObject<ColumnInfo[]>(line) ?? throw new Exception("从备份文件解析字段信息失败");
                         await CreateTableIfNotExistAsync(conn, table, cols);
-                        
+
                         string tableCondition = tableList[table.ToLower()];
                         if (!string.IsNullOrWhiteSpace(tableCondition))
                         {
+                            // 只有第一行会解析数据过滤条件
                             var conditionMatch = Regex.Match(tableCondition, @"(?<l>\w+)(?<op>(>=)|(<=)|>|<|=|(==))(?<r>.+)");
                             if (conditionMatch.Groups.Count >= 3)
                             {
@@ -1054,8 +1055,9 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                                         return false;
                                     }
                                 };
-                            } 
+                            }
                         }
+                        #endregion
                     }
                     else
                     {
@@ -1084,30 +1086,14 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                         {
                             continue;
                         }
-                        // 出错时, 一条一条地处理每一条记录, 以找到出错的数据
-                        //if (string.IsNullOrWhiteSpace(colsStatement))
-                        //{
-                        //    colsStatement = string.Join(',', parameters.Select(x => x.Key));
-                        //}
-                        //if (string.IsNullOrWhiteSpace(valuesStatement))
-                        //{
-                        //    valuesStatement = string.Join(',', parameters.Select(x => $"{paramFlag}{x.Key}"));
-                        //}
-                        //try
-                        //{
-                        //    await conn.ExecuteAsync($"SET foreign_key_checks=0; INSERT INTO {table}({colsStatement}) values({valuesStatement}); SET foreign_key_checks=1;", parameters);
-                        //}
-                        //catch (Exception e)
-                        //{
-                        //    LoggerHelper.LogError($"表{table}:" + e.Message);
-                        //}
+
                         records.Add(parameters);
 
                         if (records.Count > 0 && records.Count % batchSize == 0)
                         {
                             await TransferDataAsync(records, conn, table);
-                            //await InsertDataAsync(conn, table, records);
-                            await File.AppendAllLinesAsync(logFile, [$"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {batchSize}条记录备份结束"]);
+                            DateTime start = DateTime.Now;
+                            await File.AppendAllLinesAsync(logFile, [$"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {batchSize}条记录备份结束, 耗时: {(DateTime.Now - start).TotalSeconds}/s"]);
                             records.Clear();
                         }
                     }
@@ -1227,43 +1213,110 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 //IAsyncEnumerable<List<TableSqlInfo>> tableSqlsInfoCollection = GetDataTransferSqlInfosAsync(sourceConnectionString, sourceTableName, targetConnQuery, targetTable);
                 IAsyncEnumerable<List<TableSqlInfo>> tableSqlsInfoCollection = GetDataTransferSqlInfosByDataReaderAsync(sourceConnectionString, sourceTableName, targetConnQuery, targetTable);
 
-                List<Task> transferTasks = [];
                 // 2. 执行每个表的insert语句
                 int allTransferCount = 0;
                 DateTime t1 = DateTime.Now;
                 await foreach (var tableSqlsInfos in tableSqlsInfoCollection)
                 {
+                    //List<Task> transferTasks = [];
+                    //if (insertOnly)
+                    //{
+                    //    foreach (var tableSqlsInfo in tableSqlsInfos)
+                    //    {
+                    //        // TODO: 这里不知道必须加上Task.Run才会异步并行, 否则是串行执行的
+                    //        var task = Task.Run(() => TransferByTableSqlsInfoAsync(tableSqlsInfo, targetConnectionString, targetTable, ignoreException, insertOnly));
+                    //        transferTasks.Add(task);
+                    //    }
+                    //}
+                    //else
+                    //{
+                    //    foreach (var tableSqlsInfo in tableSqlsInfos)
+                    //    {
+                    //        await TransferByTableSqlsInfoAsync(tableSqlsInfo, targetConnectionString, targetTable, ignoreException, insertOnly);
+                    //    }
+                    //}
+
+                    //// 3. 等待所有迁移语句执行完成
+                    //if (transferTasks.Count > 0)
+                    //{
+                    //    await Task.WhenAll(transferTasks);
+                    //}
+                    await TransferByTableSqlInfosAsync(tableSqlsInfos, targetConnectionString, targetTable, insertOnly, ignoreException);
+
                     int perBatchCount = Convert.ToInt32(Regex.Match(tableSqlsInfos.First().BatchInsertSqlInfo.Parameters.Last().Key, @"\d+").Value) + 1;
-                    int batchNumber = 1;
-                    foreach (var tableSqlsInfo in tableSqlsInfos)
-                    {
-                        // TODO: 这里不知道为什么不用Task.Run是串行执行
-                        var task = insertOnly
-                            ? Task.Run(() => TransferByTableSqlsInfoAsync(tableSqlsInfo, targetConnectionString, targetTable, ignoreException, insertOnly))
-                            : TransferByTableSqlsInfoAsync(tableSqlsInfo, targetConnectionString, targetTable, ignoreException, insertOnly);
-                        transferTasks.Add(task);
-                        batchNumber++;
-                    }
-                    // 3. 等待所有迁移语句执行完成
-                    await Task.WhenAll(transferTasks);
                     int transferCount = tableSqlsInfos.Count * perBatchCount;
                     allTransferCount += transferCount;
                     LoggerHelper.LogInformation($"表{sourceTableName}迁移{transferCount}/{allTransferCount}条记录, 耗时:{DateTimeHelper.FormatSeconds((DateTime.Now - t1).TotalSeconds)}");
 
-                    transferTasks.Clear();
                     t1 = DateTime.Now;
                 }
             }
             LoggerHelper.LogInformation($"迁移结束, 耗时:{DateTimeHelper.FormatSeconds((DateTime.Now - start).TotalSeconds)}");
         }
-
+        static async Task TransferByTableSqlInfosAsync(List<TableSqlInfo> tableSqlsInfos, string targetConnectionString, string targetTable, bool insertOnly, bool ignoreException)
+        {
+            List<Task> transferTasks = [];
+            if (insertOnly)
+            {
+                foreach (var tableSqlsInfo in tableSqlsInfos)
+                {
+                    // TODO: 这里不知道必须加上Task.Run才会异步并行, 否则是串行执行的
+                    var task = Task.Run(() => TransferByTableSqlsInfoAsync(tableSqlsInfo, targetConnectionString, targetTable, ignoreException, insertOnly));
+                    transferTasks.Add(task);
+                }
+            }
+            else
+            {
+                foreach (var tableSqlsInfo in tableSqlsInfos)
+                {
+                    await TransferByTableSqlsInfoAsync(tableSqlsInfo, targetConnectionString, targetTable, ignoreException, insertOnly);
+                }
+            }
+            if (transferTasks.Count > 0)
+            {
+                await Task.WhenAll(transferTasks);
+            }
+        }
+        static async Task TransferByTableSqlInfosAsync(List<TableSqlInfo> tableSqlsInfos, IDbConnection targetConn, string targetTable, bool insertOnly, bool ignoreException)
+        {
+            List<Task> transferTasks = [];
+            if (insertOnly)
+            {
+                foreach (var tableSqlsInfo in tableSqlsInfos)
+                {
+                    // TODO: 这里不知道必须加上Task.Run才会异步并行, 否则是串行执行的
+                    var task = Task.Run(() => TransferByTableSqlsInfoAsync(tableSqlsInfo, targetConn, targetTable, ignoreException, insertOnly));
+                    transferTasks.Add(task);
+                }
+            }
+            else
+            {
+                foreach (var tableSqlsInfo in tableSqlsInfos)
+                {
+                    await TransferByTableSqlsInfoAsync(tableSqlsInfo, targetConn, targetTable, ignoreException, insertOnly);
+                }
+            }
+            if (transferTasks.Count > 0)
+            {
+                await Task.WhenAll(transferTasks);
+            }
+        }
         static async Task<(int, int)> TransferByTableSqlsInfoAsync(TableSqlInfo tableSqlsInfo, string targetConnectionString, string targetTable, bool ignoreException = false, bool insertOnly = false)
+        {
+            using var targetConnTransfer = GetDbConnection(targetConnectionString);
+            targetConnTransfer.Open();
+            return await TransferByTableSqlsInfoAsync(tableSqlsInfo, targetConnTransfer, targetTable, ignoreException, insertOnly);
+        }
+        
+        static async Task<(int, int)> TransferByTableSqlsInfoAsync(TableSqlInfo tableSqlsInfo, IDbConnection targetConnTransfer, string targetTable, bool ignoreException = false, bool insertOnly = false)
         {
             int deletedRows = 0;
             int affectedRowsCount = 0;
-            var targetDbType = GetDbType(targetConnectionString);
-            using var targetConnTransfer = GetDbConnection(targetConnectionString);
-            targetConnTransfer.Open();
+            var targetDbType = GetDbType(targetConnTransfer.ConnectionString);
+            if (targetConnTransfer.State != ConnectionState.Open)
+            {
+                targetConnTransfer.Open();
+            }
             try
             {
                 if (insertOnly)
@@ -1350,24 +1403,45 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="targetTable"></param>
         /// <param name="sourceIdField"></param>
         /// <param name="logger"></param>
+        /// <param name="insertOnly"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static async Task TransferDataAsync(IEnumerable<object> sourceRecords, IDbConnection targetConn, string targetTable, string sourceIdField = "", ILogger? logger = null)
+        public static async Task TransferDataAsync(IEnumerable<object> sourceRecords, IDbConnection targetConn, string targetTable, string sourceIdField = "", ILogger? logger = null, bool insertOnly = false)
         {
+            if (sourceRecords is null || !sourceRecords.Any())
+            {
+                return;
+            }
+            IEnumerable<IDictionary<string, object?>> source = sourceRecords.CastToDictionaries();
+
             var varFlag = GetDbParameterFlag(targetConn.ConnectionString);
             await CreateTableIfNotExistAsync(targetConn, targetTable, targetConn, targetTable.Split('_')[0]);
-            // 先获取数据
-            var dbRecords = (await targetConn.QueryAsync($"select * from {GetDatabaseName(targetConn)}.{targetTable}") ?? throw new Exception($"获取{targetTable}数据失败"))
-                .Select(row => (IDictionary<string, object>)row);
 
-            var compareResult = await CompareRecordsAsync(sourceRecords, dbRecords, sourceIdField);
-            // 然后删除已存在并且发生了变化的数据
-            await DeleteExistRecordsAsync(targetConn, compareResult, targetTable, varFlag, sourceIdField, logger);
+            var targetDbType = GetDbType(targetConn.ConnectionString);
+            var targetTableColInfos = await GetTableColumnsInfoAsync(targetConn, targetTable);
+            
+            Dictionary<string, string> targetColumnMapToSource = [];
+            var firstSourceRecordKeys = source.First().Keys;
+            foreach (var colInfo in targetTableColInfos)
+            {
+                var sourceKey = firstSourceRecordKeys.FirstOrDefault(x => x.Equals(colInfo.ColumnCode, StringComparison.OrdinalIgnoreCase));
+                if (sourceKey is not null)
+                {
+                    targetColumnMapToSource[colInfo.ColumnCode] = sourceKey;
+                }
+            }
 
-            var inserts = compareResult.ExistInSourceOnly;
-            inserts.AddRange(compareResult.Intersection);
+            string[] tablePks = targetTableColInfos.Where(x => x.IsPK == 1).Select(x => x.ColumnCode).ToArray();
+            string[] sourcePks = tablePks.Select(x => targetColumnMapToSource[x]).ToArray();
 
-            await InsertDataAsync(targetConn, targetTable, inserts);
+            var transferSqlInfos = GetDataTransferSqlInfos([source], sourcePks, targetTable, targetTableColInfos, targetDbType, targetColumnMapToSource);
+
+            int perBatchCount = Convert.ToInt32(Regex.Match(transferSqlInfos.First().BatchInsertSqlInfo.Parameters.Last().Key, @"\d+").Value) + 1;
+            DateTime t1 = DateTime.Now;
+
+            await TransferByTableSqlInfosAsync(transferSqlInfos, targetConn, targetTable, insertOnly, false);
+            int transferCount = transferSqlInfos.Count * perBatchCount;
+            LoggerHelper.LogInformation($"表{targetTable}迁移{transferCount}条记录, 耗时:{DateTimeHelper.FormatSeconds((DateTime.Now - t1).TotalSeconds)}");
         }
         /// <summary>
         /// 将数据添加到表中
@@ -2010,7 +2084,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 }
                 #endregion
 
-                yield return GetDataTransferSqlInfoAsync(
+                yield return GetDataTransferSqlInfos(
                     datalists,
                     sourcePrimaryKeys,
                     targetTableStatement,
@@ -2190,7 +2264,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                             }
                             #endregion
 
-                            yield return GetDataTransferSqlInfoAsync(
+                            yield return GetDataTransferSqlInfos(
                                 datalists,
                                 sourcePrimaryKeys,
                                 targetTableStatement,
@@ -2218,7 +2292,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                             }
                             #endregion
 
-                            yield return GetDataTransferSqlInfoAsync(
+                            yield return GetDataTransferSqlInfos(
                                 datalists,
                                 sourcePrimaryKeys,
                                 targetTableStatement,
@@ -2245,9 +2319,9 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="targetTableStatement"></param>
         /// <param name="targetColInfos"></param>
         /// <param name="targetDbType"></param>
-        /// <param name="targetColumnMapToSource"></param>
+        /// <param name="targetColumnMapToSource">目标表字段和源字段的映射关系</param>
         /// <returns></returns>
-        static List<TableSqlInfo> GetDataTransferSqlInfoAsync(
+        static List<TableSqlInfo> GetDataTransferSqlInfos(
             IEnumerable<IEnumerable<IDictionary<string, object?>>> datalists,
             string[] sourcePrimaryKeys,
             string targetTableStatement,
@@ -3338,11 +3412,11 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             {
                 throw new Exception($"解析后的主键字段无法一一对应");
             }
-            bool equalsLogic(IDictionary<string, object> x, IDictionary<string, object> y)
+            bool equalsLogic(IDictionary<string, object?> x, IDictionary<string, object?> y)
             {
                 return DictionaryComparer.EqualsByPrimaryKeys(x, y, sourcePrimaryKeys);
             }
-            int hashCodeGetter(IDictionary<string, object> target)
+            int hashCodeGetter(IDictionary<string, object?> target)
             {
                 return DictionaryComparer.GetHashCodeByPrimaryKeys(target, sourcePrimaryKeys);
             }
@@ -3350,7 +3424,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
 
             #region 定义线程安全的数据容器和其他变量
             // Source和Target的交集
-            ConcurrentBag<IDictionary<string, object>> intersectInSourceAndTarget = [];
+            ConcurrentBag<IDictionary<string, object?>> intersectInSourceAndTarget = [];
             #endregion
 
             #region 调用CPU密集型任务帮助类进行多线程分批对比数据
@@ -3375,7 +3449,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
             #endregion
 
             #region 本地方法, 数据对比逻辑
-            void CompareBatchData(IEnumerable<IDictionary<string, object>> batchData)
+            void CompareBatchData(IEnumerable<IDictionary<string, object?>> batchData)
             {
                 var start = DateTime.Now;
 

@@ -47,12 +47,16 @@
             function callback(response) {
                 // 不能仅移除modal, 因为这样仅仅移除了modal, modal还有background存在, 会挡住整个页面, 所以调用click方法关闭modal
                 document.querySelector('#restore-modal .btn-close').click()
-                // 然后移除modal, 移除它是因为每次都会重新生成新的modal, 所以旧的要移除
-                document.querySelector('#restore-modal').remove()
                 showResultBox(response)
             }
         }
         function showRestorePannel(trigger) {
+            // 先检查是否有旧的Modal, 有则移除
+            const oldModal = document.querySelector('#restore-modal')
+            if (oldModal) {
+                document.querySelector('#restore-modal').remove()
+            }
+
             const backupId = trigger.getAttribute('data-id')
             const div = document.createElement('div')
             div.classList.add("modal")
