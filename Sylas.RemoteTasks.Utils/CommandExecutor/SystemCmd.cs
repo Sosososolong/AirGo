@@ -1,4 +1,4 @@
-﻿using Sylas.RemoteTasks.Common;
+using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Utils.Constants;
 using System;
 using System.Collections.Concurrent;
@@ -165,7 +165,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                 CreateNoWindow = true
             };
 
-            Process p = new() { StartInfo = startInfo };
+            using Process p = new() { StartInfo = startInfo };
             // 启动程序
             p.Start();
 
@@ -248,7 +248,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                 CreateNoWindow = true
             };
 
-            Process p = new() { StartInfo = startInfo };
+            using Process p = new() { StartInfo = startInfo };
             // 启动程序
             p.Start();
 

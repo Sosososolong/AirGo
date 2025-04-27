@@ -476,7 +476,6 @@ public class DatabaseProvider : IDatabaseProvider
     /// 获取指定表的列信息
     /// </summary>
     /// <param name="tableName"></param>
-    /// <param name="db"></param>
     /// <returns></returns>
     public async Task<IEnumerable<ColumnInfo>> GetTableColumnsInfoAsync(string tableName)
     {

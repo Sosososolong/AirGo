@@ -58,7 +58,7 @@ namespace Sylas.RemoteTasks.App.DataHandlers
                 }
             }
 
-            await _databaseInfo.TransferDataAsync(enumerableData, table, idField: idField);
+            await _databaseInfo.TransferDataAsync(enumerableData, table);
         }
     }
 }

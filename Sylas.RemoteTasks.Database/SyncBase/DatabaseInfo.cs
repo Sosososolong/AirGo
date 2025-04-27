@@ -7,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MySql.Data.MySqlClient;
+using MySqlX.XDevAPI.Relational;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Npgsql;
@@ -65,6 +66,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
     {
         private string _connectionString;
         private DatabaseType _dbType;
+        static readonly string[] _dangerousSqlStatements = ["delete ", "drop ", "truncate ", "alter ", "create ", "insert ", "update ", "--"];
         /// <summary>
         /// 数据库类型
         /// </summary>
@@ -851,6 +853,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 _ = await conn.ExecuteAsync(createSql);
             }
         }
+        
         /// <summary>
         /// 备份数据表到指定目录中
         /// </summary>
@@ -861,15 +864,19 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <returns></returns>
         public static async Task<string> BackupDataAsync(string connectionString, string backupDbName, string tables = "", string backupName = "")
         {
-            IEnumerable<string> tableList;
+            Dictionary<string, string> tableAndConditions = [];
             using var conn = GetDbConnection(connectionString);
+            var dbTables = (await GetAllTablesAsync(conn));
             if (string.IsNullOrWhiteSpace(tables))
             {
-                tableList = await GetAllTablesAsync(conn);
+                foreach (var table in dbTables)
+                {
+                    tableAndConditions.Add(table, string.Empty);
+                }
             }
             else
             {
-                tableList = tables.Split(';', ',');
+                GetTableQueryConditions(tables, tableAndConditions);
             }
             if (string.IsNullOrWhiteSpace(backupName))
             {
@@ -886,26 +893,37 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             }
 
             string logFile = Path.Combine(backupDbName, $"backup.log");
-            foreach (var table in tableList)
+            var dbType = GetDbType(conn.ConnectionString);
+            var dbParamFlag = GetDbParameterFlag(dbType);
+            foreach (var tableAndCondition in tableAndConditions)
             {
-                if (table.Contains("2025") || table.Contains("2024") || table.Contains("copy") || table.ToLower().Contains("login") || table.ToLower().Contains("logs"))
-                {
-                    continue;
-                }
-                string sql = $"select * from {GetTableStatement(table, GetDbType(conn.ConnectionString))}";
+                string tableName = tableAndCondition.Key;
+                tableName = dbTables.FirstOrDefault(x => x.Equals(tableName, StringComparison.OrdinalIgnoreCase)) ?? throw new Exception($"没有找到表:{tableName}");
+                
+                // 获取表的字段信息
+                var columns = await GetTableColumnsInfoAsync(conn, tableName);
 
-                // 打开一个DataReader之前, 先获取表的字段信息
-                var columns = await GetTableColumnsInfoAsync(conn, table);
+                // 解析条件, 将需要类型转换的条件值参数化
+                var conditionAndParameters = await ResolveTableQueryConditions(tableAndCondition.Value, conn, tableName);
+                var condition = conditionAndParameters.Item1;
+                var parameters = conditionAndParameters.Item2;
+                
+                string tableStatement = GetTableStatement(tableName, dbType);
+                if (!condition.StartsWith("where", StringComparison.OrdinalIgnoreCase))
+                {
+                    condition = $" where {condition}";
+                }
+                string sql = $"select * from {tableStatement}{condition}";
 
                 // 使用DataReader一条一条地读取数据, 避免一次性读取数据量过大
-                using var reader = await conn.ExecuteReaderAsync(sql);
-                string backupFile = Path.Combine(backupDbName, table);
+                using var reader = await conn.ExecuteReaderAsync(sql, param: parameters);
+                string backupFile = Path.Combine(backupDbName, tableName);
 
                 using var writer = new StreamWriter(backupFile, false);
                 // 1.第一行记录表字段
                 await writer.WriteLineAsync(JsonConvert.SerializeObject(columns));
                 //File.AppendAllLines(logFile, [$"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 开始备份表:{table}"]);
-                LoggerHelper.LogInformation($"开始备份表:{table}");
+                LoggerHelper.LogInformation($"开始备份表:{tableAndCondition}");
                 // 2. 记录所有行
                 int lines = 0;
                 while (reader.Read())
@@ -923,6 +941,86 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             }
             return backupDbName;
         }
+        /// <summary>
+        /// 解析表的查询条件(只解析需要类型转换的值, 替换为参数化形式, 这样可无需解析表达式结构, 适用于复杂的多条件情况)
+        /// </summary>
+        /// <param name="condition"></param>
+        /// <param name="conn"></param>
+        /// <param name="tableName"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        static async Task<(string, Dictionary<string, object?>?)> ResolveTableQueryConditions(string condition, IDbConnection conn, string tableName)
+        {
+            var columnConverters = await GetTableFieldsConverterAsync(conn, tableName);
+            Dictionary<string, object?>? parameters = null;
+            var dbType = GetDbType(conn.ConnectionString);
+            var dbParamFlag = GetDbParameterFlag(dbType);
+            if (!string.IsNullOrWhiteSpace(condition))
+            {
+                if (_dangerousSqlStatements.Any(x => condition.Contains(x, StringComparison.OrdinalIgnoreCase)))
+                {
+                    throw new Exception("备份表的查询条件不支持");
+                }
+                // TODO: 实现多个条件的解析
+                foreach (var converter in columnConverters)
+                {
+                    if (converter.Value.Item1 != typeof(string)
+                        && converter.Value.Item1 != typeof(int)
+                        && converter.Value.Item1 != typeof(long)
+                        && converter.Value.Item1 != typeof(double)
+                        && converter.Value.Item1 != typeof(float)
+                        && converter.Value.Item1 != typeof(decimal))
+                    {
+                        string columnOriginName = converter.Key;
+                        var matches = Regex.Matches(condition, $@"{columnOriginName}\s*(?<operator>>|=|<|=|(>=)|(<=)|(!=)|(like)|(is))\s*(?<value>.+?)(?>=$|\s)", RegexOptions.IgnoreCase);
+                        foreach (Match match in matches.Cast<Match>())
+                        {
+                            string columnStatement = GetTableStatement(columnOriginName, dbType);
+                            string operatorStr = match.Groups["operator"].Value;
+                            string valueStr = match.Groups["value"].Value;
+                            if (!string.IsNullOrWhiteSpace(valueStr) && !string.IsNullOrWhiteSpace(valueStr) && valueStr != "null")
+                            {
+                                condition = condition.Replace(match.Value, $" {columnStatement}{operatorStr}{dbParamFlag}{columnOriginName}");
+                                parameters ??= [];
+                                parameters.Add(columnOriginName, converter.Value.Item2(valueStr));
+                            }
+                        }
+                    }
+                }
+            }
+            return (condition, parameters);
+        }
+        /// <summary>
+        /// 解析表的查询条件
+        /// </summary>
+        /// <param name="tables">表和查询条件, 比如users(createdtime > 2024-10-01), 多个用逗号隔开</param>
+        /// <param name="tableQueryConditions">存储解析结果的字典</param>
+        static void GetTableQueryConditions(string tables, Dictionary<string, string> tableQueryConditions)
+        {
+            if (string.IsNullOrWhiteSpace(tables))
+            {
+                throw new Exception($"数据表及查询条件表达式{nameof(tables)}不能为空");
+            }
+            var matches = tables.ResolvePairedSymbolsContent("(", ")", @"[\w-]+", @"", true);
+            var tableStatements = matches.Select(x => x.Value);
+            foreach (var tableStatement in tableStatements)
+            {
+                int firstLeftParenIndex = tableStatement.IndexOf('(');
+                string tableName = tableStatement.ToLower();
+                string tableCondition = string.Empty;
+                if (firstLeftParenIndex > 0 && tableStatement.EndsWith(')'))
+                {
+                    tableName = tableStatement[..firstLeftParenIndex];
+                    tableQueryConditions[tableName.ToLower()] = string.Empty;
+                    var condition = tableStatement[(firstLeftParenIndex + 1)..].TrimEnd(')');
+                    if (!string.IsNullOrWhiteSpace(condition) && Regex.IsMatch(condition, @"(((and)|(or)){0,1}\s*\w+\s*(>|<|=|(>=)|(<=)(is))\s*[\w\.]+)+"))
+                    {
+                        tableCondition = condition;
+                    }
+                }
+                tableQueryConditions[tableName] = tableCondition;
+            }
+        }
         const int batchSize = 1000;
         /// <summary>
         /// 还原数据表
@@ -934,40 +1032,29 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         public static async Task RestoreTablesAsync(string connectionString, string backupDir, string tables = "")
         {
             tables ??= string.Empty;
-            using var conn = GetDbConnection(connectionString);
-            Dictionary<string, string> tableList = [];
+            Dictionary<string, string> tableAndConditions = [];
             if (!string.IsNullOrWhiteSpace(tables))
             {
-                //var matches = Regex.Matches(tables, @"[\w-]+
-                //                      (\(
-                //                        (?<x>
-                //                            [^\(\)]*
-                //                            (
-                //                                ((?'Open'\()[^\(\)]*)+
-                //                                ((?'-Open'\))[^\(\)]*)+
-                //                            )*
-                //                        )
-                //                      \)){0,1}", RegexOptions.IgnorePatternWhitespace);
-                
-                var matches = tables.ResolvePairedSymbolsContent("(", ")", @"[\w-]+", @"", true);
-                var tableStatements = matches.Select(x => x.Value);
-                foreach (var tableStatement in tableStatements)
-                {
-                    int firstLeftParenIndex = tableStatement.IndexOf('(');
-                    string tableName = tableStatement.ToLower();
-                    string tableCondition = string.Empty;
-                    if (firstLeftParenIndex > 0 && tableStatement.EndsWith(')'))
-                    {
-                        tableName = tableStatement[..firstLeftParenIndex];
-                        tableList[tableName.ToLower()] = string.Empty;
-                        var condition = tableStatement[(firstLeftParenIndex + 1)..].TrimEnd(')');
-                        if (!string.IsNullOrWhiteSpace(condition) && Regex.IsMatch(condition, @"(((and)|(or)){0,1}\s*\w+\s*(>|<|(>=)|(<=))\s*[\w\.]+)+"))
-                        {
-                            tableCondition = condition;
-                        }
-                    }
-                    tableList[tableName] = tableCondition;
-                }
+                //var matches = tables.ResolvePairedSymbolsContent("(", ")", @"[\w-]+", @"", true);
+                //var tableStatements = matches.Select(x => x.Value);
+                //foreach (var tableStatement in tableStatements)
+                //{
+                //    int firstLeftParenIndex = tableStatement.IndexOf('(');
+                //    string tableName = tableStatement.ToLower();
+                //    string tableCondition = string.Empty;
+                //    if (firstLeftParenIndex > 0 && tableStatement.EndsWith(')'))
+                //    {
+                //        tableName = tableStatement[..firstLeftParenIndex];
+                //        tableList[tableName.ToLower()] = string.Empty;
+                //        var condition = tableStatement[(firstLeftParenIndex + 1)..].TrimEnd(')');
+                //        if (!string.IsNullOrWhiteSpace(condition) && Regex.IsMatch(condition, @"(((and)|(or)){0,1}\s*\w+\s*(>|<|(>=)|(<=))\s*[\w\.]+)+"))
+                //        {
+                //            tableCondition = condition;
+                //        }
+                //    }
+                //    tableList[tableName] = tableCondition;
+                //}
+                GetTableQueryConditions(tables, tableAndConditions);
             }
 
             if (string.IsNullOrWhiteSpace(backupDir))
@@ -979,8 +1066,8 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             var files = Directory.GetFiles(backupDir).Where(x => !x.EndsWith(".log"));
             foreach (var tableFile in files)
             {
-                string table = tableFile.Replace('\\', '/').Split('/').Last();
-                if (tableList.Count > 0 && !tableList.ContainsKey(table.ToLower()))
+                string table = tableFile.Split('/', '\\').Last();
+                if (tableAndConditions.Count > 0 && !tableAndConditions.ContainsKey(table.ToLower()))
                 {
                     continue;
                 }
@@ -995,6 +1082,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 //string paramFlag = GetDbParameterFlag(GetDbType(conn.ConnectionString));
                 //string colsStatement = string.Empty;
                 //string valuesStatement = string.Empty;
+                using var conn = GetDbConnection(connectionString);
                 foreach (var line in File.ReadLines(tableFile))
                 {
                     if (i == 0)
@@ -1003,7 +1091,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                         cols = JsonConvert.DeserializeObject<ColumnInfo[]>(line) ?? throw new Exception("从备份文件解析字段信息失败");
                         await CreateTableIfNotExistAsync(conn, table, cols);
 
-                        string tableCondition = tableList[table.ToLower()];
+                        string tableCondition = tableAndConditions[table.ToLower()];
                         if (!string.IsNullOrWhiteSpace(tableCondition))
                         {
                             // 只有第一行会解析数据过滤条件
@@ -1372,12 +1460,11 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// </summary>
         /// <param name="sourceRecords"></param>
         /// <param name="targetTable"></param>
-        /// <param name="idField"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public async Task TransferDataAsync(IEnumerable<object> sourceRecords, string targetTable, string idField = "")
+        public async Task TransferDataAsync(IEnumerable<object> sourceRecords, string targetTable)
         {
-            await TransferDataAsync(sourceRecords, _connectionString, targetTable, idField, logger: _logger);
+            await TransferDataAsync(sourceRecords, _connectionString, targetTable, logger: _logger);
         }
 
         /// <summary>
@@ -1386,14 +1473,13 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="sourceRecords"></param>
         /// <param name="targetConnectionString"></param>
         /// <param name="targetTable"></param>
-        /// <param name="idField"></param>
         /// <param name="logger"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static async Task TransferDataAsync(IEnumerable<object> sourceRecords, string targetConnectionString, string targetTable, string idField = "", ILogger? logger = null)
+        public static async Task TransferDataAsync(IEnumerable<object> sourceRecords, string targetConnectionString, string targetTable, ILogger? logger = null)
         {
             using var targetConn = GetDbConnection(targetConnectionString);
-            await TransferDataAsync(sourceRecords, targetConn, targetTable, idField, logger);
+            await TransferDataAsync(sourceRecords, targetConn, targetTable, logger);
         }
         /// <summary>
         /// 把数据同步到指定数据表
@@ -1401,12 +1487,11 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="sourceRecords"></param>
         /// <param name="targetConn"></param>
         /// <param name="targetTable"></param>
-        /// <param name="sourceIdField"></param>
         /// <param name="logger"></param>
         /// <param name="insertOnly"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static async Task TransferDataAsync(IEnumerable<object> sourceRecords, IDbConnection targetConn, string targetTable, string sourceIdField = "", ILogger? logger = null, bool insertOnly = false)
+        public static async Task TransferDataAsync(IEnumerable<object> sourceRecords, IDbConnection targetConn, string targetTable, ILogger? logger = null, bool insertOnly = false)
         {
             if (sourceRecords is null || !sourceRecords.Any())
             {
@@ -1441,7 +1526,15 @@ namespace Sylas.RemoteTasks.Database.SyncBase
 
             await TransferByTableSqlInfosAsync(transferSqlInfos, targetConn, targetTable, insertOnly, false);
             int transferCount = transferSqlInfos.Count * perBatchCount;
-            LoggerHelper.LogInformation($"表{targetTable}迁移{transferCount}条记录, 耗时:{DateTimeHelper.FormatSeconds((DateTime.Now - t1).TotalSeconds)}");
+            string log = $"表{targetTable}迁移{transferCount}条记录, 耗时:{DateTimeHelper.FormatSeconds((DateTime.Now - t1).TotalSeconds)}";
+            if (logger is null)
+            {
+                LoggerHelper.LogInformation(log);
+            }
+            else
+            {
+                logger.LogInformation(log);
+            }
         }
         /// <summary>
         /// 将数据添加到表中
