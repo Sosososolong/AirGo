@@ -131,6 +131,13 @@ th {
     border-color: transparent transparent transparent var(--bs-blue);
 }
 
+.navbar-nav li, .nav li, .nav .nav-link {
+    min-height: 40px;
+}
+.nav span {
+    white-space: nowrap;
+}
+
 /*隐藏滚动条并保留其滚功能 */
 .hide-scroll-bar {
     overflow: -moz-scrollbars-none; /* firefox */

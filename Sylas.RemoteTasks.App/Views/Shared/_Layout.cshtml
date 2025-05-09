@@ -727,16 +727,8 @@
                 openedMenu.click()
             }
         }
-        document.querySelector('#searchBtn').addEventListener("click", function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            var keyword = this.parentElement.previousElementSibling.value;
-            // 恢复菜单后(恢复菜单字体的颜色, 隐藏所有菜单), 如果没有搜索内容就停止搜索
-            recoverMenuItems();
-            if (keyword === '' || !keyword === true) {
-                return;
-            }
-            
+        
+        function searchMenuByKeyword(keyword) {
             document.querySelectorAll(".sidebar-menu li a").forEach(x => {
                if (x.querySelector('span').textContent.indexOf(keyword) > -1) {
                    const collapseEle = x.closest('.collapse')
@@ -746,11 +738,33 @@
                    if (collapseEle && collapseEle.previousElementSibling) {
                        collapseEle.previousElementSibling.click()
                    }
-                   
+
                    // x.classList.remove('text-white');
                    x.classList.add('text-warning');
                }
             })
+        }
+        document.querySelector('input[name="menuName"]').addEventListener('keydown', function (e) {
+            if (e.keyCode === 13) {
+                var keyword = this.value;
+                searchMenuByKeyword(keyword)
+                recoverMenuItems();
+                if (keyword === '' || !keyword === true) {
+                    return;
+                }
+            }
+        })
+        document.querySelector('#searchBtn').addEventListener("click", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var keyword = this.parentElement.previousElementSibling.value;
+            // 恢复菜单后(恢复菜单字体的颜色, 隐藏所有菜单), 如果没有搜索内容就停止搜索
+            recoverMenuItems();
+            if (keyword === '' || !keyword === true) {
+                return;
+            }
+
+            searchMenuByKeyword(keyword)
         })
 
         function toggleCollapseSidebar(btn) {
@@ -763,10 +777,10 @@
                 document.querySelectorAll('.sidebar-menu .bi-chevron-right').forEach(x => x.style.display = 'none')
             } else {
                 sidebar.style.width = '290px'
-                document.querySelector('#searchBtn').style.display = 'inline-block'
-                document.querySelectorAll('.sidebar-menu span').forEach(x => x.style.display = 'inline')
-                document.querySelectorAll('.sidebar-menu .collapse ul').forEach(x => x.style.display = 'block')
-                document.querySelectorAll('.sidebar-menu .bi-chevron-right').forEach(x => x.style.display = 'inline')
+                window.setTimeout(() => document.querySelector('#searchBtn').style.display = '', 200)
+                document.querySelectorAll('.sidebar-menu span').forEach(x => x.style.display = '')
+                document.querySelectorAll('.sidebar-menu .collapse ul').forEach(x => x.style.display = '')
+                document.querySelectorAll('.sidebar-menu .bi-chevron-right').forEach(x => x.style.display = '')
             }
         }
         function switchTheme(switchEle) {

@@ -551,14 +551,16 @@ ${formItemComponent}
         if (this.hasCustomDataViewBuilder) {
             $(this.tableContainerSelector).append(`<div id="${this.tableId}" style="margin-top:50px;"></div>${this.addOptions.modalHtml}`);
         } else {
-            var tableHtml = `<table class="table table-sm table-hover table-bordered mt-3" style="border-color:#414243;" id="${this.tableId}">
-        <thead>
-            <tr>
-            </tr>
-        </thead>
-        <tbody>
-        </tbody>
-    </table>
+            var tableHtml = `<div style="overflow:auto;">
+        <table class="table table-sm table-hover table-bordered mt-3" style="border-color:#414243;" id="${this.tableId}">
+            <thead>
+                <tr>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+    </div>
     <nav aria-label="Page navigation">
         <ul class="pagination mt-3" id="page-${this.tableId}">
             <li class="page-item disabled">
