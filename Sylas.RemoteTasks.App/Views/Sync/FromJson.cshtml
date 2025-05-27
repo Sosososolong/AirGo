@@ -7,7 +7,7 @@
     <div class="row" style="width: 90%; margin: auto;">
         <div class="col-sm-5 mb-4 source-container d-flex flex-column justify-content-center">
             <label for="sourceJsons" class="form-label">Source:</label>
-            <input type="file" multiple id="sourceJsons" name="sourceJsons" onchange="showFiles(this)" />
+            <input type="file" multiple id="sourceJsons" name="sourceJsons" />
         </div>
         <div class="col-sm-2" style="margin:auto; text-align:center;">
             <button class="btn btn-primary btn-sm" style="line-height: 28px;" type="button" onclick="switchSourceAndTarget()">
@@ -24,7 +24,7 @@
             <input type="text" id="targetTables" name="targetTables" class="form-control form-control-sm">
         </div>
         <div class="col-sm-12">
-            <button class="btn btn-primary mt-3 btn-sm sync-btn" type="button" onclick="syncFromJsonAsync()">开始同步</button>
+            <button class="btn btn-primary mt-3 btn-sm sync-btn" type="button">开始同步</button>
         </div>
     </div>
 </form>
@@ -38,7 +38,7 @@
         const body = JSON.stringify(bodyObj);
         httpRequestDataAsync(`/Database/ConnectionStrings`, null, 'POST', body)
             .then(rsp => {
-                connectionStrings = rsp.data;
+                const connectionStrings = rsp.data;
                 let options = '';
                 connectionStrings.sort((item1, item2) => item1['orderNo'] > item2['orderNo'] ? 1 : -1);
                 for (let i = 0; i < connectionStrings.length; i++) {
@@ -47,6 +47,7 @@
                 document.querySelector('#targetConnectionString').innerHTML = `<option conn-id="0" value="">请选择</options>${options}`;
             })
 
+        document.querySelector('.sync-btn').addEventListener('click', syncFromJsonAsync)
         async function syncFromJsonAsync() {
             // const source = document.querySelector('#sourceConnectionString')
             // if (!source.value) {
@@ -86,7 +87,7 @@
             const sourceControl = document.querySelector('#sourceConnectionString')
             const targetControl = document.querySelector('#targetConnectionString')
             if (sourceControl.value || targetControl.value) {
-                const sourceTempValue = sourceControl.value;
+                const sourceTempValue = sourceControl.value
                 sourceControl.value = targetControl.value
                 targetControl.value = sourceTempValue
             }
@@ -94,12 +95,15 @@
             const sourceTable = document.querySelector('#sourceTable')
             const targetTables = document.querySelector('#targetTables')
             if (sourceTable.value || targetTables.value) {
-                const sourceTempValue = sourceTable.value;
+                const sourceTempValue = sourceTable.value
                 sourceTable.value = targetTables.value
                 targetTables.value = sourceTempValue
             }
         }
 
+        document.querySelector('#sourceJsons').addEventListener('change', function() {
+            showFiles(document.querySelector('#sourceJsons'))
+        })
         function showFiles(target) {
             const files = target.files
             let targetTables = '';

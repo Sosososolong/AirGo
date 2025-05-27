@@ -911,7 +911,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 string tableStatement = GetTableStatement(tableName, dbType);
                 if (!condition.StartsWith("where", StringComparison.OrdinalIgnoreCase))
                 {
-                    condition = $" where {condition}";
+                    condition = string.IsNullOrWhiteSpace(condition) ? string.Empty : $" where {condition}";
                 }
                 string sql = $"select * from {tableStatement}{condition}";
 
@@ -1035,25 +1035,6 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             Dictionary<string, string> tableAndConditions = [];
             if (!string.IsNullOrWhiteSpace(tables))
             {
-                //var matches = tables.ResolvePairedSymbolsContent("(", ")", @"[\w-]+", @"", true);
-                //var tableStatements = matches.Select(x => x.Value);
-                //foreach (var tableStatement in tableStatements)
-                //{
-                //    int firstLeftParenIndex = tableStatement.IndexOf('(');
-                //    string tableName = tableStatement.ToLower();
-                //    string tableCondition = string.Empty;
-                //    if (firstLeftParenIndex > 0 && tableStatement.EndsWith(')'))
-                //    {
-                //        tableName = tableStatement[..firstLeftParenIndex];
-                //        tableList[tableName.ToLower()] = string.Empty;
-                //        var condition = tableStatement[(firstLeftParenIndex + 1)..].TrimEnd(')');
-                //        if (!string.IsNullOrWhiteSpace(condition) && Regex.IsMatch(condition, @"(((and)|(or)){0,1}\s*\w+\s*(>|<|(>=)|(<=))\s*[\w\.]+)+"))
-                //        {
-                //            tableCondition = condition;
-                //        }
-                //    }
-                //    tableList[tableName] = tableCondition;
-                //}
                 GetTableQueryConditions(tables, tableAndConditions);
             }
 
@@ -1091,7 +1072,10 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                         cols = JsonConvert.DeserializeObject<ColumnInfo[]>(line) ?? throw new Exception("从备份文件解析字段信息失败");
                         await CreateTableIfNotExistAsync(conn, table, cols);
 
-                        string tableCondition = tableAndConditions[table.ToLower()];
+                        if (!tableAndConditions.TryGetValue(table.ToLower(), out string tableCondition))
+                        {
+                            tableCondition = string.Empty;
+                        }
                         if (!string.IsNullOrWhiteSpace(tableCondition))
                         {
                             // 只有第一行会解析数据过滤条件
@@ -1500,7 +1484,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             IEnumerable<IDictionary<string, object?>> source = sourceRecords.CastToDictionaries();
 
             var varFlag = GetDbParameterFlag(targetConn.ConnectionString);
-            await CreateTableIfNotExistAsync(targetConn, targetTable, targetConn, targetTable.Split('_')[0]);
+            await CreateTableIfNotExistAsync(targetConn, targetTable, targetConn, targetTable); // .Split('_')[0] (有些表名中包含下划线"_")
 
             var targetDbType = GetDbType(targetConn.ConnectionString);
             var targetTableColInfos = await GetTableColumnsInfoAsync(targetConn, targetTable);
@@ -3356,7 +3340,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         {
             if (primaryKeys.Length == 0)
             {
-                throw new Exception("主键不能为空");
+                throw new Exception($"{table}主键不能为空");
             }
             if (primaryKeys.Length == 1)
             {
