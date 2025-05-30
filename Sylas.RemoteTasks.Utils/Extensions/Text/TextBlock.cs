@@ -1,4 +1,3 @@
-﻿using System.Collections;
 using System.Collections.Generic;
 
 namespace Sylas.RemoteTasks.Utils.Extensions.Text
@@ -21,5 +20,13 @@ namespace Sylas.RemoteTasks.Utils.Extensions.Text
         {
             Add(new(index, content));
         }
+        /// <summary>
+        /// 文本块第一行索引
+        /// </summary>
+        public int FirstLine => Count > 0 ? this[0].LineIndex : -1;
+        /// <summary>
+        /// 文本块最后一行索引
+        /// </summary>
+        public int LastLine => Count > 0 ? this[^1].LineIndex : -1;
     }
 }

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
@@ -7,6 +7,8 @@ using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Common.Dtos;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils.CommandExecutor;
+using Sylas.RemoteTasks.Utils.Template;
+using Sylas.RemoteTasks.Utils.Template.Dtos;
 using System.Text;
 
 namespace Sylas.RemoteTasks.App.Controllers
@@ -195,6 +197,32 @@ namespace Sylas.RemoteTasks.App.Controllers
         public IActionResult ServerAndAppStatus()
         {
             return View();
+        }
+        /// <summary>
+        /// 模板测试页面
+        /// </summary>
+        /// <returns></returns>
+        [AllowAnonymous]
+        public IActionResult TmplTest()
+        {
+            return View();
+        }
+        /// <summary>
+        /// 解析模板字符串
+        /// </summary>
+        /// <param name="dto">模板文本和数据模型</param>
+        /// <returns></returns>
+        public RequestResult<string> ResolveTmpl([FromBody] ResolveTmplDto dto)
+        {
+            var datamodelDictionary = JsonConvert.DeserializeObject<Dictionary<string, object>>(dto.DatamodelJson) ?? throw new Exception("模板数据模型json字符串转换为字典失败");
+            var resolved = TmplHelper.ResolveExpressionValue(dto.TmplTxt, datamodelDictionary);
+            var resolvedDataType = resolved.GetType().Name;
+            var resolvedString = resolved is string resolvedStrVal ? resolvedStrVal : JsonConvert.SerializeObject(resolved);
+            if (string.IsNullOrWhiteSpace(resolvedString))
+            {
+                return RequestResult<string>.Error("解析结果为空");
+            }
+            return new RequestResult<string>($"{resolvedDataType}: {resolvedString}");
         }
     }
 }

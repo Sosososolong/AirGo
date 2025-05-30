@@ -29,7 +29,7 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
             if (expression.Success)
             {
                 var key = expression.Groups["key"].Value;
-                var dataContextKey = dataContext.Keys.FirstOrDefault(x => x.TrimStart('$').Equals(key, StringComparison.OrdinalIgnoreCase)) ?? throw new Exception($"{nameof(TypeConversionParser)} 数据上下中未发现数据{key}"); ;
+                var dataContextKey = dataContext.Keys.FirstOrDefault(x => x.TrimStart('$').Equals(key, StringComparison.OrdinalIgnoreCase)) ?? throw new Exception($"{nameof(TypeConversionParser)} 数据上下中未发现数据{key}");
                 var keyVal = dataContext[dataContextKey];
                 var type = expression.Groups["type"].Value;
                 if (keyVal is string keyValString)
@@ -65,6 +65,21 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
                     else if (string.Equals(type, "Object", StringComparison.OrdinalIgnoreCase))
                     {
                         return new ParseResult(true, [key], jEVal);
+                    }
+                    else
+                    {
+                        throw new NotImplementedException("当前类型转换未实现");
+                    }
+                }
+                else if (keyVal is JArray keyValArr)
+                {
+                    if (string.Equals(type, "List", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return new ParseResult(true, [key], keyValArr.ToList());
+                    }
+                    else if (string.Equals(type, "Object", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return new ParseResult(true, [key], keyValArr.FirstOrDefault());
                     }
                     else
                     {

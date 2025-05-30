@@ -453,7 +453,7 @@ namespace Sylas.RemoteTasks.Utils
             }
             else
             {
-                var jobjectList = list.Cast<JObject>();
+                List<JObject> jobjectList = list.Cast<JObject>().ToList();
                 foreach (var item in GetAll(jobjectList, childrenField))
                 {
                     yield return item;

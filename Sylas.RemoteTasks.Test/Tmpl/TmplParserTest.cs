@@ -1,12 +1,16 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using MimeKit;
 using Newtonsoft.Json;
+using Org.BouncyCastle.Asn1.Ocsp;
 using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Common.Extensions;
 using Sylas.RemoteTasks.Utils.Extensions.Text;
 using Sylas.RemoteTasks.Utils.Template;
 using System.Collections;
+using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Xunit.Abstractions;
 
 namespace Sylas.RemoteTasks.Test.Tmpl
@@ -352,16 +356,18 @@ namespace Sylas.RemoteTasks.Test.Tmpl
             Assert.Equal("ttnc1", (dataContext["$listFormIds"] as IEnumerable<object>)!.First().ToString());
         }
 
-        string _text = """
+        const string _text = """
             111
             
             222
             $for item in users
-            <span>${item.name}</span> <span>${item.age}</span> <span>${item.email}</span>
+            <span>$item.name</span> <span>$item.age</span> <span>$item.email</span>
             $for item in imgs
-            <image href="${item.url}" width="item.width" />
+            <image href="$item.url" width="$item.width" />
             $forend
+            其他
             $forend
+            999
             """;
         /// <summary>
         /// 解析出for循环脚本块

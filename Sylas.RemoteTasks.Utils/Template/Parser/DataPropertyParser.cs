@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Sylas.RemoteTasks.Common;
 using System;
@@ -118,13 +118,13 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
                     }
                     else if (resolvedValue.Type == JTokenType.Integer)
                     {
-                        if (int.TryParse(propertyValue.ToString(), out int intProptyValue))
+                        if (int.TryParse(resolvedValue.ToString(), out int intProptyValue))
                         {
-                            resolvedValue = intProptyValue;
+                            propertyValue = intProptyValue;
                         }
                         else
                         {
-                            resolvedValue = Convert.ToInt64(propertyValue);
+                            propertyValue = Convert.ToInt64(resolvedValue);
                         }
                     }
                     else

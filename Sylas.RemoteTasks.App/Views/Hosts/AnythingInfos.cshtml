@@ -267,6 +267,28 @@
     const multiCommandItemsStyle = 'background-color:#eee;padding:10px 30px 0 10px;margin-bottom:10px;position:relative;border-radius:5px;';
     const sigleCommandItemStyle = 'position:relative;';
     /**
+     * 解析命令设置
+     * @@param {any} input
+     */
+    async function resolveCmdSettingAsync(input) {
+        const id = input.getAttribute('anything-id');
+        let cmdTxt = input.value;
+
+        // 先更新cardStatus中的commandArray
+        const cardStatus = cardsStatus.find(x => x.id == id);
+        const commandName = input.closest('.command-item').querySelector('button').textContent;
+        const command = cardStatus.commandArray.find(x => x.name == commandName);
+        command.CommandTxt = cmdTxt;
+
+        // 再解析命令内容
+        const bodyObj = { id, cmdTxt };
+        const body = JSON.stringify(bodyObj);
+        var data = await httpRequestDataAsync(`/Hosts/ResolveCommandSettting`, input, 'POST', body, '', errorHandlerType.returnErrorMessage);
+        if (data) {
+            input.closest('.command-item').querySelector('.command-resolved').innerText = data.split('\n').join('<br/>');
+        }
+    }
+    /**
      * 展开卡片, 显示所有命令列表
      * @@param {any} ele
      * @@param {any} id
@@ -331,7 +353,7 @@
                     <div class="input-group-text">
                       <input class="form-check-input mt-0 command-checkbox" type="checkbox" value="" aria-label="Checkbox for following text input" data-id="${id}" data-command-name="${commandInfo.name}">
                     </div>
-                    <textarea class="form-control form-control-sm command-input-${commandInfo.id}" rows="${commandRows}" aria-label="command setting" aria-describedby="button-cmd-${id}" anything-id="${id}" oninput="inputing(this, resolveCmdSettingAsync)">${commandOrigin}</textarea>
+                    <textarea class="form-control form-control-sm command-input-${commandInfo.id}" rows="${commandRows}" aria-label="command setting" aria-describedby="button-cmd-${id}" anything-id="${id}">${commandOrigin}</textarea>
                 </div>
 
                 <div class="d-flex justify-content-between">
@@ -351,6 +373,12 @@
                 }
 
                 card.querySelector('.card-body').innerHTML = commandsHtml;
+                for (let i = 0; i < anythingInfo.commands.length; i++) {
+                    const commandInfo = anythingInfo.commands[i];
+                    document.querySelector(`.command-input-${commandInfo.id}`).addEventListener('input', function() {
+                        inputing(this, resolveCmdSettingAsync);
+                    });
+                }
                 card.querySelectorAll('.update-command-btn').forEach(x => x.onclick = e => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -487,29 +515,6 @@
     }
 
     /**
-     * 解析命令设置
-     * @@param {any} input
-     */
-    async function resolveCmdSettingAsync(input) {
-        const id = input.getAttribute('anything-id');
-        let cmdTxt = input.value;
-
-        // 先更新cardStatus中的commandArray
-        const cardStatus = cardsStatus.find(x => x.id == id);
-        const commandName = input.closest('.command-item').querySelector('button').textContent;
-        const command = cardStatus.commandArray.find(x => x.name == commandName);
-        command.CommandTxt = cmdTxt;
-
-        // 再解析命令内容
-        const bodyObj = { id, cmdTxt };
-        const body = JSON.stringify(bodyObj);
-        var data = await httpRequestDataAsync(`/Hosts/ResolveCommandSettting`, input, 'POST', body, '', errorHandlerType.returnErrorMessage);
-        if (data) {
-            input.closest('.command-item').querySelector('.command-resolved').innerText = data.split('\n').join('<br/>');
-        }
-    }
-
-    /**
      * 调整命令的顺序
      * @@param {any} trigger
      * @@param {any} id
@@ -615,10 +620,12 @@
                 <input type="text" class="form-control form-control-sm" id="commandName" placeholder="命令名称">
                 </div>
                 <div class="col-auto">
-                <button type="button" class="btn btn-primary btn-sm mb-3" onclick="addCommandPost(this, '${id}')">确定</button>
+                <button type="button" class="btn btn-primary btn-sm mb-3" data-id="${id}">确定</button>
                 </div>
             </div>`;
         cardBody.insertAdjacentHTML('afterbegin', commandHtml);
+        const btn = cardBody.querySelector('button');
+        btn.onclick = () => addCommandPost(btn, btn.getAttribute('data-id'));
     }
     /**
      * 给当前Anything添加命令

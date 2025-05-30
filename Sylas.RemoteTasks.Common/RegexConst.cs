@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Text.RegularExpressions;
 
 namespace Sylas.RemoteTasks.Common
@@ -128,7 +128,7 @@ namespace Sylas.RemoteTasks.Common
         /// 带变量的字符串模板, 比如变量name为动态的, 可以表示为{{name}}, 或者${name}, 或者$name, 或者XxxParser[...]
         /// </summary>
         /// <returns></returns>
-        public static readonly Regex StringTmpl = new("(?<name>\\{{2}\\s*.+\\}{2})|(?<name>\\$[^\\{]+)|(?<name>\\$\\{.+?\\})|(?<name>(?<parser>\\w+Parser)\\[\\${0,1}\\{{0,1}\\w+(\\[\\d+\\])*(\\.\\w+)*.*\\}{0,1}\\])");
+        public static readonly Regex StringTmpl = new("(?<name>\\{{2}\\s*.+\\}{2})|(?<name>\\$[\\w\\.]+)|(?<name>\\$\\{.+?\\})|(?<name>(?<parser>\\w+Parser)\\[\\${0,1}\\{{0,1}\\w+(\\[\\d+\\])*(\\.\\w+)*.*\\}{0,1}\\])");
 
         /// <summary>
         /// 匹配正则表达式中的分组

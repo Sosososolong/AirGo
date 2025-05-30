@@ -1,0 +1,195 @@
+@{
+    Layout = null;
+    ViewData["Title"] = "Template Test";
+}
+<div class="container mt-4">
+    <h4>模板测试工具</h4>
+    <div class="mb-3">
+        <label class="form-label">模板数据源 (JSON)：</label>
+        <textarea class="form-control" name="datamodel" rows="15">
+{
+    "Id": "M1",
+    "ModuleCode": "system",
+    "Name": "天天农场",
+    "Url": "/view/M1",
+    "IconName": "#iconhuolongguo=22d7bb=#ff000000", "OpenType": 1, "OrderNo": 20, "IsSetTop": false, "IsSelected": false, "IsDisabled": false,
+    "ParentId": "App1",
+    "IdPath": "App1/M1",
+    "MenuIds": ["ttnc1", "M1", "X1", "L1"],
+    "AllMenuUrls": ["/iList/ttnc1", "/iList/M1", "/iList/X1", "/iList/L1"],
+    "Users": [{"name":"zs","age":24,"email":"zs@qq.com"},{"name":"ls","age":34,"email":"ls@qq.com"}],
+    "imgs": [{"url":"https://xxx/img1","width":100},{"url":"https://xxx/img2","width":200}],
+    "Items": [
+      {
+        "Id":"ttnc1", "Name":"天天农场", "Type":"report", "DisplayType":null, "BusId":"ttnc1","BusCode":null,"OpenUrl":null,"Icon":"#icon-huolongguo,#22d7bb,#ff000000","Items":[],"ApplicationData":null
+      },
+      {
+        "Id":"M1","Name":"农场商品","Type":"form","DisplayType":null,"BusId":"M1","BusCode":null,"OpenUrl":null,"Icon":"#icon-huolongguo,#22d7bb,#ff000000","Items":[],"ApplicationData":null
+      },
+      {
+        "Id":"X1","Name":"农场基本信息","Type":"report","DisplayType":null,"BusId":"X1","BusCode":null,"OpenUrl":null,"Icon":"#icon-huolongguo,#22d7bb,#ff000000","Items":[],"ApplicationData":null
+      },
+      {
+        "Id":"L1","Name":"农场列表","Type":"report","DisplayType":null,"BusId":"L1","BusCode":null,"OpenUrl":null,"Icon":"#icon-huolongguo,#22d7bb,#ff000000","Items":[],"ApplicationData":null
+      }
+    ]
+}
+        </textarea>
+    </div>
+
+    <div class="test-item">
+        <div class="row align-items-center mb-2">
+            <div class="col-10">
+                <input class="form-control tmpl-txt" placeholder="输入模板字符串" value="DataPropertyParser[$Items[0].Name]" />
+            </div>
+            <div class="col-2">
+                <button class="btn btn-primary btn-resolve w-100">解析属性</button>
+            </div>
+        </div>
+        <div class="col-12">
+            <span class="text-success"></span>
+        </div>
+    </div>
+
+    <div class="test-item mt-3">
+        <div class="row align-items-center mb-2">
+            <div class="col-10">
+                <input class="form-control tmpl-txt" placeholder="输入模板字符串" value="idpath value is ${idpath}" />
+            </div>
+            <div class="col-2">
+                <button class="btn btn-primary btn-resolve w-100">解析属性</button>
+            </div>
+        </div>
+        <div class="col-12">
+            <span class="text-success"></span>
+        </div>
+    </div>
+    
+    <div class="test-item mt-3">
+        <div class="row align-items-center mb-2">
+            <div class="col-10">
+                <input class="form-control tmpl-txt" placeholder="输入模板字符串" value="item.url = ${item.url}; item.width = ${item.width}" />
+            </div>
+            <div class="col-2">
+                <button class="btn btn-primary btn-resolve w-100">解析多个属性</button>
+            </div>
+        </div>
+        <div class="col-12">
+            <span class="text-success"></span>
+        </div>
+    </div>
+    
+    <div class="test-item mt-3">
+        <div class="row align-items-center mb-2">
+            <div class="col-10">
+                <input class="form-control tmpl-txt" placeholder="输入模板字符串" value="RegexSubStringParser[$idpath reg `(?<appid>\w+)/` appid]" />
+            </div>
+            <div class="col-2">
+                <button class="btn btn-primary btn-resolve w-100">解析正则分组</button>
+            </div>
+        </div>
+        <div class="col-12">
+            <span class="text-success"></span>
+        </div>
+    </div>
+    
+    <div class="test-item mt-3">
+        <div class="row align-items-center mb-2">
+            <div class="col-10">
+                <input class="form-control tmpl-txt" placeholder="输入模板字符串" value="CollectionSelectItemRegexSubStringParser[$allMenuUrls select SELF reg `/iList/(?<idVal>\w+)` idVal]" />
+            </div>
+            <div class="col-2">
+                <button class="btn btn-primary btn-resolve w-100">解析集合项正则分组</button>
+            </div>
+        </div>
+        <div class="col-12">
+            <span class="text-success"></span>
+        </div>
+    </div>
+    
+    <div class="test-item mt-3">
+        <div class="row align-items-center mb-2">
+            <div class="col-10">
+                <input class="form-control tmpl-txt" placeholder="输入模板字符串" value="CollectionSelectParser[$Items select Id -r]" />
+            </div>
+            <div class="col-2">
+                <button class="btn btn-primary btn-resolve w-100">集合字段提取</button>
+            </div>
+        </div>
+        <div class="col-12">
+            <span class="text-success"></span>
+        </div>
+    </div>
+    
+    <div class="test-item mt-3">
+        <div class="row align-items-center mb-2">
+            <div class="col-10">
+                <input class="form-control tmpl-txt" placeholder="输入模板字符串" value="CollectionJoinParser[$menuIds join ,]" />
+            </div>
+            <div class="col-2">
+                <button class="btn btn-primary btn-resolve w-100">集合Join操作</button>
+            </div>
+        </div>
+        <div class="col-12">
+            <span class="text-success"></span>
+        </div>
+    </div>
+    
+    <div class="test-item mt-3">
+        <div class="row align-items-center mb-2">
+            <div class="col-10">
+                <input class="form-control tmpl-txt" placeholder="输入模板字符串" value="TypeConversionParser[$Items as List]" />
+            </div>
+            <div class="col-2">
+                <button class="btn btn-primary btn-resolve w-100">类型转换</button>
+            </div>
+        </div>
+        <div class="col-12">
+            <span class="text-success"></span>
+        </div>
+    </div>
+    
+    <div class="test-item mt-3">
+        <div class="row align-items-center mb-2">
+            <div class="col-10">
+                <textarea class="form-control tmpl-txt" rows="10">
+111
+
+222
+$for u in users
+    <span>${u.name}</span> <span>${u.age}</span> <span>${u.email}</span>
+$for img in imgs
+    <image href="${img.url}" width="img.width" />
+$forend
+$forend
+                </textarea>
+            </div>
+            <div class="col-2">
+                <button class="btn btn-primary btn-resolve w-100">for循环</button>
+            </div>
+        </div>
+        <div class="col-12 text-success">
+            <span class="text-success"></span>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.querySelectorAll('.btn-resolve').forEach(btn => {
+        btn.onclick = async function() {
+            const successResultContainer = btn.closest('.test-item').querySelector('.text-success');
+
+            const tmplTxtControl = btn.closest('.test-item').querySelector('.tmpl-txt');
+            const tmplTxt = tmplTxtControl.value;
+            const datamodelJson = document.querySelector('textarea').textContent;
+            const bodyData = { tmplTxt: tmplTxt, datamodelJson: datamodelJson };
+            const body = JSON.stringify(bodyData);
+            var resolved = await httpRequestDataAsync(`/Hosts/ResolveTmpl`, btn, 'POST', body, 'application/json', errorHandlerType.returnErrorMessage);
+            resolved.split('\n').forEach(x => {
+                const line = document.createElement('div');
+                line.textContent = x;
+                successResultContainer.appendChild(line);
+            })
+        }
+    })
+</script>

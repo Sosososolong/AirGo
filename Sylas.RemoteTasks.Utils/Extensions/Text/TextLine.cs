@@ -1,4 +1,4 @@
-﻿namespace Sylas.RemoteTasks.Utils.Extensions.Text
+namespace Sylas.RemoteTasks.Utils.Extensions.Text
 {
     /// <summary>
     /// 描述模板中的一行
@@ -37,7 +37,8 @@
         /// <returns></returns>
         public override string ToString()
         {
-            return $"{LineIndex}: {(Content.Length > 20 ? Content[..10] + Content.Substring(10, 7) : Content)}";
+            //return $"{LineIndex}: {(Content.Length > 20 ? Content[..10] + Content.Substring(10, 7) : Content)}";
+            return $"{LineIndex}: {Content}";
         }
     }
 }

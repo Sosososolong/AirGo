@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Caching.Memory;
 using Newtonsoft.Json;
 using Sylas.RemoteTasks.App.Infrastructure;
@@ -171,7 +171,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         /// </summary>
         /// <param name="command"></param>
         /// <returns></returns>
-        public async Task<OperationResult> AddCommandAsync(AnythingCommand command)
+        public async Task<RequestResult<bool>> AddCommandAsync(AnythingCommand command)
         {
             var commandId = await _commandRepository.AddAsync(command);
             if (commandId > 0)
@@ -191,9 +191,9 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
                         }
                     }
                 }
-                return new OperationResult(true);
+                return new RequestResult<bool>(true);
             }
-            return new OperationResult(commandId > 0);
+            return new RequestResult<bool>(commandId > 0);
         }
 
         /// <summary>
@@ -594,7 +594,14 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             // 解析CommandTxt中的模板
             foreach (var anythingCommand in anythingSettingDetails.Commands)
             {
-                anythingCommand.CommandTxt = TmplHelper.ResolveExpressionValue(anythingCommand.CommandTxt, properties)?.ToString() ?? throw new Exception($"解析命令\"{anythingCommand.CommandTxt}\"异常");
+                try
+                {
+                    anythingCommand.CommandTxt = TmplHelper.ResolveExpressionValue(anythingCommand.CommandTxt, properties)?.ToString() ?? throw new Exception($"解析命令\"{anythingCommand.CommandTxt}\"异常");
+                }
+                catch (Exception ex)
+                {
+                    LoggerHelper.LogError(ex.ToString());
+                }
                 if (!string.IsNullOrWhiteSpace(anythingCommand.ExecutedState))
                 {
                     var start = DateTime.Now;

@@ -460,6 +460,10 @@ namespace Sylas.RemoteTasks.Utils.Template
         /// <exception cref="Exception"></exception>
         public static object ResolveExpressionValue(string tmplWithParser, object dataContextObject)
         {
+            if (tmplWithParser.IndexOf('\n') != tmplWithParser.LastIndexOf('\n') && tmplWithParser.Contains("$for"))
+            {
+                return RenderForLoopBlocks(tmplWithParser, dataContextObject);
+            }
             if (string.IsNullOrWhiteSpace(tmplWithParser))
             {
                 return tmplWithParser;
@@ -475,6 +479,7 @@ namespace Sylas.RemoteTasks.Utils.Template
 
             tmplWithParser = tmplWithParser.Replace("$$", _doubleFlag);
             string originTmplParser = tmplWithParser;
+            // 提取所有模板表达式
             var stringTmplMatches = RegexConst.StringTmpl.Matches(tmplWithParser);
 
             List<object> result = [];
@@ -626,6 +631,92 @@ namespace Sylas.RemoteTasks.Utils.Template
 
                 throw new Exception($"TmplParser解析成功, 但是未返回解析模板中的数据源的Key {nameof(parseResult.DataSourceKeys)}");
             }
+        }
+        /// <summary>
+        /// 解析for循环
+        /// </summary>
+        /// <param name="tmplContent"></param>
+        /// <param name="context"></param>
+        /// <returns></returns>
+        static string RenderForLoopBlocks(string tmplContent, object context)
+        {
+            StringBuilder bodyBuilder = new();
+            var resolvedInfo = tmplContent.GetBlocks("$for", "$forend");
+            if (resolvedInfo.SpecifiedBlocks.Count == 0)
+            {
+                // 没有for循环块, 直接返回原始内容
+                return TmplHelper.ResolveExpressionValue(tmplContent, context).ToString()!;
+            }
+            var blocks = resolvedInfo.SpecifiedBlocks;
+            var allLineInfos = resolvedInfo.SequenceLineInfos;
+
+            int blockRenderingLine = 0;
+            foreach (var block in blocks)
+            {
+                // 输出for循环前的普通行
+                if (block.FirstLine > blockRenderingLine)
+                {
+                    for (int i = blockRenderingLine; i < block.FirstLine; i++)
+                    {
+                        var line = allLineInfos[i].Line.Content;
+                        var rendered = TmplHelper.ResolveExpressionValue(line, context).ToString();
+                        bodyBuilder.AppendLine(rendered);
+                    }
+                }
+                blockRenderingLine = block.LastLine + 1;
+
+                // 解析for语句
+                var forLine = block[0].Content.Trim();
+                var match = Regex.Match(forLine, @"^\$for\s+(?<item>\w+)\s+in\s+(?<collection>\w+)", RegexOptions.IgnoreCase);
+                if (!match.Success)
+                    throw new Exception($"无法解析for语句: {forLine}");
+
+                string itemVar = match.Groups["item"].Value;
+                string collectionVar = match.Groups["collection"].Value;
+                if (!collectionVar.StartsWith('$'))
+                    collectionVar = $"${collectionVar}";
+
+                // 获取集合
+                var collectionObj = TmplHelper.ResolveExpressionValue(collectionVar, context);
+                if (collectionObj is not IEnumerable enumerable)
+                    throw new Exception($"变量{collectionVar}不是可枚举类型");
+
+                // 获取for块体内容（去掉for和forend行，保留中间内容）
+                List<TextLine> bodyLines = block.Skip(1).Take(block.Count - 2).ToList();
+                string blockContent = string.Join(Environment.NewLine, allLineInfos.Skip(block.FirstLine + 1).Take(block.LastLine - block.FirstLine - 1).Select(x => x.Line.Content));
+
+                foreach (var item in enumerable)
+                {
+                    // 构造新的上下文，包含item变量
+                    var itemContext = new Dictionary<string, object>(JsonConvert.DeserializeObject<Dictionary<string, object>>(JsonConvert.SerializeObject(context))!)
+                    {
+                        [itemVar] = item
+                    };
+
+                    // 递归处理内嵌的for循环
+                    string bodyResolved = RenderForLoopBlocks(blockContent, itemContext);
+                    if (bodyResolved.Contains('\n'))
+                    {
+                        bodyBuilder.Append(bodyResolved);
+                    }
+                    else
+                    {
+                        bodyBuilder.AppendLine(bodyResolved);
+                    }
+                }
+            }
+
+            // 输出剩余普通行
+            if (blockRenderingLine < allLineInfos.Count)
+            {
+                for (int i = blockRenderingLine; i < allLineInfos.Count; i++)
+                {
+                    var line = allLineInfos[i].Line.Content;
+                    var rendered = TmplHelper.ResolveExpressionValue(line, context).ToString();
+                    bodyBuilder.AppendLine(rendered);
+                }
+            }
+            return bodyBuilder.ToString();
         }
 
         /// <summary>
