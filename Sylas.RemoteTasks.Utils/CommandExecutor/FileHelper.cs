@@ -1,4 +1,4 @@
-﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Newtonsoft.Json;
@@ -1070,7 +1070,7 @@ public partial class FileHelper
             LoggerHelper.LogInformation($"即将调用方法{functionName}, 参数:");
             foreach (var parameter in parameters)
             {
-                LoggerHelper.LogInformation($"{SpaceConstants.OneTabSpaces}- {parameter}");
+                LoggerHelper.LogInformation($"{SpaceConstants.OneTabSpaces} - {parameter}");
             }
             var methodResult = method.Invoke(null, parameters) ?? throw new Exception($"方法{functionName}调用异常");
             if (functionName.EndsWith("Async"))

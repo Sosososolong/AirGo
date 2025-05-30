@@ -462,7 +462,7 @@ namespace Sylas.RemoteTasks.Utils.Template
         {
             if (tmplWithParser.IndexOf('\n') != tmplWithParser.LastIndexOf('\n') && tmplWithParser.Contains("$for"))
             {
-                return RenderForLoopBlocks(tmplWithParser, dataContextObject);
+                return RenderTemplateWithForLoopBlocks(tmplWithParser, dataContextObject);
             }
             if (string.IsNullOrWhiteSpace(tmplWithParser))
             {
@@ -638,7 +638,7 @@ namespace Sylas.RemoteTasks.Utils.Template
         /// <param name="tmplContent"></param>
         /// <param name="context"></param>
         /// <returns></returns>
-        static string RenderForLoopBlocks(string tmplContent, object context)
+        static string RenderTemplateWithForLoopBlocks(string tmplContent, object context)
         {
             StringBuilder bodyBuilder = new();
             var resolvedInfo = tmplContent.GetBlocks("$for", "$forend");
@@ -681,20 +681,19 @@ namespace Sylas.RemoteTasks.Utils.Template
                 if (collectionObj is not IEnumerable enumerable)
                     throw new Exception($"变量{collectionVar}不是可枚举类型");
 
-                // 获取for块体内容（去掉for和forend行，保留中间内容）
-                List<TextLine> bodyLines = block.Skip(1).Take(block.Count - 2).ToList();
+                // 获取for块体内容(去掉for和forend行, 保留中间内容)
                 string blockContent = string.Join(Environment.NewLine, allLineInfos.Skip(block.FirstLine + 1).Take(block.LastLine - block.FirstLine - 1).Select(x => x.Line.Content));
 
                 foreach (var item in enumerable)
                 {
-                    // 构造新的上下文，包含item变量
+                    // 构造新的上下文，包含item变量; **嵌套的循环每项变量可以与前面相同: 每次进入嵌套的for循环中, 都会生成一个全新的context, 不会与父级的context冲突**
                     var itemContext = new Dictionary<string, object>(JsonConvert.DeserializeObject<Dictionary<string, object>>(JsonConvert.SerializeObject(context))!)
                     {
                         [itemVar] = item
                     };
 
                     // 递归处理内嵌的for循环
-                    string bodyResolved = RenderForLoopBlocks(blockContent, itemContext);
+                    string bodyResolved = RenderTemplateWithForLoopBlocks(blockContent, itemContext);
                     if (bodyResolved.Contains('\n'))
                     {
                         bodyBuilder.Append(bodyResolved);

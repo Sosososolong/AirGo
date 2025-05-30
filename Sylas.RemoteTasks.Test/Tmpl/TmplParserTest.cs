@@ -375,49 +375,35 @@ namespace Sylas.RemoteTasks.Test.Tmpl
         [Fact]
         public void TemplateForLoopTest()
         {
-            var resolvedInfo = _text.GetBlocks("$for", "$forend");
-            var blocks = resolvedInfo.SpecifiedBlocks;
-            var lineInfos = resolvedInfo.SequenceLineInfos;
-            Assert.Single(blocks);
-            Assert.Equal(3, blocks.First().Count);
-            Assert.Equal("$for item in users", blocks.First()[0].Content);
-            Assert.Equal("<span>${item.name}</span> <span>${item.age}</span> <span>${item.email}</span>", blocks.First()[1].Content);
-            Assert.Equal("$forend", blocks.First()[2].Content);
-
-            Assert.Single(blocks.First().Children);
-            var firstChild = blocks.First().Children.First();
-            Assert.Equal(3, firstChild.Count);
-            Assert.Equal("$for item in imgs", firstChild[0].Content);
-            Assert.Equal("<image href=\"${item.url}\" width=\"item.width\" />", firstChild[1].Content);
-            Assert.Equal("$forend", firstChild[2].Content);
-
-            PrintBlocks(blocks);
-            void PrintBlocks(List<TextBlock> blocks)
+            string? resolved = TmplHelper.ResolveExpressionValue(_text, new
             {
-                foreach (var block in blocks)
+                Users = new List<dynamic>()
                 {
-                    // 先判断有没有嵌套文本片段, 有的话先打印
-                    if (block.Children.Count > 0)
-                    {
-                        PrintBlocks(block.Children);
-                    }
-
-                    foreach (var line in block)
-                    {
-                        outputHelper.WriteLine($"{line.LineIndex}: {line.Content}");
-                    }
+                    new { Name = "zhangsan", Age = 24, Email = "zhangsan@qq.com" },
+                    new { Name = "lisi", Age = 34, Email = "lisi@qq.com" }
+                },
+                Imgs = new List<dynamic>()
+                {
+                    new { Url = "https://xxx/img1.jpg", Width = 100 },
+                    new { Url = "https://xxx/img2.jpg", Width = 200 },
                 }
-            }
+            }).ToString();
+            Assert.NotNull(resolved);
+            var lines = resolved.Split('\n');
+            Assert.Equal("111", lines[0].Trim());
+            Assert.Equal("", lines[1].Trim());
+            Assert.Equal("222", lines[2].Trim());
+            Assert.Equal("<span>zhangsan</span> <span>24</span> <span>zhangsan@qq.com</span>", lines[3].Trim());
+            Assert.Equal("<image href=\"https://xxx/img1.jpg\" width=\"100\" />", lines[4].Trim());
+            Assert.Equal("<image href=\"https://xxx/img2.jpg\" width=\"200\" />", lines[5].Trim());
+            Assert.Equal("其他", lines[6].Trim());
 
-            int i = 0;
-            foreach (var line in lineInfos)
-            {
-                // 0: xxx
-                // 1: 111
-                Assert.Equal(i, line.Line.LineIndex);
-                outputHelper.WriteLine($"{line.Line.LineIndex}: {line.Line.Content}");
-                i++;
-            }
+            Assert.Equal("<span>lisi</span> <span>34</span> <span>lisi@qq.com</span>", lines[7].Trim());
+            Assert.Equal("<image href=\"https://xxx/img1.jpg\" width=\"100\" />", lines[8].Trim());
+            Assert.Equal("<image href=\"https://xxx/img2.jpg\" width=\"200\" />", lines[9].Trim());
+            Assert.Equal("其他", lines[10].Trim());
+            
+            Assert.Equal("999", lines[11].Trim());
         }
         [Fact]
         public void GetFunctionsTest()
