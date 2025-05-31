@@ -240,7 +240,7 @@
                                 </button>
                             </h5>
                             <div>
-                                <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="${record.id}" data-fetch-url="${apiUrl}" data-method="POST" onclick="showUpdatePannel(this, () => cardsStatus.find(x => x.id == ${record.id}).isShown = false, () => { document.querySelector('#${collapseBtnId}').click(); })">更新</button>
+                                <button type="button" class="btn btn-primary btn-sm update-btn" collapse-btn-id="${collapseBtnId}" data-table-id="${tableId}" data-id="${record.id}" data-fetch-url="${apiUrl}" data-method="POST">更新</button>
                                 <button type="button" class="btn btn-primary btn-sm add-command-btn">添加命令</button>
                                 <button type="button" class="btn btn-primary btn-sm run-commands-btn">运行</button>
                                 <button type="button" class="btn btn-primary btn-sm d-none" data-table-id="${tableId}" data-content="&quot;${record.id}&quot;" data-execute-url="/Study/DeleteQuestion" data-method="POST" onclick="showConfirmBox('确定删除? 此操作无法撤销!', () => execute(this))">删除</button>
@@ -255,6 +255,13 @@
                     </div>`);
         });
         container.querySelector('.cards-container').innerHTML = cardsHtml;
+        container.querySelectorAll('.update-btn').forEach(x => {  
+           x.onclick = function() {
+               const recordId = x.getAttribute('data-id');
+               const collapseBtnId = x.getAttribute('collapse-btn-id');
+               showUpdatePannel(x, () => cardsStatus.find(y => y.id == recordId).isShown = false, () => { document.querySelector(`#${collapseBtnId}`).click(); });
+           };  
+        });
         return container;
     }
 
@@ -283,7 +290,7 @@
         // 再解析命令内容
         const bodyObj = { id, cmdTxt };
         const body = JSON.stringify(bodyObj);
-        var data = await httpRequestDataAsync(`/Hosts/ResolveCommandSettting`, input, 'POST', body, '', errorHandlerType.returnErrorMessage);
+        var data = await httpRequestDataAsync(`/Hosts/ResolveCommandSettting`, input, 'POST', body, 'application/json', errorHandlerType.returnErrorMessage);
         if (data) {
             input.closest('.command-item').querySelector('.command-resolved').innerText = data.split('\n').join('<br/>');
         }

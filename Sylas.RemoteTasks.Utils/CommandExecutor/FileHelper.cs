@@ -605,6 +605,7 @@ public partial class FileHelper
         Match useRazorEngineMatch = Regex.Match(commandContent, @"\s*ENGINE:\s*Razor\s+", RegexOptions.IgnoreCase);
         if (useRazorEngineMatch.Success)
         {
+            LoggerHelper.LogInformation("FileHelper.ExecuteAsync 使用Razor模板引擎");
             // 使用标题和模板变量作为模板缓存的唯一标识符
             string titleLine = useRazorEngineMatch.Value.Trim();
             string currentTmpl = titleLine + string.Join("", selectedOp.GlobalVariables);
@@ -632,6 +633,10 @@ public partial class FileHelper
             // 重新获取所有标题行titleLines(可能包含模板变量)
             titleLines = Regex.Match(commandContent, @"##[\w\W]+?(?=###)").Value.Split('\n');
         }
+        else
+        {
+            LoggerHelper.LogInformation("FileHelper.ExecuteAsync 使用TmplHelper模板引擎");
+        }
         #endregion
 
         string firstLineValue = titleLines.First()[2..].Trim();
@@ -643,15 +648,17 @@ public partial class FileHelper
         var matches = Regex.Matches(commandContent, @"###\s*[\w\W]+?(?=(###|$))");
         foreach (var m in matches.Cast<Match>())
         {
-            string nodeConfig = m.Value
-                .Replace("&nbsp;", SpaceConstants.OneSpace.ToString());
+            string nodeConfig = m.Value;
 
             var opNode = ResolveNodeFromConfig(nodeConfig);
             selectedOp.Nodes.Add(opNode);
         }
 
-        string operationLog = await ExecuteOperationAsync(selectedOp);
-        yield return new CommandResult(true, operationLog);
+        var operationLogs = ExecuteOperationAsync(selectedOp);
+        await foreach (var operationLog in operationLogs)
+        {
+            yield return new CommandResult(true, operationLog);
+        }
     }
     static OperationNode ResolveNodeFromConfig(string nodeConfig)
     {
@@ -674,13 +681,13 @@ public partial class FileHelper
         {
             string line = lines[i];
             configItemValue = line;
-            string lineConfigItemKey = _configItemKeys.FirstOrDefault(x => line.StartsWith(x + ":"));
+            string lineConfigItemKey = _configItemKeys.FirstOrDefault(x => line.StartsWith(x + ":", StringComparison.OrdinalIgnoreCase));
             isConfigItemFirstLine = !string.IsNullOrWhiteSpace(lineConfigItemKey);
             if (isConfigItemFirstLine)
             {
                 configItemKey = lineConfigItemKey;
                 // configItemKey.Length + 1: 加1是因为后面还有一个冒号
-                configItemValue = line[(lineConfigItemKey.Length + 1)..].Trim();
+                configItemValue = line[(lineConfigItemKey.Length + 1)..].Trim().Replace("&nbsp;", SpaceConstants.OneSpace.ToString());
             }
             if (string.IsNullOrWhiteSpace(configItemKey))
             {
@@ -714,7 +721,7 @@ public partial class FileHelper
             NodeTitle = nodeTitle,
             TargetFilePattern = targetFilePattern,
         };
-        var values = valueBuilder.ToString().Trim().Split("|||");
+        var values = valueBuilder.ToString().Split("|||");
         var types = type.Split("|||");
         var linePatterns = linePattern.Split("|||");
         for (int j = 0; j < values.Length; j++)
@@ -1274,7 +1281,7 @@ public partial class FileHelper
 
     // string file, string value, string operationTitle, OperationType operationType, string appendedLinePattern = ""
     /// <summary>执行用户选择的操作(所有子命令)</summary>
-    static async Task<string> ExecuteOperationAsync(Operation selectedOp)
+    static async IAsyncEnumerable<string> ExecuteOperationAsync(Operation selectedOp)
     {
         #region 准备工作 - 解析变量
         // 预设全局变量
@@ -1358,13 +1365,12 @@ public partial class FileHelper
                 {
                     step.Value = ResolveGlobalVariables(step.Value);
                     opLog = await ModifyAsync(targetFile, opNode.NodeTitle, step.Value, step.LinePattern, step.OperationType);
+                    yield return opLog;
                 }
                 // "NAMESPACE"变量值每个文件需要实时解析, 不删除会导致下个文件会提前被解析出当前值
                 _variables.Remove("NAMESPACE");
             }
         }
-
-        return opLog;
     }
     static async Task<string> ModifyAsync(string file, string operationTitle, string value, string appendedLinePattern, OperationType operationType)
     {
@@ -1388,7 +1394,7 @@ public partial class FileHelper
             }
             else if (operationType == OperationType.Replace)
             {
-                if (content.Contains(value))
+                if (!string.IsNullOrWhiteSpace(value) && content.Contains(value))
                 {
                     operationLog.AppendLine($"- 已\"{operationTitle}\", 无需操作 ({file})");
                     return operationLog.ToString();
@@ -1413,6 +1419,7 @@ public partial class FileHelper
                     if (operationType == OperationType.Append)
                     {
                         lines.Insert(appendedLineIndex + 1, value);
+                        operationLog.AppendLine($"- {file} Append Line: \"{value}\"");
                     }
                     else if (operationType == OperationType.Prepend)
                     {
@@ -1429,7 +1436,9 @@ public partial class FileHelper
             await File.WriteAllTextAsync(file, newContent);
             operationLog.AppendLine($"√ 操作成功: \"{operationTitle}\" ({file})");
         }
-        return operationLog.ToString();
+        string operationLogResult = operationLog.ToString();
+        LoggerHelper.LogInformation(operationLogResult);
+        return operationLogResult;
     }
     enum OperationType
     {
