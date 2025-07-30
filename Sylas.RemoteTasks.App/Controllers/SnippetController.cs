@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.Snippets;
@@ -27,8 +27,17 @@ namespace Sylas.RemoteTasks.App.Controllers
             return added > 0 ? Ok(new OperationResult(true)) : BadRequest();
         }
 
-        public async Task<IActionResult> UpdateSnippetAsync([FromBody] Snippet snippet)
+        public async Task<IActionResult> UpdateSnippetAsync([FromServices] IWebHostEnvironment env, [FromForm] Snippet snippet)
         {
+            Snippet? record = await repository.GetByIdAsync(snippet.Id);
+            if (record is null)
+            {
+                return Ok(RequestResult<bool>.Error("记录不存在"));
+            }
+
+            var imgs = await HandleUploadedFilesAsync(record.ImageUrl, snippet.ImageUrl, env);
+            snippet.ImageUrl = string.Join(';', imgs);
+
             var added = await repository.UpdateAsync(snippet);
             return added > 0 ? Ok(new OperationResult(true)) : BadRequest();
         }

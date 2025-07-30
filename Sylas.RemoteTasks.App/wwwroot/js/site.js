@@ -2,6 +2,9 @@
 // for details on configuring this project to bundle and minify static web assets.
 
 // Write your JavaScript code.
+const VIDEO_RE = /\.(mp4|mov|avi|mkv|webm|flv|wmv|m4v|3gp)$/i;
+const AUDIO_RE = /\.(mp3|wav|flac|aac|ogg|m4a|wma|ape)$/i;
+const IMAGE_RE = /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i;
 
 const tables = {};
 const dataSources = {};
@@ -121,11 +124,11 @@ async function createTable(customOptions) {
         }
         var tbody = $(`#${tid} tbody`);
         tbody.empty();
-        for (var j = 0; j < data.length; j++) {
+        for (let j = 0; j < data.length; j++) {
             var row = data[j];
             var tr = $('<tr>');
 
-            for (var i = 0; i < this.ths.length; i++) {
+            for (let i = 0; i < this.ths.length; i++) {
                 var th = this.ths[i]
                 if (th.type === 'button') {
                     var buttonHtml = th.tmpl.replace(/{{id}}/g, row[options.idFieldName])
@@ -151,6 +154,29 @@ async function createTable(customOptions) {
                                 tdValue = dataSource.value;
                                 break;
                             }
+                        }
+                    }
+                    if (th.type && th.type === 'media') {
+                        if (tdValue && tdValue.length > 0) {
+                            let tagsHtml = '';
+                            const mediaUrls = tdValue.split(';')
+                            for (let k = 0; k < mediaUrls.length; k++) {
+                                const itemUrl = mediaUrls[k];
+                                if (VIDEO_RE.test(itemUrl)) {
+                                    tagsHtml += `<video style="width:200px;" controls muted>
+                                                   <source src="${itemUrl}" type="video/mp4">
+                                                   Your browser does not support the video tag.
+                                                 </video>`;
+                                } else if (AUDIO_RE.test(itemUrl)) {
+                                    tagsHtml += `<audio style="width:200px;" controls muted>
+                                                       <source src="${itemUrl}" type="audio/mpeg">
+                                                       Your browser does not support the audio tag.
+                                                     </audio>`;
+                                } else {
+                                    tagsHtml += `<img style="width:100px;" src="${itemUrl}">`
+                                }
+                            }
+                            tdValue = `<div style="display:flex;align-items:center;flex-wrap:wrap;">${tagsHtml}</div>`;
                         }
                     }
 
@@ -340,9 +366,9 @@ ${formItemComponent}
                     let dataSourceOptions = await this.resolveDataSourceField(th);
                     const formItemComponent = `<select class="form-control form-select-sm" aria-label="Default select" name="${th.name}" id="${formItemId}">${dataSourceOptions}</select>`;
                     this.buildFormItemHtml(th, formItemId, formItemComponent);
-                } else if (th.type == 'image') {
+                } else if (th.type == 'image' || th.type == 'media') {
                     // BOOKMARK: 前端/frontend封装site.js - 创建模态框 3.2表单项 除Id字段外的其他表单项 - 图片字段
-                    const formItemComponent = `<input type="hidden" name="${th.name}" id="${formItemId}" /><input class="form-control form-control-sm" type="file" multiple name="${th.name}_files" onchange="showImages(event, '.img-preview-container')" id="${formItemId}_files"><div class="img-preview-container" style="display:flex;align-items:flex-end;flex-wrap:wrap;"></div>`;
+                    const formItemComponent = `<input type="hidden" name="${th.name}" id="${formItemId}" /><input class="form-control form-control-sm" type="file" multiple name="${th.name}_files" onchange="showMedias(event, '.img-preview-container')" id="${formItemId}_files"><div class="img-preview-container" style="display:flex;align-items:flex-end;flex-wrap:wrap;"></div>`;
                     this.buildFormItemHtml(th, formItemId, formItemComponent);
                     const fileInputId = `${formItemId}_files`;
                     if (this.formItemIds.indexOf(fileInputId) === -1) {
@@ -1005,7 +1031,7 @@ async function showUpdatePannel(eventTrigger, onDataReloading, onDataReloaded) {
                     formItem.value = '';
                     fieldValue.split(';').forEach(function (url) {
                         if (url) {
-                            showImage(imgContainer, url);
+                            showMedia(imgContainer, url);
                         }
                     });
                 }
@@ -1097,7 +1123,7 @@ async function execute(eventTrigger, callback = null, useSpinner = true) {
 }
 
 let cachedFiles = {};
-function showImages(event, imgContainer) {
+function showMedias(event, imgContainer) {
     var files = event.target.files;
     var filesName = event.target.name;
     //const allImg = document.querySelectorAll('.img-preview');
@@ -1107,7 +1133,8 @@ function showImages(event, imgContainer) {
     // 遍历预览所有图片
     for (var i = 0; i < files.length; i++) {
         const file = files[i];
-        if (file.type.indexOf('image') !== 0) {
+        // file.type: video/mp4
+        if (file.type.indexOf('image') === 0 && file.type.indexOf('video') === 0 ) {
             continue;
         }
         // 缓存所有图片
@@ -1120,39 +1147,78 @@ function showImages(event, imgContainer) {
 
             // 2. 给缓存添加文件对象
             cachedFiles[filesName].push(file);
-            showImage(imgContainer, file);
+            showMedia(imgContainer, file);
         }
     }
 }
 
-function showImage(imgContainer, image) {
+function showMedia(mediaContainer, mediaFileObj) {
     let div = document.createElement('div');
     div.style.display = 'inline-block';
     div.style.position = 'relative';
     div.style.margin = '5px 5px 0 0';
 
-    let img = document.createElement('img');
-    // 只设置宽度, 高度自适应
-    img.width = 100;
-    // 添加class
-    img.classList.add('img-preview');
-    if (typeof (image) === 'object') {
-        img.src = URL.createObjectURL(image);
-        img.setAttribute('data-filename', image.name);
-        img.onload = function () {
-            URL.revokeObjectURL(img.src); // 释放内存
-        };
-    } else {
-        img.src = image;
-    }
-    
-    //event.target.insertAdjacentElement('afterend', img);
-    div.appendChild(img);
+    let mediaEle;
+    if (typeof mediaFileObj === 'string') {
+        if (VIDEO_RE.test(mediaFileObj)) {
 
-    if (typeof (imgContainer) === 'object') {
-        imgContainer.appendChild(div);
+        }
+    }
+    const mediaTypeIsUri = typeof mediaFileObj === 'string';
+    if (mediaFileObj.type?.indexOf('video') > -1 || (mediaTypeIsUri && VIDEO_RE.test(mediaFileObj))) {
+        // 视频对象
+        mediaEle = document.createElement('video');
+        // 只设置宽度, 高度自适应
+        mediaEle.width = 200;
+        mediaEle.controls = true;               // 显示控制条
+        mediaEle.muted = true;                  // 按需静音，自动播放更友好
+        mediaEle.classList.add('img-preview');
+        // 统一处理：可能是 File/Blob 或普通 URL 字符串
+        if (mediaTypeIsUri) {
+            mediaEle.src = mediaFileObj;
+        } else {
+            mediaEle.src = URL.createObjectURL(mediaFileObj);
+            mediaEle.setAttribute('data-filename', mediaFileObj.name);
+            mediaEle.onloadeddata = () => URL.revokeObjectURL(mediaEle.src);   
+        }
+    } else if (mediaFileObj.type?.indexOf('image') > -1 || (mediaTypeIsUri && IMAGE_RE.test(mediaFileObj))) {
+        mediaEle = document.createElement('img');
+        // 只设置宽度, 高度自适应
+        mediaEle.width = 100;
+        // 添加class
+        mediaEle.classList.add('img-preview');
+        if (mediaTypeIsUri) {
+            mediaEle.src = mediaFileObj;
+        } else {
+            mediaEle.src = URL.createObjectURL(mediaFileObj);
+            mediaEle.setAttribute('data-filename', mediaFileObj.name);
+            mediaEle.onload = function () {
+                URL.revokeObjectURL(mediaEle.src); // 释放内存
+            };
+        }
+    } else if (mediaFileObj.type?.indexOf('audio') > -1 || (mediaTypeIsUri && AUDIO_RE.test(mediaFileObj))) {
+        mediaEle = document.createElement('img');
+        mediaEle = document.createElement('video');
+        // 只设置宽度, 高度自适应
+        mediaEle.width = 100;
+        mediaEle.controls = true;
+        mediaEle.muted = true;
+        if (mediaFileObj) {
+            mediaEle.src = mediaFileObj;
+        } else {
+            mediaEle.src = URL.createObjectURL(mediaFileObj);
+            mediaEle.onloadeddata = () => URL.revokeObjectURL(mediaEle.src);
+        }
+    }
+
+    if (mediaEle) {
+        div.appendChild(mediaEle);
+    }
+
+    if (typeof (mediaContainer) === 'object') {
+        mediaContainer.appendChild(div);
     } else {
-        document.querySelector(imgContainer).appendChild(div);
+        document.querySelector(mediaContainer).appendChild(div);
     }
 
     // 删除按钮

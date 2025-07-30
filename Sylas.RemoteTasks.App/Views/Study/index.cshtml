@@ -55,20 +55,22 @@
                     });
                     imageHtml += '</div>';
                 }
-                container.innerHTML += (`<div class="question" style="padding: 5px;border-radius:5px;">${imageHtml}<label style="width:32%;max-width:300px;" for="answer${index}">${q.title}</label>
+                container.innerHTML += (`<div class="question" style="padding: 5px;border-radius:5px;">
+                <label style="width:32%;max-width:300px;" for="answer${index}">${q.title}</label>
                 <input style="width:120px;" class="answer-input" data-id="${q.id}" id="answer${index}" value="" onchange="checkAnswer(this)" ondblclick="showRemark(this)" onfocus="this.parentElement.classList.add('focus')" onblur="this.parentElement.classList.remove('focus')" />
                 <input hidden value="${q.answer}" />
                 <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="${q.id}" data-fetch-url="${apiUrl}" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
                 <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-content="&quot;${q.id}&quot;" data-execute-url="/Study/DeleteQuestion" data-method="POST" onclick="showConfirmBox('确定删除? 此操作无法撤销!', () => execute(this))">删除</button>
                 <span class="is-answer-correct">&nbsp;&nbsp;</span>
                 <span class="remark text-primary" style="display:none;">&nbsp;&nbsp;${q.remark ? q.remark : q.answer}</span>
+                ${imageHtml}
                 </div>`);
             });
             return container;
         }
         /**
-            * 初始化数据表格
-            */
+        * 初始化数据表格
+        */
         createTable(
             {
                 apiUrl: apiUrl,

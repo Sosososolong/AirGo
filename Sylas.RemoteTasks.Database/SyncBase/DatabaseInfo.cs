@@ -7,7 +7,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MySql.Data.MySqlClient;
-using MySqlX.XDevAPI.Relational;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Npgsql;
@@ -349,7 +348,6 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             await Console.Out.WriteLineAsync($"耗时: {(DateTime.Now - t1).TotalMilliseconds}/ms{Environment.NewLine}");
 
             return new PagedData<T> { Data = data, Count = allCount, TotalPages = (allCount + search.PageSize - 1) / search.PageSize };
-
         }
         /// <summary>
         /// 分页查询指定数据表, 可使用数据库连接字符串connectionString参数指定连接的数据库
@@ -853,7 +851,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 _ = await conn.ExecuteAsync(createSql);
             }
         }
-        
+
         /// <summary>
         /// 备份数据表到指定目录中
         /// </summary>
@@ -899,7 +897,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             {
                 string tableName = tableAndCondition.Key;
                 tableName = dbTables.FirstOrDefault(x => x.Equals(tableName, StringComparison.OrdinalIgnoreCase)) ?? throw new Exception($"没有找到表:{tableName}");
-                
+
                 // 获取表的字段信息
                 var columns = await GetTableColumnsInfoAsync(conn, tableName);
 
@@ -907,7 +905,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 var conditionAndParameters = await ResolveTableQueryConditions(tableAndCondition.Value, conn, tableName);
                 var condition = conditionAndParameters.Item1;
                 var parameters = conditionAndParameters.Item2;
-                
+
                 string tableStatement = GetTableStatement(tableName, dbType);
                 if (!condition.StartsWith("where", StringComparison.OrdinalIgnoreCase))
                 {
@@ -1135,7 +1133,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                     {
                         // 其他行, 数据
                         var values = line.Split(',');
-                        
+
                         bool ignoreRecord = false;
 
                         var parameters = new Dictionary<string, object?>();
@@ -1379,7 +1377,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             targetConnTransfer.Open();
             return await TransferByTableSqlsInfoAsync(tableSqlsInfo, targetConnTransfer, targetTable, ignoreException, insertOnly);
         }
-        
+
         static async Task<(int, int)> TransferByTableSqlsInfoAsync(TableSqlInfo tableSqlsInfo, IDbConnection targetConnTransfer, string targetTable, bool ignoreException = false, bool insertOnly = false)
         {
             int deletedRows = 0;
@@ -1488,7 +1486,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
 
             var targetDbType = GetDbType(targetConn.ConnectionString);
             var targetTableColInfos = await GetTableColumnsInfoAsync(targetConn, targetTable);
-            
+
             Dictionary<string, string> targetColumnMapToSource = [];
             var firstSourceRecordKeys = source.First().Keys;
             foreach (var colInfo in targetTableColInfos)
@@ -1959,14 +1957,14 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <returns></returns>
         public static async Task<List<SqlInfo>> GetInsertSqlInfosAsync(object dataSource, string targetTableName, IDbConnection targetConn)
         {
-            IEnumerable<IDictionary<string, object>> sourceRecords;
+            IEnumerable<IDictionary<string, object?>> sourceRecords;
             if (dataSource is IEnumerable dataList)
             {
                 sourceRecords = dataList.Cast<object>().CastToDictionaries();
             }
             else
             {
-                sourceRecords = [JObject.FromObject(dataSource).ToObject<Dictionary<string, object>>() ?? throw new Exception("数据转字典失败")];
+                sourceRecords = [JObject.FromObject(dataSource).ToObject<Dictionary<string, object?>>() ?? throw new Exception("数据转字典失败")];
             }
 
             var dbType = GetDbType(targetConn.ConnectionString);
@@ -1984,6 +1982,9 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             // 目标字段和源字段的映射
             Dictionary<string, string> targetColumnMapToSource = [];
             GetSourceColumnTargetColumnMap(firstRecord, targetTableColumns, targetColumnMapToSource);
+            string[] targetColmns = [.. targetColumnMapToSource.Keys];
+            // 过滤掉数据中没有出现的字段
+            targetTableColumns = targetTableColumns.Where(c => targetColmns.Any(targetCode => targetCode.Equals(c.ColumnCode, StringComparison.OrdinalIgnoreCase)));
 
             // 1. 获取字段部分, 以目标表字段为准
             var insertFieldsStatement = GetFieldsStatement(targetTableColumns, dbType);
@@ -1994,7 +1995,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             var parameters = new Dictionary<string, object?>();
             string? batchInsertSql;
 
-            foreach (IDictionary<string, object> sourceRecord in sourceRecords)
+            foreach (IDictionary<string, object?> sourceRecord in sourceRecords)
             {
                 #region 2. 为每条数据生成Values部分(@v1,@v2,...),\n
                 insertValuesStatementBuilder.Append("(");

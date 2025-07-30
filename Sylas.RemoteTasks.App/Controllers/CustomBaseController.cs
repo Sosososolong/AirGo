@@ -64,7 +64,7 @@ namespace Sylas.RemoteTasks.App.Controllers
                     continue;
                 }
 
-                string file = Path.Combine(env.WebRootPath, f);
+                string file = Path.Combine(env.WebRootPath, f.TrimStart('/', '\\'));
                 if (System.IO.File.Exists(file))
                 {
                     System.IO.File.Delete(file);
@@ -93,7 +93,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             var operationResult = await SaveUploadedFilesAsync(env);
             if (operationResult.Succeed && operationResult.Data is not null)
             {
-                foreach (var uploadedFileRelativePath in operationResult.Data.First().Split(';'))
+                foreach (var uploadedFileRelativePath in operationResult.Data)
                 {
                     // currentFiles: [1.png]; uploadedFiledRelativePath为: /Static/Study/1.png就先移除1.png
                     var sameFile = currentFiles.FirstOrDefault(uploadedFileRelativePath.EndsWith);
