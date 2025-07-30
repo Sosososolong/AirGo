@@ -32,7 +32,7 @@ namespace Sylas.RemoteTasks.App.Controllers
                 (string fileAbsolutePath, string relativePath) = filePathInfo;
                 imgPathBuilder.Append(relativePath);
 
-                //创建本地文件写入流
+                // 创建本地文件写入流
                 using FileStream fileStream = new(fileAbsolutePath, FileMode.Create);
                 byte[] bArr = new byte[1024];
                 memoryStream.Seek(0, SeekOrigin.Begin);
@@ -83,8 +83,6 @@ namespace Sylas.RemoteTasks.App.Controllers
         protected async Task<List<string>> HandleUploadedFilesAsync(List<string> originFiles, List<string> currentFiles, IWebHostEnvironment env)
         {
             #region 检查图片是否被删除
-            //List<string> recordImageUrls = string.IsNullOrWhiteSpace(record.ImageUrl) ? [] : [.. record.ImageUrl.Split(';')];
-            //List<string> imageUrls = string.IsNullOrWhiteSpace(question.ImageUrl) ? [] : [.. question.ImageUrl.Split(';')];
             var deletedImageUrls = originFiles.Except(currentFiles);
             DeleteStaticFiles(env, deletedImageUrls);
             #endregion
@@ -140,7 +138,7 @@ namespace Sylas.RemoteTasks.App.Controllers
                 Directory.CreateDirectory(moduleStaticDir);
             }
             var filePath = Path.Combine(moduleStaticDir, filename);
-            return Tuple.Create(filePath, $"{staticDirName}/{controllerName}/{filename};");
+            return Tuple.Create(filePath, $"/{staticDirName}/{controllerName}/{filename};");
         }
     }
 }

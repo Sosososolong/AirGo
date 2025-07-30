@@ -1159,11 +1159,6 @@ function showMedia(mediaContainer, mediaFileObj) {
     div.style.margin = '5px 5px 0 0';
 
     let mediaEle;
-    if (typeof mediaFileObj === 'string') {
-        if (VIDEO_RE.test(mediaFileObj)) {
-
-        }
-    }
     const mediaTypeIsUri = typeof mediaFileObj === 'string';
     if (mediaFileObj.type?.indexOf('video') > -1 || (mediaTypeIsUri && VIDEO_RE.test(mediaFileObj))) {
         // 视频对象

@@ -86,6 +86,9 @@ th {
 .bg-black .modal-header {
     border-bottom: 1px solid #414243;
 }
+.spinner-border {
+    color: var(--bs-blue);
+}
 
 .right-data-pannel {
     position: fixed;

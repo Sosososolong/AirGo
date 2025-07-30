@@ -535,19 +535,19 @@
         }
 
         function addTargetSpinner(ele) {
-            let originHtml = ele.innerHTML;
             if (ele.tagName === 'BUTTON') {
                 ele.setAttribute('disabled', true)
             }
-            // aria-hidden="true"
-            ele.innerHTML = `<span class="spinner-border spinner-border-sm" role="status"></span> ${originHtml}`;
+            ele.insertAdjacentHTML('beforebegin', '<span class="spinner-border spinner-border-sm" role="status"></span>');
         }
         function removeTargetSpinner(ele) {
             if (ele.tagName === 'BUTTON') {
                 ele.removeAttribute('disabled');
             }
             // aria-hidden="true"
-            ele.innerHTML = ele.innerHTML.replace('<span class="spinner-border spinner-border-sm" role="status"></span> ', '');
+            // 重新给innerHtml赋值, 会重新渲染表格(如果有url地址, 如图片url, 会发起请求该图片, 而图片在发起请求时又可能在服务器删除了)
+            //ele.innerHTML = ele.innerHTML.replace('<span class="spinner-border spinner-border-sm" role="status"></span> ', '');
+            document.querySelector('.spinner-border').remove();
         }
 
         function addOverlay(targetId) {
