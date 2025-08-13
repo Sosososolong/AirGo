@@ -21,8 +21,13 @@ namespace Sylas.RemoteTasks.App.Controllers
             var snippetPage = await repository.GetPageAsync(search);
             return Json(new RequestResult<PagedData<Snippet>>(snippetPage));
         }
-        public async Task<IActionResult> AddSnippetAsync([FromBody] Snippet snippet)
+        public async Task<IActionResult> AddSnippetAsync([FromServices] IWebHostEnvironment env, [FromForm] Snippet snippet)
         {
+            var operationResult = await SaveUploadedFilesAsync(env);
+            if (operationResult.Succeed && operationResult.Data is not null)
+            {
+                snippet.ImageUrl = operationResult.Data.First();
+            }
             var added = await repository.AddAsync(snippet);
             return added > 0 ? Ok(new OperationResult(true)) : BadRequest();
         }

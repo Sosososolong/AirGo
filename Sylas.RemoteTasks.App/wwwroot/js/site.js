@@ -381,7 +381,7 @@ ${formItemComponent}
         }
         let pkInputId = `${this.tableId}FormInput_id`;
         // BOOKMARK: 前端/frontend封装site.js - 创建模态框 表单项 - Id字段对应的隐藏域
-        this.tableForm.formHtmlFieldPk = `<input name="id" type="hidden" id="${pkInputId}" />`;
+        this.tableForm.formHtmlFieldPk = `<input name="id" type="hidden" id="${pkInputId}" value="0" />`;
         this.tableForm.formHtml += this.tableForm.formHtmlFieldPk;
         if (this.formItemIds.indexOf(pkInputId) === -1) {
             this.formItemIds.push(pkInputId);
@@ -720,8 +720,8 @@ async function httpRequestAsync(url, spinnerEle = null, method = 'POST', body = 
     let o;
     try {
         if (spinnerEle) {
-            showSpinner(spinnerEle);
-            //o = addOverlay(spinnerEle);
+            //showSpinner(spinnerEle);
+            o = addOverlay(spinnerEle);
         }
         const accessToken = getAccessToken();
         if (!accessToken) {
@@ -764,7 +764,7 @@ async function httpRequestAsync(url, spinnerEle = null, method = 'POST', body = 
         return null;
     } finally {
         if (spinnerEle) {
-            closeSpinner(spinnerEle);
+            //closeSpinner(spinnerEle);
             if (o) {
                 removeOverlay(o);
             }
@@ -820,6 +820,7 @@ function showModal(table) {
  */
 function checkFormData(formData) {
     const keys = [...formData.keys()]; // 获取所有字段的键
+    debugger;
     for (const key of keys) {
         if (formData.get(key) === null) { // 如果字段值为空
             formData.delete(key); // 删除该字段
@@ -1141,6 +1142,9 @@ function showMedias(event, imgContainer) {
         const urlsField = filesName.replace('_files', '');
         const imgField = document.querySelector(`input[name="${urlsField}"]`);
         const urls = imgField.value;
+        if (!cachedFiles[filesName]) {
+            cachedFiles[filesName] = [];
+        }
         if (cachedFiles[filesName].findIndex(x => x.name === file.name && x.lastModified === file.lastModified && x.size === file.size) === -1 && urls.indexOf(file.name) === -1) {
             // 1. 给"urlsField"添加文件名
             imgField.value = imgField.value ? `${imgField.value};${file.name}` : file.name;
