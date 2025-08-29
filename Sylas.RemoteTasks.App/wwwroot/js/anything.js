@@ -49,7 +49,8 @@ async function executeCommand(commandId, commandName, executeBtn) {
                         if (value) {
                             // 将读取到的内容转换为字符串
                             const receivedContent = new TextDecoder().decode(value);
-                            const jsonList = receivedContent.match(/\{[^\{]+\}/g);
+                            const jsonList = receivedContent.match(/\{.+\}\n{0,1}/g);
+                            debugger;
                             if (!jsonList) {
                                 console.warn('jsonList is null', receivedContent);
                                 continue;
@@ -227,7 +228,8 @@ function buildDataView(data) {
                             </button>
                         </h5>
                         <div>
-                            <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="${record.id}" data-fetch-url="${apiUrl}" data-method="POST" onclick="showUpdatePannel(this, () => cardsStatus.find(x => x.id == ${record.id}).isShown = false, () => { document.querySelector('#${collapseBtnId}').click(); })">更新</button>
+                            <!--<button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="${record.id}" data-fetch-url="${apiUrl}" data-method="POST" onclick="showUpdatePannel(this, () => cardsStatus.find(x => x.id == ${record.id}).isShown = false, () => { document.querySelector('#${collapseBtnId}').click(); })">更新</button>-->
+                            <button type="button" class="btn btn-primary btn-sm update-btn" collapse-btn-id="${collapseBtnId}" data-table-id="${tableId}" data-id="${record.id}" data-fetch-url="${apiUrl}" data-method="POST">更新</button>
                             <button type="button" class="btn btn-primary btn-sm add-command-btn">添加命令</button>
                             <button type="button" class="btn btn-primary btn-sm run-commands-btn">运行</button>
                             <button type="button" class="btn btn-primary btn-sm d-none" data-table-id="${tableId}" data-content="&quot;${record.id}&quot;" data-execute-url="/Study/DeleteQuestion" data-method="POST" onclick="showConfirmBox('确定删除? 此操作无法撤销!', () => execute(this))">删除</button>
@@ -242,6 +244,13 @@ function buildDataView(data) {
                 </div>`);
     });
     container.querySelector('.cards-container').innerHTML = cardsHtml;
+    container.querySelectorAll('.update-btn').forEach(x => {
+        x.onclick = function () {
+            const recordId = x.getAttribute('data-id');
+            const collapseBtnId = x.getAttribute('collapse-btn-id');
+            showUpdatePannel(x, () => cardsStatus.find(y => y.id == recordId).isShown = false, () => { document.querySelector(`#${collapseBtnId}`).click(); });
+        };
+    });
     return container;
 }
 
@@ -253,6 +262,28 @@ function onDataLoaded(row) {
 }
 const multiCommandItemsStyle = 'background-color:#eee;padding:10px 30px 0 10px;margin-bottom:10px;position:relative;border-radius:5px;';
 const sigleCommandItemStyle = 'position:relative;';
+/**
+ * 解析命令设置
+ * @param {any} input
+ */
+async function resolveCmdSettingAsync(input) {
+    const id = input.getAttribute('anything-id');
+    let cmdTxt = input.value;
+
+    // 先更新cardStatus中的commandArray
+    const cardStatus = cardsStatus.find(x => x.id == id);
+    const commandName = input.closest('.command-item').querySelector('button').textContent;
+    const command = cardStatus.commandArray.find(x => x.name == commandName);
+    command.CommandTxt = cmdTxt;
+
+    // 再解析命令内容
+    const bodyObj = { id, cmdTxt };
+    const body = JSON.stringify(bodyObj);
+    var data = await httpRequestDataAsync(`/Hosts/ResolveCommandSettting`, input, 'POST', body, 'application/json', errorHandlerType.returnErrorMessage);
+    if (data) {
+        input.closest('.command-item').querySelector('.command-resolved').innerText = data.split('\n').join('<br/>');
+    }
+}
 /**
  * 展开卡片, 显示所有命令列表
  * @param {any} ele
@@ -318,7 +349,7 @@ async function loadCommandsAsync(ele, id, refresh = false) {
                 <div class="input-group-text">
                   <input class="form-check-input mt-0 command-checkbox" type="checkbox" value="" aria-label="Checkbox for following text input" data-id="${id}" data-command-name="${commandInfo.name}">
                 </div>
-                <textarea class="form-control form-control-sm command-input-${commandInfo.id}" rows="${commandRows}" aria-label="command setting" aria-describedby="button-cmd-${id}" anything-id="${id}" oninput="inputing(this, resolveCmdSettingAsync)">${commandOrigin}</textarea>
+                <textarea class="form-control form-control-sm command-input-${commandInfo.id}" rows="${commandRows}" aria-label="command setting" aria-describedby="button-cmd-${id}" anything-id="${id}">${commandOrigin}</textarea>
             </div>
 
             <div class="d-flex justify-content-between">
@@ -338,6 +369,12 @@ async function loadCommandsAsync(ele, id, refresh = false) {
             }
 
             card.querySelector('.card-body').innerHTML = commandsHtml;
+            for (let i = 0; i < anythingInfo.commands.length; i++) {
+                const commandInfo = anythingInfo.commands[i];
+                document.querySelector(`.command-input-${commandInfo.id}`).addEventListener('input', function () {
+                    inputing(this, resolveCmdSettingAsync);
+                });
+            }
             card.querySelectorAll('.update-command-btn').forEach(x => x.onclick = e => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -408,22 +445,22 @@ async function loadCommandsAsync(ele, id, refresh = false) {
  * 初始化数据表格
  */
 createTable(
-    apiUrl,                     // 接口地址
-    1,                          // pageIndex
-    100,                        // pageSize
-    tableId,                    // 给数据表一个标识符, 方便一个页面操作多个数据表
-    tableParentSelector,        // 数据表父元素
-    ths,                        // 数据表列配置
-    idFieldName,                // 数据的Id字段名
-    null,                       // 数据过滤条件集合 FilterItems
-    null,                       // 初始化数据(有的话就渲染此数据, 不会请求接口)
-    onDataLoaded,               // 订阅数据渲染完成事件
-    '',                         // 对数据表添加父元素, 使用{{tableHtml}}变量代表整个数据表html
-    { url: '/Hosts/AddAnythingSetting', method: 'POST', updateUrl: apiUpdateUrl, updateMethod: 'POST' },   // 添加修改数据表单弹窗; url为添加数据的url(修改的url放到修改按钮上); method也是请求添加数据接口的请求方法
-    true,
-    'h1',
-    buildDataView,
-    [{ fieldName: 'name', isAsc: false }]
+    {
+        apiUrl: apiUrl,
+        pageIndex: 1,
+        pageSize: 100,
+        tableId: tableId,
+        tableContainerSelector: tableParentSelector,
+        ths: ths,
+        idFieldName: idFieldName,
+        onDataLoaded: onDataLoaded,
+        wrapper: '',
+        modalSettings: { url: '/Hosts/AddAnythingSetting', method: 'POST', updateUrl: apiUpdateUrl, updateMethod: 'POST' },   // 添加修改数据表单弹窗; url为添加数据的url(修改的url放到修改按钮上); method也是请求添加数据接口的请求方法
+        primaryKeyIsInt: true,
+        addButtonSelector: 'h1',
+        dataViewBuilder: buildDataView,
+        orderRules: [{ fieldName: 'name', isAsc: false }]
+    }
 ).then(() => {
     document.querySelectorAll('.card-title').forEach(x => x.onclick = e => {
         e.preventDefault();
@@ -477,24 +514,24 @@ const resizeDataPannel = (e, id) => {
  * 解析命令设置
  * @param {any} input
  */
-async function resolveCmdSettingAsync(input) {
-    const id = input.getAttribute('anything-id');
-    let cmdTxt = input.value;
+//async function resolveCmdSettingAsync(input) {
+//    const id = input.getAttribute('anything-id');
+//    let cmdTxt = input.value;
 
-    // 先更新cardStatus中的commandArray
-    const cardStatus = cardsStatus.find(x => x.id == id);
-    const commandName = input.closest('.command-item').querySelector('button').textContent;
-    const command = cardStatus.commandArray.find(x => x.name == commandName);
-    command.CommandTxt = cmdTxt;
+//    // 先更新cardStatus中的commandArray
+//    const cardStatus = cardsStatus.find(x => x.id == id);
+//    const commandName = input.closest('.command-item').querySelector('button').textContent;
+//    const command = cardStatus.commandArray.find(x => x.name == commandName);
+//    command.CommandTxt = cmdTxt;
 
-    // 再解析命令内容
-    const bodyObj = { id, cmdTxt };
-    const body = JSON.stringify(bodyObj);
-    var data = await httpRequestDataAsync(`/Hosts/ResolveCommandSettting`, input, 'POST', body, '', errorHandlerType.returnErrorMessage);
-    if (data) {
-        input.closest('.command-item').querySelector('.command-resolved').innerText = data.split('\n').join('<br/>');
-    }
-}
+//    // 再解析命令内容
+//    const bodyObj = { id, cmdTxt };
+//    const body = JSON.stringify(bodyObj);
+//    var data = await httpRequestDataAsync(`/Hosts/ResolveCommandSettting`, input, 'POST', body, '', errorHandlerType.returnErrorMessage);
+//    if (data) {
+//        input.closest('.command-item').querySelector('.command-resolved').innerText = data.split('\n').join('<br/>');
+//    }
+//}
 
 /**
  * 调整命令的顺序
@@ -602,10 +639,12 @@ async function addCommand(eventTrigger, id) {
             <input type="text" class="form-control form-control-sm" id="commandName" placeholder="命令名称">
             </div>
             <div class="col-auto">
-            <button type="button" class="btn btn-primary btn-sm mb-3" onclick="addCommandPost(this, '${id}')">确定</button>
+            <button type="button" class="btn btn-primary btn-sm mb-3" data-id="${id}">确定</button>
             </div>
         </div>`;
     cardBody.insertAdjacentHTML('afterbegin', commandHtml);
+    const btn = cardBody.querySelector('button');
+    btn.onclick = () => addCommandPost(btn, btn.getAttribute('data-id'));
 }
 /**
  * 给当前Anything添加命令

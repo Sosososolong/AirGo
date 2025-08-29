@@ -38,6 +38,10 @@ table td:not([align]) {
     padding-left: 20px;
 }
 
+table button {
+    margin: 1px;
+}
+
 tbody {
     font-size: 12px;
 }
@@ -58,7 +62,7 @@ th {
     box-shadow: 0px 0px 5px 0px rgba(0, 0, 0, 0.5);
 }
 
-.bg-black tbody, .bg-black thead, .bg-black a, .bg-black label, .bg-black h1, h3, h5, .bg-black .modal-body, .bg-black .modal-title {
+.bg-black tbody, .bg-black tr, .bg-black thead, .bg-black a, .bg-black label, .bg-black h1, h3, h5, .bg-black .modal-body, .bg-black .modal-title {
     color: rgba(var(--bs-white-rgb),1);
 }
 

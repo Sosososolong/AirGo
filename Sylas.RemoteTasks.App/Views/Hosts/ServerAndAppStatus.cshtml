@@ -36,7 +36,7 @@
     <script src="~/lib/signalr/dist/browser/signalr.js"></script>
     <script>
         // 1. 获取基本信息(磁盘大小, CPU内存占用率)
-        initTables();
+        await initTables();
 
         // 2. 连接signalr
         var connection = new signalR.HubConnectionBuilder().withUrl("/informationHub").build();
@@ -74,8 +74,8 @@
             return console.error(err.toString());
         });
 
-        function initTables() {
-            httpRequestDataAsync('/Hosts/GetServerInfo', document.querySelectorAll(".server-app-table"), 'POST')
+        async function initTables() {
+            await httpRequestDataAsync('/Hosts/GetServerInfo', document.querySelectorAll(".server-app-table"), 'POST')
             .then(serverInfo => {
                 document.querySelector('#baseInfoTable').innerHTML = `<tr><td>服务器名称:</td><td>${serverInfo.machineName}</td></tr>
         <tr><td>服务器IP:</td><td>${serverInfo.ip}</td></tr>

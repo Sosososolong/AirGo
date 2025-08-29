@@ -820,7 +820,6 @@ function showModal(table) {
  */
 function checkFormData(formData) {
     const keys = [...formData.keys()]; // 获取所有字段的键
-    debugger;
     for (const key of keys) {
         if (formData.get(key) === null) { // 如果字段值为空
             formData.delete(key); // 删除该字段

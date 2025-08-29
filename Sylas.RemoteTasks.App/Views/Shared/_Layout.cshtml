@@ -361,6 +361,12 @@
                     <div class="collapse" id="sync-collapse">
                         <ul class="btn-toggle-nav list-unstyled fw-normal pb-1 small">
                             <li>
+                                <a href="/Sync/Flows" class="nav-link" style="margin-left:15px;">
+                                    <svg class="bi me-3" width="16" height="16"><use xlink:href="#grid" /></svg>
+                                    <span>Flows</span>
+                                </a>
+                            </li>
+                            <li>
                                 <a href="/Sync/Index" class="nav-link" style="margin-left:15px;">
                                     <svg class="bi me-3" width="16" height="16"><use xlink:href="#grid" /></svg>
                                     <span>Transfer From Http</span>
@@ -603,37 +609,40 @@
           new bootstrap.Tooltip(tooltipTriggerEl)
         })
 
-        async function fetchView(target) {
-            const viewUrl = target.getAttribute('view-url')
-            const result = await fetch(viewUrl)
-            const html = await result.text()
-            const mainCon = document.querySelector('.view-container')
-            mainCon.innerHTML = html
-        }
+        // async function fetchView(target) {
+        //     const viewUrl = target.getAttribute('view-url')
+        //     const result = await fetch(viewUrl)
+        //     const html = await result.text()
+        //     const mainCon = document.querySelector('.view-container')
+        //     mainCon.innerHTML = html
+        // }
 
-        const addedScripts = []
         function loadPage(pagePath) {
             // JQuery可以直接加载并运行script中的js脚本
             //$('.page-container').load(pagePath)
 
             fetch(pagePath).then(response => response.text()).then(html => {
-                document.querySelector('.page-container').innerHTML = html
-                // addedScripts.forEach(x => x.remove());
+                const tempDiv = document.createElement('div')
+                tempDiv.innerHTML = html;
 
                 // 单独处理脚本
-                const scripts = document.querySelector('.page-container').getElementsByTagName('script')
+                const scripts = tempDiv.getElementsByTagName('script')
+                for (let i = 0; i < scripts.length; i++) {
+                    html = html.replace(scripts[i].outerHTML, '');
+                }
+
+                document.querySelector('.page-container').innerHTML = html
                 for (let i = 0; i < scripts.length; i++) {
                     const newScript = document.createElement('script')
                     newScript.text = scripts[i].innerHTML
                     if (scripts[i].src) {
                         newScript.src = scripts[i].src
+                        // 每次加上不同的版本号参数, 否则只有第一次会执行, 第二次及以后再次加载js不执行(除非刷新浏览器)
+                        newScript.src = newScript.src.indexOf('v=') > -1 ? newScript.src.replace(/v=\d+/, `v=${new Date().getTime()}`) : newScript.src + `?v=${new Date().getTime()}`
                     }
                     // 脚本中的变量可能在当前页面脚本中已经声明, 会冲突
                     newScript.setAttribute('type', 'module')
-                    // document.querySelector('.page-container').appendChild(newScript).parentNode.removeChild(newScript)
                     document.querySelector('.page-container').appendChild(newScript)
-                    document.querySelector('.page-container').removeChild(scripts[i])
-                    // addedScripts.push(newScript)
                 }
 
                 // 更新浏览器地址栏，但不刷新页面

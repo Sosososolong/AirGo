@@ -452,5 +452,11 @@ namespace Sylas.RemoteTasks.App.Controllers
             await Task.WhenAll(tasks);
             return Ok(RequestResult<bool>.Success(true));
         }
+
+        [AllowAnonymous]
+        public IActionResult Flows()
+        {
+            return View();
+        }
     }
 }

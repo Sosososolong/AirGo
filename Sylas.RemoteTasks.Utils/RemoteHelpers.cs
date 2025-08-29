@@ -1,12 +1,17 @@
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using Org.BouncyCastle.Asn1.Ocsp;
 using Sylas.RemoteTasks.Common;
+using Sylas.RemoteTasks.Common.Dtos;
 using Sylas.RemoteTasks.Common.Extensions;
+using Sylas.RemoteTasks.Utils.CommandExecutor;
 using Sylas.RemoteTasks.Utils.Dtos;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -35,6 +40,91 @@ namespace Sylas.RemoteTasks.Utils
             }
             var queryString = queryStringBuilder.ToString().TrimEnd('&');
             return queryString;
+        }
+        /// <summary>
+        /// 发送一个http请求, 返回请求响应的状态码和响应体内容
+        /// </summary>
+        /// <param name="httpClient"></param>
+        /// <param name="dto"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        public static async Task<(HttpStatusCode, string)> FetchAsync(HttpClient httpClient, HttpRequestDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Url))
+            {
+                throw new Exception("接口地址不能为空");
+            }
+
+            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "");
+            var headers = dto.Headers.Split(',', ';');
+            foreach (var header in headers)
+            {
+                var headerinfo = header.Split(':');
+                if (headerinfo.Length > 1)
+                {
+                    string headerName = headerinfo[0];
+                    string headerValue = headerinfo[1];
+                    //if (headerName.Equals("authorization", StringComparison.OrdinalIgnoreCase))
+                    //{
+                    //    string[] authorizationValueInfo = headerValue.Split(' ');
+                    //    if (authorizationValueInfo.Length > 1)
+                    //    {
+                    //        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(authorizationValueInfo[0], authorizationValueInfo[1]);
+                    //    }
+                    //}
+                    //else
+                    //{
+                    //    httpClient.DefaultRequestHeaders.Add(headerName, headerValue);
+                    //}
+                    httpClient.DefaultRequestHeaders.Remove(headerName);
+                    httpClient.DefaultRequestHeaders.Add(headerName, headerValue);
+                }
+            }
+
+            HttpContent? content = null;
+            HttpResponseMessage response;
+            if (dto.Method.Equals("post", StringComparison.OrdinalIgnoreCase))
+            {
+                if (dto.ContentType.Contains("json"))
+                {
+                    content = new StringContent(dto.Body, Encoding.UTF8, dto.ContentType);
+                }
+                else if (dto.ContentType.Contains("urlencoded"))
+                {
+                    content = new FormUrlEncodedContent(JsonConvert.DeserializeObject<Dictionary<string, string>>(dto.Body)?.Select(x => x));
+                }
+                else
+                {
+                    if (!string.IsNullOrWhiteSpace(dto.Body))
+                    {
+                        List<ParamInfo> parameters = JsonConvert.DeserializeObject<List<ParamInfo>>(dto.Body) ?? throw new Exception("请求体内容无法进行json反序列化");
+                        var boundary = parameters.FirstOrDefault(x => x.Name.Equals("boundary", StringComparison.OrdinalIgnoreCase)) ?? throw new Exception("未找到Boundary参数");
+                        var requestContent = new MultipartFormDataContent(boundary.Value);
+                        foreach (var param in parameters)
+                        {
+                            if (param.RealType.Equals("byte[]"))
+                            {
+                                var fileContent = param.RealValue as byte[];
+                                var byteArrayContent = new ByteArrayContent(fileContent);
+                                requestContent.Add(byteArrayContent, param.Name, param.Others);
+                            }
+                            else
+                            {
+                                requestContent.Add(new StringContent($"{param.Name}={param.Value}"));
+                            }
+                        }
+                        content = requestContent;
+                    }
+                }
+                response = await httpClient.PostAsync(dto.Url, content);
+            }
+            else
+            {
+                response = await httpClient.GetAsync(dto.Url);
+            }
+
+            string responseContent = await response.Content.ReadAsStringAsync();
+            return (response.StatusCode, responseContent);
         }
         /// <summary>
         /// 从Api接口获取所有数据

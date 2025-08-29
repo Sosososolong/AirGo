@@ -1019,7 +1019,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 tableQueryConditions[tableName] = tableCondition;
             }
         }
-        const int batchSize = 1000;
+        static int batchSize = 1000;
         /// <summary>
         /// 还原数据表
         /// </summary>
@@ -1062,6 +1062,10 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 //string colsStatement = string.Empty;
                 //string valuesStatement = string.Empty;
                 using var conn = GetDbConnection(connectionString);
+                if (GetDbType(connectionString) == DatabaseType.SqlServer)
+                {
+                    batchSize = 50;
+                }
                 foreach (var line in File.ReadLines(tableFile))
                 {
                     if (i == 0)
@@ -1429,7 +1433,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 }
                 else
                 {
-                    LoggerHelper.LogInformation(ex.ToString());
+                    LoggerHelper.LogError(ex.ToString());
                     LoggerHelper.LogInformation($"tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql: {tableSqlsInfo.BatchInsertSqlInfo.Sql}");
                 }
             }
@@ -1499,6 +1503,10 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             }
 
             string[] tablePks = targetTableColInfos.Where(x => x.IsPK == 1).Select(x => x.ColumnCode).ToArray();
+            if (tablePks.Length == 0)
+            {
+                tablePks = targetTableColInfos.Select(x => x.ColumnCode).ToArray();
+            }
             string[] sourcePks = tablePks.Select(x => targetColumnMapToSource[x]).ToArray();
 
             var transferSqlInfos = GetDataTransferSqlInfos([source], sourcePks, targetTable, targetTableColInfos, targetDbType, targetColumnMapToSource);
@@ -2408,6 +2416,13 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             Dictionary<string, string> targetColumnMapToSource
         )
         {
+            var targetPkCols = targetColInfos.Where(x => x.IsPK == 1).ToArray();
+            string exceptPkCol = "";
+            if (targetPkCols.Length == 1 && (targetPkCols.First().ColumnCSharpType == "int" || targetPkCols.First().ColumnCSharpType == "long"))
+            {
+                exceptPkCol = targetPkCols.First().ColumnCode;
+            }
+
             List<TableSqlInfo> tableSqlInfos = [];
             // 为数据源中的每一条数据生成对应的insert语句的部分
             foreach (var datalist in datalists)
@@ -2432,7 +2447,20 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                     deleteExistSqlBuilder.Append(deleteSqlCurrentRecordPart);
 
                     // "@Name1, @Age1"
-                    string valuesStatement = GenerateRecordValuesStatement(dataItem, targetColInfos, parameters, targetDbVarFlag, targetColumnMapToSource, random);
+                    string valuesStatement = string.Empty;
+                    if (string.IsNullOrEmpty(exceptPkCol))
+                    {
+                        valuesStatement = GenerateRecordValuesStatement(dataItem, targetColInfos, parameters, targetDbVarFlag, targetColumnMapToSource, random);
+                    }
+                    else
+                    {
+                        string exceptKey = parameters.Keys.FirstOrDefault(x => x.Equals($"{exceptPkCol}{random}"));
+                        if (!string.IsNullOrWhiteSpace(exceptKey))
+                        {
+                            parameters.Remove(exceptKey);
+                        }
+                        valuesStatement = GenerateRecordValuesStatement(dataItem, targetColInfos.Where(x => x.ColumnCode != exceptPkCol), parameters, targetDbVarFlag, targetColumnMapToSource, random);
+                    }
                     // ("@Name1, :Age1"),
                     string currentRecordSql = $"({valuesStatement}),{Environment.NewLine}";
 
@@ -2441,7 +2469,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 }
 
                 // columnsStatement =           "Name, Age"
-                string targetColumnsStatement = GetFieldsStatement(targetColInfos, targetDbType);
+                string targetColumnsStatement = GetFieldsStatement(targetColInfos.Where(x => x.ColumnCode != exceptPkCol), targetDbType);
                 // 最终的insert语句
                 var targetTableAllDataInsertSql = GetBatchInsertSql(targetTableStatement, targetColumnsStatement, insertSqlBuilder.ToString(), targetDbType);
                 var targetTableDeleteExistSql = GetBatchDeleteSql(targetTableStatement, deleteExistSqlBuilder.ToString(), sourcePrimaryKeys, targetDbType);
@@ -3341,7 +3369,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         {
             if (primaryKeys.Length == 0)
             {
-                throw new Exception($"{table}主键不能为空");
+                return string.Empty;
             }
             if (primaryKeys.Length == 1)
             {

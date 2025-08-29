@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Sylas.RemoteTasks.Common.Dtos;
 using System;
 using System.Collections.Generic;

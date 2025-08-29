@@ -1,0 +1,60 @@
+@{
+    Layout = null;
+    ViewData["Title"] = "Flows";
+}
+<script src="~/js/flow.js" asp-append-version="true"></script>
+<div class="nodes">
+    
+</div>
+
+<script>
+    const nodes = [
+        {
+            title: "title1",
+            content: "content1",
+            url: "https://dev.iduo.cc/1",
+            method: "POST",
+            contentType: "application/x-www-form-urlencoded",
+            authorization: "Bearer 123",
+            body: `{'id': '1'}`
+        },
+        {
+            title: "title2",
+            content: "content2",
+            url: "https://dev.iduo.cc/2",
+            method: "POST",
+            contentType: "application/json",
+            body: `{'id': '2'}`
+        },
+        {
+            title: "title3",
+            content: "content3",
+            url: "https://dev.iduo.cc/3",
+            method: "POST",
+            contentType: "application/json",
+            body: `{'id': '3'}`
+        },
+        {
+            title: "title4",
+            content: "content4",
+            url: "https://dev.iduo.cc/4",
+            method: "POST",
+            contentType: "application/json",
+            body: `{'id': '4'}`
+        }
+    ]
+    for (let i = 0; i < nodes.length; i++) {
+        const div = document.createElement('div');
+        div.innerHTML = `<flow-node
+            title="${nodes[i].title}"
+            content="${nodes[i].content}"
+            url="${nodes[i].url}"
+            method="${nodes[i].method}"
+            content-type="${nodes[i].contentType}"
+            body="${nodes[i].body}"
+            authorization="${nodes[i].authorization}"
+            >
+        </flow-node>`;
+        document.querySelector('.nodes').appendChild(div);
+    }
+</script>
