@@ -1,10 +1,12 @@
-﻿using Sylas.RemoteTasks.Common.Dtos;
+using Sylas.RemoteTasks.Common.Dtos;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils;
 
 namespace Sylas.RemoteTasks.App.RequestProcessor
 {
-    public class RequestProcessorService(ILogger<RequestProcessorService> logger, IServiceProvider serviceProvider, HttpRequestProcessorRepository repository)
+    public class RequestProcessorService(ILogger<RequestProcessorService> logger,
+        IServiceProvider serviceProvider,
+        HttpRequestProcessorRepository repository)
     {
         public async Task<OperationResult> ExecuteHttpRequestProcessorsAsync(int[] ids, int stepId = 0)
         {

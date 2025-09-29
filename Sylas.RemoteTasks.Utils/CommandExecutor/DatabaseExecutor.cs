@@ -1,4 +1,5 @@
-﻿using Dapper;
+using Dapper;
+using Newtonsoft.Json;
 using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Database.Attributes;
 using Sylas.RemoteTasks.Database.Dtos;
@@ -61,8 +62,16 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
             CommandResult cmdRes;
             try
             {
-                var result = await targetConn.ExecuteScalarAsync<object>(sql);
-                cmdRes = new(true, $"{result}");
+                if (sql.Contains("select", StringComparison.OrdinalIgnoreCase))
+                {
+                    var result = await targetConn.QueryAsync(sql);
+                    cmdRes = new(true, $"{JsonConvert.SerializeObject(result)}");
+                }
+                else
+                {
+                    var result = await targetConn.ExecuteAsync(sql);
+                    cmdRes = new(true, $"{result}");
+                }
             }
             catch (Exception ex)
             {

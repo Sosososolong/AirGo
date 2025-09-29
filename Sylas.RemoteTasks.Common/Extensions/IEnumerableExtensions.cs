@@ -80,5 +80,28 @@ namespace Sylas.RemoteTasks.Common.Extensions
             }
             return batchDictionaries;
         }
+        /// <summary>
+        /// 将集合分块(分页)
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="source"></param>
+        /// <param name="pageSize"></param>
+        /// <returns></returns>
+        public static List<List<T>> ChunkData<T>(this IEnumerable<T> source, int pageSize)
+        {
+            List<List<T>> chunkedData = [];
+            int pageIndex = 1;
+            while (true)
+            {
+                var item = source.Skip((pageIndex - 1) * pageSize).Take(pageSize).ToList();
+                chunkedData.Add(item);
+                if (item.Count < pageSize)
+                {
+                    break;
+                }
+                pageIndex++;
+            }
+            return chunkedData;
+        }
     }
 }

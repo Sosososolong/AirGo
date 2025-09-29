@@ -114,6 +114,7 @@ async function createTable(customOptions) {
 
     targetTable.renderBody = async function (data) {
         const tid = this.tableId
+        this.renderedData = data;
         // BOOKMARK: sitejs 3 loadData -> renderBody 渲染数据到页面
         if (this.hasCustomDataViewBuilder) {
             let dataPannel = options.dataViewBuilder(data);
@@ -924,7 +925,7 @@ async function handleDataForm(table, eventTrigger) {
             }
         } else {
             if (response) {
-                let errMsg = response.errMsg;
+                let errMsg = response.errMsg ?? response.message;
                 if (!errMsg && response.data) {
                     errMsg = response.data instanceof Array ? response.data.join('\n') : response.data.toString();
                 }
@@ -938,7 +939,7 @@ async function handleDataForm(table, eventTrigger) {
 }
 
 function showResultBox(response, table) {
-    if (!response || response.code === 1) {
+    if (!response || response.code === 1 || response.succeed) {
         showMsgBox('操作成功', () => {
             if (table) {
                 table.loadData();
@@ -1347,4 +1348,178 @@ function formatFileSize(size) {
         return gb.toFixed(2) + 'GB'
     }
     return (gb / 1024).toFixed(2) + 'TB'
+}
+
+// SSE
+const frequency = 200;
+/**
+ * 发送SEE请求
+ * @param {any} url SSE后端地址
+ * @param {any} requestBody 请求体内容, json格式
+ * @param {any} requestTitle 当前请求的标识, 用于区分不同请求返回的消息
+ * @param {any} spinnerEle 发送请求的按钮
+ * @param {any} onstart 初始化函数
+ * @returns
+ */
+async function sendSseRequest(url, requestBody, requestTitle, spinnerEle, msgContainer, onstart) {
+    if (onstart) {
+        onstart()
+    }
+    // 支持SSE的fetch请求
+    try {
+        if (spinnerEle) {
+            showSpinner(spinnerEle);
+        }
+        const accessToken = getAccessToken();
+        if (!accessToken) {
+            showWarningBox('身份已过期, 请重新登录', () => location.href = `/Home/Login?redirect_path=${location.pathname}`);
+            return null;
+        }
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'authorization': `Bearer ${accessToken}`
+            },
+            body: requestBody
+        })
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                showWarningBox('身份已过期, 请重新登录', () => location.href = `/Home/Login?redirect_path=${location.pathname}`);
+                return null;
+            }
+            else if (response.status === 404) {
+                showErrorBox('接口不存在, 请确认请求方式和参数');
+                return null;
+            } else {
+                showErrorBox(`请求异常:${response.statusText}`);
+            }
+        }
+
+        let msgNotFoundCount = 0;
+        const interval = window.setInterval(() => {
+            if (globalMsgContainer[requestTitle]) {
+                const msgCount = globalMsgContainer[requestTitle].length;
+                if (msgCount === 0) {
+                    msgNotFoundCount++;
+                } else {
+                    msgNotFoundCount = 0;
+                    for (var i = 0; i < msgCount; i++) {
+                        const value = globalMsgContainer[requestTitle].shift();
+                        if (value) {
+                            // 将读取到的内容转换为字符串
+                            const receivedContent = new TextDecoder().decode(value);
+                            const jsonList = receivedContent.match(/\{.+\}\n{0,1}/g);
+                            if (!jsonList) {
+                                console.warn('jsonList is null', receivedContent);
+                                continue;
+                            }
+                            for (var i = 0; i < jsonList.length; i++) {
+                                const json = jsonList[i];
+                                let receivedCommandResult;
+                                try {
+                                    receivedCommandResult = JSON.parse(json);
+                                } catch (e) {
+                                    console.warn('json err;', json);
+                                    continue;
+                                }
+                                const isLastResult = msgsHandler(receivedCommandResult, requestTitle, msgContainer);
+                                if (isLastResult) {
+                                    window.clearInterval(interval);
+                                    closeSpinner(spinnerEle);
+                                }
+                            }
+                        }
+                    }
+                }
+                // 连续30s没有新消息, 则停止计时器(如果计时器还存在的话)
+                const timeout = 30;
+                if (msgNotFoundCount >= (timeout * 1000) / frequency) {
+                    window.clearInterval(interval);
+                }
+            }
+        }, frequency)
+        const reader = response.body.getReader();
+        reader.read().then(function processText({ done, value }) {
+            if (done) {
+                return;
+            }
+
+            if (!globalMsgContainer[requestTitle] || globalMsgContainer[requestTitle].length === 0) {
+                globalMsgContainer[requestTitle] = [value];
+            } else {
+                globalMsgContainer[requestTitle].push(value);
+            }
+            return reader.read().then(processText);
+        });
+    } catch (e) {
+        showErrorBox(e.message);
+        return null;
+    } finally {
+
+    };
+}
+
+let lastMsg = '';
+let globalMsgContainer = {};
+function msgsHandler(data, requestTitle, showMsgEl) {
+    let isLastResult = false;
+    let msgItem = `<li>{{msgContent}}</li>`
+    let msgContent = ''
+    if (!data.succeed && data?.commandExecuteNo?.indexOf('-cmd-end') === -1) {
+        const errMsg = data.message ? data.message : '操作失败';
+        const errMsgLines = errMsg.split('\n');
+        msgContent += `<p style="color:red;">${requestTitle}: <p>`;
+        for (var i = 0; i < errMsgLines.length; i++) {
+            msgContent += `<p style="color:red;">&nbsp;&nbsp;&nbsp;&nbsp;${trimMsg(errMsgLines[i], 50)}</p>`
+        }
+    } else if (!data.message) {
+        if (data.commandExecuteNo.endsWith('-cmd-end')) {
+            isLastResult = true;
+        } else if (msgContent.length === 0) {
+            msgContent += `<p style="color:green;">${requestTitle}: 操作成功</p>`;
+        }
+    } else {
+        const msgs = data.message.split('\n');
+        let msgHtml = msgItem.indexOf(requestTitle) > -1 ? requestTitle : '';
+        for (var i = 0; i < msgs.length; i++) {
+            let msg = msgs[i];
+            let currentMsgDiv = `<span style="color:green;">${msg}</span>`;
+            if (msg && msg.length > 50) {
+                msg = trimMsg(msg, 50);
+            }
+            const processBarPattern = /\[=*>\s*\]\s*(\d+(\.\d+)*)\s*%/;
+            const m = msg.match(processBarPattern);
+            if (m && m.length > 2) {
+                const last = msgItem.lastChild;
+                const lastHtml = last.outerHTML;
+                if (last && lastHtml.endsWith('%</div>') && !lastHtml.endsWith('100.00 %</div>')) {
+                    if (lastHtml.indexOf('100.00') > -1) {
+                        console.warn('remove 100%');
+                    }
+                    last.remove();
+                }
+            }
+            if (msg.length > 0) {
+                msgHtml += currentMsgDiv
+                lastMsg = msg;
+            }
+        }
+
+        msgContent += msgHtml;
+    }
+
+    if (msgContent && msgContent.length > 0) {
+        msgItem = msgItem.replace('{{msgContent}}', msgContent)
+
+        const msgEl = document.createElement('ul')
+        msgEl.innerHTML = msgItem
+        if (showMsgEl) {
+            showMsgEl.appendChild(msgEl)
+        }
+    }
+
+    return isLastResult
 }

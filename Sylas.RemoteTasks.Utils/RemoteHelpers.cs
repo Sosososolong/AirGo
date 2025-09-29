@@ -14,6 +14,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Net.Mime;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -85,9 +86,13 @@ namespace Sylas.RemoteTasks.Utils
             HttpResponseMessage response;
             if (dto.Method.Equals("post", StringComparison.OrdinalIgnoreCase))
             {
+                if (string.IsNullOrWhiteSpace(dto.ContentType))
+                {
+                    dto.ContentType = MediaTypeNames.Application.Json;
+                }
                 if (dto.ContentType.Contains("json"))
                 {
-                    content = new StringContent(dto.Body, Encoding.UTF8, dto.ContentType);
+                    content = new StringContent(dto.Body ?? string.Empty, Encoding.UTF8, dto.ContentType);
                 }
                 else if (dto.ContentType.Contains("urlencoded"))
                 {

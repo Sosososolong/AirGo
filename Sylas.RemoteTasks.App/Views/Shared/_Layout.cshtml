@@ -285,6 +285,18 @@
                                     <span>Template Test</span>
                                 </a>
                             </li>
+                            <li>
+                                <a href="/Hosts/Flows" class="nav-link" style="margin-left:15px;">
+                                    <svg class="bi me-3" width="16" height="16"><use xlink:href="#grid" /></svg>
+                                    <span>Flows</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="/Hosts/AnythingFlows" class="nav-link" style="margin-left:15px;">
+                                    <svg class="bi me-3" width="16" height="16"><use xlink:href="#grid" /></svg>
+                                    <span>Anything Flows</span>
+                                </a>
+                            </li>
                         </ul>
                     </div>
                 </li>
@@ -360,12 +372,6 @@
                     </a>
                     <div class="collapse" id="sync-collapse">
                         <ul class="btn-toggle-nav list-unstyled fw-normal pb-1 small">
-                            <li>
-                                <a href="/Sync/Flows" class="nav-link" style="margin-left:15px;">
-                                    <svg class="bi me-3" width="16" height="16"><use xlink:href="#grid" /></svg>
-                                    <span>Flows</span>
-                                </a>
-                            </li>
                             <li>
                                 <a href="/Sync/Index" class="nav-link" style="margin-left:15px;">
                                     <svg class="bi me-3" width="16" height="16"><use xlink:href="#grid" /></svg>
@@ -553,7 +559,9 @@
             // aria-hidden="true"
             // 重新给innerHtml赋值, 会重新渲染表格(如果有url地址, 如图片url, 会发起请求该图片, 而图片在发起请求时又可能在服务器删除了)
             //ele.innerHTML = ele.innerHTML.replace('<span class="spinner-border spinner-border-sm" role="status"></span> ', '');
-            document.querySelector('.spinner-border').remove();
+            
+            // document.querySelector('.spinner-border').remove();
+            ele.parentElement.querySelector('.spinner-border').remove();
         }
 
         function addOverlay(target) {

@@ -22,7 +22,10 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
             HttpRequestDto requestDto = JsonConvert.DeserializeObject<HttpRequestDto>(command) ?? throw new Exception($"无法解析Http请求命令:{command}");
             using var httpClient = httpClientFactory.CreateClient();
             var (statusCode, responseContent) = await RemoteHelpers.FetchAsync(httpClient, requestDto);
-            yield return new CommandResult(statusCode == System.Net.HttpStatusCode.OK, responseContent);
+
+            yield return statusCode == System.Net.HttpStatusCode.OK
+                ? new CommandResult(statusCode == System.Net.HttpStatusCode.OK, responseContent)
+                : new CommandResult(false, statusCode.ToString());
         }
     }
 }

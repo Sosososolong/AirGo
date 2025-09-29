@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
+using Sylas.RemoteTasks.App.DatabaseManager.Models;
+using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
 using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Common.Dtos;
@@ -102,6 +104,40 @@ namespace Sylas.RemoteTasks.App.Controllers
                 }
             }
             LoggerHelper.LogCritical("命令执行完毕");
+        }
+        /// <summary>
+        /// 对指定对象anything执行指定的命令command
+        /// </summary>
+        /// <param name="anything"></param>
+        /// <param name="command"></param>
+        /// <returns></returns>
+        public async Task ExecuteCommandsAsync([FromBody] CommandInfoInDto[] commandInfoInDtos)
+        {
+            var response = HttpContext.Response;
+            response.Headers.Append("Content-Type", "text/event-stream");
+            response.Headers.Append("Cache-Control", "no-cache");
+            response.Headers.Append("Connection", "keep-alive");
+            var cancellationToken = HttpContext.RequestAborted;
+
+            foreach (var commandInfoInDto in commandInfoInDtos)
+            {
+                var commandResults = anythingService.ExecuteAsync(commandInfoInDto);
+                await foreach (CommandResult commandResult in commandResults)
+                {
+                    string commandResultJosn = JsonConvert.SerializeObject(commandResult, new JsonSerializerSettings() { ContractResolver = new CamelCasePropertyNamesContractResolver() });
+
+                    // 有可能连续写入两次, 客户端一起接收过来了, 所以这里只返回有效数据, 由客户端进行拆分; 原本是: "data: {commandResultJosn}\n"
+                    await response.WriteAsync($"{commandResultJosn}\n", Encoding.UTF8);
+
+                    await response.Body.FlushAsync();
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        LoggerHelper.LogCritical("客户端取消请求");
+                        break;
+                    }
+                }
+            }
+            LoggerHelper.LogInformation("命令执行完毕");
         }
         /// <summary>
         /// 添加一条AnythingSetting记录
@@ -223,6 +259,72 @@ namespace Sylas.RemoteTasks.App.Controllers
                 return RequestResult<string>.Error("解析结果为空");
             }
             return new RequestResult<string>($"{resolvedDataType}: {resolvedString}");
+        }
+
+        [AllowAnonymous]
+        public IActionResult Flows()
+        {
+            return View();
+        }
+        /// <summary>
+        /// 工作流展示页面
+        /// </summary>
+        /// <returns></returns>
+        [AllowAnonymous]
+        public IActionResult AnythingFlows()
+        {
+            return View();
+        }
+        /// <summary>
+        /// 工作流分页查询
+        /// </summary>
+        /// <param name="repository"></param>
+        /// <param name="search"></param>
+        /// <returns></returns>
+        public async Task<IActionResult> QueryAnythingFlowsAsync([FromServices] RepositoryBase<AnythingFlow> repository, [FromBody] DataSearch? search = null)
+        {
+            var page = await repository.GetPageAsync(search);
+            var result = RequestResult<PagedData<AnythingFlow>>.Success(page);
+            return Ok(result);
+        }
+        /// <summary>
+        /// 添加工作流
+        /// </summary>
+        /// <param name="repository"></param>
+        /// <param name="entity"></param>
+        /// <returns></returns>
+        public async Task<IActionResult> AddAnythingFlowAsync([FromServices] RepositoryBase<AnythingFlow> repository, [FromBody] AnythingFlow entity)
+        {
+            int affectedRows = await repository.AddAsync(entity);
+            return Ok(affectedRows > 0 ? RequestResult<bool>.Success(true) : RequestResult<bool>.Error("添加失败"));
+        }
+        /// <summary>
+        /// 添加工作流
+        /// </summary>
+        /// <param name="repository"></param>
+        /// <param name="flow"></param>
+        /// <returns></returns>
+        public async Task<IActionResult> UpdateAnythingFlowAsync([FromServices] RepositoryBase<AnythingFlow> repository, [FromBody] AnythingFlow flow)
+        {
+            int affectedRows = await repository.UpdateAsync(flow);
+            return Ok(affectedRows > 0 ? RequestResult<bool>.Success(true) : RequestResult<bool>.Error("更新备份数据失败"));
+        }
+        /// <summary>
+        /// 删除工作流
+        /// </summary>
+        /// <param name="repository"></param>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        public async Task<IActionResult> DeleteAnythingFlowAsync([FromServices] RepositoryBase<AnythingFlow> repository, [FromBody] int id)
+        {
+            var entity = await repository.GetByIdAsync(id);
+            if (entity is null)
+            {
+                return Ok(RequestResult<bool>.Error("未找到备份信息"));
+            }
+            int affectedRows = await repository.DeleteAsync(id);
+
+            return Ok(affectedRows > 0 ? RequestResult<bool>.Success(true) : RequestResult<bool>.Error("删除失败"));
         }
     }
 }

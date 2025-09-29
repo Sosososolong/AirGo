@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -52,7 +52,37 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             {
                 if (value is JsonElement jeVal)
                 {
-                    if (jeVal.ValueKind == JsonValueKind.True)
+                    if (jeVal.ValueKind == JsonValueKind.Array)
+                    {
+                        var arr = jeVal.EnumerateArray();
+                        var arrLength = jeVal.GetArrayLength();
+                        var objs = new object[arrLength];
+                        if (arrLength > 0)
+                        {
+                            int index = -1;
+                            foreach (var item in arr)
+                            {
+                                index++;
+                                if (item.ValueKind == JsonValueKind.Number)
+                                {
+                                    if (FieldName.EndsWith("Id", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        objs[index] = item.GetInt64();
+                                    }
+                                    else
+                                    {
+                                        objs[index] = item.GetInt32();
+                                    }
+                                }
+                                else
+                                {
+                                    objs[index] = item.GetString() ?? string.Empty;
+                                }
+                            }
+                        }
+                        _value = objs;
+                    }
+                    else if (jeVal.ValueKind == JsonValueKind.True)
                     {
                         _value = true;
                     }

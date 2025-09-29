@@ -1167,7 +1167,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                         {
                             await TransferDataAsync(records, conn, table);
                             DateTime start = DateTime.Now;
-                            await File.AppendAllLinesAsync(logFile, [$"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {batchSize}条记录备份结束, 耗时: {(DateTime.Now - start).TotalSeconds}/s"]);
+                            await File.AppendAllLinesAsync(logFile, [$"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {table}表{batchSize}条记录备份结束, 耗时: {(DateTime.Now - start).TotalSeconds}/s"]);
                             records.Clear();
                         }
                     }
@@ -1292,29 +1292,6 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 DateTime t1 = DateTime.Now;
                 await foreach (var tableSqlsInfos in tableSqlsInfoCollection)
                 {
-                    //List<Task> transferTasks = [];
-                    //if (insertOnly)
-                    //{
-                    //    foreach (var tableSqlsInfo in tableSqlsInfos)
-                    //    {
-                    //        // TODO: 这里不知道必须加上Task.Run才会异步并行, 否则是串行执行的
-                    //        var task = Task.Run(() => TransferByTableSqlsInfoAsync(tableSqlsInfo, targetConnectionString, targetTable, ignoreException, insertOnly));
-                    //        transferTasks.Add(task);
-                    //    }
-                    //}
-                    //else
-                    //{
-                    //    foreach (var tableSqlsInfo in tableSqlsInfos)
-                    //    {
-                    //        await TransferByTableSqlsInfoAsync(tableSqlsInfo, targetConnectionString, targetTable, ignoreException, insertOnly);
-                    //    }
-                    //}
-
-                    //// 3. 等待所有迁移语句执行完成
-                    //if (transferTasks.Count > 0)
-                    //{
-                    //    await Task.WhenAll(transferTasks);
-                    //}
                     await TransferByTableSqlInfosAsync(tableSqlsInfos, targetConnectionString, targetTable, insertOnly, ignoreException);
 
                     int perBatchCount = Convert.ToInt32(Regex.Match(tableSqlsInfos.First().BatchInsertSqlInfo.Parameters.Last().Key, @"\d+").Value) + 1;
@@ -1435,6 +1412,7 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 {
                     LoggerHelper.LogError(ex.ToString());
                     LoggerHelper.LogInformation($"tableSqlsInfo.BatchInsertSqlInfo.BatchInsertSql: {tableSqlsInfo.BatchInsertSqlInfo.Sql}");
+                    throw;
                 }
             }
 
@@ -1508,8 +1486,10 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 tablePks = targetTableColInfos.Select(x => x.ColumnCode).ToArray();
             }
             string[] sourcePks = tablePks.Select(x => targetColumnMapToSource[x]).ToArray();
-
-            var transferSqlInfos = GetDataTransferSqlInfos([source], sourcePks, targetTable, targetTableColInfos, targetDbType, targetColumnMapToSource);
+            // sqlserver参数上限是2100个(大于等于都不行), 保守使用2000进行计算, 避免正好达到2100
+            int pageSize = 2000 / targetTableColInfos.Count();
+            List<List<IDictionary<string, object?>>> chunkedSource = source.ChunkData(pageSize);
+            var transferSqlInfos = GetDataTransferSqlInfos(chunkedSource, sourcePks, targetTable, targetTableColInfos, targetDbType, targetColumnMapToSource);
 
             int perBatchCount = Convert.ToInt32(Regex.Match(transferSqlInfos.First().BatchInsertSqlInfo.Parameters.Last().Key, @"\d+").Value) + 1;
             DateTime t1 = DateTime.Now;
@@ -2510,9 +2490,9 @@ namespace Sylas.RemoteTasks.Database.SyncBase
             {
                 DatabaseType.MySql => await conn.QueryAsync($"select TABLE_NAME from information_schema.`TABLES` WHERE table_schema='{conn.Database}'"),
                 DatabaseType.SqlServer => await conn.QueryAsync("SELECT name AS TABLE_NAME FROM sys.tables;"),
-                DatabaseType.Oracle => await conn.QueryAsync($"SELECT TABLE_NAME FROM user_tables"),
+                DatabaseType.Oracle => await conn.QueryAsync($"SELECT TABLE_NAME FROM USER_TABLES UNION ALL SELECT VIEW_NAME FROM USER_VIEWS"),
                 DatabaseType.Sqlite => await conn.QueryAsync($"SELECT name as TABLE_NAME FROM sqlite_master WHERE type='table';"),
-                DatabaseType.Dm => await conn.QueryAsync($"SELECT TABLE_NAME FROM user_tables"),
+                DatabaseType.Dm => await conn.QueryAsync($"SELECT TABLE_NAME FROM USER_TABLES UNION ALL SELECT VIEW_NAME FROM USER_VIEWS"),
                 _ => throw new NotImplementedException(),
             };
             return tables.Select(x => (x as IDictionary<string, object> ?? throw new Exception("DapperRow转换为字典失败"))["TABLE_NAME"].ToString());
@@ -3000,7 +2980,38 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                     valueBuilder.Append($"{dbVarFlag}{paramName},");
                     if (targetColInfo.ColumnCSharpType == "datetime" && parameterValue is string)
                     {
-                        parameterValue = string.IsNullOrWhiteSpace($"{parameterValue}") ? null : DateTime.Parse(parameterValue.ToString());
+                        if (string.IsNullOrWhiteSpace($"{parameterValue}"))
+                        {
+                            parameterValue = null;
+                        }
+                        else
+                        {
+                            // 将"dd/MM/yyyy HH:mm:ss"形式的时间字符串转换为"yyyy-MM-dd HH:mm:ss"形式
+                            string timeStr = $"{parameterValue}";
+                            if (timeStr.Contains('/'))
+                            {
+                                int firstSpaceIndex = timeStr.IndexOf(' ');
+                                if (firstSpaceIndex > 0)
+                                {
+                                    var ymd = timeStr[..firstSpaceIndex];
+                                    var time = timeStr[(firstSpaceIndex + 1)..];
+                                    var ymdArr = ymd.Split('/');
+                                    if (ymdArr.Length == 3 && ymdArr[0].Length <= 2 && ymdArr[1].Length <= 2 && ymdArr[2].Length >= 4)
+                                    {
+                                        timeStr = $"{ymdArr[2]}-{ymdArr[1]}-{ymdArr[0]} {time}";
+                                    }
+                                }
+                            }
+                            parameterValue = Convert.ToDateTime(timeStr);
+                        }
+                    }
+                    else if ($"{targetColInfo.ColumnType}".Contains("int") || targetColInfo.ColumnType == "bit")
+                    {
+                        parameterValue = int.TryParse($"{parameterValue}", out int parameterIntVal) ? parameterIntVal : 0;
+                    }
+                    else if (targetColInfo.ColumnCSharpType == "bool" && targetColInfo.ColumnType == "boolean" && parameterValue is not bool)
+                    {
+                        parameterValue = parameterValue is not null && Convert.ToBoolean(parameterValue);
                     }
                     parameters.Add(paramName, parameterValue);
                 }

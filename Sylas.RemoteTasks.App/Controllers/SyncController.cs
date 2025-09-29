@@ -436,7 +436,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             for (int i = 0; i < files.Length; i++)
             {
                 var file = files[i];
-                var fileAbsolutePath = Path.Combine(env.WebRootPath, file);
+                var fileAbsolutePath = Path.Combine(env.WebRootPath, file.TrimStart('/'));
                 var json = await System.IO.File.ReadAllTextAsync(fileAbsolutePath);
                 System.IO.File.Delete(fileAbsolutePath);
                 
@@ -451,12 +451,6 @@ namespace Sylas.RemoteTasks.App.Controllers
             }
             await Task.WhenAll(tasks);
             return Ok(RequestResult<bool>.Success(true));
-        }
-
-        [AllowAnonymous]
-        public IActionResult Flows()
-        {
-            return View();
         }
     }
 }

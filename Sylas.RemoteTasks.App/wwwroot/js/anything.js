@@ -50,7 +50,6 @@ async function executeCommand(commandId, commandName, executeBtn) {
                             // 将读取到的内容转换为字符串
                             const receivedContent = new TextDecoder().decode(value);
                             const jsonList = receivedContent.match(/\{.+\}\n{0,1}/g);
-                            debugger;
                             if (!jsonList) {
                                 console.warn('jsonList is null', receivedContent);
                                 continue;
@@ -108,6 +107,7 @@ function commandResultHandler(data, commandName) {
     const title = `<div style="color:green;">${commandName}:</div>`;
     const rightPannel = document.querySelector('.data-right-pannel');
     if (!data.succeed && data?.commandExecuteNo?.indexOf('-cmd-end') === -1) {
+        debugger;
         const errMsg = data.message ? data.message : '操作失败';
         const errMsgLines = errMsg.split('\n');
         rightPannel.innerHTML += `<p style="color:red;">${commandName}: <p>`;
@@ -364,7 +364,7 @@ async function loadCommandsAsync(ele, id, refresh = false) {
             <div style="font-size:12px; margin-left:30px; color:green;">${commandState}</div>
             <div class="change-order-arrow arrow-up" command-id="${commandInfo.id}" anything-id="${id}" command-index="${i}" commands-length="${commandsLength}" order-no="${commandInfo.orderNo}" style="position:absolute;right:5px;bottom:20px;cursor:pointer;"></div>
             <div class="change-order-arrow arrow-down" command-id="${commandInfo.id}" anything-id="${id}" command-index="${i}" commands-length="${commandsLength}" order-no="${commandInfo.orderNo}" style="position:absolute;right:5px;bottom:-5px;cursor:pointer;"></div>
-            <div style="position:absolute;right:10px;top:10px;cursor:pointer;font-size:8px;" onclick="showConfirmBox('确定移除命令[${commandInfo.name}]吗?', () => removeCommandItemAsync(this, ${id}, ${commandInfo.id}, ${i}))">❌</div>
+            <div data-id="${id}" command-id="${commandInfo.id}" command-name="${commandInfo.name}" style="position:absolute;right:10px;top:10px;cursor:pointer;font-size:8px;" class="remove-command-btn">❌</div>
         </div>`;
             }
 
@@ -396,6 +396,12 @@ async function loadCommandsAsync(ele, id, refresh = false) {
                 const step = e.target.classList.contains('arrow-up') ? -1 : 1
                 changeOrderAsync(e.target, anythingId, cmdIndex, commandsLength, step)
             })
+            card.querySelectorAll('.remove-command-btn').forEach(x => x.onclick = e => {
+                const id = e.target.getAttribute('data-id');
+                const commandId = e.target.getAttribute('command-id')
+                const commandName = e.target.getAttribute('command-name')
+                showConfirmBox(`确定移除命令[${commandName}]吗?`, () => removeCommandItemAsync(e.target, id, commandId, id))
+            });
             card.classList.add('anything-card-' + id);
             cardStatus.isShown = true;
 
