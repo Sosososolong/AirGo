@@ -1088,7 +1088,7 @@ async function deleteData(eventTrigger) {
  * @param {any} useSpinner 是否启用spinner, 是则显示加载动画
  * @returns
  */
-async function execute(eventTrigger, callback = null, useSpinner = true) {
+async function execute(eventTrigger, callback = null, useSpinner = true, showBox) {
     const isEle = eventTrigger instanceof HTMLElement;
     let tableId = isEle ? eventTrigger.getAttribute('data-table-id') : eventTrigger['dataTableId'];
     let table = tableId ? tables[tableId] : null;
@@ -1119,7 +1119,14 @@ async function execute(eventTrigger, callback = null, useSpinner = true) {
             callback(response)
         }
 
-        showResultBox(response, table)
+        if (showBox) {
+            showResultBox(response, table)
+        } else {
+            // 不显示的情况下, 如果触发元素带了tableid那么就刷新data
+            if (table) {
+                await table.loadData();
+            }
+        }
     }
 }
 

@@ -5,13 +5,15 @@
 <h3 class="text-center">Anything Flows</h3>
 <div id="tableContainer"></div>
 <script>
+    let anythings = [];
+    let anythingsOptions = '';
+    const idFieldName = "id";
+    const apiUrl = "/Hosts/QueryAnythingFlows";
+    const pageIndex = 1;
+    const pageSize = 10;
+    const tableId = 'dataTable';
+    const tableParentSelector = "#tableContainer";
     $(function () {
-        const idFieldName = "id";
-        const apiUrl = "/Hosts/QueryAnythingFlows";
-        const pageIndex = 1;
-        const pageSize = 10;
-        const tableId = 'dataTable';
-        const tableParentSelector = "#tableContainer";
         // type: 'dataSource|dataSourceApi=/Database/ConnectionStrings?pageIndex=1&pageSize=1000|displayField=name'
         const ths = [
             { name: 'title', title: '标题', searchedByKeywords: true },
@@ -58,10 +60,10 @@
             const anythingItems = trigger.closest('.modal-content').querySelectorAll('.anything-item')
             if (anythingItems && anythingItems.length > 0) {
                 for(let i = 0; i < anythingItems.length; i++) {
-                    const taskLabel = anythingItems[i].querySelector('label');
+                    const taskEl = anythingItems[i].querySelector('label');
 
-                    const anythingId = taskLabel.getAttribute("data-id")
-                    const commandName = taskLabel.textContent
+                    const anythingId = taskEl.getAttribute("data-id")
+                    const commandName = taskEl.textContent
                     const anythingResponse = await httpRequestPagedDataAsync(
                         "/Hosts/AnythingSettingAndInfo?id=" + anythingId, "POST", 1, 1,
                         null,
@@ -72,7 +74,7 @@
                     const anythingInfo = anythingResponse.data.anythingInfo;
                     
                     let cmdsUl = document.createElement('ul')
-                    taskLabel.parentElement.appendChild(cmdsUl)
+                    taskEl.parentElement.appendChild(cmdsUl)
                     for (let i = 0; i < anythingInfo.commands.length; i++) {
                         const cmd = anythingInfo.commands[i]
                         const requestBody = JSON.stringify({ commandId: cmd.id })
@@ -80,11 +82,12 @@
                         let li = document.createElement('li')
                         li.innerHTML = `<span>${cmd.name}</span>`
                         cmdsUl.appendChild(li)
-                        await sendSseRequest('/Hosts/ExecuteCommand', requestBody, commandName, taskLabel, li)
+                        await sendSseRequest('/Hosts/ExecuteCommand', requestBody, commandName, taskEl, li)
                     }
                 }
             }
         }
+        
         async function showPannel(trigger) {
             // 先检查是否有旧的Modal, 有则移除
             const oldModal = document.querySelector('#business-modal')
@@ -93,64 +96,219 @@
             }
 
             const recordId = trigger.getAttribute('data-id')
-            const div = document.createElement('div')
-            div.classList.add("modal")
-            div.classList.add("fade")
-            div.id = "business-modal"
-            div.tabIndex = -1
-            // div.ariaHidden = true
-            div.setAttribute('aria-labelledby', 'business-modal-title')
+            
+            const modal = await buildRecordModal(recordId)
 
-            let recordIndex = tables['dataTable'].renderedData.findIndex(x => x[idFieldName] == recordId);
-            let record = tables['dataTable'].renderedData[recordIndex];
-            const anythingIds = record["anythingIds"];
-            const anythingIdArr = anythingIds.split(',').map(x => Number(x));
-            // 通过anythingIds展示所有anythings(先展示最简单的名称或标题即可), 然后依次执行anythings
-            const anythingsResult = await httpRequestPagedDataAsync(
-                "/Hosts/AnythingSettings", "POST", 1, 999,
-                // anythingIds直接传每个id会被解析为字符串, 这里转换为整数数组就会被后端解析为整数
-                { filterItems: [{fieldName: 'id', compareType: 'in', value: anythingIdArr}], keywords: { fields:[], value:'' } },
-                [{ fieldName: 'createTime', isAsc: false }],
-                null, // renderElementId
-                () => {} // finalAction
-            )
-            const anythings = anythingsResult.data.data;
-            let anythingList = '';
-            // 按顺序展示所有要执行的所有anything列表(支持重复的)
-            // 不要遍历anythings, 应该遍历anythingIdArr, 因为执行的anything可能会在不同的位置重复多次执行, 比如两个anything1,2,2,1这样的顺序执行
-            for(let i = 0; i < anythingIdArr.length; i++) {
-                const anythingId = anythingIdArr[i]
-                const anythingIndex = anythings.findIndex(x => x.id == anythingId)
-                anythingList += `<div class="mt-3 anything-item">
-                <label for="tables" class="form-label" data-id="${anythings[anythingIndex].id}">${anythings[anythingIndex].title}</label>
-            </div>`
-            }
-
-            div.innerHTML = `<div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h1 class="modal-title fs-5" id="modal-title">Anythings Flow</h1>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body">
-            ${anythingList}
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">关闭</button>
-            <button type="button" class="btn btn-primary btn-sm run-btn" data-id="${recordId}">开始运行</button>
-          </div>
-        </div>
-      </div>`
-            document.body.append(div)
             const runBtn = document.querySelector('.run-btn')
             runBtn.onclick = () => {
                 run(runBtn)
             }
-            const m = new bootstrap.Modal(div, {
+            const m = new bootstrap.Modal(modal, {
                 backdrop: 'static',
                 keyboard: false
             })
             m.show()
         }
     });
+
+    async function buildAnythingExecutingList(record){
+        const anythingIds = record["anythingIds"];
+        const anythingIdArr = anythingIds.split(',').map(x => Number(x));
+        if (!anythings || anythings.length == 0) {
+            // 通过anythingIds展示所有anythings, 然后依次执行anythings
+            const allAnythings = await httpRequestPagedDataAsync(
+                "/Hosts/AnythingSettings", "POST", 1, 999,
+                // anythingIds直接传每个id会被解析为字符串, 这里转换为整数数组就会被后端解析为整数
+                // {fieldName: 'id', compareType: 'in', value: anythingIdArr}
+                { filterItems: [], keywords: { fields:[], value:'' } },
+                [{ fieldName: 'createTime', isAsc: false }],
+                null, // renderElementId
+                () => {} // finalAction
+            )
+            anythings = allAnythings.data.data;
+            for(let i = 0; i < anythings.length; i++) {
+                anythingsOptions += `<option value="${anythings[i].id}">${anythings[i].title}</option>`
+            }
+        }
+
+        let anythingList = '';
+        // 按顺序展示所有要执行的所有anything列表(支持重复的)
+        // 不要遍历anythings, 应该遍历anythingIdArr, 因为执行的anything可能会在不同的位置重复多次执行, 比如两个anything1,2,2,1这样的顺序执行
+        for(let i = 0; i < anythingIdArr.length; i++) {
+            const anythingId = anythingIdArr[i]
+            const anythingIndex = anythings.findIndex(x => x.id == anythingId)
+            const currentAnything = anythings[anythingIndex]
+            anythingList += buildExecutingAnythingItemHtml(currentAnything.id, currentAnything.title, i)
+        }
+        return anythingList
+    }
+
+    async function buildRecordModal(flowId) {
+        let recordIndex = tables['dataTable'].renderedData.findIndex(x => x[idFieldName] == flowId);
+        let record = tables['dataTable'].renderedData[recordIndex];
+        let modal = document.querySelector('#business-modal')
+        if (!modal) {
+            modal = document.createElement('div')
+            modal.classList.add("modal")
+            modal.classList.add("fade")
+            modal.id = "business-modal"
+            modal.tabIndex = -1
+            // div.ariaHidden = true 
+            modal.setAttribute('aria-labelledby', 'business-modal-title')
+
+            modal.innerHTML = `<div class="modal-dialog modal-lg" data-id="${record.id}">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h1 class="modal-title fs-5" id="modal-title">${record.title}</h1>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body" style="font-size:14px;">
+            
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary btn-sm run-btn" data-id="${record.id}">开始运行</button>
+              </div>
+            </div>
+          </div>`
+            document.body.append(modal)
+        }
+
+        const anythingListHtml = await buildAnythingExecutingList(record)
+        modal.querySelector('.modal-body').innerHTML = anythingListHtml
+
+        document.querySelectorAll('.edit-flow-btn').forEach(btn => {
+            btn.onclick = e => editFlowBtnClicked(e)
+        })
+
+        return modal
+    }
+    function getFlowId(elInModal) {
+        return elInModal.closest('.modal-dialog').getAttribute('data-id')
+    }
+    async function editFlowBtnClicked(e) {
+        const ele = e.target;
+        const opType = ele.getAttribute('data-op-type')
+        const currentAnythingIndex = Number(ele.getAttribute('executing-anything-index'))
+        const nextAnythingIndex = currentAnythingIndex + 1
+        const flowId = getFlowId(ele)
+        if (opType === 'add-anything') {
+            const exist = document.querySelector('#anythingsSelect')
+            if (exist) {
+                exist.remove()
+            }
+
+            // 选择添加一个anything到后面
+            ele.closest('.anything-item').insertAdjacentHTML('afterend', `<select id="anythingsSelect" data-index="${nextAnythingIndex}" class="form-control form-control-sm">
+                                                                            <option value="value">text</option>
+                                                                            ${anythingsOptions}
+                                                                        </select>`);
+            document.querySelector('#anythingsSelect').addEventListener('change', e => anythingsSelectChanged(e))
+        } else if (opType === 'remove-anything') {
+            await removeAnythingFromFlow(flowId, currentAnythingIndex);
+            
+            await buildRecordModal(flowId)
+        } else if (opType === 'reorder-anything-up') {
+            await reorderFlowAnything(flowId, currentAnythingIndex, false)
+            // 重新渲染需要执行的任务列表
+            await buildRecordModal(flowId)
+        } else if (opType === 'reorder-anything-down') {
+            await reorderFlowAnything(flowId, currentAnythingIndex, true)
+            // 重新渲染需要执行的任务列表
+            await buildRecordModal(flowId)
+        }
+    }
+
+    /**
+     * flow中添加一个anything
+     */
+    async function addAnythingToFlow(flowId, anythingId, index) {
+        const exeParams = {
+            'dataContent': `{"flowId": ${flowId}, "anythingId": ${anythingId}, "AnythingIndex": ${index}}`,
+            'dataExecuteUrl': '/Hosts/AddAnythingToFlow',
+            'dataMethod': 'POST',
+            'trigger': null,
+            'dataTableId': tableId
+        };
+        await execute(exeParams, callback, false, false);
+
+        function callback(response) {
+
+        }
+    }
+
+    async function removeAnythingFromFlow(flowId, removeIndex) {
+        const exeParams = {
+            'dataContent': '{}',
+            'dataExecuteUrl': `/Hosts/RemoveAnythingFromFlow?flowId=${flowId}&removeIndex=${removeIndex}`,
+            'dataMethod': 'POST',
+            'trigger': null,
+            'dataTableId': tableId
+        };
+        await execute(exeParams, callback, false, false);
+
+        function callback(response) {
+        }
+    }
+
+    async function reorderFlowAnything(flowId, anythingId, forward) {
+        const exeParams = {
+            'dataContent': '{}',
+            'dataExecuteUrl': `/Hosts/ReorderFlowAnything?flowId=${flowId}&anythingIndex=${anythingId}&forward=${forward}`,
+            'dataMethod': 'POST',
+            'trigger': null,
+            'dataTableId': tableId
+        };
+        await execute(exeParams, callback, false, false);
+
+        function callback(response) {
+        }
+    }
+
+    async function anythingsSelectChanged(e) {
+        const selectEl = e.target
+        const selectedIndex = selectEl.getAttribute('data-index')
+
+        const selectedOption = selectEl.selectedOptions[0]
+        const selectedAnythingId = selectedOption.getAttribute("value")
+        const selectedAnythingTitle = selectedOption.textContent
+
+        const flowId = getFlowId(selectEl)
+        await addAnythingToFlow(flowId, selectedAnythingId, selectedIndex)
+
+        await buildRecordModal(flowId)
+
+        selectEl.remove();
+    }
+    function buildExecutingAnythingItemHtml(anythingId, anythingTitle, anythingIndex) {
+        return `<div class="mt-3 anything-item d-flex justify-content-between">
+            <label for="tables" class="form-label" data-id="${anythingId}">(${anythingId}) ${anythingTitle}</label>
+            <div class="d-flex justify-content-between">
+                <div style="cursor:pointer;color:var(--bs-primary);" class="edit-flow-btn" data-op-type="add-anything" executing-anything-index="${anythingIndex}">
+                    <svg class="bi bi-plus" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                        <path fill-rule="evenodd" d="M8 3.5a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-.5.5H4a.5.5 0 0 1 0-1h3.5V4a.5.5 0 0 1 .5-.5z"/>
+                        <path fill-rule="evenodd" d="M7.5 8a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 0 1H8.5V12a.5.5 0 0 1-1 0V8z"/>
+                    </svg>
+                </div>
+                <div style="margin-left:20px;cursor:pointer;color:var(--bs-danger);" class="edit-flow-btn" data-op-type="remove-anything" executing-anything-index="${anythingIndex}">
+                    <svg class="bi bi-x" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                        <path fill-rule="evenodd" d="M11.854 4.146a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708-.708l7-7a.5.5 0 0 1 .708 0z"/>
+                        <path fill-rule="evenodd" d="M4.146 4.146a.5.5 0 0 0 0 .708l7 7a.5.5 0 0 0 .708-.708l-7-7a.5.5 0 0 0-.708 0z"/>
+                    </svg>
+                </div>
+                <div style="margin-left:20px;cursor:pointer;color:var(--bs-primary);" class="edit-flow-btn" data-op-type="reorder-anything-up" executing-anything-index="${anythingIndex}">
+                    <svg class="bi bi-arrow-up-short" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                      <path fill-rule="evenodd" d="M8 5.5a.5.5 0 0 1 .5.5v5a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5z"/>
+                      <path fill-rule="evenodd" d="M7.646 4.646a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8 5.707 5.354 8.354a.5.5 0 1 1-.708-.708l3-3z"/>
+                    </svg>
+                </div>
+                <div style="margin-left:20px;cursor:pointer;color:var(--bs-primary);" class="edit-flow-btn" data-op-type="reorder-anything-down" executing-anything-index="${anythingIndex}">
+                    <svg class="bi bi-arrow-down-short" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                      <path fill-rule="evenodd" d="M4.646 7.646a.5.5 0 0 1 .708 0L8 10.293l2.646-2.647a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 0 1 0-.708z"/>
+                      <path fill-rule="evenodd" d="M8 4.5a.5.5 0 0 1 .5.5v5a.5.5 0 0 1-1 0V5a.5.5 0 0 1 .5-.5z"/>
+                    </svg>
+                </div>
+            </div>
+        </div>`
+    }
 </script>

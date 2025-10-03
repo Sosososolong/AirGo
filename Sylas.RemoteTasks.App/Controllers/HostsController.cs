@@ -276,6 +276,80 @@ namespace Sylas.RemoteTasks.App.Controllers
             return View();
         }
         /// <summary>
+        /// 为工作流添加一个节点
+        /// </summary>
+        /// <param name="repository"></param>
+        /// <param name="dto"></param>
+        /// <returns></returns>
+        public async Task<IActionResult> AddAnythingToFlow([FromServices] RepositoryBase<AnythingFlow> repository, [FromBody] FlowAddAnthingInDto dto)
+        {
+            var flow = await repository.GetByIdAsync(dto.FlowId);
+            if (flow is null)
+            {
+                return Ok(RequestResult<bool>.Error($"未找到id为{dto.FlowId}的工作流"));
+            }
+
+            var anythingIdList = flow.AnythingIds.Split(',').ToList();
+            anythingIdList.Insert(dto.AnythingId, dto.AnythingIndex.ToString());
+            flow.AnythingIds = string.Join(',', anythingIdList);
+            int affectedRows = await repository.UpdateAsync(flow);
+            return affectedRows > 0 ? Ok(RequestResult<bool>.Success(true)) : Ok(RequestResult<bool>.Error("添加失败"));
+        }
+        /// <summary>
+        /// 从工作流中删除一个节点
+        /// </summary>
+        /// <param name="repository"></param>
+        /// <param name="flowId"></param>
+        /// <param name="removeIndex"></param>
+        /// <returns></returns>
+        public async Task<IActionResult> RemoveAnythingFromFlow([FromServices] RepositoryBase<AnythingFlow> repository, int flowId, int removeIndex)
+        {
+            var flow = await repository.GetByIdAsync(flowId);
+            if (flow is null)
+            {
+                return Ok(RequestResult<bool>.Error($"未找到id为{flowId}的工作流"));
+            }
+
+            var anythingIdList = flow.AnythingIds.Split(',').ToList();
+            anythingIdList.RemoveAt(removeIndex);
+            flow.AnythingIds = string.Join(',', anythingIdList);
+            int affectedRows = await repository.UpdateAsync(flow);
+            return affectedRows > 0 ? Ok(RequestResult<bool>.Success(true)) : Ok(RequestResult<bool>.Error("删除失败"));
+        }
+        public async Task<IActionResult> ReorderFlowAnything([FromServices] RepositoryBase<AnythingFlow> repository, int flowId, int anythingIndex, bool forward)
+        {
+            var flow = await repository.GetByIdAsync(flowId);
+            if (flow is null)
+            {
+                return Ok(RequestResult<bool>.Error($"未找到id为{flowId}的工作流"));
+            }
+
+            var anythingIdList = flow.AnythingIds.Split(',').ToList();
+            string target = anythingIdList[anythingIndex];
+            int nextIndex;
+            if (forward)
+            {
+                nextIndex = anythingIndex + 1;
+                if (nextIndex >= anythingIdList.Count)
+                {
+                    nextIndex = 0;
+                }
+            }
+            else
+            {
+                nextIndex = anythingIndex - 1;
+                if (nextIndex < 0)
+                {
+                    nextIndex = anythingIdList.Count - 1;
+                }
+            }
+            anythingIdList.RemoveAt(anythingIndex);
+            anythingIdList.Insert(nextIndex, target);
+            flow.AnythingIds = string.Join(',', anythingIdList);
+            int affectedRows = await repository.UpdateAsync(flow);
+            return affectedRows > 0 ? Ok(RequestResult<bool>.Success(true)) : Ok(RequestResult<bool>.Error("排序失败"));
+        }
+        /// <summary>
         /// 工作流分页查询
         /// </summary>
         /// <param name="repository"></param>

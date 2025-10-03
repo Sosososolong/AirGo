@@ -62,7 +62,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
             CommandResult cmdRes;
             try
             {
-                if (sql.Contains("select", StringComparison.OrdinalIgnoreCase))
+                if (sql.StartsWith("select", StringComparison.OrdinalIgnoreCase))
                 {
                     var result = await targetConn.QueryAsync(sql);
                     cmdRes = new(true, $"{JsonConvert.SerializeObject(result)}");
