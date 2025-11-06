@@ -96,7 +96,18 @@ namespace Sylas.RemoteTasks.Utils
                 }
                 else if (dto.ContentType.Contains("urlencoded"))
                 {
-                    content = new FormUrlEncodedContent(JsonConvert.DeserializeObject<Dictionary<string, string>>(dto.Body)?.Select(x => x));
+                    if (!dto.Body.StartsWith('{') && dto.Body.Contains('='))
+                    {
+                        content = new FormUrlEncodedContent(dto.Body.Split('&').Select(x =>
+                        {
+                            var arr = x.Split('=');
+                            return new KeyValuePair<string, string>(arr[0], arr[1]);
+                        }));
+                    }
+                    else
+                    {
+                        content = new FormUrlEncodedContent(JsonConvert.DeserializeObject<Dictionary<string, string>>(dto.Body)?.Select(x => x));
+                    }
                 }
                 else
                 {

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Threading.Tasks;
 
@@ -81,7 +81,7 @@ namespace Sylas.RemoteTasks.Common
         /// <param name="logDirectory"></param>
         /// <param name="logFileName"></param>
         /// <returns></returns>
-        public static void RecordLog(string msg, string logDirectory = "", string logFileName = "")
+        public static void WriteLog(string msg, string logDirectory = "", string logFileName = "")
         {
             if (string.IsNullOrWhiteSpace(logDirectory))
             {

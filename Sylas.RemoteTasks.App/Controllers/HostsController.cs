@@ -11,6 +11,7 @@ using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils.CommandExecutor;
 using Sylas.RemoteTasks.Utils.Template;
 using Sylas.RemoteTasks.Utils.Template.Dtos;
+using System.Linq;
 using System.Text;
 
 namespace Sylas.RemoteTasks.App.Controllers
@@ -399,6 +400,52 @@ namespace Sylas.RemoteTasks.App.Controllers
             int affectedRows = await repository.DeleteAsync(id);
 
             return Ok(affectedRows > 0 ? RequestResult<bool>.Success(true) : RequestResult<bool>.Error("删除失败"));
+        }
+        /// <summary>
+        /// 将命令的环境变量同步到工作流
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        public async Task<IActionResult> SyncEnvVarsAsync([FromServices] RepositoryBase<AnythingFlow> repository, [FromBody] int id)
+        {
+            var flow = await repository.GetByIdAsync(id);
+            if (flow is null)
+            {
+                return Ok(RequestResult<bool>.Error($"工作流{id}不存在"));
+            }
+            Dictionary<string, object> flowVars = string.IsNullOrWhiteSpace(flow.EnvVars) ? [] : JsonConvert.DeserializeObject<Dictionary<string, object>>(flow.EnvVars) ?? [];
+            if (flow is null)
+            {
+                return Ok(RequestResult<bool>.Error($"未找到id为{id}的工作流"));
+            }
+
+            var anythingIdList = flow.AnythingIds.Split(',').ToList();
+
+            foreach (var anythingId in anythingIdList)
+            {
+                var anythingIdInt = Convert.ToInt32(anythingId);
+                // 不要获取AnythingInfo, 因为它包含的变量包含了Name和Title; 使用AnythingSetting这才是手动设置的变量
+                var anythingSetting = await anythingService.GetAnythingSettingByIdAsync(anythingIdInt);
+                if (anythingSetting is null)
+                {
+                    return Ok(RequestResult<bool>.Error($"未找到id为{anythingIdInt}的节点"));
+                }
+                Dictionary<string, object> anythingProps = string.IsNullOrWhiteSpace(anythingSetting.Properties)
+                    ? []
+                    : JsonConvert.DeserializeObject<Dictionary<string, object>>(anythingSetting.Properties) ?? [];
+                foreach (var k in anythingProps.Keys)
+                {
+                    if (!flowVars.Any(x => x.Key.Equals(k, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        flowVars[k] = anythingProps[k];
+                    }
+                }
+            }
+
+            flow.EnvVars = JsonConvert.SerializeObject(flowVars);
+            int updated = await repository.UpdateAsync(flow);
+            
+            return Ok(RequestResult<bool>.Success(updated > 0));
         }
     }
 }

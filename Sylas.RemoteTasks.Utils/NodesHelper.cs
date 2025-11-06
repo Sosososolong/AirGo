@@ -86,17 +86,6 @@ namespace Sylas.RemoteTasks.Utils
             return targetObjects;
         }
 
-
-
-
-
-
-
-
-
-
-
-
         /// <summary>
         /// 将所有Node类型的节点allNodes 按照上下级的方式展示
         /// </summary>
@@ -238,27 +227,6 @@ namespace Sylas.RemoteTasks.Utils
                     var childVal = p.GetValue(c);
                     var pt = p.GetType().Name;
 
-                    //if (childVal is not null)
-                    //{
-                    //    var childValString = childVal?.ToString();
-                    //    if (!string.IsNullOrWhiteSpace(childValString))
-                    //    {
-                    //        var primaryRefedGroups = RegexConst.RefedPrimaryField().Match(childValString).Groups;
-                    //        if (primaryRefedGroups.Count > 1)
-                    //        {
-                    //            string tmpl = primaryRefedGroups[0].Value;
-                    //            string primaryRefedField = primaryRefedGroups[1].Value;
-                    //            var refedProp = properties.FirstOrDefault(p => string.Equals(p.Name, primaryRefedField, StringComparison.OrdinalIgnoreCase));
-                    //            if (refedProp is not null)
-                    //            {
-                    //                var primaryFieldValue = refedProp.GetValue(instance, null);
-                    //                p.SetValue(c, primaryFieldValue);
-                    //            }
-                    //        }
-                    //    }
-                    //}
-                    //else
-
                     if (instanceVal is not null && childVal is null)
                     {
                         p.SetValue(c, instanceVal);
@@ -310,24 +278,6 @@ namespace Sylas.RemoteTasks.Utils
             {
                 yield break;
             }
-            //var result = new List<IDictionary<string, object>>();
-            //getAllChildren(list);
-            //return result;
-
-            //void getAllChildren(IEnumerable<IDictionary<string, object>> source)
-            //{
-            //    foreach (var item in source)
-            //    {
-            //        result.Add(item);
-            //        var itemProperty = item.Keys.FirstOrDefault(x => string.Equals(x, childrenField, StringComparison.OrdinalIgnoreCase)) ?? throw new Exception($"子节点集合字段[{childrenField}]错误");
-            //        var children = item[itemProperty];
-            //        if (children is not null && children is List<object> childrenList)
-            //        {
-            //            var childrenDictionaryList = childrenList.Select(x => x is not IDictionary<string, object> itemDictionary ? throw new Exception("字典的子节点不是字典类型") : itemDictionary);
-            //            getAllChildren(childrenDictionaryList);
-            //        }
-            //    }
-            //}
 
             foreach (var item in list)
             {
@@ -457,6 +407,53 @@ namespace Sylas.RemoteTasks.Utils
                 foreach (var item in GetAll(jobjectList, childrenField))
                 {
                     yield return item;
+                }
+            }
+        }
+
+        /// <summary>
+        /// 递归获取所有元素的指定属性值
+        /// </summary>
+        /// <param name="nodes"></param>
+        /// <param name="propName"></param>
+        /// <param name="childrenPropName">子集的属性名 如Children, Items</param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        public static List<object> GetNodePropValues(IEnumerable<object> nodes, string propName, string childrenPropName)
+        {
+            List<object> result = [];
+            var array = JArray.FromObject(nodes) ?? throw new Exception("nodes不是有效的集合");
+            string propKey = string.Empty;
+            string childrenKey = string.Empty;
+            GetMenusIdListRecursively(array);
+            return result;
+
+            void GetMenusIdListRecursively(JArray nodes)
+            {
+                foreach (var node in nodes)
+                {
+                    var nodeObj = node as JObject ?? throw new Exception($"节点不是有效的对象:{node}");
+                    if (string.IsNullOrWhiteSpace(propKey))
+                    {
+                        propKey = nodeObj.Properties().FirstOrDefault(x => string.Equals(x.Name, propName, StringComparison.OrdinalIgnoreCase))?.Name ?? throw new Exception($"无法在节点对象中找到属性[{propName}]");
+                    }
+                    var propVal = node[propKey];
+                    if (propVal is not null)
+                    {
+                        result.Add(propVal);
+                    }
+                    if (!string.IsNullOrWhiteSpace(childrenPropName))
+                    {
+                        if (string.IsNullOrWhiteSpace(childrenKey))
+                        {
+                            childrenKey = nodeObj.Properties().FirstOrDefault(x => string.Equals(x.Name, childrenPropName, StringComparison.OrdinalIgnoreCase))?.Name ?? throw new Exception($"无法在节点对象中找到子节点属性[{childrenPropName}]");
+                        }
+                        var children = node[childrenKey];
+                        if (children is not null && children is JArray childrenArr && childrenArr.Count > 0)
+                        {
+                            GetMenusIdListRecursively(childrenArr);
+                        }
+                    }
                 }
             }
         }

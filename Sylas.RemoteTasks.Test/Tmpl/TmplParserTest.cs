@@ -1,16 +1,10 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using MimeKit;
 using Newtonsoft.Json;
-using Org.BouncyCastle.Asn1.Ocsp;
-using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Common.Extensions;
-using Sylas.RemoteTasks.Utils.Extensions.Text;
 using Sylas.RemoteTasks.Utils.Template;
 using System.Collections;
-using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using Xunit.Abstractions;
 
 namespace Sylas.RemoteTasks.Test.Tmpl
@@ -67,7 +61,7 @@ namespace Sylas.RemoteTasks.Test.Tmpl
         {
             var json = JsonConvert.SerializeObject((_dataContext["$data"] as IEnumerable)!.Cast<object>().First());
             using JsonDocument doc = JsonDocument.Parse(json);
-            Dictionary<string, object>  dataContextJE = new()
+            Dictionary<string, object> dataContextJE = new()
             {
                 { "$formAppId", _appIdValue },
                 { "$QueryDictionary", new Dictionary<string, object>{ { "db", "ttnc" }, { "table", "menus" }, { "pageIndex", 1 }, { "pageSize", 500 } } },
@@ -340,7 +334,7 @@ namespace Sylas.RemoteTasks.Test.Tmpl
 
             dataContext["$allMenuUrls"] = new List<string> { "/iList/ttnc1", "/iList/M1", "/iList/X1", "/iList/L1" };
             string tmpl = "$listFormIds=CollectionSelectItemRegexSubStringParser[$allMenuUrls select SELF reg `/iList/(?<formId>\\w+)` formId]";
-            dataContext.BuildDataContextBySource(dataContext, [ tmpl ]);
+            dataContext.BuildDataContextBySource(dataContext, [tmpl]);
             Assert.Equal("ttnc1", (dataContext["$listFormIds"] as IEnumerable<object>)!.First().ToString());
         }
         [Fact]
@@ -352,7 +346,7 @@ namespace Sylas.RemoteTasks.Test.Tmpl
             using JsonDocument doc = JsonDocument.Parse(JsonConvert.SerializeObject(new List<string> { "/iList/ttnc1", "/iList/M1", "/iList/X1", "/iList/L1" }));
             dataContext["$allMenuUrls"] = doc.RootElement;
             string tmpl = "$listFormIds=CollectionSelectItemRegexSubStringParser[$allMenuUrls select SELF reg `/iList/(?<formId>\\w+)` formId]";
-            dataContext.BuildDataContextBySource(dataContext, [ tmpl ]);
+            dataContext.BuildDataContextBySource(dataContext, [tmpl]);
             Assert.Equal("ttnc1", (dataContext["$listFormIds"] as IEnumerable<object>)!.First().ToString());
         }
 
@@ -402,7 +396,7 @@ namespace Sylas.RemoteTasks.Test.Tmpl
             Assert.Equal("<image href=\"https://xxx/img1.jpg\" width=\"100\" />", lines[8].Trim());
             Assert.Equal("<image href=\"https://xxx/img2.jpg\" width=\"200\" />", lines[9].Trim());
             Assert.Equal("其他", lines[10].Trim());
-            
+
             Assert.Equal("999", lines[11].Trim());
         }
         [Fact]

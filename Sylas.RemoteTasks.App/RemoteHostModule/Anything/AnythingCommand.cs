@@ -1,4 +1,4 @@
-﻿using Sylas.RemoteTasks.App.Database;
+using Sylas.RemoteTasks.App.Database;
 using Sylas.RemoteTasks.Database.Attributes;
 
 namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything

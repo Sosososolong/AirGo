@@ -17,7 +17,7 @@
         // type: 'dataSource|dataSourceApi=/Database/ConnectionStrings?pageIndex=1&pageSize=1000|displayField=name'
         const ths = [
             { name: 'title', title: '标题', searchedByKeywords: true },
-            { name: 'envVars', title: '环境变量', searchedByKeywords: true },
+            { name: 'envVars', title: '环境变量', searchedByKeywords: true, multiLines: true },
             { name: 'anythingIds', title: '任务' },
             { name: 'createTime', title: '创建时间', align: 'center' },
             { name: 'updateTime', title: '更新时间', align: 'center' },
@@ -26,6 +26,7 @@
                     <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="{{id}}" data-fetch-url="/Hosts/QueryAnythingFlows" data-method="POST" onclick="showUpdatePannel(this)">修改</button>
                     <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-content="&quot;{{id}}&quot;" data-execute-url="/Hosts/DeleteAnythingFlow" data-method="POST" onclick="showConfirmBox('确定删除? 此操作无法撤销!', () => execute(this))">删除</button>
                     <button type="button" class="btn btn-primary btn-sm execute-flow-btn" data-table-id="${tableId}" data-id="{{id}}" data-content="" data-method="POST">执行</button>
+                    <button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="{{id}}" data-content="&quot;{{id}}&quot;" data-execute-url="/Hosts/SyncEnvVars/{{id}}" data-method="POST" onclick="showConfirmBox('确定同步所有命令的环境变量吗?', () => execute(this, null, null, true))">同步变量</button>
                     `
             }
         ]
@@ -59,8 +60,11 @@
         async function run(trigger) {
             const anythingItems = trigger.closest('.modal-content').querySelectorAll('.anything-item')
             if (anythingItems && anythingItems.length > 0) {
+                // 可能已经执行过一次了, 那么移除所有的执行记录
+                anythingItems.forEach(anythingItem => anythingItem.querySelector('ul')?.remove())
+                // 执行每一项AnythingItem(包含多个command)
                 for(let i = 0; i < anythingItems.length; i++) {
-                    const taskEl = anythingItems[i].querySelector('label');
+                    const taskEl = anythingItems[i];
 
                     const anythingId = taskEl.getAttribute("data-id")
                     const commandName = taskEl.textContent
@@ -74,7 +78,7 @@
                     const anythingInfo = anythingResponse.data.anythingInfo;
                     
                     let cmdsUl = document.createElement('ul')
-                    taskEl.parentElement.appendChild(cmdsUl)
+                    taskEl.appendChild(cmdsUl)
                     for (let i = 0; i < anythingInfo.commands.length; i++) {
                         const cmd = anythingInfo.commands[i]
                         const requestBody = JSON.stringify({ commandId: cmd.id })
@@ -82,7 +86,7 @@
                         let li = document.createElement('li')
                         li.innerHTML = `<span>${cmd.name}</span>`
                         cmdsUl.appendChild(li)
-                        await sendSseRequest('/Hosts/ExecuteCommand', requestBody, commandName, taskEl, li)
+                        await sendSseRequest('/Hosts/ExecuteCommand', requestBody, commandName, li, li)
                     }
                 }
             }
@@ -281,32 +285,34 @@
         selectEl.remove();
     }
     function buildExecutingAnythingItemHtml(anythingId, anythingTitle, anythingIndex) {
-        return `<div class="mt-3 anything-item d-flex justify-content-between">
-            <label for="tables" class="form-label" data-id="${anythingId}">(${anythingId}) ${anythingTitle}</label>
+        return `<div class="mt-3 anything-item" data-id="${anythingId}">
             <div class="d-flex justify-content-between">
-                <div style="cursor:pointer;color:var(--bs-primary);" class="edit-flow-btn" data-op-type="add-anything" executing-anything-index="${anythingIndex}">
-                    <svg class="bi bi-plus" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                        <path fill-rule="evenodd" d="M8 3.5a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-.5.5H4a.5.5 0 0 1 0-1h3.5V4a.5.5 0 0 1 .5-.5z"/>
-                        <path fill-rule="evenodd" d="M7.5 8a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 0 1H8.5V12a.5.5 0 0 1-1 0V8z"/>
-                    </svg>
-                </div>
-                <div style="margin-left:20px;cursor:pointer;color:var(--bs-danger);" class="edit-flow-btn" data-op-type="remove-anything" executing-anything-index="${anythingIndex}">
-                    <svg class="bi bi-x" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                        <path fill-rule="evenodd" d="M11.854 4.146a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708-.708l7-7a.5.5 0 0 1 .708 0z"/>
-                        <path fill-rule="evenodd" d="M4.146 4.146a.5.5 0 0 0 0 .708l7 7a.5.5 0 0 0 .708-.708l-7-7a.5.5 0 0 0-.708 0z"/>
-                    </svg>
-                </div>
-                <div style="margin-left:20px;cursor:pointer;color:var(--bs-primary);" class="edit-flow-btn" data-op-type="reorder-anything-up" executing-anything-index="${anythingIndex}">
-                    <svg class="bi bi-arrow-up-short" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                      <path fill-rule="evenodd" d="M8 5.5a.5.5 0 0 1 .5.5v5a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5z"/>
-                      <path fill-rule="evenodd" d="M7.646 4.646a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8 5.707 5.354 8.354a.5.5 0 1 1-.708-.708l3-3z"/>
-                    </svg>
-                </div>
-                <div style="margin-left:20px;cursor:pointer;color:var(--bs-primary);" class="edit-flow-btn" data-op-type="reorder-anything-down" executing-anything-index="${anythingIndex}">
-                    <svg class="bi bi-arrow-down-short" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                      <path fill-rule="evenodd" d="M4.646 7.646a.5.5 0 0 1 .708 0L8 10.293l2.646-2.647a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 0 1 0-.708z"/>
-                      <path fill-rule="evenodd" d="M8 4.5a.5.5 0 0 1 .5.5v5a.5.5 0 0 1-1 0V5a.5.5 0 0 1 .5-.5z"/>
-                    </svg>
+                <label for="tables" class="form-label">(${anythingId}) ${anythingTitle}</label>
+                <div class="d-flex justify-content-between">
+                    <div style="cursor:pointer;color:var(--bs-primary);" class="edit-flow-btn" data-op-type="add-anything" executing-anything-index="${anythingIndex}">
+                        <svg class="bi bi-plus" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                            <path fill-rule="evenodd" d="M8 3.5a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-.5.5H4a.5.5 0 0 1 0-1h3.5V4a.5.5 0 0 1 .5-.5z"/>
+                            <path fill-rule="evenodd" d="M7.5 8a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 0 1H8.5V12a.5.5 0 0 1-1 0V8z"/>
+                        </svg>
+                    </div>
+                    <div style="margin-left:20px;cursor:pointer;color:var(--bs-danger);" class="edit-flow-btn" data-op-type="remove-anything" executing-anything-index="${anythingIndex}">
+                        <svg class="bi bi-x" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                            <path fill-rule="evenodd" d="M11.854 4.146a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708-.708l7-7a.5.5 0 0 1 .708 0z"/>
+                            <path fill-rule="evenodd" d="M4.146 4.146a.5.5 0 0 0 0 .708l7 7a.5.5 0 0 0 .708-.708l-7-7a.5.5 0 0 0-.708 0z"/>
+                        </svg>
+                    </div>
+                    <div style="margin-left:20px;cursor:pointer;color:var(--bs-primary);" class="edit-flow-btn" data-op-type="reorder-anything-up" executing-anything-index="${anythingIndex}">
+                        <svg class="bi bi-arrow-up-short" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                          <path fill-rule="evenodd" d="M8 5.5a.5.5 0 0 1 .5.5v5a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5z"/>
+                          <path fill-rule="evenodd" d="M7.646 4.646a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8 5.707 5.354 8.354a.5.5 0 1 1-.708-.708l3-3z"/>
+                        </svg>
+                    </div>
+                    <div style="margin-left:20px;cursor:pointer;color:var(--bs-primary);" class="edit-flow-btn" data-op-type="reorder-anything-down" executing-anything-index="${anythingIndex}">
+                        <svg class="bi bi-arrow-down-short" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                          <path fill-rule="evenodd" d="M4.646 7.646a.5.5 0 0 1 .708 0L8 10.293l2.646-2.647a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 0 1 0-.708z"/>
+                          <path fill-rule="evenodd" d="M8 4.5a.5.5 0 0 1 .5.5v5a.5.5 0 0 1-1 0V5a.5.5 0 0 1 .5-.5z"/>
+                        </svg>
+                    </div>
                 </div>
             </div>
         </div>`

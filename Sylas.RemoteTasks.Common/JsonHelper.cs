@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -19,28 +19,22 @@ namespace Sylas.RemoteTasks.Common
         /// <param name="expression"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static JToken GetMyToken(this JToken source, string expression)
+        public static JToken? GetValue(this JToken source, string propName)
         {
-            var expressionMatch = Regex.Match(expression, @"(\[(?<index>\d+)\]){0,1}(?<props>\.\w+)*$");
-            if (!expressionMatch.Success)
+            if (source.Type == JTokenType.String && string.IsNullOrWhiteSpace(propName))
             {
-                throw new Exception($"无法从表达式{expression}解析出正确的属性: {Environment.NewLine}{source}");
+                return source?.ToString();
             }
-            var key = expressionMatch.Groups["key"].Value;
-
-            var index = expressionMatch.Groups["index"].Value;
-            var record = string.IsNullOrWhiteSpace(index) ? source : JArray.FromObject(source).ToList()[Convert.ToInt16(index)];
-
-            var props = expressionMatch.Groups["props"].Value.Split('.', StringSplitOptions.RemoveEmptyEntries);
-            foreach (var p in props)
+            else
             {
-                if (record is not JObject pObj)
+                if (string.IsNullOrWhiteSpace(propName))
                 {
-                    throw new Exception($"无法找到属性{p}");
+                    throw new Exception($"select对象的指定属性为空");
                 }
-                record = pObj?.Properties()?.FirstOrDefault(x => string.Equals(x.Name, p, StringComparison.OrdinalIgnoreCase))?.Value ?? throw new Exception($"无法找到属性{p}");
+                var obj = JObject.FromObject(source);
+                var val = obj.Properties().FirstOrDefault(x => x.Name.Equals(propName, StringComparison.OrdinalIgnoreCase))?.Value;
+                return val;
             }
-            return record;
         }
         /// <summary>
         /// 获取JsonElement对象的属性值

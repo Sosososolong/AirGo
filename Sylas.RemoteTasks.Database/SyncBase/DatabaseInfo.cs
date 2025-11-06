@@ -3693,7 +3693,7 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                     SELECT
                         C.name                                          as [ColumnCode]
                         ,T.name                                         as [ColumnType]
-                        ,COLUMNPROPERTY(C.id,C.name,'PRECISION')        as [ColumnLength]
+                        ,(CASE C.type WHEN 106 THEN CONVERT(VARCHAR, C.prec) + ',' + CONVERT(VARCHAR, C.scale) ELSE CONVERT(VARCHAR, COLUMNPROPERTY(C.id,C.name,'PRECISION')) END) as [ColumnLength]
                         ,'textbox' as [ControlType] 
                         ,convert(bit,case when exists(SELECT 1 FROM sysobjects where xtype='PK' and parent_obj=c.id and name in (
                             SELECT name FROM sysindexes WHERE indid in(
@@ -3755,6 +3755,8 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                             numeric_precision
                         WHEN 'datetime' THEN
                             datetime_precision
+                        WHEN 'decimal' THEN
+                            CONCAT(numeric_precision, ',', numeric_scale)
                         ELSE
                             0
                         END                                             ColumnLength,
