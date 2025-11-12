@@ -57,8 +57,7 @@ namespace Sylas.RemoteTasks.Utils
             }
 
             httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "");
-            var headers = dto.Headers.Split(',', ';');
-            foreach (var header in headers)
+            foreach (var header in dto.Headers)
             {
                 var headerinfo = header.Split(':');
                 if (headerinfo.Length > 1)

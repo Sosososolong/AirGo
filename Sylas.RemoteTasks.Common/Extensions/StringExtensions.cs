@@ -306,5 +306,68 @@ namespace Sylas.RemoteTasks.Common.Extensions
         /// <param name="base64"></param>
         /// <returns></returns>
         public static string FromBase64(this string base64) => Encoding.UTF8.GetString(Convert.FromBase64String(base64));
+        /// <summary>
+        /// 根据"属性:值"这种形式描述的对象创建对象
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="objectSetting"></param>
+        /// <returns></returns>
+        public static T ToObjectByKeyValuesContent<T>(this string objectSetting)
+        {
+            var objectType = typeof(T);
+            var properties = objectType.GetProperties();
+            var propertyNames = properties.Select(x => x.Name).ToArray();
+
+            Dictionary<string, string> originMatchValueAndPlaceholderGuid = [];
+            var propertiesPattern = $@"(?<=\n|^)\s*(?<prop>{string.Join('|', propertyNames)})\s*:";
+            string objSettingSplitedByProps = Regex.Replace(objectSetting, propertiesPattern, m =>
+            {
+                string guid = Guid.NewGuid().ToString();
+                originMatchValueAndPlaceholderGuid.Add(m.Value.Trim().TrimEnd(':'), guid);
+                return guid;
+            }, RegexOptions.IgnoreCase);
+
+            var objectIntance = Activator.CreateInstance(objectType);
+            var originMatchValueAndPlaceholderGuidArr = originMatchValueAndPlaceholderGuid.ToArray();
+            int settingLength = objSettingSplitedByProps.Length;
+            // 遍历属性, 先计算属性值索引和长度, 从而截取出属性值
+            for (int i = 0; i < originMatchValueAndPlaceholderGuidArr.Length; i++)
+            {
+                var item = originMatchValueAndPlaceholderGuidArr[i];
+                // 获取属性名和对应的占位符(GUID,唯一值)
+                string propName = item.Key;
+                string placeholder = item.Value;
+                // 通过占位符精确定位属性值的索引
+                int propValueIndexStart = objSettingSplitedByProps.IndexOf(placeholder) + placeholder.Length;
+
+                // 属性值最后一个字符的索引
+                int propValueIndexEnd;
+                if (i >= originMatchValueAndPlaceholderGuidArr.Length - 1)
+                {
+                    propValueIndexEnd = settingLength - 1;
+                }
+                else
+                {
+                    var nextPropPlaceholder = originMatchValueAndPlaceholderGuidArr[i + 1].Value;
+                    var nextPropIndexStart = objSettingSplitedByProps.IndexOf(nextPropPlaceholder);
+                    propValueIndexEnd = nextPropIndexStart - 1;
+                }
+                // 属性值长度 = 属性值的最后一个字符索引 - 属性值的索引 + 1
+                int propValueLength = (propValueIndexEnd - propValueIndexStart) + 1; ;
+
+                string propVal = objSettingSplitedByProps.Substring(propValueIndexStart, propValueLength);
+                var property = properties.First(x => x.Name.Equals(propName, StringComparison.OrdinalIgnoreCase));
+                if (property.PropertyType == typeof(string))
+                {
+                    property.SetValue(objectIntance, propVal);
+                }
+                else
+                {
+                    property.SetValue(objectIntance, Convert.ChangeType(propVal, property.PropertyType));
+                }
+            }
+
+            return (T)objectIntance;
+        }
     }
 }

@@ -281,7 +281,7 @@ async function resolveCmdSettingAsync(input) {
     const body = JSON.stringify(bodyObj);
     var data = await httpRequestDataAsync(`/Hosts/ResolveCommandSettting`, input, 'POST', body, 'application/json', errorHandlerType.returnErrorMessage);
     if (data) {
-        input.closest('.command-item').querySelector('.command-resolved').innerText = data.split('\n').join('<br/>');
+        input.closest('.command-item').querySelector('.command-resolved').innerHTML = data.split('\n').join('<br/>');
     }
 }
 /**
@@ -330,11 +330,10 @@ async function loadCommandsAsync(ele, id, refresh = false) {
                 let commandOrigin = command.commandTxt;
                 let commandValue = commandInfo.commandTxt;
                 let commandRows = 1;
+                const commandTxtArr = commandOrigin.split('\n');
+                commandRows = commandTxtArr.length;
                 if (commandOrigin.indexOf('\n') > -1) {
-                    commandRows = commandOrigin.split('\n').length;
                 } else {
-                    const commandTxtArr = commandOrigin.split(';');
-                    commandRows = commandTxtArr.length;
                     for (var j = 0; j < commandRows; j++) {
                         commandTxtArr[j] = commandTxtArr[j].trim();
                     }
@@ -354,7 +353,10 @@ async function loadCommandsAsync(ele, id, refresh = false) {
 
             <div class="d-flex justify-content-between">
                 <div><button class="btn btn-sm btn-danger mb-2 run-command-btn ${(commandInfo && commandInfo.executedState ? " disabled" : "")}" type="button" command-id="${commandInfo.id}" command-name="${commandInfo.name}" id="button-cmd-${commandInfo.id}">${commandInfo.name}</button></div>
-                <div><button class="btn btn-sm btn-primary mb-2 update-command-btn" type="button" command-id="${commandInfo.id}">更新命令</button></div>
+                <div>
+                    <button class="btn btn-sm btn-primary mb-2 resolve-command-btn" type="button" command-id="${commandInfo.id}">解析模板</button>
+                    <button class="btn btn-sm btn-primary mb-2 update-command-btn" type="button" command-id="${commandInfo.id}">更新命令</button>
+                </div>
             </div>
 
             <div style="font-size:12px;color:gray;padding-bottom:10px;max-height:200px;overflow:auto;" class="scrollable-nobar command-resolved">
@@ -371,9 +373,13 @@ async function loadCommandsAsync(ele, id, refresh = false) {
             card.querySelector('.card-body').innerHTML = commandsHtml;
             for (let i = 0; i < anythingInfo.commands.length; i++) {
                 const commandInfo = anythingInfo.commands[i];
-                document.querySelector(`.command-input-${commandInfo.id}`).addEventListener('input', function () {
-                    inputing(this, resolveCmdSettingAsync);
-                });
+                //document.querySelector(`.command-input-${commandInfo.id}`).addEventListener('input', function () {
+                //    inputing(this, resolveCmdSettingAsync);
+                //});
+                const commandInput = document.querySelector(`.command-input-${commandInfo.id}`);
+                commandInput.closest('.command-item').querySelector('.resolve-command-btn').addEventListener('click', function () {
+                    resolveCmdSettingAsync(commandInput);
+                })
             }
             card.querySelectorAll('.update-command-btn').forEach(x => x.onclick = e => {
                 e.preventDefault();
@@ -693,7 +699,7 @@ async function updateCommandAsync(id) {
     const cardClasses = cardEle.classList;
     const anythingId = cardClasses[cardClasses.length - 1].replace('anything-card-', '');
 
-    execute(trigger, () => loadCommandsAsync(cardEle.querySelector('.card-title'), anythingId, true));
+    execute(trigger, () => loadCommandsAsync(cardEle.querySelector('.card-title'), anythingId, true), true, true);
 }
 /**
  * 添加一条新命令

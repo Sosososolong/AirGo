@@ -460,7 +460,7 @@ namespace Sylas.RemoteTasks.Utils.Template
         /// <exception cref="Exception"></exception>
         public static object ResolveExpressionValue(string tmplWithParser, object dataContextObject)
         {
-            if (tmplWithParser.IndexOf('\n') != tmplWithParser.LastIndexOf('\n') && tmplWithParser.Contains("$for"))
+            if (tmplWithParser.IndexOf('\n') != tmplWithParser.LastIndexOf('\n') && tmplWithParser.Contains("$for") && tmplWithParser.Contains("$forend"))
             {
                 return RenderTemplateWithForLoopBlocks(tmplWithParser, dataContextObject);
             }
@@ -587,14 +587,14 @@ namespace Sylas.RemoteTasks.Utils.Template
 
             object ResolveFromDictionary(string tmplExpressionWithParser, Dictionary<string, object> dataContext)
             {
-                tmplExpressionWithParser = tmplExpressionWithParser.TrimStart('$', '{').TrimEnd('}');
+                var exp = tmplExpressionWithParser.TrimStart('$', '{').TrimEnd('}');
                 // menuIdsStr=CollectionJoinParser[$menuIds join ,]
                 #region 获取Parser名
-                var dataContextBuilderMatch = Regex.Match(tmplExpressionWithParser, @"(?<parser>\w+Parser)\[(?<expression>.+)\]");
+                var dataContextBuilderMatch = Regex.Match(exp, @"(?<parser>\w+Parser)\[(?<expression>.+)\]");
                 if (!dataContextBuilderMatch.Success)
                 {
                     // 匹配直接的表达式prop.items[1].propx: 默认的DataPropertyParser
-                    dataContextBuilderMatch = Regex.Match(tmplExpressionWithParser, @"(?<expression>.+)");
+                    dataContextBuilderMatch = Regex.Match(exp, @"(?<expression>.+)");
                 }
                 var parserName = dataContextBuilderMatch.Groups["parser"].Value;
                 var parserExpression = dataContextBuilderMatch.Groups["expression"].Value;
@@ -625,7 +625,7 @@ namespace Sylas.RemoteTasks.Utils.Template
                     {
                         return parseResult.Value;
                     }
-                    return parserExpression;
+                    return tmplExpressionWithParser;
                 }
                 #endregion
 

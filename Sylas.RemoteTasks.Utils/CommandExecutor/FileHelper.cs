@@ -667,7 +667,7 @@ public partial class FileHelper
         var nodeTitle = nodeConfig[..firstLineBreakIndex][3..].Trim();
         nodeConfig = nodeConfig[(firstLineBreakIndex + 1)..].Trim();
 
-        var configItemMatches = Regex.Matches(nodeConfig, _parameterLineStartPattern);
+        //var configItemMatches = Regex.Matches(nodeConfig, _parameterLineStartPattern);
 
         string targetFilePattern = string.Empty;
         StringBuilder valueBuilder = new();

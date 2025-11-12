@@ -1,4 +1,5 @@
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Sylas.RemoteTasks.Common.Extensions;
 using Sylas.RemoteTasks.Utils.Template;
 using System.Collections;
@@ -104,7 +105,7 @@ namespace Sylas.RemoteTasks.Test.Tmpl
             // 复制一份数据上下文, 这样修改$data不会影响原始数据(防止干扰其他测试用例)
             Dictionary<string, object?> dataContext = _dataContext.Copy();
             // 扩展数据上下文(环境变量)(key相同则覆盖)
-            TmplHelper2.ResolveExtractor("idpath=$data.0.IDPATH;titles=$data.selectr(Name,天天(?<appid>\\w+))", dataContext, dataContext);
+            TmplHelper2.ResolveExtractors("idpath=$data.0.IDPATH;titles=$data.selectr(Name,天天(?<appid>\\w+))", dataContext);
             outputHelper.WriteLine($"idpath:{dataContext.FirstOrDefault(x => x.Key.Equals("idpath", StringComparison.OrdinalIgnoreCase)).Value}");
         }
         /// <summary>
@@ -118,7 +119,7 @@ namespace Sylas.RemoteTasks.Test.Tmpl
             string appid = TmplHelper2.ResolveTmpl("${data.0.idpath.r((\\w+)/\\w).0}", dataContext);
             Assert.Equal("App1", appid);
 
-            TmplHelper2.ResolveExtractor("appid=${data.0.idpath.r((\\w+)/\\w).0}", dataContext, dataContext);
+            TmplHelper2.ResolveExtractors("appid=${data.0.idpath.r((\\w+)/\\w).0}", dataContext);
             Assert.Equal("App1", dataContext["appid"]?.ToString());
         }
 
@@ -134,7 +135,7 @@ namespace Sylas.RemoteTasks.Test.Tmpl
             dataContext["data"] = doc.RootElement;
 
             // 使用索引从集合中获取对象
-            var appName = TmplHelper2.ResolveExpression("$data.0.name", dataContext);
+            JToken? appName = TmplHelper2.ResolveExpression("$data.0.name", dataContext).Item2;
             Assert.Equal("天天农场", appName);
         }
         [Fact]
@@ -162,7 +163,7 @@ namespace Sylas.RemoteTasks.Test.Tmpl
             Assert.Equal("App1", appid);
 
             // 提取数据存储到数据上下文
-            TmplHelper2.ResolveExtractor("appid=${data.0.idpath.r((\\w+)/\\w).0}", dataContextJE, dataContextJE);
+            TmplHelper2.ResolveExtractors("appid=${data.0.idpath.r((\\w+)/\\w).0}", dataContextJE);
             Assert.Equal("App1", dataContextJE["appid"]?.ToString());
 
             // 字符串模板解析测试
@@ -244,13 +245,13 @@ namespace Sylas.RemoteTasks.Test.Tmpl
 
             dataContext["appItemList"] = dataContext["appItems"] = JsonConvert.DeserializeObject<List<Dictionary<string, object?>>>(_appItems) ?? throw new Exception("无法解析字典集合");
             // 集合中选取元素组成新集合, 支持包含子节点的递归取值 $menuIds = CollectionSelectParser[$appItemList select Id -r]
-            var menuIds = TmplHelper2.ResolveExpression("$appItemList.select(id)", dataContext);
+            var menuIds = TmplHelper2.ResolveExpression("$appItemList.select(id)", dataContext).Item2;
             string menuIdsJson = JsonConvert.SerializeObject(menuIds);
             // L1-1来自L1的子元素
             Assert.Equal("[\"ttnc1\",\"M1\",\"X1\",\"L1\"]", menuIdsJson);
 
             // 子集属性Items
-            menuIds = TmplHelper2.ResolveExpression("$appItemList.select(id,items)", dataContext);
+            menuIds = TmplHelper2.ResolveExpression("$appItemList.select(id,items)", dataContext).Item2;
             menuIdsJson = JsonConvert.SerializeObject(menuIds);
             // L1-1来自L1的子元素
             Assert.Equal("[\"ttnc1\",\"M1\",\"X1\",\"L1\",\"L1-1\"]", menuIdsJson);
@@ -266,13 +267,13 @@ namespace Sylas.RemoteTasks.Test.Tmpl
 
             using var doc = JsonDocument.Parse(_appItems) ?? throw new Exception("无法解析字典集合");
             dataContext["appItemList"] = dataContext["appItems"] = doc.RootElement;
-            var menuIds = TmplHelper2.ResolveExpression("$appItemList.select(id)", dataContext);
+            var menuIds = TmplHelper2.ResolveExpression("$appItemList.select(id)", dataContext).Item2;
             string? menuIdsJson = JsonConvert.SerializeObject(menuIds);
             // L1-1来自L1的子元素
             Assert.Equal("[\"ttnc1\",\"M1\",\"X1\",\"L1\"]", menuIdsJson);
 
             // 子集Items
-            menuIds = TmplHelper2.ResolveExpression("$appItemList.select(id,items)", dataContext);
+            menuIds = TmplHelper2.ResolveExpression("$appItemList.select(id,items)", dataContext).Item2;
             menuIdsJson = JsonConvert.SerializeObject(menuIds);
             // L1-1来自L1的子元素
             Assert.Equal("[\"ttnc1\",\"M1\",\"X1\",\"L1\",\"L1-1\"]", menuIdsJson);
@@ -288,7 +289,7 @@ namespace Sylas.RemoteTasks.Test.Tmpl
 
             dataContext["allMenuUrls"] = new List<string> { "/iList/ttnc1", "/iList/M1", "/iList/X1", "/iList/L1" };
             string tmpl = "listFormIds=$allMenuUrls.selectr(,/iList/(?<formId>\\w+))";
-            TmplHelper2.ResolveExtractor(tmpl, dataContext, dataContext);
+            TmplHelper2.ResolveExtractors(tmpl, dataContext);
             Assert.Equal("ttnc1", (dataContext["listFormIds"] as IEnumerable<object>)!.First().ToString());
         }
         /// <summary>
@@ -303,7 +304,7 @@ namespace Sylas.RemoteTasks.Test.Tmpl
             using JsonDocument doc = JsonDocument.Parse(JsonConvert.SerializeObject(new List<string> { "/iList/ttnc1", "/iList/M1", "/iList/X1", "/iList/L1" }));
             dataContext["allMenuUrls"] = new List<string> { "/iList/ttnc1", "/iList/M1", "/iList/X1", "/iList/L1" };
             string tmpl = "listFormIds=$allMenuUrls.selectr(,/iList/(?<formId>\\w+))";
-            TmplHelper2.ResolveExtractor(tmpl, dataContext, dataContext);
+            TmplHelper2.ResolveExtractors(tmpl, dataContext);
             Assert.Equal("ttnc1", (dataContext["listFormIds"] as IEnumerable<object>)!.First().ToString());
         }
     }

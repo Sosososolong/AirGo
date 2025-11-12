@@ -2,6 +2,7 @@
 //using Microsoft.Data.SqlClient;
 using Dapper;
 using Dm;
+using Dm.parser;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -1328,7 +1329,11 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                 await Task.WhenAll(transferTasks);
             }
         }
-        static async Task TransferByTableSqlInfosAsync(List<TableSqlInfo> tableSqlsInfos, IDbConnection targetConn, string targetTable, bool insertOnly, bool ignoreException)
+        static async Task TransferByTableSqlInfosAsync(List<TableSqlInfo> tableSqlsInfos,
+                                                       IDbConnection targetConn,
+                                                       string targetTable,
+                                                       bool insertOnly,
+                                                       bool ignoreException)
         {
             List<Task> transferTasks = [];
             if (insertOnly)
@@ -1438,12 +1443,13 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="targetConnectionString"></param>
         /// <param name="targetTable"></param>
         /// <param name="logger"></param>
+        /// <param name="ignoreFieldsParamVal"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static async Task TransferDataAsync(IEnumerable<object> sourceRecords, string targetConnectionString, string targetTable, ILogger? logger = null)
+        public static async Task TransferDataAsync(IEnumerable<object> sourceRecords, string targetConnectionString, string targetTable, ILogger? logger = null, string[]? ignoreFieldsParamVal = null)
         {
             using var targetConn = GetDbConnection(targetConnectionString);
-            await TransferDataAsync(sourceRecords, targetConn, targetTable, logger);
+            await TransferDataAsync(sourceRecords, targetConn, targetTable, logger, insertOnly: false, ignoreFieldsParamVal: ignoreFieldsParamVal);
         }
         /// <summary>
         /// 把数据同步到指定数据表
@@ -1453,9 +1459,15 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="targetTable"></param>
         /// <param name="logger"></param>
         /// <param name="insertOnly"></param>
+        /// <param name="ignoreFieldsParamVal"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static async Task TransferDataAsync(IEnumerable<object> sourceRecords, IDbConnection targetConn, string targetTable, ILogger? logger = null, bool insertOnly = false)
+        public static async Task TransferDataAsync(IEnumerable<object> sourceRecords,
+                                                   IDbConnection targetConn,
+                                                   string targetTable,
+                                                   ILogger? logger = null,
+                                                   bool insertOnly = false,
+                                                   string[]? ignoreFieldsParamVal = null)
         {
             if (sourceRecords is null || !sourceRecords.Any())
             {
@@ -1468,6 +1480,10 @@ namespace Sylas.RemoteTasks.Database.SyncBase
 
             var targetDbType = GetDbType(targetConn.ConnectionString);
             var targetTableColInfos = await GetTableColumnsInfoAsync(targetConn, targetTable);
+            if (ignoreFieldsParamVal is not null && ignoreFieldsParamVal.Length > 0)
+            {
+                targetTableColInfos = targetTableColInfos.Where(x => !ignoreFieldsParamVal.Any(field => field.Equals(x.ColumnCode, StringComparison.OrdinalIgnoreCase)));
+            }
 
             Dictionary<string, string> targetColumnMapToSource = [];
             var firstSourceRecordKeys = source.First().Keys;
@@ -2739,39 +2755,99 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
         /// <exception cref="Exception"></exception>
         static object? GetColumnValue(object value, string type)
         {
-            if (value.GetType().Name == "DBNull")
+            if (string.IsNullOrWhiteSpace(type))
+            {
+                return value;
+            }
+            string valueContent = $"{value}";
+            var lowerType = type.ToLower();
+            if (value.GetType().Name == "DBNull" || string.IsNullOrWhiteSpace(valueContent))
             {
                 // 不能使用DBNull类型的数据, 返回默认值或者null
-                if (!string.IsNullOrWhiteSpace(type))
+                if (lowerType.Contains("varchar") || lowerType.Contains("clob") || lowerType.Contains("text"))
                 {
-                    var lowerType = type.ToLower();
-                    if (lowerType.Contains("varchar") || lowerType.Contains("clob") || lowerType.Contains("text"))
+                    return null;
+                }
+                if (lowerType.Contains("time"))
+                {
+                    return DateTime.Now;
+                }
+                if (lowerType.Contains("int") || lowerType.Contains("number"))
+                {
+                    return 0;
+                }
+                if (lowerType.Contains("byte") || lowerType.Contains("varbinary") || lowerType.Contains("blob"))
+                {
+                    return Array.Empty<byte>();
+                }
+                if (lowerType.Contains("bit"))
+                {
+                    return false;
+                }
+                return null;
+            }
+            else
+            {
+                if (lowerType.Contains("varchar") || lowerType.Contains("clob") || lowerType.Contains("text"))
+                {
+                    return valueContent;
+                }
+                if (lowerType.Contains("time"))
+                {
+                    if (DateTime.TryParse(valueContent, out DateTime timeValue))
                     {
+                        return timeValue;
+                    }
+                    else
+                    {
+                        // 将"dd/MM/yyyy HH:mm:ss"形式的时间字符串转换为"yyyy-MM-dd HH:mm:ss"形式
+                        if (valueContent.Contains('/'))
+                        {
+                            int firstSpaceIndex = valueContent.IndexOf(' ');
+                            if (firstSpaceIndex > 0)
+                            {
+                                var ymd = valueContent[..firstSpaceIndex];
+                                var time = valueContent[(firstSpaceIndex + 1)..];
+                                var ymdArr = ymd.Split('/');
+                                if (ymdArr.Length == 3 && ymdArr[0].Length <= 2 && ymdArr[1].Length <= 2 && ymdArr[2].Length >= 4)
+                                {
+                                    valueContent = $"{ymdArr[2]}-{ymdArr[1]}-{ymdArr[0]} {time}";
+                                }
+                            }
+                        }
+                        if (DateTime.TryParse(valueContent, out DateTime t))
+                        {
+                            return t;
+                        }
                         return null;
                     }
-                    if (lowerType.Contains("time"))
+                }
+                if (lowerType.Contains("int") || lowerType.Contains("number") || lowerType.Contains("bit"))
+                {
+                    if (value is true)
                     {
-                        return DateTime.Now;
+                        return 1;
                     }
-                    if (lowerType.Contains("int") || lowerType.Contains("number"))
+                    if (value is false)
                     {
                         return 0;
                     }
-                    if (lowerType.Contains("byte") || lowerType.Contains("varbinary") || lowerType.Contains("blob"))
-                    {
-                        return Array.Empty<byte>();
-                    }
-                    if (lowerType.Contains("bit"))
-                    {
-                        return false;
-                    }
-                    return null;
+                    return Convert.ToInt32(valueContent);
+                }
+                if (lowerType.Equals("long"))
+                {
+                    return Convert.ToInt64(valueContent);
+                }
+                if (lowerType.Contains("byte") || lowerType.Contains("varbinary") || lowerType.Contains("blob"))
+                {
+                    byte[] bytes = Convert.FromBase64String(valueContent);
+                    return bytes;
                 }
             }
             return value;
         }
         /// <summary>
-        /// 获取字段值
+        /// 获取字段值(考虑字段的各种类型)
         /// </summary>
         /// <param name="pv"></param>
         /// <param name="col"></param>
@@ -2798,6 +2874,34 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                 {
                     pVal = DateTime.Now;
                 }
+
+
+                #region 方案2
+                //if (string.IsNullOrWhiteSpace($"{pvJToken2}"))
+                //{
+                //    pVal = null;
+                //}
+                //else
+                //{
+                //    // 将"dd/MM/yyyy HH:mm:ss"形式的时间字符串转换为"yyyy-MM-dd HH:mm:ss"形式
+                //    string timeStr = $"{pvJToken2}";
+                //    if (timeStr.Contains('/'))
+                //    {
+                //        int firstSpaceIndex = timeStr.IndexOf(' ');
+                //        if (firstSpaceIndex > 0)
+                //        {
+                //            var ymd = timeStr[..firstSpaceIndex];
+                //            var time = timeStr[(firstSpaceIndex + 1)..];
+                //            var ymdArr = ymd.Split('/');
+                //            if (ymdArr.Length == 3 && ymdArr[0].Length <= 2 && ymdArr[1].Length <= 2 && ymdArr[2].Length >= 4)
+                //            {
+                //                timeStr = $"{ymdArr[2]}-{ymdArr[1]}-{ymdArr[0]} {time}";
+                //            }
+                //        }
+                //    }
+                //    pVal = Convert.ToDateTime(timeStr);
+                //}
+                #endregion
             }
 
             // BOOKMARK: ※※※※ 转为dynamic就不需要转换为具体的类型了 ※※※※
@@ -2972,48 +3076,45 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                     {
                         parameterValue = recordDictionary[sourceKey];
                     }
-                    //if (sourceColumnMapToTargetColumn is not null && sourceColumnMapToTargetColumn.Any() && !sourceColumnMapToTargetColumn.TryGetValue(sourceKey, out _))
-                    //{
-                    //    continue;
-                    //}
                     var paramName = $"{targetColInfo.ColumnCode}{random}";
                     valueBuilder.Append($"{dbVarFlag}{paramName},");
-                    if (targetColInfo.ColumnCSharpType == "datetime" && parameterValue is string)
-                    {
-                        if (string.IsNullOrWhiteSpace($"{parameterValue}"))
-                        {
-                            parameterValue = null;
-                        }
-                        else
-                        {
-                            // 将"dd/MM/yyyy HH:mm:ss"形式的时间字符串转换为"yyyy-MM-dd HH:mm:ss"形式
-                            string timeStr = $"{parameterValue}";
-                            if (timeStr.Contains('/'))
-                            {
-                                int firstSpaceIndex = timeStr.IndexOf(' ');
-                                if (firstSpaceIndex > 0)
-                                {
-                                    var ymd = timeStr[..firstSpaceIndex];
-                                    var time = timeStr[(firstSpaceIndex + 1)..];
-                                    var ymdArr = ymd.Split('/');
-                                    if (ymdArr.Length == 3 && ymdArr[0].Length <= 2 && ymdArr[1].Length <= 2 && ymdArr[2].Length >= 4)
-                                    {
-                                        timeStr = $"{ymdArr[2]}-{ymdArr[1]}-{ymdArr[0]} {time}";
-                                    }
-                                }
-                            }
-                            parameterValue = Convert.ToDateTime(timeStr);
-                        }
-                    }
-                    else if ($"{targetColInfo.ColumnType}".Contains("int") || targetColInfo.ColumnType == "bit")
-                    {
-                        parameterValue = int.TryParse($"{parameterValue}", out int parameterIntVal) ? parameterIntVal : 0;
-                    }
-                    else if (targetColInfo.ColumnCSharpType == "bool" && targetColInfo.ColumnType == "boolean" && parameterValue is not bool)
-                    {
-                        parameterValue = parameterValue is not null && Convert.ToBoolean(parameterValue);
-                    }
+                    parameterValue = parameterValue is null ? null : GetColumnValue(parameterValue, targetColInfo.ColumnType ?? string.Empty);
                     parameters.Add(paramName, parameterValue);
+                    //if (targetColInfo.ColumnCSharpType == "datetime" && parameterValue is string)
+                    //{
+                    //    if (string.IsNullOrWhiteSpace($"{parameterValue}"))
+                    //    {
+                    //        parameterValue = null;
+                    //    }
+                    //    else
+                    //    {
+                    //        // 将"dd/MM/yyyy HH:mm:ss"形式的时间字符串转换为"yyyy-MM-dd HH:mm:ss"形式
+                    //        string timeStr = $"{parameterValue}";
+                    //        if (timeStr.Contains('/'))
+                    //        {
+                    //            int firstSpaceIndex = timeStr.IndexOf(' ');
+                    //            if (firstSpaceIndex > 0)
+                    //            {
+                    //                var ymd = timeStr[..firstSpaceIndex];
+                    //                var time = timeStr[(firstSpaceIndex + 1)..];
+                    //                var ymdArr = ymd.Split('/');
+                    //                if (ymdArr.Length == 3 && ymdArr[0].Length <= 2 && ymdArr[1].Length <= 2 && ymdArr[2].Length >= 4)
+                    //                {
+                    //                    timeStr = $"{ymdArr[2]}-{ymdArr[1]}-{ymdArr[0]} {time}";
+                    //                }
+                    //            }
+                    //        }
+                    //        parameterValue = Convert.ToDateTime(timeStr);
+                    //    }
+                    //}
+                    //else if ($"{targetColInfo.ColumnType}".Contains("int") || targetColInfo.ColumnType == "bit")
+                    //{
+                    //    parameterValue = int.TryParse($"{parameterValue}", out int parameterIntVal) ? parameterIntVal : 0;
+                    //}
+                    //else if (targetColInfo.ColumnCSharpType == "bool" && targetColInfo.ColumnType == "boolean" && parameterValue is not bool)
+                    //{
+                    //    parameterValue = parameterValue is not null && Convert.ToBoolean(parameterValue);
+                    //}
                 }
             }
             else
@@ -3030,12 +3131,8 @@ where no>({pageIndex}-1)*{pageSize} and no<=({pageIndex})*{pageSize}",
                     }
                     else
                     {
-                        parameterValue = GetColumnValue(sourceKey, targetColInfo); ;
+                        parameterValue = GetColumnValue(sourceKey.Value, targetColInfo.ColumnType ?? string.Empty); ;
                     }
-                    //if (sourceColumnMapToTargetColumn is not null && sourceColumnMapToTargetColumn.Any() && !sourceColumnMapToTargetColumn.TryGetValue(sourceKey.Name, out _))
-                    //{
-                    //    continue;
-                    //}
                     var paramName = $"{targetColInfo.ColumnCode}{random}";
                     valueBuilder.Append($"{dbVarFlag}{paramName},");
                     if (targetColInfo.ColumnCSharpType == "datetime" && parameterValue is string)

@@ -116,9 +116,13 @@ namespace Sylas.RemoteTasks.Common.Extensions
                 var dictionary = JsonConvert.DeserializeObject<Dictionary<string, object?>>(rawText) ?? throw new Exception("JsonElement转换为字典失败");
                 result = dictionary;
             }
+            else if (obj is JToken jt)
+            {
+                result = jt.ToObject<Dictionary<string, object?>>() ?? throw new Exception("目标对象JToken转换为字典失败");
+            }
             else
             {
-                result = JsonConvert.DeserializeObject<Dictionary<string, object?>>(JsonConvert.SerializeObject(obj)) ?? throw new Exception("对象集合转换为字典失败");
+                result = JsonConvert.DeserializeObject<Dictionary<string, object?>>(JsonConvert.SerializeObject(obj)) ?? throw new Exception("对象转换为字典失败");
             }
             RemoveDictionaryJsonElementData(result);
             return result;
@@ -130,8 +134,12 @@ namespace Sylas.RemoteTasks.Common.Extensions
         /// <returns></returns>
         public static JToken? CastToJToken(this object obj)
         {
+            if (obj is JToken jt)
+            {
+                return jt;
+            }
             var datasourceDictionary = obj.CastToDictionary();
-            JToken? jt = JToken.FromObject(datasourceDictionary);
+            jt = JToken.FromObject(datasourceDictionary);
             return jt;
         }
         /// <summary>

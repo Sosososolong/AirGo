@@ -54,10 +54,17 @@ namespace Sylas.RemoteTasks.Utils.Template
                 {
                     varName = varName[1..^1];
                 }
-                var varVal = ResolveExpression(varName, envVars);
-                if (varVal is null && ignoreNotExistExpressions)
+                (int code, JToken? varVal, string errMsg) = ResolveExpression(varName, envVars);
+                if (code != 1)
                 {
-                    continue;
+                    if (ignoreNotExistExpressions)
+                    {
+                        continue;
+                    }
+                    else
+                    {
+                        throw new Exception($"环境变量中不存在{varName}");
+                    }
                 }
                 if (varVal is JArray valArr)
                 {
@@ -77,18 +84,17 @@ namespace Sylas.RemoteTasks.Utils.Template
         /// 解析表达式提取数据
         /// </summary>
         /// <param name="extractorStatement"></param>
-        /// <param name="expressionDatasource"></param>
         /// <param name="storeResultVars"></param>
         /// <exception cref="Exception"></exception>
-        public static void ResolveExtractor(string extractorStatement, object expressionDatasource, object storeResultVars)
+        public static void ResolveExtractors(string extractorStatement, object storeResultVars)
         {
             if (string.IsNullOrWhiteSpace(extractorStatement))
             {
                 return;
             }
             // menuIds=data.0.Items|GetNodePropValues({0},Id,Items)
-            var arr = extractorStatement.Split(';');
-            foreach (var item in arr)
+            var extractorArr = extractorStatement.Split(';');
+            foreach (var item in extractorArr)
             {
                 if (string.IsNullOrWhiteSpace(item))
                 {
@@ -118,7 +124,7 @@ namespace Sylas.RemoteTasks.Utils.Template
 
                 string[] extractors = extractor.Split('|');
                 //bool firstExtractor = true;
-                JToken? value = expressionDatasource is JToken jt ? jt : JToken.FromObject(expressionDatasource);
+                JToken? value = storeResultVars is JToken jt ? jt : JToken.FromObject(storeResultVars);
                 // 管道命令链式更新value值
                 foreach (var extractorItem in extractors)
                 {
@@ -127,8 +133,11 @@ namespace Sylas.RemoteTasks.Utils.Template
                     {
                         extractorTrimedFlags = extractorTrimedFlags[1..^1];
                     }
-                    value = ResolveExpression(extractorTrimedFlags, value);
+
+                    value = ResolveExpression(extractorTrimedFlags, value).Item2;
                 }
+
+                #region 将解析的值存入环境变量字典中
                 if (storeResultVars is not Dictionary<string, object?> storeResultVarsDic)
                 {
                     storeResultVarsDic = JObject.FromObject(storeResultVars).ToObject<Dictionary<string, object?>>() ?? throw new Exception("无法解析表达式, 因为存储解析结果的对象无法转化为字典");
@@ -162,6 +171,7 @@ namespace Sylas.RemoteTasks.Utils.Template
                 {
                     storeResultVarsDic[key] = value;
                 }
+                #endregion
             }
         }
 
@@ -170,9 +180,9 @@ namespace Sylas.RemoteTasks.Utils.Template
         /// </summary>
         /// <param name="expression">去掉$符号的表达式</param>
         /// <param name="datasourceObj"></param>
-        /// <returns></returns>
+        /// <returns>code:0解析失败-key不存在;1解析成功</returns>
         /// <exception cref="Exception"></exception>
-        public static JToken? ResolveExpression(string expression, object? datasourceObj)
+        public static (int, JToken?, string) ResolveExpression(string expression, object? datasourceObj)
         {
             if (datasourceObj is null)
             {
@@ -195,16 +205,8 @@ namespace Sylas.RemoteTasks.Utils.Template
             else
             {
                 string[] props = expression.Split('.');
-                // $data
-                var firstProp = props.First();
-                int startResolvedExpsIndex = 1;
-                if ((datasource is JObject dsJObj && dsJObj.Properties().Any(x => x.Name.Equals("data", StringComparison.Ordinal)))
-                    || firstProp != "data")
-                {
-                    startResolvedExpsIndex = 0;
-                }
                 string lastProp = string.Empty;
-                for (int i = startResolvedExpsIndex; i < props.Length; i++)
+                for (int i = 0; i < props.Length; i++)
                 {
                     if (datasource is null && !string.IsNullOrWhiteSpace(lastProp))
                     {
@@ -219,13 +221,13 @@ namespace Sylas.RemoteTasks.Utils.Template
                         {
                             if (index > dsArr.Count - 1)
                             {
-                                throw new Exception(firstProp + $"数据源数组越界, 索引 {index} 超过数组最大索引 {dsArr.Count - 1}");
+                                throw new Exception(currentProp + $"数据源数组越界, 索引 {index} 超过数组最大索引 {dsArr.Count - 1}");
                             }
                             datasource = dsArr[index];
                         }
                         else
                         {
-                            throw new Exception($"数据源({lastProp}值)不是数组类型, 无法通过索引 {index} 访问");
+                            return (2, null, $"数据源({lastProp}值)不是数组类型, 无法通过索引 {index} 访问");
                         }
                     }
                     else if (currentProp.StartsWith("r(", StringComparison.OrdinalIgnoreCase))
@@ -346,12 +348,22 @@ namespace Sylas.RemoteTasks.Utils.Template
                     else
                     {
                         // 获取对象的currentProp属性
-                        JObject o = (datasource as JObject ?? throw new Exception($"数据源不是有效的对象, 无法获取属性({currentProp})值"));
-                        datasource = o.Properties().FirstOrDefault(x => x.Name.Equals(currentProp, StringComparison.OrdinalIgnoreCase))?.Value;
+                        // TODO:简化代码
+                        JObject? o = datasource as JObject;
+                        if (o is null)
+                        {
+                            throw new Exception($"数据源不是有效的对象, 无法获取属性({currentProp})值");
+                        }
+                        JProperty p = o.Properties().FirstOrDefault(x => x.Name.Equals(currentProp, StringComparison.OrdinalIgnoreCase));
+                        if (p is null)
+                        {
+                            return (0, null, string.Empty);
+                        }
+                        datasource = p.Value;
                     }
                 }
             }
-            return datasource;
+            return (1, datasource, string.Empty);
         }
         /// <summary>
         /// 解析for循环

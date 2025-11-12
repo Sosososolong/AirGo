@@ -37,7 +37,12 @@ namespace Sylas.RemoteTasks.Utils.Template.Parser
             }
 
             var key = specifiedRecordFieldValueExpression.Groups["key"].Value;
-            var currentKey = dataContext.Keys.FirstOrDefault(x => x.TrimStart('$').Equals(key, StringComparison.OrdinalIgnoreCase)) ?? throw new Exception($"{nameof(DataPropertyParser)} 数据上下中未发现数据{key}");
+            var currentKey = dataContext.Keys.FirstOrDefault(x => x.TrimStart('$').Equals(key, StringComparison.OrdinalIgnoreCase));
+            if (currentKey is null)
+            {
+                LoggerHelper.LogInformation($"{nameof(DataPropertyParser)} 数据上下中未发现数据{key}");
+                return new ParseResult(false, [key], tmpl);
+            }
             var currentData = dataContext[currentKey];
 
             // 有index说明currentData是数组
