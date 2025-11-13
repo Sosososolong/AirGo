@@ -17,6 +17,10 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         /// </summary>
         public string Schedule { get; set; } = string.Empty;
         /// <summary>
+        /// 任务调度所属主机域名, 只有相同域名下的主机才能自动执行该flow的任务调度
+        /// </summary>
+        public string ScheduleDomain { get; set; } = string.Empty;
+        /// <summary>
         /// flow执行完毕触发
         /// </summary>
         public string OnExecuted { get; set; } = string.Empty;

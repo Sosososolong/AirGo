@@ -43,7 +43,7 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
             logger.LogInformation("ServerNode: {ServerNode}后台服务启动", _hostName);
 
             // AnythingFlow任务调度
-            AnythingFlowScheduleAsync();
+            _ = AnythingFlowScheduleAsync();
 
             return Task.CompletedTask;
         }
@@ -194,14 +194,15 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                 try
                 {
                     // scope放到while循环里面, 每次循环完成释放scope(以及scope内产生的对象), 否则scope中的大对象可能很长时间不释放(内存泄漏)
-                    IEnumerable<AnythingFlow> scheduledFlows;
+                    IEnumerable<AnythingFlow> flowsQuery;
                     using (var scope = scopeFactory.CreateScope())
                     {
                         var flowRepo = scope.ServiceProvider.GetRequiredService<RepositoryBase<AnythingFlow>>();
-                        scheduledFlows = (await flowRepo.GetPageAsync(new DataSearch() { PageIndex = 1, PageSize = 99999 })).Data;
+                        flowsQuery = (await flowRepo.GetPageAsync(new DataSearch() { PageIndex = 1, PageSize = 99999 })).Data;
                     }
-                    
-                    foreach (var flow in scheduledFlows.Where(x => !string.IsNullOrWhiteSpace(x.Schedule)))
+                    var scheduledFlows = flowsQuery.Where(x => !string.IsNullOrWhiteSpace(x.Schedule) && !string.IsNullOrWhiteSpace(x.ScheduleDomain) && x.ScheduleDomain == _hostName).ToArray();
+                    logger.LogInformation("任务调度相关Flow共: {count}条记录", scheduledFlows.Length);
+                    foreach (var flow in scheduledFlows)
                     {
                         // 为每个定时任务创建一个独立的执行线程, 支持任务取消
                         CancellationTokenSource tokenSource = new();
