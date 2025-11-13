@@ -348,12 +348,7 @@ namespace Sylas.RemoteTasks.Utils.Template
                     else
                     {
                         // 获取对象的currentProp属性
-                        // TODO:简化代码
-                        JObject? o = datasource as JObject;
-                        if (o is null)
-                        {
-                            throw new Exception($"数据源不是有效的对象, 无法获取属性({currentProp})值");
-                        }
+                        JObject o = datasource as JObject ?? throw new Exception($"数据源不是有效的对象, 无法获取属性({currentProp})值");
                         JProperty p = o.Properties().FirstOrDefault(x => x.Name.Equals(currentProp, StringComparison.OrdinalIgnoreCase));
                         if (p is null)
                         {

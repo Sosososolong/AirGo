@@ -192,7 +192,6 @@ const tableId = 'datatable';
 // 自定义布局时, 也需要定义字段(生成表单用); 自定义布局时无需定义操作栏
 const ths = [
     { name: 'properties', title: '环境变量', multiLines: true },
-    { name: 'name', title: '名称', searchedByKeywords: true },
     { name: 'title', title: '标题', searchedByKeywords: true },
     { name: 'executor', title: '执行者', type: 'dataSource|defaultValue=0|dataSourceApi=/Hosts/Executors?pageIndex=1&pageSize=1000|displayField=name' },
     { name: 'commands', title: '命令', multiLines: true },
@@ -471,7 +470,7 @@ createTable(
         primaryKeyIsInt: true,
         addButtonSelector: 'h1',
         dataViewBuilder: buildDataView,
-        orderRules: [{ fieldName: 'name', isAsc: false }]
+        orderRules: [{ fieldName: 'title', isAsc: false }]
     }
 ).then(() => {
     document.querySelectorAll('.card-title').forEach(x => x.onclick = e => {

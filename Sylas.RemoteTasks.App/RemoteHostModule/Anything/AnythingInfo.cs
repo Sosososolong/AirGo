@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 using Sylas.RemoteTasks.Utils.CommandExecutor;
 
 namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
@@ -8,10 +8,6 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
     /// </summary>
     public class AnythingInfo
     {
-        /// <summary>
-        /// 标识, 使用模板从属性中获取
-        /// </summary>
-        public string Name { get; set; } = string.Empty;
 
         /// <summary>
         /// 用于显示, 使用模板从属性中获取

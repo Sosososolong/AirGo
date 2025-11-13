@@ -35,6 +35,10 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         /// </summary>
         public string Body { get; set; } = string.Empty;
         /// <summary>
+        /// 是否打印响应内容
+        /// </summary>
+        public bool? PrintResponseContent { get; set; }
+        /// <summary>
         /// 正则表达式, 响应内容匹配则表示成功, 不匹配则表示失败
         /// </summary>
         public string IsSuccessPattern { get; set; } = string.Empty;

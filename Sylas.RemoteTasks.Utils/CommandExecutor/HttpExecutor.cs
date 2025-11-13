@@ -150,7 +150,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
             var flow = configContent.ToObjectByKeyValuesContent<HttpRequestsFlowConfig>() ?? throw new Exception($"无法解析Http请求流程配置:{configContent}");
             var envVars = JsonConvert.DeserializeObject<Dictionary<string, object>>(flow.EnvVars) ?? [];
             var matches = Regex.Matches(flow.HttpRequestDtosJson, @"\[(?<x>[^\[\]]*(((?'Open'\[)[^\[\]]*)+((?'-Open'\])[^\[\]]*)+)*)\]");
-            string[] configsFlow = matches.Select(x => x.Value).ToArray();
+            string[] configsFlow = [.. matches.Select(x => x.Value)];
             foreach (var requestsConfigJson in configsFlow)
             {
                 string resolvedConfigsJson = TmplHelper2.ResolveTmpl(requestsConfigJson, envVars, true);
@@ -170,6 +170,10 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                     yield return new CommandResult(true, $"{fetchConfig.Url}");
                     yield return new CommandResult(true, $"开始请求");
                     var data = await SendRequestAsync(fetchConfig, []);
+                    if (fetchConfig.PrintResponseContent.HasValue && fetchConfig.PrintResponseContent.Value)
+                    {
+                        LoggerHelper.LogInformation(data.Message);
+                    }
                     if (!data.Succeed)
                     {
                         LoggerHelper.LogError($"请求失败:{data.Message}; Url:{fetchConfig.Url}");

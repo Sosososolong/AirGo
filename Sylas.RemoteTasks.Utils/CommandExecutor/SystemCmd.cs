@@ -245,7 +245,9 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                 // 输出错误
                 RedirectStandardError = true,
                 // 不显示程序窗口
-                CreateNoWindow = true
+                CreateNoWindow = true,
+                // 输出内容的编码设置为UTF8
+                StandardOutputEncoding = Encoding.UTF8
             };
 
             using Process p = new() { StartInfo = startInfo };
@@ -257,6 +259,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
             string outputFile = Path.Combine(tempDir, $"{logFileName}.log");
             string tempScriptFile = Path.Combine(tempDir, $"{logFileName}.ps1");
             string scripts = $$"""
+                    chcp 65001
                     try {
                         {{cmdTxt}}
                      } catch {

@@ -1,4 +1,4 @@
-﻿using Sylas.RemoteTasks.App.Database;
+using Sylas.RemoteTasks.App.Database;
 
 namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
 {
@@ -8,12 +8,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
     public class AnythingSetting : EntityBase<int>
     {
         /// <summary>
-        /// 标识, 使用模板从属性中获取
-        /// </summary>
-        public string Name { get; set; } = string.Empty;
-
-        /// <summary>
-        /// 用于显示, 使用模板从属性中获取
+        /// 标题, 使用模板从属性中获取
         /// </summary>
         public string Title { get; set; } = string.Empty;
 
@@ -28,7 +23,6 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             return new AnythingSettingDetails
             {
                 Id = Id,
-                Name = Name,
                 Title = Title,
                 Properties = Properties,
                 Executor = Executor,

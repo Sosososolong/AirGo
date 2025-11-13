@@ -621,7 +621,6 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             {
                 SettingId = anythingSettingDetails.Id,
                 CommandExecutor = executorName,
-                Name = anythingSettingDetails.Name,
                 Title = anythingSettingDetails.Title,
                 Properties = properties,
                 Commands = anythingSettingDetails.Commands
@@ -639,10 +638,6 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         {
             var properties = JsonConvert.DeserializeObject<Dictionary<string, object>>(anythingSetting.Properties) ?? [];
             properties.ResolveSelfTmplValues();
-            if (!properties.ContainsKey(nameof(anythingSetting.Name)))
-            {
-                properties[nameof(anythingSetting.Name)] = anythingSetting.Name;
-            }
             if (!properties.ContainsKey(nameof(anythingSetting.Title)))
             {
                 properties[nameof(anythingSetting.Title)] = anythingSetting.Title;

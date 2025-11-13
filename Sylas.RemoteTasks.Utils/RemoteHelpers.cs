@@ -1,7 +1,5 @@
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using Org.BouncyCastle.Asn1.Ocsp;
 using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Common.Dtos;
 using Sylas.RemoteTasks.Common.Extensions;
@@ -321,7 +319,7 @@ namespace Sylas.RemoteTasks.Utils
                     if (record is JsonElement recordObj)
                     {
                         var idJE = recordObj.EnumerateObject().FirstOrDefault(x => x.Name.Equals(idFieldName, StringComparison.OrdinalIgnoreCase)).Value;
-                        if (idJE.ValueKind == JsonValueKind.Undefined|| idJE.ValueKind == JsonValueKind.Null)
+                        if (idJE.ValueKind == JsonValueKind.Undefined || idJE.ValueKind == JsonValueKind.Null)
                         {
                             throw new Exception($"不存在主键{idFieldName}");
                         }
@@ -507,10 +505,11 @@ namespace Sylas.RemoteTasks.Utils
 
             // 设置请求内容，包括问题和 GPT 模型的名称
             // 设置请求内容类型为 application/json
+            // max_tokens在kimi中需要和实际预取的token数差不多, 差太多会返回400
             string requestBody = $$"""
                 {
                   "model": "{{AiConfig.Model}}",
-                  "max_tokens": 8192,
+                  "max_tokens": 700,
                   "messages": [
                     {
                       "role": "system",
@@ -527,16 +526,7 @@ namespace Sylas.RemoteTasks.Utils
             HttpContent httpContent = new StringContent(requestBody, Encoding.UTF8, "application/json");
 
             // 发送 POST 请求并获取响应
-            HttpResponseMessage response;
-            try
-            {
-                response = await client.PostAsync($"{AiConfig.Server.TrimEnd('/')}/v1/chat/completions", httpContent);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex);
-                throw;
-            }
+            HttpResponseMessage response = await client.PostAsync($"{AiConfig.Server.TrimEnd('/')}/chat/completions", httpContent);
             string responseContent = await response.Content.ReadAsStringAsync();
             Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} Ai Response: {responseContent}{Environment.NewLine}");
 
