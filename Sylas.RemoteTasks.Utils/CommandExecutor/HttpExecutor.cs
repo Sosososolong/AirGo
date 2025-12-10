@@ -154,6 +154,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
             foreach (var requestsConfigJson in configsFlow)
             {
                 string resolvedConfigsJson = TmplHelper2.ResolveTmpl(requestsConfigJson, envVars, true);
+
                 List<HttpRequestDto> configs = JsonConvert.DeserializeObject<List<HttpRequestDto>>(resolvedConfigsJson) ?? throw new Exception($"无效的请http请求配置:{resolvedConfigsJson}");
                 foreach (var fetchConfig in configs)
                 {
@@ -178,12 +179,12 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                     {
                         LoggerHelper.LogError($"请求失败:{data.Message}; Url:{fetchConfig.Url}");
                         yield return new CommandResult(false, $"{fetchConfig.Url}{Environment.NewLine}{data.Message}");
-                        yield break;
+                        continue;
                     }
                     if (!Regex.IsMatch(data.Message, fetchConfig.IsSuccessPattern))
                     {
                         yield return new CommandResult(false, $"{fetchConfig.Url}{Environment.NewLine}结果不匹配成功模板{fetchConfig.IsSuccessPattern}");
-                        yield break;
+                        continue;
                     }
                     yield return new CommandResult(true, $"请求结束");
 
@@ -213,7 +214,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                             {
                                 // 保存数据到数据库
                                 string dataName = handlerParamArr[0].Trim().TrimStart('$');
-                                var targetData = envVars.GetPropertyValue(dataName) as JArray;
+                                var targetData = envVars.GetPropertyValue(dataName) as JArray ?? throw new Exception($"数据{dataName}为空");
                                 var connStr = handlerParamArr[1].Trim();
                                 if (connStr.StartsWith('$'))
                                 {
@@ -236,7 +237,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                                     yield return new CommandResult(false, $"保存数据到表{table}失败: {errMsg}");
                                     yield break;
                                 }
-                                yield return new CommandResult(true, $"保存数据到表{table}成功!");
+                                yield return new CommandResult(true, $"保存数据到表{table}成功! {targetData.Count}");
                             }
                             else
                             {

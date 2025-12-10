@@ -52,7 +52,10 @@ namespace Sylas.RemoteTasks.Common.Extensions
             while (true)
             {
                 var item = source.Skip((pageIndex - 1) * pageSize).Take(pageSize).ToList();
-                chunkedData.Add(item);
+                if (item.Count > 0)
+                {
+                    chunkedData.Add(item);
+                }
                 if (item.Count < pageSize)
                 {
                     break;

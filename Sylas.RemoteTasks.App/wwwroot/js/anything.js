@@ -1,6 +1,7 @@
 const frequency = 200;
 async function executeCommand(commandId, commandName, executeBtn) {
-    document.querySelector('.data-right-pannel').innerHTML = '';
+    //document.querySelector('.data-right-pannel').innerHTML = '';
+    document.querySelector('button[command-name="请求所有数据写入数据库"]').closest('.command-item').querySelector('.command-resolved').innerHTML = '';
     const requestBody = JSON.stringify({ commandId });
     // 支持SSE的fetch请求
     const spinnerEle = executeBtn;
@@ -72,22 +73,27 @@ async function executeCommand(commandId, commandName, executeBtn) {
                         }
                     }
                 }
-                // 连续30s没有新消息, 则停止计时器(如果计时器还存在的话)
-                const timeout = 30;
+                // 连续3min没有新消息, 则停止计时器(如果计时器还存在的话)
+                const timeout = 60 * 3;
                 if (msgNotFoundCount >= (timeout * 1000) / frequency) {
+                    console.log('clear interval(sse消息队列)')
                     window.clearInterval(interval);
                 }
             }
         }, frequency)
         const reader = response.body.getReader();
+        let c = 0;
         reader.read().then(function processText({ done, value }) {
+            console.log(`${++c} reading...`)
             if (done) {
+                console.log('done')
                 return;
             }
 
             if (!msgContainer[commandName] || msgContainer[commandName].length === 0) {
                 msgContainer[commandName] = [value];
             } else {
+                console.log(`${c} pushing...`)
                 msgContainer[commandName].push(value);
             }
             return reader.read().then(processText);
@@ -105,24 +111,25 @@ let msgContainer = {};
 function commandResultHandler(data, commandName) {
     let isLastResult = false;
     const title = `<div style="color:green;">${commandName}:</div>`;
-    const rightPannel = document.querySelector('.data-right-pannel');
+    console.log('command name', commandName)
+    //const msgPannel = document.querySelector('.data-right-pannel');
+    const msgPannel = document.querySelector('button[command-name="请求所有数据写入数据库"]').closest('.command-item').querySelector('.command-resolved');
     if (!data.succeed && data?.commandExecuteNo?.indexOf('-cmd-end') === -1) {
-        debugger;
         const errMsg = data.message ? data.message : '操作失败';
         const errMsgLines = errMsg.split('\n');
-        rightPannel.innerHTML += `<p style="color:red;">${commandName}: <p>`;
+        msgPannel.innerHTML += `<p style="color:red;">${commandName}: <p>`;
         for (var i = 0; i < errMsgLines.length; i++) {
-            rightPannel.innerHTML += `<p style="color:red;">&nbsp;&nbsp;&nbsp;&nbsp;${trimMsg(errMsgLines[i], 50)}</p>`
+            msgPannel.innerHTML += `<p style="color:red;">&nbsp;&nbsp;&nbsp;&nbsp;${trimMsg(errMsgLines[i], 50)}</p>`
         }
     } else if (!data.message) {
-        if (data.commandExecuteNo.endsWith('-cmd-end')) {
+        if (data.commandExecuteNo && data.commandExecuteNo.endsWith('-cmd-end')) {
             isLastResult = true;
-        } else if (rightPannel.innerHTML.length === 0) {
-            rightPannel.innerHTML += `<p style="color:green;">${commandName}: 操作成功</p>`;
+        } else if (msgPannel.innerHTML.length === 0) {
+            msgPannel.innerHTML += `<p style="color:green;">${commandName}: 操作成功</p>`;
         }
     } else {
         const msgs = data.message.split('\n');
-        let msgHtml = rightPannel.innerHTML.indexOf(title) > -1 ? title : '';
+        let msgHtml = msgPannel.innerHTML.indexOf(title) > -1 ? title : '';
         for (var i = 0; i < msgs.length; i++) {
             let msg = msgs[i];
             let currentMsgDiv = `<div style="color:gray; margin-left:20px;">${msg}</div>`;
@@ -132,7 +139,7 @@ function commandResultHandler(data, commandName) {
             const processBarPattern = /\[=*>\s*\]\s*(\d+(\.\d+)*)\s*%/;
             const m = msg.match(processBarPattern);
             if (m && m.length > 2) {
-                const last = rightPannel.lastChild;
+                const last = msgPannel.lastChild;
                 const lastHtml = last.outerHTML;
                 if (last && lastHtml.endsWith('%</div>') && !lastHtml.endsWith('100.00 %</div>')) {
                     if (lastHtml.indexOf('100.00') > -1) {
@@ -147,8 +154,8 @@ function commandResultHandler(data, commandName) {
             }
         }
 
-        rightPannel.innerHTML += msgHtml;
-        rightPannel.scrollTop = rightPannel.scrollHeight;
+        msgPannel.innerHTML += msgHtml;
+        msgPannel.scrollTop = msgPannel.scrollHeight;
     }
     return isLastResult;
 }
@@ -206,7 +213,7 @@ function buildDataView(data) {
     let container = document.createElement('div');
 
     container.classList.add('row');
-    container.innerHTML = `<div class="col-sm-6 cards-container"></div><div class="col-sm-6 data-right-pannel" style="height:500px;overflow:auto;"></div>`;
+    container.innerHTML = `<!--显示数据卡片--><div class="col-sm-12 cards-container"></div><!--显示sse命令响应消息(暂时不用,所以高度设为0)--><div class="col-sm-6 data-right-pannel" style="height:0px;overflow:auto;position:fixed;width:40%;left:30%;"></div>`;
     let cardsHtml = '';
     data.forEach((record, index) => {
         const collapseBtnId = `collapseBtn${record.id}`;

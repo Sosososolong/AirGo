@@ -220,9 +220,9 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                             }
                         }
                         runningSchedules.AddOrUpdate(flow.Id, (flow, tokenSource), (key, oldValue) => (flow, tokenSource));
-                        
+
                         // 子线程中执行任务调度
-                        var scheduleExecutor = (async () =>
+                        async Task scheduleExecutor()
                         {
                             DateTime? executeTime = null;
                             while (true)
@@ -328,7 +328,7 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                                 }
                                 await Task.Delay(waitTime);
                             }
-                        });
+                        }
                         _ = scheduleExecutor();
                     }
                 }
