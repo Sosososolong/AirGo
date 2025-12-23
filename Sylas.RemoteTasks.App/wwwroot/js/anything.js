@@ -1,7 +1,7 @@
 const frequency = 200;
 async function executeCommand(commandId, commandName, executeBtn) {
     //document.querySelector('.data-right-pannel').innerHTML = '';
-    document.querySelector('button[command-name="请求所有数据写入数据库"]').closest('.command-item').querySelector('.command-resolved').innerHTML = '';
+    document.querySelector(`button[command-name="${commandName}"]`).closest('.command-item').querySelector('.command-resolved').innerHTML = '';
     const requestBody = JSON.stringify({ commandId });
     // 支持SSE的fetch请求
     const spinnerEle = executeBtn;
@@ -113,7 +113,7 @@ function commandResultHandler(data, commandName) {
     const title = `<div style="color:green;">${commandName}:</div>`;
     console.log('command name', commandName)
     //const msgPannel = document.querySelector('.data-right-pannel');
-    const msgPannel = document.querySelector('button[command-name="请求所有数据写入数据库"]').closest('.command-item').querySelector('.command-resolved');
+    const msgPannel = document.querySelector(`button[command-name="${commandName}"]`).closest('.command-item').querySelector('.command-resolved');
     if (!data.succeed && data?.commandExecuteNo?.indexOf('-cmd-end') === -1) {
         const errMsg = data.message ? data.message : '操作失败';
         const errMsgLines = errMsg.split('\n');

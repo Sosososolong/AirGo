@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils.CommandExecutor;
@@ -40,13 +40,17 @@ namespace Sylas.RemoteTasks.Test.Remote
                     _outputHelper.WriteLine($"\"{cmd}\"经过模板转换后为空");
                     return;
                 }
-                var commandResult = await sshHelper.RunCommandAsync(cmd);
-                if (commandResult.Succeed)
+                var commandResults = sshHelper.RunCommandAsync(cmd);
+                await foreach (var commandResult in commandResults)
                 {
-                    _outputHelper.WriteLine(string.IsNullOrWhiteSpace(commandResult.Message) ? "操作成功" : commandResult.Message);
-                } else
-                {
-                    _outputHelper.WriteLine(string.IsNullOrWhiteSpace(commandResult.Message) ? "操作失败" : commandResult.Message);
+                    if (commandResult.Succeed)
+                    {
+                        _outputHelper.WriteLine(string.IsNullOrWhiteSpace(commandResult.Message) ? "操作成功" : commandResult.Message);
+                    }
+                    else
+                    {
+                        _outputHelper.WriteLine(string.IsNullOrWhiteSpace(commandResult.Message) ? "操作失败" : commandResult.Message);
+                    }
                 }
             }
         }

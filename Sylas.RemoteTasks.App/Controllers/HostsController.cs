@@ -89,21 +89,31 @@ namespace Sylas.RemoteTasks.App.Controllers
             response.Headers.Append("Cache-Control", "no-cache");
             response.Headers.Append("Connection", "keep-alive");
             var cancellationToken = HttpContext.RequestAborted;
-            var commandResults = anythingService.ExecuteAsync(commandInfoInDto);
-            await foreach (CommandResult commandResult in commandResults)
+            try
             {
-                string commandResultJosn = JsonConvert.SerializeObject(commandResult, new JsonSerializerSettings() { ContractResolver = new CamelCasePropertyNamesContractResolver() });
-
-                // 有可能连续写入两次, 客户端一起接收过来了, 所以这里只返回有效数据, 由客户端进行拆分; 原本是: "data: {commandResultJosn}\n"
-                await response.WriteAsync($"{commandResultJosn}\n", Encoding.UTF8);
-
-                await response.Body.FlushAsync();
-                if (cancellationToken.IsCancellationRequested)
+                var commandResults = anythingService.ExecuteAsync(commandInfoInDto);
+                await foreach (CommandResult commandResult in commandResults)
                 {
-                    LoggerHelper.LogCritical("客户端取消请求");
-                    break;
+                    string commandResultJosn = JsonConvert.SerializeObject(commandResult, new JsonSerializerSettings() { ContractResolver = new CamelCasePropertyNamesContractResolver() });
+
+                    // 有可能连续写入两次, 客户端一起接收过来了, 所以这里只返回有效数据, 由客户端进行拆分; 原本是: "data: {commandResultJosn}\n"
+                    await response.WriteAsync($"{commandResultJosn}\n", Encoding.UTF8);
+
+                    await response.Body.FlushAsync();
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        LoggerHelper.LogCritical("客户端取消请求");
+                        break;
+                    }
                 }
             }
+            catch (Exception ex)
+            {
+                string commandResultJosn = JsonConvert.SerializeObject(new CommandResult(false, ex.Message), new JsonSerializerSettings() { ContractResolver = new CamelCasePropertyNamesContractResolver() });
+                await response.WriteAsync($"{commandResultJosn}\n", Encoding.UTF8);
+                await response.Body.FlushAsync();
+            }
+            
             LoggerHelper.LogCritical("命令执行完毕");
         }
         /// <summary>

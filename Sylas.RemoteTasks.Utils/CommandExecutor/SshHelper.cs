@@ -1,4 +1,4 @@
-﻿using Renci.SshNet;
+using Renci.SshNet;
 using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Common.Dtos;
 using Sylas.RemoteTasks.Common.Extensions;
@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -192,99 +193,127 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
             Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 关闭释放所有Client");
         }
 
-
-
+        
         /// <summary>
         /// 运行命令
         /// shell命令
         /// 上传 upload   {LOCAL} {REMOTE 1.不存在则认为是目录;2存在情况2.1文件覆盖;2.2目录则上传该位置} -include={要求只上传文件名包含该子字符串的文件,多个用','隔开} -exclude={文件名包含指定字符串则不上传,多个用','隔开} 
         /// 下载 download {LOCAL} {REMOTE} -include={要求只上传文件名包含该子字符串的文件,多个用','隔开} -exclude={文件名包含指定字符串则不上传,多个用','隔开} 
         /// </summary>
-        /// <param name="command"></param>
+        /// <param name="commandContent"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public async Task<OperationResult> RunCommandAsync(string command)
+        public async IAsyncEnumerable<OperationResult> RunCommandAsync(string commandContent)
         {
-            if (command.StartsWith("upload", StringComparison.OrdinalIgnoreCase) || command.StartsWith("download", StringComparison.OrdinalIgnoreCase))
+            string executingCommandContent = commandContent;
+            var matches = Regex.Matches(commandContent, @"(\n|^)((upload|download)\s[^\n]+\n{0,1})+");
+            foreach (var m in matches.Cast<Match>())
             {
-                string uploadLogs = string.Empty;
-                foreach (var item in command.Split('\n'))
+                var commandIndex = executingCommandContent.IndexOf(m.Value);
+                if (commandIndex != 0)
                 {
-                    if (string.IsNullOrWhiteSpace(item))
-                    {
-                        continue;
-                    }
-                    string cmdItem = item.Trim();
-
-                    var cmdMatch = RegexConst.CommandRegex.Match(cmdItem);
-                    var action = cmdMatch.Groups["action"].Value.Replace('\\', '/');
-                    var local = cmdMatch.Groups["local"].Value.Replace('\\', '/');
-                    var remote = cmdMatch.Groups["remote"].Value.Replace('\\', '/');
-                    // ["form.api.dll", ".pfx", "Dockfile"]
-                    var includes = cmdMatch.Groups["include"].Value.Replace('\\', '/')?.Split(',', StringSplitOptions.RemoveEmptyEntries);
-                    var excludes = cmdMatch.Groups["exclude"].Value.Replace('\\', '/')?.Split(',', StringSplitOptions.RemoveEmptyEntries);
-                    if (action.ToLower() == "upload")
-                    {
-                        if (string.IsNullOrWhiteSpace(local) && string.IsNullOrWhiteSpace(remote))
-                        {
-                            throw new Exception("上传文件格式错误: " + cmdItem);
-                        }
-                        string uploadLog = await UploadAsync(local, remote, includes, excludes);
-                        uploadLogs += $"{uploadLog}{Environment.NewLine}";
-                    }
-                    else if (action.ToLower() == "download")
-                    {
-                        if (string.IsNullOrWhiteSpace(local) && string.IsNullOrWhiteSpace(remote))
-                        {
-                            throw new Exception("上传文件格式错误: " + cmdItem);
-                        }
-                        await DownloadAsync(local, remote, includes, excludes);
-                    }
+                    string preCommand = executingCommandContent[..commandIndex];
+                    yield return await RunCommandBlockAsync(preCommand);
+                    executingCommandContent = executingCommandContent.Replace(preCommand, string.Empty).Trim();
                 }
-                return new OperationResult(true, uploadLogs.TrimEnd());
+                yield return await RunCommandBlockAsync(m.Value.Trim());
+                executingCommandContent = executingCommandContent.Replace(m.Value, string.Empty).Trim();
             }
-            else
+            // 是否还有最后一段命令
+            if (!string.IsNullOrWhiteSpace(executingCommandContent))
             {
-                var conn = await GetConnectionAsync();
-                string remoteTempScriptsDir;
-                string remoteTempScriptFile = string.Empty;
-                if (command.Contains('\n'))
-                {
-                    string tempFileName = $"temp{DateTime.Now:yyyyMMddHHmmssfffffff}";
-                    remoteTempScriptsDir = $"temp";
-                    remoteTempScriptFile = $"{remoteTempScriptsDir}/{tempFileName}";
-                    string localTmpFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, tempFileName);
-                    LoggerHelper.LogInformation($"local temp file: {localTmpFile}");
-                    await File.WriteAllTextAsync(localTmpFile, command);
+                var executeResult = await RunCommandBlockAsync(executingCommandContent);
+                yield return executeResult;
+            }
 
-                    try
-                    {
-                        _ = await UploadAsync(localTmpFile, remoteTempScriptsDir, null, null);
-                        conn.RunCommand($"chmod +x {remoteTempScriptFile}");
-                    }
-                    catch (Exception)
-                    {
-                        throw;
-                    }
-                    finally
-                    {
-                        File.Delete(localTmpFile);
-                    }
-
-                    command = remoteTempScriptFile;
-                }
-                // conn.RunCommand(command);
-                var sshCommand = conn.CreateCommand(command);
-                await sshCommand.ExecuteAsync();
-                LoggerHelper.LogInformation($"运行命令: {command}; 执行结果: [{sshCommand.Result}]{Environment.NewLine} 错误信息:[{sshCommand.Error}]");
-                if (!string.IsNullOrWhiteSpace(remoteTempScriptFile) && string.IsNullOrEmpty(sshCommand.Error))
+            async Task<OperationResult> RunCommandBlockAsync(string command)
+            {
+                if (command.StartsWith("upload", StringComparison.OrdinalIgnoreCase) || command.StartsWith("download", StringComparison.OrdinalIgnoreCase))
                 {
-                    // 只有脚本执行成功, 代码才会走到这里删除远程临时脚本文件
-                    conn.RunCommand($"rm -f {remoteTempScriptFile}");
+                    string uploadLogs = string.Empty;
+                    foreach (var item in command.Split('\n'))
+                    {
+                        if (string.IsNullOrWhiteSpace(item))
+                        {
+                            continue;
+                        }
+                        string cmdItem = item.Trim();
+
+                        var cmdMatch = RegexConst.CommandRegex.Match(cmdItem);
+                        var action = cmdMatch.Groups["action"].Value.Replace('\\', '/');
+                        var local = cmdMatch.Groups["local"].Value.Replace('\\', '/');
+                        var remote = cmdMatch.Groups["remote"].Value.Replace('\\', '/');
+                        // ["form.api.dll", ".pfx", "Dockfile"]
+                        var includes = cmdMatch.Groups["include"].Value.Replace('\\', '/')?.Split(',', StringSplitOptions.RemoveEmptyEntries);
+                        var excludes = cmdMatch.Groups["exclude"].Value.Replace('\\', '/')?.Split(',', StringSplitOptions.RemoveEmptyEntries);
+                        if (action.ToLower() == "upload")
+                        {
+                            if (string.IsNullOrWhiteSpace(local) && string.IsNullOrWhiteSpace(remote))
+                            {
+                                throw new Exception("上传文件格式错误: " + cmdItem);
+                            }
+                            string uploadLog = await UploadAsync(local, remote, includes, excludes);
+                            uploadLogs += $"{uploadLog}{Environment.NewLine}";
+                        }
+                        else if (action.ToLower() == "download")
+                        {
+                            if (string.IsNullOrWhiteSpace(local) && string.IsNullOrWhiteSpace(remote))
+                            {
+                                throw new Exception("上传文件格式错误: " + cmdItem);
+                            }
+                            await DownloadAsync(local, remote, includes, excludes);
+                        }
+                    }
+                    return new OperationResult(true, uploadLogs.TrimEnd());
                 }
-                ReturnConnection(conn);
-                bool succeed = string.IsNullOrWhiteSpace(sshCommand.Error);
-                return new OperationResult(succeed, succeed ? sshCommand.Result : sshCommand.Error);
+                else
+                {
+                    var conn = await GetConnectionAsync();
+                    string remoteTempScriptsDir;
+                    string remoteTempScriptFile = string.Empty;
+                    if (command.Contains('\n'))
+                    {
+                        string tempFileName = $"temp{DateTime.Now:yyyyMMddHHmmssfffffff}";
+                        remoteTempScriptsDir = $"temp";
+                        remoteTempScriptFile = $"{remoteTempScriptsDir}/{tempFileName}";
+                        string localTmpFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, tempFileName);
+                        LoggerHelper.LogInformation($"local temp file: {localTmpFile}");
+                        await File.WriteAllTextAsync(localTmpFile, command);
+
+                        try
+                        {
+                            _ = await UploadAsync(localTmpFile, remoteTempScriptsDir, null, null);
+                            conn.RunCommand($"chmod +x {remoteTempScriptFile}");
+                        }
+                        catch (Exception)
+                        {
+                            throw;
+                        }
+                        finally
+                        {
+                            File.Delete(localTmpFile);
+                        }
+
+                        command = remoteTempScriptFile;
+                    }
+                    // conn.RunCommand(command);
+                    var sshCommand = conn.CreateCommand(command);
+                    await sshCommand.ExecuteAsync();
+                    LoggerHelper.LogInformation($"运行命令: {command}; 执行结果: [{sshCommand.Result}]{Environment.NewLine} 错误信息:[{sshCommand.Error}]");
+
+                    bool succeed = string.IsNullOrWhiteSpace(sshCommand.Error);
+                    if (!string.IsNullOrWhiteSpace(sshCommand.Result) && sshCommand.ExitStatus == 0)
+                    {
+                        succeed = true;
+                    }
+                    if (!string.IsNullOrWhiteSpace(remoteTempScriptFile) && succeed)
+                    {
+                        // 只有脚本执行成功, 代码才会走到这里删除远程临时脚本文件
+                        conn.RunCommand($"rm -f {remoteTempScriptFile}");
+                    }
+                    ReturnConnection(conn);
+                    return new OperationResult(succeed, $"{sshCommand.Error}{Environment.NewLine}{Environment.NewLine}{sshCommand.Result}");
+                }
             }
         }
         private async Task<string> UploadAsync(string local, string remotePath, string[]? includes, string[]? excludes)
@@ -312,7 +341,8 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                     remote = remote.EndsWith('/') ? remote : $"{remote}/";
 
                     await EnsureDirectoryExistAsync(remote, conn);
-                    localFiles = FileHelper.FindFilesRecursive(local, f => includes == null || !includes.Any() || includes.Any(part => Path.GetFileName(f).Contains(part)) && (excludes == null || excludes.All(part => f.IndexOf(part) == -1)), null, null);
+                    localFiles = FileHelper.FindFilesRecursive(local, f => (includes == null || !includes.Any() || includes.Any(part => Path.GetFileName(f).Contains(part))) && (excludes == null || excludes.All(part => f.IndexOf(part) == -1)), null, null);
+                    List<string> ensuredDirectory = [];
                     foreach (var localFile in localFiles)
                     {
                         var localFileRelativePath = localFile.Replace(local, "");
@@ -325,7 +355,11 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                             Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 上传文件, 获取服务器文件的目录失败[{targetFilePath}]");
                             continue;
                         }
-                        await EnsureDirectoryExistAsync(targetDirectory, conn);
+                        if (!ensuredDirectory.Contains(targetDirectory))
+                        {
+                            await EnsureDirectoryExistAsync(targetDirectory, conn);
+                            ensuredDirectory.Add(targetDirectory);
+                        }
 
                         try
                         {
@@ -358,6 +392,10 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                     {
                         // 不存在的情况, '/'结尾表示remote是目录, 创建整个目录; 否则把remote当作文件创建上级目录
                         var ssh = await GetConnectionAsync();
+                        if (!remote.Contains('/'))
+                        {
+                            remote += '/';
+                        }
                         string remoteDir = remote.EndsWith('/') ? remote : remote[..remote.LastIndexOf('/')];
                         ssh.RunCommand($"mkdir -p {remoteDir}");
                         ReturnConnection(ssh);
@@ -512,13 +550,11 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         /// <param name="command"></param>
         public async IAsyncEnumerable<CommandResult> ExecuteAsync(string command)
         {
-            var cmd = await RunCommandAsync(command);
-            if (cmd.Succeed)
+            var cmds = RunCommandAsync(command);
+            await foreach (var cmd in cmds)
             {
-                yield return new(true, cmd.Message);
-                yield break;
+                yield return new(cmd.Succeed, cmd.Message);
             }
-            yield return new(false, cmd.Message);
         }
 
         /// <summary>
