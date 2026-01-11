@@ -1286,7 +1286,7 @@ function inputing(input, inputHandler) {
 /**
  * 创建一个数据面板
  */
-function newDataPannel(pannelId, pannelClass, innerHtml) {
+function newDataPannel(pannelId, pannelClass, innerHtml, hide = true) {
     var existPannel = document.querySelector('#' + pannelId);
     if (existPannel) {
         existPannel.remove();
@@ -1303,8 +1303,12 @@ function newDataPannel(pannelId, pannelClass, innerHtml) {
         propertiesPannel.classList.add(pannelClass);
     }
 
-    propertiesPannel.clientWidth = '100%';
-    propertiesPannel.clientHeight = '100%';
+    //propertiesPannel.clientWidth = '100%';
+    //propertiesPannel.clientHeight = '100%';
+    if (hide) {
+        propertiesPannel.style.width = '50px';
+        propertiesPannel.style.height = '50px';
+    }
     propertiesPannel.innerHTML = innerHtml;
     document.querySelector('body').appendChild(propertiesPannel);
 }

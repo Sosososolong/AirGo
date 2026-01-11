@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
@@ -193,7 +193,7 @@ namespace Sylas.RemoteTasks.Common
         {
             // Check arguments.
             if (encryptedBytes == null || encryptedBytes.Length <= 0)
-                throw new ArgumentNullException("cipherText");
+                throw new ArgumentNullException(nameof(encryptedBytes));
 
             // Create a decryptor to perform the stream transform.
             ICryptoTransform decryptor = aes.CreateDecryptor(aes.Key, aes.IV);

@@ -1,4 +1,4 @@
-﻿using IdentityModel.Client;
+using IdentityModel.Client;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -34,6 +34,10 @@ namespace Sylas.RemoteTasks.App.Controllers
             var claims = User.Claims;
             var client = clientFactory.CreateClient();
             var token = HttpContext.Request.Headers.Authorization.FirstOrDefault()?.Replace("Bearer ", "");
+            if (token is null)
+            {
+                throw new Exception("access_token不能为空");
+            }
             client.SetBearerToken(token);
             var authorityPars = authority.Split('/');
             var getUserInfoPost = await client.PostAsync($"{authorityPars[0]}//{authorityPars[2]}/connect/userinfo", null);

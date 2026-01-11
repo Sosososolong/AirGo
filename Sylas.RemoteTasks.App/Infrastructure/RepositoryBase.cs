@@ -52,9 +52,10 @@ namespace Sylas.RemoteTasks.App.Infrastructure
             }
             string id = biz[idField];
             string? idConvertKey = DbTableInfo<T>._propertyConverterMappers.Keys.FirstOrDefault(x => x.Equals(idField, StringComparison.OrdinalIgnoreCase));
-            object idValue = string.IsNullOrWhiteSpace(idConvertKey) ? id : DbTableInfo<T>._propertyConverterMappers[idConvertKey](id);
+            string idConvertKeyStr = $"{idConvertKey}";
+            object? idValue = string.IsNullOrWhiteSpace(idConvertKeyStr) ? id : DbTableInfo<T>._propertyConverterMappers[idConvertKeyStr](id);
 
-            var pages = await _db.QueryPagedDataAsync<T>(DbTableInfo<T>._tableName, new(1, 1, new DataFilter { FilterItems = [new FilterItem("id", "=", idValue)] }, [new("id", true)]));
+            var pages = await _db.QueryPagedDataAsync<T>(DbTableInfo<T>._tableName, new(1, 1, new DataFilter { FilterItems = [new FilterItem("id", "=", idValue ?? string.Empty)] }, [new("id", true)]));
             var connectionString = pages.Data.FirstOrDefault();
             if (connectionString is null)
             {

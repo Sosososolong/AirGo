@@ -33,7 +33,7 @@ namespace Sylas.RemoteTasks.Utils.Template
         /// 解析模板字符串中的变量
         /// </summary>
         /// <param name="tmpl"></param>
-        /// <param name="globalVars">
+        /// <param name="globalVars"></param>
         /// <param name="ignoreNotExistExpressions"></param>
         /// <returns></returns>
         static string ResolveTmplExpressions(string tmpl, object globalVars, bool ignoreNotExistExpressions = false)

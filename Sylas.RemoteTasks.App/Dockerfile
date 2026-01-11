@@ -1,6 +1,5 @@
 # FROM mcr.microsoft.com/dotnet/sdk:9.0
-FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
-MAINTAINER iduo admin@iduo.cc
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 
 RUN ln -s /lib/x86_64-linux-gnu/libdl-2.24.so /lib/x86_64-linux-gnu/libdl.so
 

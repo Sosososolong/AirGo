@@ -426,10 +426,10 @@ async function loadCommandsAsync(ele, id, refresh = false) {
             }
             resolvedProperties = `<table>${resolvedProperties}</table>`
             const dataPannelHtml = `<div class="d-flex justify-content-between">
-                <h4 class="text-white mb-4 data-pannel-title">环境变量</h4>
-                <div style="color:white;font-size:24px;cursor:pointer;padding: 0 10px;line-height:12px;" class="resize-data-pannel-btn" onclick="resizeDataPannel(event, ${id})">-</div>
+                <h4 class="text-white mb-4 data-pannel-title" style="display:none;">环境变量</h4>
+                <div style="color:white;font-size:24px;cursor:pointer;padding: 0 10px;line-height:24px;" class="resize-data-pannel-btn">+</div>
             </div>
-            <div class="data-pannel-body">
+            <div class="data-pannel-body" style="display:none;">
                 <textarea id='properties-${id}' placeholder="设置变量" style="background-color:rgba(255,255,255,0);color:white;" name="properties" rows="6" class="form-control mb-2">${originProperties}</textarea><input type="hidden" type="number" id="setting-id-${id}" name="id" value="${id}">
                 <div class="d-flex justify-content-end">
                     <button type="button" class="btn btn-primary btn-sm" data-content="formItemIds:properties-${id};setting-id-${id}" data-execute-url="${apiUpdateUrl}" data-method="POST" onclick="showConfirmBox('确定更新变量吗?', () => execute(this, null, null, true))">更新变量</button>

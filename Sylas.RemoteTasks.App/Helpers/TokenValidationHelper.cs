@@ -1,4 +1,4 @@
-﻿using IdentityModel;
+using IdentityModel;
 using IdentityModel.AspNetCore.OAuth2Introspection;
 using IdentityModel.Client;
 using Microsoft.AspNetCore.Authentication;
@@ -66,7 +66,7 @@ namespace Sylas.RemoteTasks.App.Helpers
             _scheme = scheme;
         }
 
-        public void Configure(string name, JwtBearerOptions options)
+        public void Configure(string? name, JwtBearerOptions options)
         {
             if (name == _scheme + IdentityServerAuthenticationDefaults.JwtAuthenticationScheme &&
                 _identityServerOptions.SupportsJwt)
@@ -75,7 +75,7 @@ namespace Sylas.RemoteTasks.App.Helpers
             }
         }
 
-        public void Configure(string name, OAuth2IntrospectionOptions options)
+        public void Configure(string? name, OAuth2IntrospectionOptions options)
         {
             if (name == _scheme + IdentityServerAuthenticationDefaults.IntrospectionAuthenticationScheme &&
                 _identityServerOptions.SupportsIntrospection)
@@ -135,7 +135,7 @@ namespace Sylas.RemoteTasks.App.Helpers
         /// <param name="authenticationScheme">The authentication scheme.</param>
         /// <returns></returns>
         public static AuthenticationBuilder AddIdentityServerAuthentication(this AuthenticationBuilder builder, string authenticationScheme)
-            => builder.AddIdentityServerAuthentication(authenticationScheme, configureOptions: null);
+            => builder.AddIdentityServerAuthentication(authenticationScheme, configureOptions: options => { });
 
         /// <summary>
         /// Registers the IdentityServer authentication handler.
@@ -155,7 +155,7 @@ namespace Sylas.RemoteTasks.App.Helpers
         /// <returns></returns>
         public static AuthenticationBuilder AddIdentityServerAuthentication(this AuthenticationBuilder builder, string authenticationScheme, Action<IdentityServerAuthenticationOptions> configureOptions)
         {
-            builder.AddJwtBearer(authenticationScheme + IdentityServerAuthenticationDefaults.JwtAuthenticationScheme, configureOptions: null);
+            builder.AddJwtBearer(authenticationScheme + IdentityServerAuthenticationDefaults.JwtAuthenticationScheme, configureOptions: jwtOptions => { });
             builder.AddOAuth2Introspection(authenticationScheme + IdentityServerAuthenticationDefaults.IntrospectionAuthenticationScheme, configureOptions: null);
 
             builder.Services.AddSingleton<IConfigureOptions<JwtBearerOptions>>(services =>
@@ -212,9 +212,8 @@ namespace Sylas.RemoteTasks.App.Helpers
         public IdentityServerAuthenticationHandler(
             IOptionsMonitor<IdentityServerAuthenticationOptions> options,
             ILoggerFactory logger,
-            UrlEncoder encoder,
-            ISystemClock clock)
-            : base(options, logger, encoder, clock)
+            UrlEncoder encoder)
+            : base(options, logger, encoder)
         {
             _logger = logger.CreateLogger<IdentityServerAuthenticationHandler>();
         }
@@ -300,7 +299,7 @@ namespace Sylas.RemoteTasks.App.Helpers
         /// </returns>
         protected override async Task HandleChallengeAsync(AuthenticationProperties properties)
         {
-            if (Context.Items.TryGetValue(IdentityServerAuthenticationDefaults.EffectiveSchemeKey + Scheme.Name, out object value))
+            if (Context.Items.TryGetValue(IdentityServerAuthenticationDefaults.EffectiveSchemeKey + Scheme.Name, out object? value))
             {
                 if (value is string scheme)
                 {
@@ -323,7 +322,7 @@ namespace Sylas.RemoteTasks.App.Helpers
     /// <seealso cref="Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions" />
     public class IdentityServerAuthenticationOptions : AuthenticationSchemeOptions
     {
-        static readonly Func<HttpRequest, string> InternalTokenRetriever = request => request.HttpContext.Items[IdentityServerAuthenticationDefaults.TokenItemsKey] as string;
+        static readonly Func<HttpRequest, string?> InternalTokenRetriever = request => request.HttpContext.Items[IdentityServerAuthenticationDefaults.TokenItemsKey] as string;
 
         /// <summary>
         /// Base-address of the token issuer
