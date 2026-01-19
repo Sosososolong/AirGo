@@ -385,7 +385,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
                 }
                 yield return commandResult;
             }
-            yield return new CommandResult(false, string.Empty, "-cmd-end");
+            //yield return new CommandResult(false, string.Empty, "-cmd-end");
         }
         static readonly List<string> _remoteCommandResults = [];
         static readonly Dictionary<string, Queue<CommandInfoTaskDto>> _serverNodeQueues = [];

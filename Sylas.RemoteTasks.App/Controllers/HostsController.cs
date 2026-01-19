@@ -113,6 +113,12 @@ namespace Sylas.RemoteTasks.App.Controllers
                 await response.WriteAsync($"{commandResultJosn}\n", Encoding.UTF8);
                 await response.Body.FlushAsync();
             }
+            finally
+            {
+                string endJson = JsonConvert.SerializeObject(new CommandResult(false, string.Empty, "-cmd-end"), new JsonSerializerSettings() { ContractResolver = new CamelCasePropertyNamesContractResolver() });
+                await response.WriteAsync($"{endJson}\n", Encoding.UTF8);
+                await response.Body.FlushAsync();
+            }
             
             LoggerHelper.LogCritical("命令执行完毕");
         }

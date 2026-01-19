@@ -123,6 +123,7 @@ function commandResultHandler(data, commandName) {
         }
     } else if (!data.message) {
         if (data.commandExecuteNo && data.commandExecuteNo.endsWith('-cmd-end')) {
+            debugger;
             isLastResult = true;
         } else if (msgPannel.innerHTML.length === 0) {
             msgPannel.innerHTML += `<p style="color:green;">${commandName}: 操作成功</p>`;
