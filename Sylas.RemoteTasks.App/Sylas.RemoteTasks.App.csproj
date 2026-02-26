@@ -11,12 +11,16 @@
   <ItemGroup>
     <Compile Remove="RegExp\**" />
     <Compile Remove="Repositories\**" />
+    <Compile Remove="wwwroot\js\新文件夹\**" />
     <Content Remove="RegExp\**" />
     <Content Remove="Repositories\**" />
+    <Content Remove="wwwroot\js\新文件夹\**" />
     <EmbeddedResource Remove="RegExp\**" />
     <EmbeddedResource Remove="Repositories\**" />
+    <EmbeddedResource Remove="wwwroot\js\新文件夹\**" />
     <None Remove="RegExp\**" />
     <None Remove="Repositories\**" />
+    <None Remove="wwwroot\js\新文件夹\**" />
   </ItemGroup>
 
   <ItemGroup>
@@ -51,10 +55,6 @@
 
   <ItemGroup>
     <Service Include="{508349b6-6b84-4df5-91f0-309beebad82d}" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="wwwroot\js\新文件夹\" />
   </ItemGroup>
 
 </Project>

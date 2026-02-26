@@ -1,51 +1,51 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>netstandard2.1</TargetFramework>
-    <Nullable>enable</Nullable>
-	<LangVersion>Latest</LangVersion>
+	<PropertyGroup>
+		<TargetFramework>netstandard2.1</TargetFramework>
+		<Nullable>enable</Nullable>
+		<LangVersion>Latest</LangVersion>
 
-	<!--版本号-->
-	<Version>1.0.13</Version>
-	<!--添加该配置, 在编译时进行打包-->
-	<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-	<!--添加该配置才会生成注释文件, 默认无注释-->
-	<GenerateDocumentationFile>true</GenerateDocumentationFile>
-	<!--包自述文件-->
-	<PackageReadmeFile>README.md</PackageReadmeFile>
-  </PropertyGroup>
+		<!--版本号-->
+		<Version>1.0.13</Version>
+		<!--添加该配置, 在编译时进行打包-->
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<!--添加该配置才会生成注释文件, 默认无注释-->
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<!--包自述文件-->
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Dapper" Version="2.1.24" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.3.1" />
-    <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
-	<PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.1" />
-	<PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="8.0.0" />
-	<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
-	<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
-	<PackageReference Include="MySql.Data" Version="8.0.31" />
-	<!--<PackageReference Include="MySqlConnector" Version="2.2.1" />-->
-	<PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
-	<PackageReference Include="Npgsql" Version="8.0.3" />
-	<PackageReference Include="Oracle.ManagedDataAccess.Core" Version="3.21.110" />
-	<PackageReference Include="System.Data.SqlClient" Version="4.8.6" />
-  </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="Dapper" Version="2.1.24" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.3.1" />
+		<PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
+		<PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.1" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="8.0.0" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
+		<PackageReference Include="MySql.Data" Version="8.0.31" />
+		<!--<PackageReference Include="MySqlConnector" Version="2.2.1" />-->
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+		<PackageReference Include="Npgsql" Version="8.0.3" />
+		<PackageReference Include="Oracle.ManagedDataAccess.Core" Version="3.21.110" />
+		<PackageReference Include="System.Data.SqlClient" Version="4.8.6" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\Sylas.RemoteTasks.Common\Sylas.RemoteTasks.Common.csproj" />
-  </ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\Sylas.RemoteTasks.Common\Sylas.RemoteTasks.Common.csproj" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <Reference Include="DmProvider">
-      <HintPath>..\..\..\..\Users\Wu Qianlin\.nuget\packages\dmprovider\1.1.0.11058\lib\netstandard2.0\DmProvider.dll</HintPath>
-    </Reference>
-  </ItemGroup>
+	<ItemGroup>
+		<Reference Include="DmProvider">
+			<HintPath>..\..\..\..\Users\Wu Qianlin\.nuget\packages\dmprovider\1.1.0.11058\lib\netstandard2.0\DmProvider.dll</HintPath>
+		</Reference>
+	</ItemGroup>
 
-  <ItemGroup>
-    <None Update="README.md">
-      <Pack>True</Pack>
-      <PackagePath>\</PackagePath>
-    </None>
-  </ItemGroup>
+	<ItemGroup>
+		<None Update="README.md">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
+	</ItemGroup>
 
 </Project>
