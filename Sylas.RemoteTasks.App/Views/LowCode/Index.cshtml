@@ -1,0 +1,339 @@
+@{
+    Layout = null;
+    ViewData["Title"] = "VDS 可视化编辑器";
+}
+
+<div class="container-fluid">
+    <h3 class="text-center mb-4">VDS 可视化编辑器</h3>
+    
+    <!-- VDS页面列表 -->
+    <div id="vdsPageContainer"></div>
+</div>
+
+<!-- VDS可视化配置器模态框 -->
+<div class="modal fade" id="vdsConfiguratorModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">VDS 可视化编辑器</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Tab导航 -->
+                <ul class="nav nav-tabs" id="configTabs" role="tablist">
+                    <li class="nav-item">
+                        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#basicTab">基础配置</button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#fieldsTab">字段配置</button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#apiTab">接口配置</button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#jsonTab">JSON模式</button>
+                    </li>
+                </ul>
+                
+                <div class="tab-content mt-3" id="configTabContent">
+                    <!-- 基础配置 -->
+                    <div class="tab-pane fade show active" id="basicTab">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">页面标识 <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control form-control-sm" id="cfg-name" placeholder="如: users, products">
+                                    <small class="text-muted">用于URL路由，如 /LowCode/users</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">页面标题 <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control form-control-sm" id="cfg-title" placeholder="如: 用户管理">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">页面描述</label>
+                                    <input type="text" class="form-control form-control-sm" id="cfg-description" placeholder="页面功能描述">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label class="form-label">排序号</label>
+                                    <input type="number" class="form-control form-control-sm" id="cfg-orderNo" value="0">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label class="form-label">状态</label>
+                                    <select class="form-select form-select-sm" id="cfg-isEnabled">
+                                        <option value="true">启用</option>
+                                        <option value="false">禁用</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">每页条数</label>
+                                    <input type="number" class="form-control form-control-sm" id="cfg-pageSize" value="10">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">主键字段</label>
+                                    <input type="text" class="form-control form-control-sm" id="cfg-idFieldName" value="id">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 字段配置 -->
+                    <div class="tab-pane fade" id="fieldsTab">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span class="text-muted">拖拽调整字段顺序</span>
+                            <button type="button" class="btn btn-primary btn-sm" onclick="VdsConfigurator.addField()">
+                                + 添加字段
+                            </button>
+                        </div>
+                        <div id="fieldsList" class="border rounded p-2" style="min-height:200px;">
+                            <!-- 字段列表通过JS动态生成 -->
+                        </div>
+                    </div>
+                    
+                    <!-- 接口配置 -->
+                    <div class="tab-pane fade" id="apiTab">
+                        <div class="row">
+                            <div class="col-md-12">
+                                <div class="mb-3">
+                                    <label class="form-label">数据查询接口 <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control form-control-sm" id="cfg-apiUrl" placeholder="/api/users">
+                                </div>
+                            </div>
+                        </div>
+                        <hr>
+                        <h6>添加数据接口</h6>
+                        <div class="row">
+                            <div class="col-md-9">
+                                <div class="mb-3">
+                                    <label class="form-label">添加接口URL</label>
+                                    <input type="text" class="form-control form-control-sm" id="cfg-modal-url" placeholder="/api/users/add">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label class="form-label">请求方法</label>
+                                    <select class="form-select form-select-sm" id="cfg-modal-method">
+                                        <option value="POST">POST</option>
+                                        <option value="PUT">PUT</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <h6>更新数据接口</h6>
+                        <div class="row">
+                            <div class="col-md-9">
+                                <div class="mb-3">
+                                    <label class="form-label">更新接口URL</label>
+                                    <input type="text" class="form-control form-control-sm" id="cfg-modal-updateUrl" placeholder="/api/users/update">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label class="form-label">请求方法</label>
+                                    <select class="form-select form-select-sm" id="cfg-modal-updateMethod">
+                                        <option value="POST">POST</option>
+                                        <option value="PUT">PUT</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <hr>
+                        <h6>排序规则</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">排序字段</label>
+                                    <input type="text" class="form-control form-control-sm" id="cfg-orderField" value="createTime">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">排序方向</label>
+                                    <select class="form-select form-select-sm" id="cfg-orderAsc">
+                                        <option value="false">降序 (DESC)</option>
+                                        <option value="true">升序 (ASC)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- JSON模式 -->
+                    <div class="tab-pane fade" id="jsonTab">
+                        <div class="mb-2">
+                            <small class="text-muted">直接编辑VDS配置JSON（高级用户）</small>
+                        </div>
+                        <textarea class="form-control" id="cfg-vdsConfigJson" rows="15" style="font-family:monospace;font-size:12px;"></textarea>
+                        <div class="mt-2">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="VdsConfigurator.formatJson()">格式化</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="VdsConfigurator.syncFromJson()">应用到表单</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="VdsConfigurator.save()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 字段编辑模态框 -->
+<div class="modal fade" id="fieldEditModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">编辑字段</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="field-index">
+                <div class="mb-3">
+                    <label class="form-label">字段名 <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control form-control-sm" id="field-name" placeholder="如: username">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">显示标题 <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control form-control-sm" id="field-title" placeholder="如: 用户名">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">字段类型</label>
+                    <select class="form-select form-select-sm" id="field-type" onchange="VdsConfigurator.onFieldTypeChange()">
+                        <option value="">文本</option>
+                        <option value="number">数字</option>
+                        <option value="multiLines">多行文本</option>
+                        <option value="enum">枚举</option>
+                        <option value="image">图片</option>
+                        <option value="media">多媒体</option>
+                        <option value="dataSource">数据源</option>
+                        <option value="button">操作按钮</option>
+                    </select>
+                </div>
+                
+                <!-- 通用配置 -->
+                <div class="mb-3" id="field-searchable-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="field-searchedByKeywords">
+                        <label class="form-check-label">可搜索</label>
+                    </div>
+                </div>
+                <div class="row" id="field-display-group">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">截断长度</label>
+                            <input type="number" class="form-control form-control-sm" id="field-showPart" placeholder="如: 12">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">对齐方式</label>
+                            <select class="form-select form-select-sm" id="field-align">
+                                <option value="">默认</option>
+                                <option value="left">左对齐</option>
+                                <option value="center">居中</option>
+                                <option value="right">右对齐</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 枚举配置 -->
+                <div class="mb-3 d-none" id="field-enum-group">
+                    <label class="form-label">枚举值（每行一个）</label>
+                    <textarea class="form-control form-control-sm" id="field-enumValus" rows="3" placeholder="Admin&#10;User&#10;Guest"></textarea>
+                </div>
+                
+                <!-- 数据源配置 -->
+                <div class="d-none" id="field-dataSource-group">
+                    <div class="mb-3">
+                        <label class="form-label">数据源API</label>
+                        <input type="text" class="form-control form-control-sm" id="field-dataSourceApi" placeholder="/api/roles">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">显示字段</label>
+                        <input type="text" class="form-control form-control-sm" id="field-displayField" placeholder="name">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">默认值</label>
+                        <input type="text" class="form-control form-control-sm" id="field-defaultValue" placeholder="0">
+                    </div>
+                </div>
+                
+                <!-- 按钮配置 -->
+                <div class="mb-3 d-none" id="field-button-group">
+                    <label class="form-label">按钮模板HTML</label>
+                    <textarea class="form-control form-control-sm" id="field-tmpl" rows="5" placeholder='<button data-id="{{id}}" onclick="...">编辑</button>'></textarea>
+                    <small class="text-muted">使用 {{fieldName}} 插入字段值</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="VdsConfigurator.saveField()">确定</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="/js/vds-configurator.js"></script>
+<script>
+    $(function () {
+        const apiUrl = "/LowCode/Pages";
+        const tableId = 'vdsPageTable';
+        const tableParentSelector = "#vdsPageContainer";
+
+        const ths = [
+            { name: 'name', title: '页面标识', searchedByKeywords: true },
+            { name: 'title', title: '页面标题', searchedByKeywords: true },
+            { name: 'description', title: '描述', showPart: 20 },
+            { name: 'isEnabled', title: '状态', enumValus: ['true', 'false'] },
+            { name: 'orderNo', title: '排序', isNumber: true, align: 'center' },
+            { name: 'createTime', title: '创建时间', align: 'center' },
+            { name: 'updateTime', title: '更新时间', align: 'center' },
+            // 操作栏
+            {
+                name: '', title: '操作', type: 'button', tmpl: `
+                    <button type="button" class="btn btn-success btn-sm" onclick="window.open('/LowCode/Render/' + '{{name}}', '_blank')">预览</button>
+                    <button type="button" class="btn btn-primary btn-sm" onclick="VdsConfigurator.edit({{id}})">配置</button>
+                    <button type="button" class="btn btn-danger btn-sm" data-table-id="${tableId}" data-content="&quot;{{id}}&quot;" data-execute-url="/LowCode/DeletePage" data-method="POST" onclick="showConfirmBox('确定删除此页面配置吗?', () => execute(this))">删除</button>`
+            }
+        ];
+        const idFieldName = "id";
+
+        createTable({
+            apiUrl: apiUrl,
+            pageIndex: 1,
+            pageSize: 20,
+            tableId: tableId,
+            tableContainerSelector: tableParentSelector,
+            ths: ths,
+            idFieldName: idFieldName,
+            wrapper: '',
+            modalSettings: null, // 使用自定义的配置器
+            addButtonSelector: '',
+            orderRules: [{ fieldName: 'orderNo', isAsc: true }]
+        }).then(() => {
+            // 添加自定义的"添加页面"按钮
+            const addBtn = document.createElement('button');
+            addBtn.className = 'btn btn-primary btn-sm mb-3';
+            addBtn.textContent = '+ 添加VDS页面';
+            addBtn.onclick = () => VdsConfigurator.create();
+            document.querySelector(tableParentSelector).insertBefore(addBtn, document.querySelector(tableParentSelector).firstChild);
+        });
+    });
+</script>

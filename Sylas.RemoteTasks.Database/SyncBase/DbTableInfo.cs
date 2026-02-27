@@ -184,15 +184,50 @@ namespace Sylas.RemoteTasks.Database.SyncBase
                     #region 不是bit类型才需要"bool转int", 否则直接转换为object
                     // 1.获取ColumnType并检查是否是bit类型
                     var columnType = Expression.Property(getFieldColumn, columnTypeProperty);
-                    var isNotBitType = Expression.NotEqual(
-                        columnType,
-                        Expression.Constant("bit", typeof(string))
-                    );
+                    // var isNotBitType = Expression.NotEqual(
+                    //     columnType,
+                    //     Expression.Constant("bit", typeof(string))
+                    // );
                     // 2. 不是bit类型:"bool转int", 否则直接转换为object
+                    // objValExp = Expression.Condition(
+                    //     isNotBitType,
+                    //     boolConvertToInt,
+                    //     Expression.Convert(property, typeof(object))
+                    // );
+                    // 检查是否是布尔类型的数据库字段
+                    var isBitType = Expression.Call(
+                        columnType,
+                        "Equals",
+                        null,
+                        Expression.Constant("bit", typeof(string)),
+                        Expression.Constant(StringComparison.OrdinalIgnoreCase, typeof(StringComparison))
+                    );
+                    var isBooleanType = Expression.Call(
+                        columnType,
+                        "Equals",
+                        null,
+                        Expression.Constant("boolean", typeof(string)),
+                        Expression.Constant(StringComparison.OrdinalIgnoreCase, typeof(StringComparison))
+                    );
+                    var isBoolType = Expression.Call(
+                        columnType,
+                        "Equals",
+                        null,
+                        Expression.Constant("bool", typeof(string)),
+                        Expression.Constant(StringComparison.OrdinalIgnoreCase, typeof(StringComparison))
+                    );
+                    
+                    // 是布尔类型: bit 或 boolean 或 bool
+                    var isDbBoolType = Expression.OrElse(
+                        isBitType,
+                        Expression.OrElse(isBooleanType, isBoolType)
+                    );
+                    
+                    // 2. 是布尔类型:直接转换为object, 否则"bool转int"
                     objValExp = Expression.Condition(
-                        isNotBitType,
-                        boolConvertToInt,
-                        Expression.Convert(property, typeof(object))
+                        isDbBoolType,
+                        Expression.Convert(property, typeof(object)),
+                        boolConvertToInt
                     );
                     #endregion
                 }

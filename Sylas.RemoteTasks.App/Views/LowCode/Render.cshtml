@@ -1,0 +1,44 @@
+@model Sylas.RemoteTasks.App.LowCode.VdsPage
+@{
+    ViewData["Title"] = Model.Title;
+}
+
+<div>
+    @* <h3 class="text-center">@Model.Title</h3> *@
+    @if (!string.IsNullOrWhiteSpace(Model.Description) && Model.Description != Model.Title)
+    {
+        <p class="text-center text-muted">@Model.Description</p>
+    }
+    <div id="@(Model.Name)-container"></div>
+</div>
+
+@section Scripts {
+    <script>
+        $(function () {
+            // 从服务端传递的VDS配置
+            const vdsConfig = @Html.Raw(Model.VdsConfig);
+
+            // 设置tableId和容器选择器
+            vdsConfig.tableId = '@(Model.Name)-table';
+            vdsConfig.tableContainerSelector = '#@(Model.Name)-container';
+
+            // 如果配置中没有idFieldName，默认使用'id'
+            if (!vdsConfig.idFieldName) {
+                vdsConfig.idFieldName = 'id';
+            }
+
+            // 如果配置中没有pageIndex，默认使用1
+            if (!vdsConfig.pageIndex) {
+                vdsConfig.pageIndex = 1;
+            }
+
+            // 如果配置中没有pageSize，默认使用10
+            if (!vdsConfig.pageSize) {
+                vdsConfig.pageSize = 10;
+            }
+
+            // 调用createTable函数渲染页面
+            createTable(vdsConfig);
+        });
+    </script>
+}

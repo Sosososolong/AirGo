@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - Sylas.RemoteTasks.App</title>
+    <title>Sylas.RemoteTasks.App - @ViewData["Title"]</title>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/Sylas.RemoteTasks.App.styles.css" asp-append-version="true" />
@@ -152,7 +152,7 @@
                         
                         <!--Projects Manager-->
                         <li class="nav-item">
-                            <a class="nav-link" href="/Project/Index">Projects</a>
+                            <a class="nav-link" href="/LowCode/Index">Projects</a>
                         </li>
                         
                         <!--Snippets Manager-->
@@ -234,6 +234,12 @@
                                 <a href="/Home/CodeGen2" class="nav-link" style="margin-left:15px;">
                                     <svg class="bi me-3" width="16" height="16"><use xlink:href="#grid" /></svg>
                                     <span>CodeGen2(通用 New)</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="/LowCode/Index" class="nav-link" style="margin-left:15px;">
+                                    <svg class="bi me-3" width="16" height="16"><use xlink:href="#grid" /></svg>
+                                    <span>VDS Editor</span>
                                 </a>
                             </li>
                         </ul>
@@ -729,6 +735,13 @@
             document.body.classList.add(theme)
             if (document.querySelector('body').classList.contains('bg-black')) {
                 document.querySelector('#themeSwitch').setAttribute('checked', 'checked')
+            }
+
+            // 如果是 Render 页面（直接渲染VDS配置），不执行 loadPage
+            const currentPath = window.location.pathname;
+            if (currentPath.startsWith('/LowCode/Render/')) {
+                // Render 页面直接显示 @RenderBody() 的内容，不加载其他页面
+                return;
             }
 
             const lastVisitingView = localStorage.getItem('lastVisitingView')

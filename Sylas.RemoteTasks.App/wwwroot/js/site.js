@@ -132,7 +132,15 @@ async function createTable(customOptions) {
             for (let i = 0; i < this.ths.length; i++) {
                 var th = this.ths[i]
                 if (th.type === 'button') {
-                    var buttonHtml = th.tmpl.replace(/{{id}}/g, row[options.idFieldName])
+                    // 替换 {{id}} 为实际主键值
+                    var buttonHtml = th.tmpl.replace(/{{id}}/g, row[options.idFieldName]);
+                    // 替换 {{tableId}} 为表格ID
+                    buttonHtml = buttonHtml.replace(/\{\{tableId\}\}/g, options.tableId);
+                    // 替换所有其他字段
+                    for (const key in row) {
+                        const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+                        buttonHtml = buttonHtml.replace(regex, row[key] ?? '');
+                    }
                     tr.append(`<td align="center">${buttonHtml}</td>`);
                 }
                 if (th.name) {
