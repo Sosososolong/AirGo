@@ -171,6 +171,16 @@
                                 </div>
                             </div>
                         </div>
+                        
+                        <hr>
+                        <h6>
+                            自定义操作
+                            <button type="button" class="btn btn-outline-primary btn-sm ms-2" onclick="VdsConfigurator.addCustomAction()">+ 添加操作</button>
+                        </h6>
+                        <div class="small text-muted mb-2">配置需要弹出 Modal 表单的自定义操作按钮</div>
+                        <div id="customActions-list" class="border rounded p-2 bg-light" style="min-height:60px;">
+                            <div class="text-muted small p-2">暂无自定义操作，点击上方按钮添加</div>
+                        </div>
                     </div>
                     
                     <!-- JSON模式 -->
@@ -204,7 +214,7 @@
             </div>
             <div class="modal-body">
                 <input type="hidden" id="field-index">
-                <div class="mb-3">
+                <div class="mb-3" id="field-name-group">
                     <label class="form-label">字段名 <span class="text-danger">*</span></label>
                     <input type="text" class="form-control form-control-sm" id="field-name" placeholder="如: username">
                 </div>

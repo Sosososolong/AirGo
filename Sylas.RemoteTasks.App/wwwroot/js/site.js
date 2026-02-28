@@ -128,6 +128,8 @@ async function createTable(customOptions) {
         for (let j = 0; j < data.length; j++) {
             var row = data[j];
             var tr = $('<tr>');
+            // 设置行的 data-id 属性，用于 customActions 获取当前行 ID
+            tr.attr('data-id', row[options.idFieldName]);
 
             for (let i = 0; i < this.ths.length; i++) {
                 var th = this.ths[i]
@@ -209,6 +211,8 @@ async function createTable(customOptions) {
         if (this.onDataAllLoaded) {
             this.onDataAllLoaded(data);
         }
+        // 处理 customActions 自定义操作绑定
+        processCustomActions(options);
     }
 
     // this指向的是window对象, 因为它的父作用域就是createTable()方法, createTable中的this就是window对象
@@ -1541,4 +1545,194 @@ function msgsHandler(data, requestTitle, showMsgEl) {
     }
 
     return isLastResult
+}
+
+/**
+ * =====================================================
+ * CustomActions 自定义操作处理
+ * =====================================================
+ */
+
+/**
+ * 处理 customActions 配置，自动绑定按钮事件
+ * @param {object} tableOptions - createTable 的配置对象
+ */
+function processCustomActions(tableOptions) {
+    if (!tableOptions.customActions || tableOptions.customActions.length === 0) return;
+    
+    tableOptions.customActions.forEach(action => {
+        document.querySelectorAll(`.${action.className}`).forEach(btn => {
+            btn.onclick = () => {
+                // 优先从按钮的 data-id 获取
+                let rowId = btn.getAttribute('data-id');
+                
+                // 如果按钮没有 data-id，尝试从所在行获取
+                if (!rowId) {
+                    const tr = btn.closest('tr');
+                    if (tr) {
+                        rowId = tr.getAttribute('data-id');
+                    }
+                }
+                
+                // 从表格中获取当前行数据
+                const rowData = { id: rowId };
+                // 尝试从按钮的 data-* 属性中获取更多数据
+                for (const attr of btn.attributes) {
+                    if (attr.name.startsWith('data-') && attr.name !== 'data-id') {
+                        const key = attr.name.replace('data-', '').replace(/-([a-z])/g, (g) => g[1].toUpperCase());
+                        rowData[key] = attr.value;
+                    }
+                }
+                showCustomActionModal(action, btn, tableOptions, rowData);
+            };
+        });
+    });
+}
+
+/**
+ * 显示自定义操作的 Modal 弹窗
+ * @param {object} action - customAction 配置
+ * @param {HTMLElement} triggerBtn - 触发按钮
+ * @param {object} tableOptions - 表格配置
+ * @param {object} rowData - 当前行数据
+ */
+function showCustomActionModal(action, triggerBtn, tableOptions, rowData) {
+    // 移除旧的 Modal
+    const oldModal = document.querySelector('#custom-action-modal');
+    if (oldModal) oldModal.remove();
+
+    // 构建表单字段 HTML
+    let fieldsHtml = '';
+    if (action.modalFields && action.modalFields.length > 0) {
+        action.modalFields.forEach((field, index) => {
+            fieldsHtml += `<div class="mb-3">`;
+            fieldsHtml += `<label for="ca-field-${field.name}" class="form-label">${field.label || field.name}</label>`;
+            
+            if (field.type === 'dataSource') {
+                // dataSource 类型：下拉选择
+                let optionsHtml = '<option value="">请选择</option>';
+                
+                // 如果配置了 reuseFrom，复用表格中已加载的 dataSource 选项
+                if (field.reuseFrom && tables[tableOptions.tableId]) {
+                    const dsField = tables[tableOptions.tableId].dataSourceField;
+                    console.log('reuseFrom:', field.reuseFrom, 'tableId:', tableOptions.tableId, 'dsField:', dsField);
+                    if (dsField && dsField[field.reuseFrom + '_options']) {
+                        optionsHtml = dsField[field.reuseFrom + '_options'];
+                    } else {
+                        console.warn(`dataSourceField.${field.reuseFrom}_options 不存在，可用的 keys:`, dsField ? Object.keys(dsField) : 'dsField 为空');
+                    }
+                }
+                
+                fieldsHtml += `<select class="form-control form-select-sm" id="ca-field-${field.name}" name="${field.name}">${optionsHtml}</select>`;
+            } else if (field.type === 'textarea') {
+                fieldsHtml += `<textarea class="form-control form-control-sm" id="ca-field-${field.name}" name="${field.name}" rows="3" placeholder="${field.placeholder || ''}"></textarea>`;
+            } else {
+                // 默认 text 类型
+                fieldsHtml += `<input type="text" class="form-control form-control-sm" id="ca-field-${field.name}" name="${field.name}" placeholder="${field.placeholder || ''}" />`;
+            }
+            
+            fieldsHtml += `</div>`;
+        });
+    }
+
+    // 创建 Modal
+    const div = document.createElement('div');
+    div.className = 'modal fade';
+    div.id = 'custom-action-modal';
+    div.tabIndex = -1;
+    div.innerHTML = `
+        <div class="modal-dialog">
+            <div class="modal-content" style="border: 2px solid #0d6efd; box-shadow: 0 0 20px rgba(13,110,253,0.4);">
+                <div class="modal-header">
+                    <h5 class="modal-title">${action.modalTitle || '操作'}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    ${fieldsHtml || '<p class="text-muted">确定要执行此操作吗？</p>'}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="ca-execute-btn">确定</button>
+                </div>
+            </div>
+        </div>`;
+
+    document.body.appendChild(div);
+    const modal = new bootstrap.Modal(div);
+
+    // 绑定执行按钮事件
+    document.getElementById('ca-execute-btn').onclick = async () => {
+        // 收集表单数据
+        const formData = {};
+        if (action.modalFields) {
+            action.modalFields.forEach(field => {
+                const el = document.getElementById(`ca-field-${field.name}`);
+                if (el) formData[field.name] = el.value;
+            });
+        }
+
+        // 执行操作
+        await executeCustomAction(action, tableOptions, rowData, formData, triggerBtn);
+        modal.hide();
+    };
+
+    modal.show();
+}
+
+/**
+ * 构建 dataContent 并执行自定义操作
+ * @param {object} action - customAction 配置
+ * @param {object} tableOptions - 表格配置
+ * @param {object} rowData - 当前行数据
+ * @param {object} formData - 表单数据
+ * @param {HTMLElement} triggerBtn - 触发按钮
+ */
+async function executeCustomAction(action, tableOptions, rowData, formData, triggerBtn) {
+    // 构建 dataContent
+    const dataContent = buildDataContent(action.dataContent, rowData, formData);
+
+    // 构建执行参数
+    const exeParams = {
+        'dataTableId': tableOptions.tableId,
+        'dataContent': dataContent,
+        'dataExecuteUrl': action.executeUrl,
+        'dataMethod': action.executeMethod || 'POST',
+        'trigger': triggerBtn
+    };
+
+    // 执行并处理结果
+    await execute(exeParams, (response) => {
+        showResultBox(response, tables[tableOptions.tableId]);
+    });
+}
+
+/**
+ * 根据配置构建 dataContent
+ * @param {object} dataContentConfig - dataContent 配置
+ * @param {object} rowData - 当前行数据
+ * @param {object} formData - 表单数据
+ * @returns {string} JSON 字符串
+ */
+function buildDataContent(dataContentConfig, rowData, formData) {
+    if (!dataContentConfig) return '';
+    
+    const result = {};
+    for (const [key, value] of Object.entries(dataContentConfig)) {
+        if (value === '$form') {
+            // 从表单获取同名字段
+            result[key] = formData[key] || '';
+        } else if (typeof value === 'string' && value.startsWith('$form:')) {
+            // 从表单获取指定字段
+            const formFieldName = value.replace('$form:', '');
+            result[key] = formData[formFieldName] || '';
+        } else if (typeof value === 'string' && value.match(/^\{\{.+\}\}$/)) {
+            // 从当前行数据获取
+            const fieldName = value.slice(2, -2);
+            result[key] = rowData[fieldName] || '';
+        } else {
+            // 固定值
+            result[key] = value;
+        }
+    }
+    return JSON.stringify(result);
 }

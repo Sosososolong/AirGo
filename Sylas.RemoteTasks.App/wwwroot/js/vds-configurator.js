@@ -122,13 +122,32 @@ const VdsConfigurator = {
     },
 
     /**
+     * 构建 reuseFrom 下拉选择框
+     * 动态加载当前表格已配置的 dataSource 类型字段
+     */
+    buildReuseFromSelect(selectedValue = '') {
+        // 从 fields 中筛选 dataSource 类型的字段（type 以 'dataSource' 开头）
+        const dataSourceFields = this.fields.filter(f => f.type && f.type.startsWith('dataSource'));
+        
+        let optionsHtml = '<option value="">--选择数据源--</option>';
+        dataSourceFields.forEach(f => {
+            const selected = f.name === selectedValue ? 'selected' : '';
+            optionsHtml += `<option value="${f.name}" ${selected}>${f.name}</option>`;
+        });
+        
+        return `<select class="form-select form-select-sm" style="width:130px" data-field="reuseFrom">${optionsHtml}</select>`;
+    },
+
+    /**
      * 创建新页面
      */
     create() {
         this.currentPageId = null;
         this.fields = [];
+        this.customActions = [];
         this.resetForm();
         this.renderFieldsList();
+        this.renderCustomActionsList();
         this.modal.show();
     },
 
@@ -196,6 +215,10 @@ const VdsConfigurator = {
         this.fields = vdsConfig.ths || [];
         this.renderFieldsList();
         
+        // 自定义操作
+        this.customActions = vdsConfig.customActions || [];
+        this.renderCustomActionsList();
+        
         // 更新JSON
         document.getElementById('cfg-vdsConfigJson').value = JSON.stringify(vdsConfig, null, 2);
     },
@@ -235,14 +258,16 @@ const VdsConfigurator = {
         this.fields.forEach((field, index) => {
             const typeLabel = this.getFieldTypeLabel(field);
             const searchBadge = field.searchedByKeywords ? '<span class="badge bg-info ms-1">可搜索</span>' : '';
+            const isButton = field.type === 'button';
+            const typeBadgeClass = isButton ? 'bg-warning text-dark' : 'bg-secondary';
             
             html += `
                 <div class="field-item d-flex align-items-center p-2 border-bottom" data-index="${index}" draggable="true">
                     <span class="me-2" style="cursor:move;">≡</span>
                     <span class="flex-grow-1">
-                        <strong>${field.name || '(操作列)'}</strong>
+                        <strong>${isButton ? '操作列' : field.name}</strong>
                         <span class="text-muted ms-2">${field.title}</span>
-                        <span class="badge bg-secondary ms-1">${typeLabel}</span>
+                        <span class="badge ${typeBadgeClass} ms-1">${typeLabel}</span>
                         ${searchBadge}
                     </span>
                     <button class="btn btn-sm btn-outline-primary me-1" onclick="VdsConfigurator.editField(${index})">编辑</button>
@@ -390,6 +415,7 @@ const VdsConfigurator = {
      */
     onFieldTypeChange() {
         const type = document.getElementById('field-type').value;
+        const nameGroup = document.getElementById('field-name-group');
         
         // 隐藏所有特殊配置
         document.getElementById('field-enum-group').classList.add('d-none');
@@ -397,6 +423,7 @@ const VdsConfigurator = {
         document.getElementById('field-button-group').classList.add('d-none');
         document.getElementById('field-searchable-group').classList.remove('d-none');
         document.getElementById('field-display-group').classList.remove('d-none');
+        if (nameGroup) nameGroup.classList.remove('d-none');
         
         // 根据类型显示配置
         if (type === 'enum') {
@@ -407,6 +434,10 @@ const VdsConfigurator = {
             document.getElementById('field-button-group').classList.remove('d-none');
             document.getElementById('field-searchable-group').classList.add('d-none');
             document.getElementById('field-display-group').classList.add('d-none');
+            if (nameGroup) nameGroup.classList.add('d-none');
+            // 如果标题为空，设置默认值
+            const titleInput = document.getElementById('field-title');
+            if (!titleInput.value) titleInput.value = '操作';
             // 初始化按钮配置列表
             this.initButtonConfigs();
         }
@@ -416,6 +447,8 @@ const VdsConfigurator = {
     buttonConfigs: [],
     // 保存原有的模板内容
     existingTemplate: '',
+    // 自定义操作配置列表
+    customActions: [],
 
     /**
      * 初始化按钮配置
@@ -559,7 +592,7 @@ const VdsConfigurator = {
         div.tabIndex = -1;
         div.innerHTML = `
             <div class="modal-dialog">
-                <div class="modal-content">
+                <div class="modal-content" style="border: 2px solid #0d6efd; box-shadow: 0 0 20px rgba(13,110,253,0.4);">
                     <div class="modal-header">
                         <h5 class="modal-title">自定义按钮配置 - ${btn.text}</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -697,6 +730,456 @@ const VdsConfigurator = {
         document.getElementById('field-tmpl').value = allButtons.join('\n');
     },
 
+    // =====================================================
+    // CustomActions 自定义操作配置
+    // =====================================================
+
+    /**
+     * 添加自定义操作
+     */
+    addCustomAction() {
+        const newAction = {
+            className: '',
+            modalTitle: '',
+            executeUrl: '',
+            executeMethod: 'POST',
+            modalFields: [],
+            dataContent: {}
+        };
+        this.customActions.push(newAction);
+        this.renderCustomActionsList();
+        // 立即编辑新添加的操作
+        this.editCustomAction(this.customActions.length - 1);
+    },
+
+    /**
+     * 编辑自定义操作
+     */
+    editCustomAction(index) {
+        const action = this.customActions[index];
+        if (!action) return;
+
+        // 移除旧的 Modal
+        const oldModal = document.querySelector('#custom-action-edit-modal');
+        if (oldModal) oldModal.remove();
+
+        // 构建 modalFields 列表 HTML
+        let modalFieldsHtml = '';
+        if (action.modalFields && action.modalFields.length > 0) {
+            action.modalFields.forEach((field, i) => {
+                modalFieldsHtml += `
+                    <div class="d-flex gap-2 mb-2 align-items-center modal-field-row" data-index="${i}">
+                        <input type="text" class="form-control form-control-sm" style="width:100px" value="${field.name || ''}" placeholder="字段名" data-field="name">
+                        <input type="text" class="form-control form-control-sm" style="width:100px" value="${field.label || ''}" placeholder="标签" data-field="label">
+                        <select class="form-select form-select-sm" style="width:100px" data-field="type">
+                            <option value="text" ${field.type === 'text' ? 'selected' : ''}>文本</option>
+                            <option value="textarea" ${field.type === 'textarea' ? 'selected' : ''}>多行文本</option>
+                            <option value="dataSource" ${field.type === 'dataSource' ? 'selected' : ''}>dataSource</option>
+                        </select>
+                        ${this.buildReuseFromSelect(field.reuseFrom)}
+                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="VdsConfigurator.removeModalField(${index}, ${i})">×</button>
+                    </div>
+                `;
+            });
+        }
+
+        // 构建 dataContent 列表 HTML
+        let dataContentHtml = '';
+        // 获取已配置的表单字段名称列表
+        const formFieldNames = (action.modalFields || []).map(f => f.name).filter(n => n);
+        if (action.dataContent) {
+            Object.entries(action.dataContent).forEach(([key, value], i) => {
+                dataContentHtml += `<div class="d-flex gap-2 mb-2 align-items-center data-content-row">${this.buildDataContentRowHtml(key, value, formFieldNames)}</div>`;
+            });
+        }
+
+        const div = document.createElement('div');
+        div.className = 'modal fade';
+        div.id = 'custom-action-edit-modal';
+        div.tabIndex = -1;
+        div.innerHTML = `
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content" style="border: 2px solid #0d6efd; box-shadow: 0 0 20px rgba(13,110,253,0.4);">
+                    <div class="modal-header">
+                        <h5 class="modal-title">编辑自定义操作</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label">CSS Class <small class="text-muted">(事件绑定)</small></label>
+                                <input type="text" class="form-control form-control-sm" id="cae-className" value="${action.className || ''}" placeholder="如: restore">
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label">弹窗标题</label>
+                                <input type="text" class="form-control form-control-sm" id="cae-modalTitle" value="${action.modalTitle || ''}" placeholder="如: 选择还原的数据库">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">HTTP方法</label>
+                                <select class="form-select form-select-sm" id="cae-executeMethod">
+                                    <option value="POST" ${action.executeMethod === 'POST' ? 'selected' : ''}>POST</option>
+                                    <option value="GET" ${action.executeMethod === 'GET' ? 'selected' : ''}>GET</option>
+                                    <option value="PUT" ${action.executeMethod === 'PUT' ? 'selected' : ''}>PUT</option>
+                                    <option value="DELETE" ${action.executeMethod === 'DELETE' ? 'selected' : ''}>DELETE</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">执行 API URL</label>
+                            <input type="text" class="form-control form-control-sm" id="cae-executeUrl" value="${action.executeUrl || ''}" placeholder="如: /Database/Restore">
+                        </div>
+                        
+                        <hr>
+                        <h6>弹窗表单字段 <button type="button" class="btn btn-sm btn-outline-primary ms-2" onclick="VdsConfigurator.addModalFieldRow(${index})">+ 添加</button></h6>
+                        <div id="cae-modalFields">
+                            ${modalFieldsHtml || '<div class="text-muted small">暂无表单字段</div>'}
+                        </div>
+                        
+                        <hr>
+                        <h6>请求参数 <button type="button" class="btn btn-sm btn-outline-primary ms-2" onclick="VdsConfigurator.addDataContentRow()">+ 添加</button></h6>
+                        <div class="small text-muted mb-2">参数值可选择：当前行ID、上方已配置的表单字段、或手动输入固定值</div>
+                        <div id="cae-dataContent">
+                            ${dataContentHtml || '<div class="text-muted small">暂无请求参数</div>'}
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                        <button type="button" class="btn btn-primary btn-sm" id="cae-save">保存</button>
+                    </div>
+                </div>
+            </div>`;
+
+        document.body.appendChild(div);
+        const modal = new bootstrap.Modal(div);
+        this.currentEditingActionIndex = index;
+
+        // 保存按钮事件
+        document.getElementById('cae-save').onclick = () => {
+            this.saveCustomAction(index);
+            modal.hide();
+        };
+
+        this.makeModalDraggable(div);
+        modal.show();
+    },
+
+    // 当前编辑的操作索引
+    currentEditingActionIndex: -1,
+
+    /**
+     * 添加弹窗表单字段行
+     */
+    addModalFieldRow(actionIndex) {
+        const container = document.getElementById('cae-modalFields');
+        if (!container) return;
+        
+        // 清除占位文字
+        const placeholder = container.querySelector('.text-muted');
+        if (placeholder) placeholder.remove();
+        
+        const action = this.customActions[actionIndex];
+        const newIndex = action.modalFields ? action.modalFields.length : 0;
+        
+        // 生成默认字段名
+        const defaultFieldName = `field${newIndex + 1}`;
+        
+        const row = document.createElement('div');
+        row.className = 'd-flex gap-2 mb-2 align-items-center modal-field-row';
+        row.dataset.index = newIndex;
+        row.dataset.fieldName = defaultFieldName; // 记录当前字段名用于关联
+        row.innerHTML = `
+            <input type="text" class="form-control form-control-sm" style="width:100px" value="${defaultFieldName}" placeholder="字段名" data-field="name" onchange="VdsConfigurator.onModalFieldNameChange(this)">
+            <input type="text" class="form-control form-control-sm" style="width:100px" value="" placeholder="标签" data-field="label">
+            <select class="form-select form-select-sm" style="width:100px" data-field="type">
+                <option value="text" selected>文本</option>
+                <option value="textarea">多行文本</option>
+                <option value="dataSource">dataSource</option>
+            </select>
+            ${this.buildReuseFromSelect()}
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="VdsConfigurator.removeModalFieldRow(this)">×</button>
+        `;
+        container.appendChild(row);
+        
+        // 同时添加对应的请求参数行
+        this.addLinkedDataContentRow(defaultFieldName);
+    },
+
+    /**
+     * 添加与表单字段关联的请求参数行
+     */
+    addLinkedDataContentRow(fieldName) {
+        const container = document.getElementById('cae-dataContent');
+        if (!container) return;
+        
+        // 清除占位文字
+        const placeholder = container.querySelector('.text-muted');
+        if (placeholder) placeholder.remove();
+        
+        // 获取当前已配置的表单字段
+        const formFieldNames = [];
+        document.querySelectorAll('#cae-modalFields .modal-field-row').forEach(row => {
+            const name = row.querySelector('[data-field="name"]')?.value;
+            if (name) formFieldNames.push(name);
+        });
+        
+        const row = document.createElement('div');
+        row.className = 'd-flex gap-2 mb-2 align-items-center data-content-row';
+        row.dataset.linkedField = fieldName; // 标记关联的表单字段
+        row.innerHTML = this.buildDataContentRowHtml(fieldName, '$form', formFieldNames);
+        container.appendChild(row);
+    },
+
+    /**
+     * 表单字段名称变化时同步更新请求参数
+     */
+    onModalFieldNameChange(input) {
+        const row = input.closest('.modal-field-row');
+        const oldName = row.dataset.fieldName || '';
+        const newName = input.value;
+        
+        // 更新记录
+        row.dataset.fieldName = newName;
+        
+        // 查找关联的请求参数行并更新
+        const linkedRow = document.querySelector(`.data-content-row[data-linked-field="${oldName}"]`);
+        if (linkedRow) {
+            linkedRow.dataset.linkedField = newName;
+            // 更新参数名
+            const keyInput = linkedRow.querySelector('[data-field="key"]');
+            if (keyInput) keyInput.value = newName;
+            // 更新下拉选项
+            this.refreshDataContentSourceOptions();
+        }
+    },
+
+    /**
+     * 删除表单字段行，同时删除关联的请求参数行
+     */
+    removeModalFieldRow(btn) {
+        const row = btn.closest('.modal-field-row');
+        const fieldName = row.querySelector('[data-field="name"]')?.value;
+        
+        // 删除关联的请求参数行
+        const linkedRow = document.querySelector(`.data-content-row[data-linked-field="${fieldName}"]`);
+        if (linkedRow) linkedRow.remove();
+        
+        // 删除表单字段行
+        row.remove();
+        
+        // 刷新请求参数的下拉选项
+        this.refreshDataContentSourceOptions();
+    },
+
+    /**
+     * 刷新所有请求参数行的下拉选项
+     */
+    refreshDataContentSourceOptions() {
+        // 获取当前所有表单字段名
+        const formFieldNames = [];
+        document.querySelectorAll('#cae-modalFields .modal-field-row').forEach(row => {
+            const name = row.querySelector('[data-field="name"]')?.value;
+            if (name) formFieldNames.push(name);
+        });
+        
+        // 更新每个请求参数行的下拉选项
+        document.querySelectorAll('#cae-dataContent .data-content-row').forEach(row => {
+            const select = row.querySelector('[data-field="source"]');
+            if (!select) return;
+            
+            const currentValue = select.value;
+            let options = '<option value="custom">手动输入</option>';
+            options += '<option value="{{id}}">当前行ID</option>';
+            formFieldNames.forEach(name => {
+                options += `<option value="$form:${name}">表单: ${name}</option>`;
+            });
+            
+            select.innerHTML = options;
+            // 尝试恢复选中值
+            if (currentValue && select.querySelector(`option[value="${currentValue}"]`)) {
+                select.value = currentValue;
+            }
+        });
+    },
+
+    /**
+     * 移除弹窗表单字段
+     */
+    removeModalField(actionIndex, fieldIndex) {
+        const row = document.querySelector(`.modal-field-row[data-index="${fieldIndex}"]`);
+        if (row) row.remove();
+    },
+
+    /**
+     * 添加请求参数行
+     */
+    addDataContentRow() {
+        const container = document.getElementById('cae-dataContent');
+        if (!container) return;
+        
+        // 清除占位文字
+        const placeholder = container.querySelector('.text-muted');
+        if (placeholder) placeholder.remove();
+        
+        // 获取当前已配置的表单字段
+        const formFieldNames = [];
+        document.querySelectorAll('#cae-modalFields .modal-field-row').forEach(row => {
+            const name = row.querySelector('[data-field="name"]')?.value;
+            if (name) formFieldNames.push(name);
+        });
+        
+        const row = document.createElement('div');
+        row.className = 'd-flex gap-2 mb-2 align-items-center data-content-row';
+        row.innerHTML = this.buildDataContentRowHtml('', '', formFieldNames);
+        container.appendChild(row);
+    },
+
+    /**
+     * 构建请求参数行 HTML
+     */
+    buildDataContentRowHtml(key, value, formFieldNames) {
+        // 构建值来源下拉选项
+        let valueSourceOptions = '<option value="custom">手动输入</option>';
+        valueSourceOptions += '<option value="{{id}}">当前行ID</option>';
+        formFieldNames.forEach(name => {
+            valueSourceOptions += `<option value="$form:${name}">表单: ${name}</option>`;
+        });
+        
+        // 判断当前值的来源
+        let selectedSource = 'custom';
+        let customValue = value;
+        if (value === '$form' && formFieldNames.includes(key)) {
+            selectedSource = `$form:${key}`;
+            customValue = '';
+        } else if (value && value.startsWith('{{') && value.endsWith('}}')) {
+            selectedSource = value;
+            customValue = '';
+        }
+        
+        // 替换选中状态
+        valueSourceOptions = valueSourceOptions.replace(`value="${selectedSource}"`, `value="${selectedSource}" selected`);
+        
+        return `
+            <input type="text" class="form-control form-control-sm" style="width:120px" value="${key}" placeholder="参数名" data-field="key">
+            <select class="form-select form-select-sm" style="width:130px" data-field="source" onchange="VdsConfigurator.onDataContentSourceChange(this)">
+                ${valueSourceOptions}
+            </select>
+            <input type="text" class="form-control form-control-sm flex-grow-1 ${selectedSource !== 'custom' ? 'd-none' : ''}" value="${customValue}" placeholder="固定值或 {{xx}}" data-field="value">
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.data-content-row').remove()">×</button>
+        `;
+    },
+
+    /**
+     * 请求参数来源切换
+     */
+    onDataContentSourceChange(select) {
+        const row = select.closest('.data-content-row');
+        const valueInput = row.querySelector('[data-field="value"]');
+        const keyInput = row.querySelector('[data-field="key"]');
+        
+        if (select.value === 'custom') {
+            valueInput.classList.remove('d-none');
+        } else {
+            valueInput.classList.add('d-none');
+            valueInput.value = '';
+            
+            // 如果选择了表单字段，自动填充参数名
+            if (select.value.startsWith('$form:') && keyInput && !keyInput.value) {
+                const fieldName = select.value.replace('$form:', '');
+                keyInput.value = fieldName;
+            }
+            // 如果选择了当前行ID，参数名默认为id
+            if (select.value === '{{id}}' && keyInput && !keyInput.value) {
+                keyInput.value = 'id';
+            }
+        }
+    },
+
+    /**
+     * 保存自定义操作配置
+     */
+    saveCustomAction(index) {
+        const action = this.customActions[index];
+        if (!action) return;
+
+        // 基本信息
+        action.className = document.getElementById('cae-className').value;
+        action.modalTitle = document.getElementById('cae-modalTitle').value;
+        action.executeUrl = document.getElementById('cae-executeUrl').value;
+        action.executeMethod = document.getElementById('cae-executeMethod').value;
+
+        // 收集 modalFields
+        action.modalFields = [];
+        document.querySelectorAll('#cae-modalFields .modal-field-row').forEach(row => {
+            const name = row.querySelector('[data-field="name"]').value;
+            if (name) {
+                action.modalFields.push({
+                    name: name,
+                    label: row.querySelector('[data-field="label"]').value,
+                    type: row.querySelector('[data-field="type"]').value,
+                    reuseFrom: row.querySelector('[data-field="reuseFrom"]').value || undefined
+                });
+            }
+        });
+
+        // 收集 dataContent
+        action.dataContent = {};
+        document.querySelectorAll('#cae-dataContent .data-content-row').forEach(row => {
+            const key = row.querySelector('[data-field="key"]').value;
+            const source = row.querySelector('[data-field="source"]').value;
+            const customValue = row.querySelector('[data-field="value"]').value;
+            
+            if (key) {
+                if (source === 'custom') {
+                    action.dataContent[key] = customValue;
+                } else if (source.startsWith('$form:')) {
+                    // 如果参数名和表单字段名相同，简化为 $form
+                    const formFieldName = source.replace('$form:', '');
+                    action.dataContent[key] = key === formFieldName ? '$form' : `$form:${formFieldName}`;
+                } else {
+                    // {{id}} 等
+                    action.dataContent[key] = source;
+                }
+            }
+        });
+
+        this.renderCustomActionsList();
+    },
+
+    /**
+     * 删除自定义操作
+     */
+    removeCustomAction(index) {
+        this.customActions.splice(index, 1);
+        this.renderCustomActionsList();
+    },
+
+    /**
+     * 渲染自定义操作列表
+     */
+    renderCustomActionsList() {
+        const container = document.getElementById('customActions-list');
+        if (!container) return;
+
+        if (this.customActions.length === 0) {
+            container.innerHTML = '<div class="text-muted small p-2">暂无自定义操作，点击上方按钮添加</div>';
+            return;
+        }
+
+        let html = '';
+        this.customActions.forEach((action, index) => {
+            html += `
+                <div class="d-flex align-items-center gap-2 p-2 border rounded mb-1 bg-white">
+                    <span class="badge bg-secondary">${action.className || '未命名'}</span>
+                    <span class="flex-grow-1">${action.modalTitle || '操作'}</span>
+                    <span class="text-muted small">${action.executeUrl || ''}</span>
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="VdsConfigurator.editCustomAction(${index})">编辑</button>
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="VdsConfigurator.removeCustomAction(${index})">删除</button>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+    },
+
     /**
      * 保存字段
      */
@@ -809,6 +1292,10 @@ const VdsConfigurator = {
             this.fields = vdsConfig.ths || [];
             this.renderFieldsList();
             
+            // 加载 customActions
+            this.customActions = vdsConfig.customActions || [];
+            this.renderCustomActionsList();
+            
             showResultBox('应用成功');
         } catch (e) {
             showErrorBox('JSON格式错误: ' + e.message);
@@ -858,6 +1345,11 @@ const VdsConfigurator = {
                 fieldName: orderField,
                 isAsc: document.getElementById('cfg-orderAsc').value === 'true'
             }];
+        }
+        
+        // customActions
+        if (this.customActions && this.customActions.length > 0) {
+            config.customActions = this.customActions;
         }
         
         return config;
