@@ -277,9 +277,35 @@
                 
                 <!-- 按钮配置 -->
                 <div class="mb-3 d-none" id="field-button-group">
-                    <label class="form-label">按钮模板HTML</label>
-                    <textarea class="form-control form-control-sm" id="field-tmpl" rows="5" placeholder='<button data-id="{{id}}" onclick="...">编辑</button>'></textarea>
-                    <small class="text-muted">使用 {{fieldName}} 插入字段值</small>
+                    <label class="form-label">操作按钮配置</label>
+                    
+                    <!-- 快速添加预设按钮 -->
+                    <div class="mb-3 p-2 border rounded bg-light">
+                        <div class="small text-muted mb-2">快速添加预设按钮：</div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="VdsConfigurator.addPresetButton('edit')">+ 编辑</button>
+                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="VdsConfigurator.addPresetButton('delete')">+ 删除</button>
+                            <button type="button" class="btn btn-outline-success btn-sm" onclick="VdsConfigurator.addPresetButton('view')">+ 查看</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="VdsConfigurator.addPresetButton('custom')">+ 自定义</button>
+                        </div>
+                    </div>
+                    
+                    <!-- 已添加的按钮列表 -->
+                    <div id="button-list" class="mb-2"></div>
+                    
+                    <!-- 生成的模板预览 -->
+                    <div class="mb-2">
+                        <label class="form-label small">生成的模板 <span class="text-muted">(可手动编辑)</span></label>
+                        <textarea class="form-control form-control-sm font-monospace" id="field-tmpl" rows="4" placeholder="点击上方按钮添加操作按钮"></textarea>
+                    </div>
+                    
+                    <!-- 可用占位符提示 -->
+                    <div class="small text-muted">
+                        <strong>可用占位符：</strong>
+                        <code>{{id}}</code> 主键 | 
+                        <code>{{tableId}}</code> 表格ID | 
+                        <code>{{字段名}}</code> 字段值
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">

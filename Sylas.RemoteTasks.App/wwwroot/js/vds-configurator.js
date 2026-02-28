@@ -18,6 +18,10 @@ const VdsConfigurator = {
         this.modal = new bootstrap.Modal(document.getElementById('vdsConfiguratorModal'));
         this.fieldModal = new bootstrap.Modal(document.getElementById('fieldEditModal'));
         
+        // 让Modal可拖拽
+        this.makeModalDraggable(document.getElementById('vdsConfiguratorModal'));
+        this.makeModalDraggable(document.getElementById('fieldEditModal'));
+        
         // 监听Tab切换，同步JSON
         document.querySelectorAll('#configTabs button').forEach(btn => {
             btn.addEventListener('shown.bs.tab', (e) => {
@@ -25,6 +29,95 @@ const VdsConfigurator = {
                     this.syncToJson();
                 }
             });
+        });
+    },
+
+    /**
+     * 让Modal可拖拽
+     */
+    makeModalDraggable(modalEl) {
+        if (!modalEl) return;
+        
+        const dialog = modalEl.querySelector('.modal-dialog');
+        const header = modalEl.querySelector('.modal-header');
+        if (!dialog || !header) return;
+        
+        let isDragging = false;
+        let startX, startY, initialX = 0, initialY = 0;
+        let animationId = null;
+        let currentX, currentY;
+        
+        // 设置拖拽样式和GPU加速
+        header.style.cursor = 'move';
+        header.style.userSelect = 'none';
+        dialog.style.willChange = 'transform';
+        
+        const onMouseDown = (e) => {
+            if (e.target.closest('.btn-close')) return;
+            
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            
+            // 禁用过渡动画，让拖拽即时响应
+            dialog.style.transition = 'none';
+            
+            // 获取当前位置
+            const transform = dialog.style.transform;
+            if (transform) {
+                const match = transform.match(/translate\(([\d.-]+)px,\s*([\d.-]+)px\)/);
+                if (match) {
+                    initialX = parseFloat(match[1]);
+                    initialY = parseFloat(match[2]);
+                }
+            }
+            
+            document.body.style.cursor = 'move';
+            e.preventDefault();
+        };
+        
+        const onMouseMove = (e) => {
+            if (!isDragging) return;
+            
+            currentX = initialX + e.clientX - startX;
+            currentY = initialY + e.clientY - startY;
+            
+            // 使用 requestAnimationFrame 优化渲染
+            if (!animationId) {
+                animationId = requestAnimationFrame(() => {
+                    dialog.style.transform = `translate(${currentX}px, ${currentY}px)`;
+                    animationId = null;
+                });
+            }
+        };
+        
+        const onMouseUp = () => {
+            if (isDragging) {
+                isDragging = false;
+                initialX = currentX || initialX;
+                initialY = currentY || initialY;
+                document.body.style.cursor = '';
+                
+                // 恢复过渡动画
+                dialog.style.transition = '';
+                
+                if (animationId) {
+                    cancelAnimationFrame(animationId);
+                    animationId = null;
+                }
+            }
+        };
+        
+        header.addEventListener('mousedown', onMouseDown);
+        document.addEventListener('mousemove', onMouseMove, { passive: true });
+        document.addEventListener('mouseup', onMouseUp);
+        
+        // Modal关闭时重置
+        modalEl.addEventListener('hidden.bs.modal', () => {
+            dialog.style.transform = '';
+            dialog.style.willChange = '';
+            initialX = 0;
+            initialY = 0;
         });
     },
 
@@ -314,7 +407,294 @@ const VdsConfigurator = {
             document.getElementById('field-button-group').classList.remove('d-none');
             document.getElementById('field-searchable-group').classList.add('d-none');
             document.getElementById('field-display-group').classList.add('d-none');
+            // 初始化按钮配置列表
+            this.initButtonConfigs();
         }
+    },
+
+    // 按钮配置列表
+    buttonConfigs: [],
+    // 保存原有的模板内容
+    existingTemplate: '',
+
+    /**
+     * 初始化按钮配置
+     */
+    initButtonConfigs() {
+        const existingTmpl = document.getElementById('field-tmpl').value;
+        // 保存原有模板
+        this.existingTemplate = existingTmpl || '';
+        // 重置新添加的按钮配置
+        this.buttonConfigs = [];
+        this.renderButtonList();
+    },
+
+    /**
+     * 添加预设按钮
+     */
+    addPresetButton(type) {
+        const apiUrl = document.getElementById('cfg-apiUrl').value || '/api/data';
+        let deleteUrl = apiUrl.replace(/\/?$/, '');
+        if (deleteUrl.toLowerCase().includes('query') || deleteUrl.toLowerCase().includes('list') || deleteUrl.toLowerCase().includes('page')) {
+            deleteUrl = deleteUrl.replace(/query|list|page/gi, 'delete');
+        } else {
+            deleteUrl = deleteUrl + '/delete';
+        }
+        
+        let config = {};
+        switch (type) {
+            case 'edit':
+                config = { type: 'edit', text: '编辑', style: 'primary' };
+                break;
+            case 'delete':
+                config = { type: 'delete', text: '删除', style: 'danger', url: deleteUrl, confirmText: '确定要删除此记录吗？' };
+                break;
+            case 'view':
+                config = { type: 'view', text: '查看', style: 'info', url: '/detail/{{id}}' };
+                break;
+            case 'custom':
+                config = { 
+                    type: 'custom', 
+                    text: '操作', 
+                    style: 'secondary', 
+                    className: '',           // 用于事件绑定的class
+                    executeUrl: '',          // 执行的API URL
+                    executeMethod: 'POST',   // HTTP方法
+                    needConfirm: false,      // 是否需要确认框
+                    confirmText: '',         // 确认提示文字
+                    useCallback: true        // 是否使用onDataAllLoaded回调绑定事件
+                };
+                break;
+        }
+        
+        this.buttonConfigs.push(config);
+        this.renderButtonList();
+        this.generateButtonTemplate();
+    },
+
+    /**
+     * 渲染按钮配置列表
+     */
+    renderButtonList() {
+        const container = document.getElementById('button-list');
+        if (!container) return;
+        
+        if (this.buttonConfigs.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+        
+        let html = '';
+        const typeLabels = { edit: '编辑表单', delete: '确认删除', view: '跳转页面', custom: '自定义' };
+        this.buttonConfigs.forEach((btn, index) => {
+            html += `
+                <div class="d-flex align-items-center gap-2 p-2 border rounded mb-1 bg-white">
+                    <span class="badge bg-${btn.style}">${btn.text}</span>
+                    <input type="text" class="form-control form-control-sm" style="width:70px" value="${btn.text}" 
+                        onchange="VdsConfigurator.updateButtonConfig(${index}, 'text', this.value)" title="按钮文字">
+                    <select class="form-select form-select-sm" style="width:85px" 
+                        onchange="VdsConfigurator.updateButtonConfig(${index}, 'style', this.value)" title="按钮样式">
+                        <option value="primary" ${btn.style === 'primary' ? 'selected' : ''}>主要</option>
+                        <option value="success" ${btn.style === 'success' ? 'selected' : ''}>成功</option>
+                        <option value="danger" ${btn.style === 'danger' ? 'selected' : ''}>危险</option>
+                        <option value="warning" ${btn.style === 'warning' ? 'selected' : ''}>警告</option>
+                        <option value="info" ${btn.style === 'info' ? 'selected' : ''}>信息</option>
+                        <option value="secondary" ${btn.style === 'secondary' ? 'selected' : ''}>次要</option>
+                    </select>
+                    <span class="text-muted small flex-grow-1">${typeLabels[btn.type] || ''}</span>
+                    ${btn.type === 'delete' ? `
+                        <input type="text" class="form-control form-control-sm" style="width:180px" placeholder="删除接口URL" value="${btn.url || ''}"
+                            onchange="VdsConfigurator.updateButtonConfig(${index}, 'url', this.value)">
+                    ` : ''}
+                    ${btn.type === 'view' ? `
+                        <input type="text" class="form-control form-control-sm" style="width:180px" placeholder="跳转URL" value="${btn.url || ''}"
+                            onchange="VdsConfigurator.updateButtonConfig(${index}, 'url', this.value)">
+                    ` : ''}
+                    ${btn.type === 'custom' ? `
+                        <input type="text" class="form-control form-control-sm" style="width:100px" placeholder="class名称" value="${btn.className || ''}"
+                            onchange="VdsConfigurator.updateButtonConfig(${index}, 'className', this.value)" title="用于事件绑定的class">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="VdsConfigurator.showCustomButtonDetail(${index})" title="详细配置">⚙</button>
+                    ` : ''}
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="VdsConfigurator.removeButton(${index})" title="删除">×</button>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+    },
+
+    /**
+     * 更新按钮配置
+     */
+    updateButtonConfig(index, key, value) {
+        if (this.buttonConfigs[index]) {
+            this.buttonConfigs[index][key] = value;
+            this.renderButtonList();
+            this.generateButtonTemplate();
+        }
+    },
+
+    /**
+     * 删除按钮
+     */
+    removeButton(index) {
+        this.buttonConfigs.splice(index, 1);
+        this.renderButtonList();
+        this.generateButtonTemplate();
+    },
+
+    /**
+     * 显示自定义按钮详细配置弹窗
+     */
+    showCustomButtonDetail(index) {
+        const btn = this.buttonConfigs[index];
+        if (!btn) return;
+
+        // 移除旧的modal
+        const oldModal = document.querySelector('#custom-btn-modal');
+        if (oldModal) oldModal.remove();
+
+        const div = document.createElement('div');
+        div.className = 'modal fade';
+        div.id = 'custom-btn-modal';
+        div.tabIndex = -1;
+        div.innerHTML = `
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">自定义按钮配置 - ${btn.text}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">CSS Class名称 <small class="text-muted">(用于事件绑定)</small></label>
+                            <input type="text" class="form-control form-control-sm" id="cbm-className" value="${btn.className || ''}" placeholder="如: restore, custom-action">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">执行方式</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="cbm-execType" id="cbm-useCallback" value="callback" ${btn.useCallback ? 'checked' : ''}>
+                                <label class="form-check-label" for="cbm-useCallback">
+                                    回调绑定 <small class="text-muted">(在onDataAllLoaded中绑定事件)</small>
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="cbm-execType" id="cbm-useExecute" value="execute" ${!btn.useCallback && btn.executeUrl ? 'checked' : ''}>
+                                <label class="form-check-label" for="cbm-useExecute">
+                                    直接执行API <small class="text-muted">(使用execute函数)</small>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="mb-3 exec-api-group ${btn.useCallback ? 'd-none' : ''}">
+                            <label class="form-label">API URL</label>
+                            <input type="text" class="form-control form-control-sm" id="cbm-executeUrl" value="${btn.executeUrl || ''}" placeholder="如: /api/action?id={{id}}">
+                        </div>
+                        <div class="mb-3 exec-api-group ${btn.useCallback ? 'd-none' : ''}">
+                            <label class="form-label">HTTP方法</label>
+                            <select class="form-select form-select-sm" id="cbm-executeMethod">
+                                <option value="POST" ${btn.executeMethod === 'POST' ? 'selected' : ''}>POST</option>
+                                <option value="GET" ${btn.executeMethod === 'GET' ? 'selected' : ''}>GET</option>
+                                <option value="PUT" ${btn.executeMethod === 'PUT' ? 'selected' : ''}>PUT</option>
+                                <option value="DELETE" ${btn.executeMethod === 'DELETE' ? 'selected' : ''}>DELETE</option>
+                            </select>
+                        </div>
+                        <div class="mb-3 exec-api-group ${btn.useCallback ? 'd-none' : ''}">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="cbm-needConfirm" ${btn.needConfirm ? 'checked' : ''}>
+                                <label class="form-check-label" for="cbm-needConfirm">执行前需要确认</label>
+                            </div>
+                        </div>
+                        <div class="mb-3 exec-api-group confirm-text-group ${btn.useCallback || !btn.needConfirm ? 'd-none' : ''}">
+                            <label class="form-label">确认提示文字</label>
+                            <input type="text" class="form-control form-control-sm" id="cbm-confirmText" value="${btn.confirmText || ''}" placeholder="确定要执行此操作吗？">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                        <button type="button" class="btn btn-primary btn-sm" id="cbm-save">保存</button>
+                    </div>
+                </div>
+            </div>`;
+        
+        document.body.appendChild(div);
+        
+        // 绑定事件
+        const modal = new bootstrap.Modal(div);
+        
+        // 执行方式切换
+        div.querySelectorAll('input[name="cbm-execType"]').forEach(radio => {
+            radio.onchange = () => {
+                const isCallback = div.querySelector('#cbm-useCallback').checked;
+                div.querySelectorAll('.exec-api-group').forEach(el => {
+                    el.classList.toggle('d-none', isCallback);
+                });
+            };
+        });
+        
+        // 确认框切换
+        div.querySelector('#cbm-needConfirm').onchange = function() {
+            div.querySelector('.confirm-text-group').classList.toggle('d-none', !this.checked);
+        };
+        
+        // 保存
+        div.querySelector('#cbm-save').onclick = () => {
+            btn.className = div.querySelector('#cbm-className').value;
+            btn.useCallback = div.querySelector('#cbm-useCallback').checked;
+            btn.executeUrl = div.querySelector('#cbm-executeUrl').value;
+            btn.executeMethod = div.querySelector('#cbm-executeMethod').value;
+            btn.needConfirm = div.querySelector('#cbm-needConfirm').checked;
+            btn.confirmText = div.querySelector('#cbm-confirmText').value;
+            
+            this.renderButtonList();
+            this.generateButtonTemplate();
+            modal.hide();
+        };
+        
+        this.makeModalDraggable(div);
+        modal.show();
+    },
+
+    /**
+     * 生成按钮模板HTML
+     */
+    generateButtonTemplate() {
+        const newButtons = this.buttonConfigs.map(btn => {
+            const btnClass = `btn btn-${btn.style} btn-sm`;
+            switch (btn.type) {
+                case 'edit':
+                    return `<button type="button" class="${btnClass}" onclick="showAddPannel(tables['{{tableId}}'], {{id}})">${btn.text}</button>`;
+                case 'delete':
+                    return `<button type="button" class="${btnClass}" data-table-id="{{tableId}}" data-content="&quot;{{id}}&quot;" data-execute-url="${btn.url}" data-method="POST" onclick="showConfirmBox('${btn.confirmText}', () => execute(this))">${btn.text}</button>`;
+                case 'view':
+                    return `<button type="button" class="${btnClass}" onclick="window.open('${btn.url}', '_blank')">${btn.text}</button>`;
+                case 'custom':
+                    // 根据配置生成不同的模板
+                    const classAttr = btn.className ? ` ${btn.className}` : '';
+                    if (btn.useCallback) {
+                        // 回调绑定模式：只生成带class的按钮，事件在onDataAllLoaded中绑定
+                        return `<button type="button" class="${btnClass}${classAttr}" data-table-id="{{tableId}}" data-id="{{id}}">${btn.text}</button>`;
+                    } else if (btn.executeUrl) {
+                        // 直接执行API模式
+                        const onclick = btn.needConfirm 
+                            ? `showConfirmBox('${btn.confirmText || '确定要执行此操作吗？'}', () => execute(this))`
+                            : `execute(this)`;
+                        return `<button type="button" class="${btnClass}${classAttr}" data-table-id="{{tableId}}" data-content="&quot;{{id}}&quot;" data-execute-url="${btn.executeUrl}" data-method="${btn.executeMethod || 'POST'}" onclick="${onclick}">${btn.text}</button>`;
+                    } else {
+                        // 默认：只有class
+                        return `<button type="button" class="${btnClass}${classAttr}" data-table-id="{{tableId}}" data-id="{{id}}">${btn.text}</button>`;
+                    }
+                default:
+                    return '';
+            }
+        });
+        
+        // 将新按钮追加到原有模板后面
+        const allButtons = [];
+        if (this.existingTemplate.trim()) {
+            allButtons.push(this.existingTemplate.trim());
+        }
+        allButtons.push(...newButtons);
+        
+        document.getElementById('field-tmpl').value = allButtons.join('\n');
     },
 
     /**
@@ -368,6 +748,10 @@ const VdsConfigurator = {
         } else if (type === 'button') {
             field.type = 'button';
             field.name = '';
+            // 只有通过预设按钮添加了配置时才重新生成，否则保留用户手动编辑的内容
+            if (this.buttonConfigs.length > 0) {
+                this.generateButtonTemplate();
+            }
             field.tmpl = document.getElementById('field-tmpl').value;
         }
         
@@ -526,7 +910,7 @@ const VdsConfigurator = {
             
             const result = await response.json();
             if (result.succeed) {
-                showResultBox(result.message || '保存成功');
+                showResultBox(result);
                 this.modal.hide();
                 // 刷新列表
                 tables['vdsPageTable'].loadData();
