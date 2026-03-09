@@ -89,7 +89,16 @@
                         let li = document.createElement('li')
                         li.innerHTML = `<span>${cmd.name}</span>`
                         cmdsUl.appendChild(li)
-                        await sendSseRequest('/Hosts/ExecuteCommand', requestBody, commandName, li, li)
+                        await sendSseRequestCommon(
+                            '/Hosts/ExecuteCommand',            // url
+                            requestBody,                        // requestBody
+                            commandName,                        // requestTitle
+                            li,                                 // spinnerEle
+                            li,                                 // msgContainer
+                            null,                               // onstart
+                            null,                               // 自定义消息处理函数
+                            60 * 3                              // 超时 3 分钟
+                        );
                     }
                 }
             }

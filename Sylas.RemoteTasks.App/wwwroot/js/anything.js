@@ -1,142 +1,28 @@
 const frequency = 200;
-/**
- * SSE 流读取器 - 使用 async generator 实现
- * 逐条解析并产出 JSON 数据
- */
-async function* readSSEStream(response) {
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    
-    try {
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            
-            // 解码二进制为文本
-            const text = decoder.decode(value, { stream: true });
-            
-            // 解析 JSON（一次可能返回多条）
-            const jsonList = text.match(/\{.+\}\n?/g);
-            if (!jsonList) {
-                console.warn('无法解析 JSON:', text);
-                continue;
-            }
-            
-            for (const json of jsonList) {
-                try {
-                    yield JSON.parse(json);
-                } catch (e) {
-                    console.warn('JSON 解析失败:', json);
-                }
-            }
-        }
-    } finally {
-        reader.releaseLock();
-    }
-}
 
 /**
  * 执行单个命令 - 使用 async generator 消费 SSE 流
  */
 async function executeCommand(commandId, commandName, executeBtn) {
-    //document.querySelector('.data-right-pannel').innerHTML = '';
-    document.querySelector(`button[command-name="${commandName}"]`).closest('.command-item').querySelector('.command-resolved').innerHTML = '';
+    //document.querySelector(`button[command-name="${commandName}"]`).closest('.command-item').querySelector('.command-resolved').innerHTML = '';
+    // 清空消息面板
+    const msgPannel = document.querySelector(`button[command-name="${commandName}"]`)
+        ?.closest('.command-item')
+        ?.querySelector('.command-resolved');
+    if (msgPannel) msgPannel.innerHTML = '';
     const requestBody = JSON.stringify({ commandId });
     // 支持SSE的fetch请求
-    const spinnerEle = executeBtn;
-    try {
-        if (spinnerEle) {
-            showSpinner(spinnerEle);
-        }
-        const accessToken = getAccessToken();
-        if (!accessToken) {
-            showWarningBox('身份已过期, 请重新登录', () => location.href = `/Home/Login?redirect_path=${location.pathname}`);
-            return null;
-        }
-        const response = await fetch('/Hosts/ExecuteCommand', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                'authorization': `Bearer ${accessToken}`
-            },
-            body: requestBody
-        })
-
-        if (!response.ok) {
-            if (response.status === 401) {
-                showWarningBox('身份已过期, 请重新登录', () => location.href = `/Home/Login?redirect_path=${location.pathname}`);
-                return null;
-            }
-            else if (response.status === 404) {
-                showErrorBox('接口不存在, 请确认请求方式和参数');
-                return null;
-            } else {
-                showErrorBox(`请求异常:${response.statusText}`);
-            }
-        }
-
-        let msgNotFoundCount = 0;
-        let pendingRender = false;
-        const interval = window.setInterval(() => {
-            if (msgContainer[commandName]) {
-                const msgCount = msgContainer[commandName].length;
-                if (msgCount === 0) {
-                    msgNotFoundCount++;
-                } else {
-                    msgNotFoundCount = 0;
-                    // for (var i = 0; i < msgCount; i++) {
-                    //     const value = msgContainer[commandName].shift();
-                    //     if (value) {
-                    //         const isLastResult = commandResultHandler(value, commandName);
-                    //         if (isLastResult) {
-                    //             window.clearInterval(interval);
-                    //             closeSpinner(spinnerEle);
-                    //         }
-                    //     }
-                    // }
-                    // ✅ 使用 requestAnimationFrame 批量渲染
-                    if (!pendingRender) {
-                        pendingRender = true;
-                        requestAnimationFrame(() => {
-                            const messages = msgContainer[commandName].splice(0);  // 取出所有消息
-                            for (const value of messages) {
-                                const isLastResult = commandResultHandler(value, commandName);
-                                if (isLastResult) {
-                                    window.clearInterval(interval);
-                                    closeSpinner(spinnerEle);
-                                    break;
-                                }
-                            }
-                            pendingRender = false;
-                        });
-                    }
-                }
-                // 连续3min没有新消息, 则停止计时器(如果计时器还存在的话)
-                const timeout = 60 * 3;
-                if (msgNotFoundCount >= (timeout * 1000) / frequency) {
-                    console.log('clear interval(sse消息队列)')
-                    window.clearInterval(interval);
-                }
-            }
-        }, frequency)
-        let c = 0;
-        // 🎯 核心：使用 for await...of 直接消费 SSE 流
-        for await (const data of readSSEStream(response)) {
-            c++;
-            if (!msgContainer[commandName] || msgContainer[commandName].length === 0) {
-                msgContainer[commandName] = [data];
-            } else {
-                console.log(`${c} pushing...`)
-                msgContainer[commandName].push(data);
-            }
-        }
-    } catch (e) {
-        showErrorBox(e.message);
-        return null;
-    } finally {
-        
-    };
+    // ✅ 复用 sendSseRequest，传入自定义的消息处理函数和超时时间
+    await sendSseRequestCommon(
+        '/Hosts/ExecuteCommand',            // url
+        requestBody,                        // requestBody
+        commandName,                        // requestTitle
+        executeBtn,                         // spinnerEle
+        msgPannel,                          // msgContainer
+        null,                               // onstart
+        commandResultHandler,               // 自定义消息处理函数
+        60 * 3                              // 超时 3 分钟
+    );
 }
 
 function getMsgPannel(commandName) {
@@ -152,11 +38,9 @@ let lastMsg = '';
 let msgContainer = {};
 // 缓存 DOM 元素, 避免每次处理消息的时候都查找一次msgPanel(显示消息的容器, 将消息放进去)
 const msgPannelCache = new Map();
-function commandResultHandler(data, commandName) {
+function commandResultHandler(data, commandName, msgPannel) {
     let isLastResult = false;
-    const title = `<div style="color:green;">${commandName}:</div>`;
     console.log('command name', commandName)
-    const msgPannel = getMsgPannel(commandName);
     if (!msgPannel) {
         return isLastResult;
     }
@@ -181,7 +65,6 @@ function commandResultHandler(data, commandName) {
         }
     } else if (!data.message) {
         if (data.commandExecuteNo && data.commandExecuteNo.endsWith('-cmd-end')) {
-            debugger;
             isLastResult = true;
         } else if (msgPannel.innerHTML.length === 0) {
             // msgPannel.innerHTML += `<p style="color:green;">${commandName}: 操作成功 ✓</p>`;

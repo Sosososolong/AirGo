@@ -1376,17 +1376,56 @@ function formatFileSize(size) {
 // SSE
 const frequency = 200;
 /**
- * 发送SEE请求
- * @param {any} url SSE后端地址
- * @param {any} requestBody 请求体内容, json格式
- * @param {any} requestTitle 当前请求的标识, 用于区分不同请求返回的消息
- * @param {any} spinnerEle 发送请求的按钮
- * @param {any} onstart 初始化函数
+ * SSE 流读取器 - 使用 async generator 实现
+ * 逐条解析并产出 JSON 数据
+ */
+async function* readSSEStream(response) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            // 解码二进制为文本
+            const text = decoder.decode(value, { stream: true });
+            
+            // 解析 JSON（一次可能返回多条）
+            const jsonList = text.match(/\{.+\}\n?/g);
+            if (!jsonList) {
+                console.warn('无法解析 JSON:', text);
+                continue;
+            }
+            
+            for (const json of jsonList) {
+                try {
+                    yield JSON.parse(json);
+                } catch (e) {
+                    console.warn('JSON 解析失败:', json);
+                }
+            }
+        }
+    } finally {
+        reader.releaseLock();
+    }
+}
+
+/**
+ * 发送 SSE 请求（通用版）
+ * @param {string} url SSE 后端地址
+ * @param {any} requestBody 请求体内容, json 格式
+ * @param {string} requestTitle 当前请求的标识, 用于区分不同请求返回的消息
+ * @param {HTMLElement} spinnerEle 发送请求的按钮
+ * @param {HTMLElement} msgContainer 显示消息的容器
+ * @param {Function} onstart 初始化函数
+ * @param {Function} msgHandler 消息处理函数 (data, requestTitle, msgContainer) => isLastResult
+ * @param {number} timeoutSeconds 超时时间（秒），默认 30 秒
  * @returns
  */
-async function sendSseRequest(url, requestBody, requestTitle, spinnerEle, msgContainer, onstart) {
+async function sendSseRequestCommon(url, requestBody, requestTitle, spinnerEle, msgContainer, onstart, msgHandler = null, timeoutSeconds = 30) {
     if (onstart) {
-        onstart()
+        onstart();
     }
     // 支持SSE的fetch请求
     try {
@@ -1418,71 +1457,69 @@ async function sendSseRequest(url, requestBody, requestTitle, spinnerEle, msgCon
                 return null;
             } else {
                 showErrorBox(`请求异常:${response.statusText}`);
+                return null;
             }
         }
 
+        // 使用默认或自定义的消息处理函数
+        const handler = msgHandler || msgsHandler;
+        
         let msgNotFoundCount = 0;
+        let pendingRender = false;
         const interval = window.setInterval(() => {
             if (globalMsgContainer[requestTitle]) {
+                if (!globalMsgContainer[requestTitle]) return;
                 const msgCount = globalMsgContainer[requestTitle].length;
                 if (msgCount === 0) {
                     msgNotFoundCount++;
                 } else {
                     msgNotFoundCount = 0;
-                    for (var i = 0; i < msgCount; i++) {
-                        const value = globalMsgContainer[requestTitle].shift();
-                        if (value) {
-                            // 将读取到的内容转换为字符串
-                            const receivedContent = new TextDecoder().decode(value);
-                            const jsonList = receivedContent.match(/\{.+\}\n{0,1}/g);
-                            if (!jsonList) {
-                                console.warn('jsonList is null', receivedContent);
-                                continue;
-                            }
-                            for (var i = 0; i < jsonList.length; i++) {
-                                const json = jsonList[i];
-                                let receivedCommandResult;
-                                try {
-                                    receivedCommandResult = JSON.parse(json);
-                                } catch (e) {
-                                    console.warn('json err;', json);
-                                    continue;
-                                }
-                                const isLastResult = msgsHandler(receivedCommandResult, requestTitle, msgContainer);
+                    // ✅ 使用 requestAnimationFrame 批量渲染
+                    if (!pendingRender) {
+                        pendingRender = true;
+                        requestAnimationFrame(() => {
+                            const messages = globalMsgContainer[requestTitle].splice(0);
+                            for (const data of messages) {
+                                const isLastResult = handler(data, requestTitle, msgContainer);
                                 if (isLastResult) {
                                     window.clearInterval(interval);
                                     closeSpinner(spinnerEle);
+                                    break;
                                 }
                             }
-                        }
+                            pendingRender = false;
+                        });
                     }
                 }
-                // 连续30s没有新消息, 则停止计时器(如果计时器还存在的话)
-                const timeout = 30;
-                if (msgNotFoundCount >= (timeout * 1000) / frequency) {
+                // 超时检测
+                if (msgNotFoundCount >= (timeoutSeconds * 1000) / frequency) {
                     window.clearInterval(interval);
                 }
             }
         }, frequency)
-        const reader = response.body.getReader();
-        reader.read().then(function processText({ done, value }) {
-            if (done) {
-                return;
-            }
 
-            if (!globalMsgContainer[requestTitle] || globalMsgContainer[requestTitle].length === 0) {
-                globalMsgContainer[requestTitle] = [value];
+        // ✅ 使用 async generator 读取 SSE 流（已解码）
+        for await (const data of readSSEStream(response)) {
+            if (!globalMsgContainer[requestTitle]) {
+                globalMsgContainer[requestTitle] = [data];
             } else {
-                globalMsgContainer[requestTitle].push(value);
+                globalMsgContainer[requestTitle].push(data);
             }
-            return reader.read().then(processText);
-        });
+        }
+
+        // ✅ SSE 流结束后，立即处理剩余消息
+        const remainingMessages = globalMsgContainer[requestTitle]?.splice(0) || [];
+        for (const data of remainingMessages) {
+            handler(data, requestTitle, msgContainer);
+        }
+
+        // 清理
+        window.clearInterval(interval);
+        closeSpinner(spinnerEle);
     } catch (e) {
         showErrorBox(e.message);
         return null;
-    } finally {
-
-    };
+    }
 }
 
 let lastMsg = '';
