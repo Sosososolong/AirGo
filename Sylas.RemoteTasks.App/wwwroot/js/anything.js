@@ -1,4 +1,43 @@
 const frequency = 200;
+/**
+ * SSE 流读取器 - 使用 async generator 实现
+ * 逐条解析并产出 JSON 数据
+ */
+async function* readSSEStream(response) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            // 解码二进制为文本
+            const text = decoder.decode(value, { stream: true });
+            
+            // 解析 JSON（一次可能返回多条）
+            const jsonList = text.match(/\{.+\}\n?/g);
+            if (!jsonList) {
+                console.warn('无法解析 JSON:', text);
+                continue;
+            }
+            
+            for (const json of jsonList) {
+                try {
+                    yield JSON.parse(json);
+                } catch (e) {
+                    console.warn('JSON 解析失败:', json);
+                }
+            }
+        }
+    } finally {
+        reader.releaseLock();
+    }
+}
+
+/**
+ * 执行单个命令 - 使用 async generator 消费 SSE 流
+ */
 async function executeCommand(commandId, commandName, executeBtn) {
     //document.querySelector('.data-right-pannel').innerHTML = '';
     document.querySelector(`button[command-name="${commandName}"]`).closest('.command-item').querySelector('.command-resolved').innerHTML = '';
@@ -38,6 +77,7 @@ async function executeCommand(commandId, commandName, executeBtn) {
         }
 
         let msgNotFoundCount = 0;
+        let pendingRender = false;
         const interval = window.setInterval(() => {
             if (msgContainer[commandName]) {
                 const msgCount = msgContainer[commandName].length;
@@ -45,32 +85,31 @@ async function executeCommand(commandId, commandName, executeBtn) {
                     msgNotFoundCount++;
                 } else {
                     msgNotFoundCount = 0;
-                    for (var i = 0; i < msgCount; i++) {
-                        const value = msgContainer[commandName].shift();
-                        if (value) {
-                            // 将读取到的内容转换为字符串
-                            const receivedContent = new TextDecoder().decode(value);
-                            const jsonList = receivedContent.match(/\{.+\}\n{0,1}/g);
-                            if (!jsonList) {
-                                console.warn('jsonList is null', receivedContent);
-                                continue;
-                            }
-                            for (var i = 0; i < jsonList.length; i++) {
-                                const json = jsonList[i];
-                                let receivedCommandResult;
-                                try {
-                                    receivedCommandResult = JSON.parse(json);
-                                } catch (e) {
-                                    console.warn('json err;', json);
-                                    continue;
-                                }
-                                const isLastResult = commandResultHandler(receivedCommandResult, commandName);
+                    // for (var i = 0; i < msgCount; i++) {
+                    //     const value = msgContainer[commandName].shift();
+                    //     if (value) {
+                    //         const isLastResult = commandResultHandler(value, commandName);
+                    //         if (isLastResult) {
+                    //             window.clearInterval(interval);
+                    //             closeSpinner(spinnerEle);
+                    //         }
+                    //     }
+                    // }
+                    // ✅ 使用 requestAnimationFrame 批量渲染
+                    if (!pendingRender) {
+                        pendingRender = true;
+                        requestAnimationFrame(() => {
+                            const messages = msgContainer[commandName].splice(0);  // 取出所有消息
+                            for (const value of messages) {
+                                const isLastResult = commandResultHandler(value, commandName);
                                 if (isLastResult) {
                                     window.clearInterval(interval);
                                     closeSpinner(spinnerEle);
+                                    break;
                                 }
                             }
-                        }
+                            pendingRender = false;
+                        });
                     }
                 }
                 // 连续3min没有新消息, 则停止计时器(如果计时器还存在的话)
@@ -81,23 +120,17 @@ async function executeCommand(commandId, commandName, executeBtn) {
                 }
             }
         }, frequency)
-        const reader = response.body.getReader();
         let c = 0;
-        reader.read().then(function processText({ done, value }) {
-            console.log(`${++c} reading...`)
-            if (done) {
-                console.log('done')
-                return;
-            }
-
+        // 🎯 核心：使用 for await...of 直接消费 SSE 流
+        for await (const data of readSSEStream(response)) {
+            c++;
             if (!msgContainer[commandName] || msgContainer[commandName].length === 0) {
-                msgContainer[commandName] = [value];
+                msgContainer[commandName] = [data];
             } else {
                 console.log(`${c} pushing...`)
-                msgContainer[commandName].push(value);
+                msgContainer[commandName].push(data);
             }
-            return reader.read().then(processText);
-        });
+        }
     } catch (e) {
         showErrorBox(e.message);
         return null;
@@ -106,34 +139,63 @@ async function executeCommand(commandId, commandName, executeBtn) {
     };
 }
 
+function getMsgPannel(commandName) {
+    if (!msgPannelCache.has(commandName)) {
+        const pannel = document.querySelector(`button[command-name="${commandName}"]`)
+            ?.closest('.command-item')
+            ?.querySelector('.command-resolved');
+        if (pannel) msgPannelCache.set(commandName, pannel);
+    }
+    return msgPannelCache.get(commandName);
+}
 let lastMsg = '';
 let msgContainer = {};
+// 缓存 DOM 元素, 避免每次处理消息的时候都查找一次msgPanel(显示消息的容器, 将消息放进去)
+const msgPannelCache = new Map();
 function commandResultHandler(data, commandName) {
     let isLastResult = false;
     const title = `<div style="color:green;">${commandName}:</div>`;
     console.log('command name', commandName)
-    //const msgPannel = document.querySelector('.data-right-pannel');
-    const msgPannel = document.querySelector(`button[command-name="${commandName}"]`).closest('.command-item').querySelector('.command-resolved');
+    const msgPannel = getMsgPannel(commandName);
+    if (!msgPannel) {
+        return isLastResult;
+    }
+
+    // ✅ 使用 DocumentFragment 批量构建 DOM
+    const fragment = document.createDocumentFragment();
     if (!data.succeed && data?.commandExecuteNo?.indexOf('-cmd-end') === -1) {
         const errMsg = data.message ? data.message : '操作失败';
         const errMsgLines = errMsg.split('\n');
-        msgPannel.innerHTML += `<p style="color:red;">${commandName}: <p>`;
+        //msgPannel.innerHTML += `<p style="color:red;">${commandName}: <p>`;
+        const titleP = document.createElement('p');
+        titleP.style.color = 'red';
+        titleP.textContent = `${commandName}:`;
+        fragment.appendChild(titleP);
+
         for (var i = 0; i < errMsgLines.length; i++) {
-            msgPannel.innerHTML += `<p style="color:red;">&nbsp;&nbsp;&nbsp;&nbsp;${trimMsg(errMsgLines[i], 50)}</p>`
+            // msgPannel.innerHTML += `<p style="color:red;">&nbsp;&nbsp;&nbsp;&nbsp;${trimMsg(errMsgLines[i], 50)}</p>`
+            const p = document.createElement('p');
+            p.style.color = 'red';
+            p.innerHTML = `&nbsp;&nbsp;&nbsp;&nbsp;${trimMsg(errMsgLines[i], 50)}`;
+            fragment.appendChild(p);
         }
     } else if (!data.message) {
         if (data.commandExecuteNo && data.commandExecuteNo.endsWith('-cmd-end')) {
             debugger;
             isLastResult = true;
         } else if (msgPannel.innerHTML.length === 0) {
-            msgPannel.innerHTML += `<p style="color:green;">${commandName}: 操作成功</p>`;
+            // msgPannel.innerHTML += `<p style="color:green;">${commandName}: 操作成功 ✓</p>`;
+            const p = document.createElement('p');
+            p.style.color = 'green';
+            p.textContent = `${commandName}: 操作成功 ✓`;
+            fragment.appendChild(p);
         }
     } else {
         const msgs = data.message.split('\n');
-        let msgHtml = msgPannel.innerHTML.indexOf(title) > -1 ? title : '';
+        // let msgHtml = msgPannel.innerHTML.indexOf(title) > -1 ? title : '';
         for (var i = 0; i < msgs.length; i++) {
             let msg = msgs[i];
-            let currentMsgDiv = `<div style="color:gray; margin-left:20px;">${msg}</div>`;
+            //let currentMsgDiv = `<div style="color:gray; margin-left:20px;">${msg}</div>`;
             if (msg && msg.length > 50) {
                 msg = trimMsg(msg, 50);
             }
@@ -149,13 +211,23 @@ function commandResultHandler(data, commandName) {
                     last.remove();
                 }
             }
-            if (msg.length > 0) {
-                msgHtml += currentMsgDiv
-                lastMsg = msg;
-            }
+            // if (msg.length > 0) {
+            //     msgHtml += currentMsgDiv
+            //     lastMsg = msg;
+            // }
+            const div = document.createElement('div');
+            div.style.cssText = 'color:gray; margin-left:20px;';
+            div.textContent = msg;
+            fragment.appendChild(div);
+            lastMsg = msg;
         }
+        msgPannel.scrollTop = msgPannel.scrollHeight;
+    }
 
-        msgPannel.innerHTML += msgHtml;
+    // msgPannel.innerHTML += msgHtml;
+    // ✅ 一次性追加到 DOM
+    if (fragment.childNodes.length > 0) {
+        msgPannel.appendChild(fragment);
         msgPannel.scrollTop = msgPannel.scrollHeight;
     }
     return isLastResult;
