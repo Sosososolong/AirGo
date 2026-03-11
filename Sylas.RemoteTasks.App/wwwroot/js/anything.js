@@ -4,7 +4,6 @@ const frequency = 200;
  * 执行单个命令 - 使用 async generator 消费 SSE 流
  */
 async function executeCommand(commandId, commandName, executeBtn) {
-    //document.querySelector(`button[command-name="${commandName}"]`).closest('.command-item').querySelector('.command-resolved').innerHTML = '';
     // 清空消息面板
     const msgPannel = document.querySelector(`button[command-name="${commandName}"]`)
         ?.closest('.command-item')
@@ -34,8 +33,7 @@ function getMsgPannel(commandName) {
     }
     return msgPannelCache.get(commandName);
 }
-let lastMsg = '';
-let msgContainer = {};
+
 // 缓存 DOM 元素, 避免每次处理消息的时候都查找一次msgPanel(显示消息的容器, 将消息放进去)
 const msgPannelCache = new Map();
 function commandResultHandler(data, commandName, msgPannel) {
@@ -94,15 +92,10 @@ function commandResultHandler(data, commandName, msgPannel) {
                     last.remove();
                 }
             }
-            // if (msg.length > 0) {
-            //     msgHtml += currentMsgDiv
-            //     lastMsg = msg;
-            // }
             const div = document.createElement('div');
             div.style.cssText = 'color:gray; margin-left:20px;';
             div.textContent = msg;
             fragment.appendChild(div);
-            lastMsg = msg;
         }
         msgPannel.scrollTop = msgPannel.scrollHeight;
     }
@@ -118,10 +111,9 @@ function commandResultHandler(data, commandName, msgPannel) {
 
 async function executeCommands(trigger) {
     const commandCheckboxes = document.querySelectorAll('.command-checkbox:checked');
-    if (commandCheckboxes && commandCheckboxes.length > 0) {
-        document.querySelector('.data-right-pannel').innerHTML = '';
-    } else {
+    if (commandCheckboxes && commandCheckboxes.length === 0) {
         showErrorBox("请选择需要执行的命令");
+        return;
     }
     for (var i = 0; i < commandCheckboxes.length; i++) {
         if (commandCheckboxes[i].checked) {
@@ -169,7 +161,7 @@ function buildDataView(data) {
     let container = document.createElement('div');
 
     container.classList.add('row');
-    container.innerHTML = `<!--显示数据卡片--><div class="col-sm-12 cards-container"></div><!--显示sse命令响应消息(暂时不用,所以高度设为0)--><div class="col-sm-6 data-right-pannel" style="height:0px;overflow:auto;position:fixed;width:40%;left:30%;"></div>`;
+    container.innerHTML = `<!--显示数据卡片--><div class="col-sm-12 cards-container"></div>`;
     let cardsHtml = '';
     data.forEach((record, index) => {
         const collapseBtnId = `collapseBtn${record.id}`;
@@ -190,7 +182,9 @@ function buildDataView(data) {
                             </button>
                         </h5>
                         <div>
-                            <!--<button type="button" class="btn btn-primary btn-sm" data-table-id="${tableId}" data-id="${record.id}" data-fetch-url="${apiUrl}" data-method="POST" onclick="showUpdatePannel(this, () => cardsStatus.find(x => x.id == ${record.id}).isShown = false, () => { document.querySelector('#${collapseBtnId}').click(); })">更新</button>-->
+                            <button type="button" class="btn btn-outline-secondary btn-sm env-vars-btn" data-id="${record.id}" title="环境变量">
+                                <span>⚙</span> 环境变量
+                            </button>
                             <button type="button" class="btn btn-primary btn-sm update-btn" collapse-btn-id="${collapseBtnId}" data-table-id="${tableId}" data-id="${record.id}" data-fetch-url="${apiUrl}" data-method="POST">更新</button>
                             <button type="button" class="btn btn-primary btn-sm add-command-btn">添加命令</button>
                             <button type="button" class="btn btn-primary btn-sm run-commands-btn">运行</button>
@@ -200,6 +194,29 @@ function buildDataView(data) {
 
                     <!--Body-->
                     <div id="collapse${record.id}" class="collapse" aria-labelledby="heading-${record.title}" data-bs-parent="#accordion">
+                        <!-- 内嵌环境变量面板 -->
+                        <div style="padding:1rem;">
+                            <div class="env-vars-panel" id="env-panel-${record.id}" style="display:none; background:linear-gradient(135deg, #e8f4f8 0%, #f0f7fa 100%); border-left:4px solid #17a2b8; border-radius:5px; padding:15px; box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="mb-0"><span>⚙</span> 环境变量</h6>
+                                    <button type="button" class="btn-close btn-sm close-env-panel" aria-label="Close"></button>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <textarea id="properties-${record.id}" placeholder="设置变量 (JSON)" name="properties" rows="4" class="form-control form-control-sm mb-2"></textarea>
+                                        <input type="hidden" id="setting-id-${record.id}" name="id" value="${record.id}">
+                                        <button type="button" class="btn btn-primary btn-sm update-env-btn" data-id="${record.id}" data-content="formItemIds:properties-${record.id};setting-id-${record.id}" data-execute-url="${apiUpdateUrl}" data-method="POST">
+                                            更新变量
+                                        </button>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="resolved-properties" style="font-size:12px; color:#0c5460; background:rgba(255,255,255,0.7); padding:10px; border-radius:4px; max-height:120px; overflow:auto; border:1px solid #bee5eb;">
+                                            <em>展开卡片后显示解析后的变量</em>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         <div class="card-body">
                         </div>
                     </div>
@@ -294,13 +311,13 @@ async function loadCommandsAsync(ele, id, refresh = false) {
                 let commandRows = 1;
                 const commandTxtArr = commandOrigin.split('\n');
                 commandRows = commandTxtArr.length;
-                if (commandOrigin.indexOf('\n') > -1) {
-                } else {
+                if (commandOrigin.indexOf('\n') === -1) {
                     for (var j = 0; j < commandRows; j++) {
                         commandTxtArr[j] = commandTxtArr[j].trim();
                     }
                     commandOrigin = commandTxtArr.join('\n');
                 }
+
                 if (commandRows > 10) {
                     commandRows = 10
                 }
@@ -373,29 +390,28 @@ async function loadCommandsAsync(ele, id, refresh = false) {
             card.classList.add('anything-card-' + id);
             cardStatus.isShown = true;
 
-            // 创建变量properties展示修改面板
-            let resolvedProperties = '';
-            for (var key in anythingInfo.properties) {
-                if (anythingInfo.properties.hasOwnProperty(key)) {
-                    resolvedProperties += `<tr style="color:white"><td>${key}: </td><td>${anythingInfo.properties[key]}</td>`;
+            // ✅ 更新内嵌的环境变量面板内容
+            const envPanel = card.querySelector(`#env-panel-${id}`);
+            if (envPanel) {
+                // 更新 textarea 的值
+                const propertiesTextarea = envPanel.querySelector(`#properties-${id}`);
+                if (propertiesTextarea) {
+                    propertiesTextarea.value = originProperties;
+                }
+                
+                // 更新解析后的变量显示
+                let resolvedPropertiesHtml = '';
+                for (var key in anythingInfo.properties) {
+                    if (anythingInfo.properties.hasOwnProperty(key)) {
+                        resolvedPropertiesHtml += `<div><strong>${key}:</strong> ${anythingInfo.properties[key]}</div>`;
+                    }
+                }
+                const resolvedDiv = envPanel.querySelector('.resolved-properties');
+                if (resolvedDiv) {
+                    resolvedDiv.innerHTML = resolvedPropertiesHtml || '<em>无环境变量</em>';
                 }
             }
-            resolvedProperties = `<table>${resolvedProperties}</table>`
-            const dataPannelHtml = `<div class="d-flex justify-content-between">
-                <h4 class="text-white mb-4 data-pannel-title" style="display:none;">环境变量</h4>
-                <div style="color:white;font-size:24px;cursor:pointer;padding: 0 10px;line-height:24px;" class="resize-data-pannel-btn">+</div>
-            </div>
-            <div class="data-pannel-body" style="display:none;">
-                <textarea id='properties-${id}' placeholder="设置变量" style="background-color:rgba(255,255,255,0);color:white;" name="properties" rows="6" class="form-control mb-2">${originProperties}</textarea><input type="hidden" type="number" id="setting-id-${id}" name="id" value="${id}">
-                <div class="d-flex justify-content-end">
-                    <button type="button" class="btn btn-primary btn-sm" data-content="formItemIds:properties-${id};setting-id-${id}" data-execute-url="${apiUpdateUrl}" data-method="POST" onclick="showConfirmBox('确定更新变量吗?', () => execute(this, null, null, true))">更新变量</button>
-                </div>
-                <div class="all-properties">${resolvedProperties}</div>
-            </div>`;
-            newDataPannel(`data-pannel-${id}`, 'right-data-pannel', dataPannelHtml);
-            document.querySelector('.resize-data-pannel-btn').onclick = e => {
-                resizeDataPannel(e, id)
-            }
+
             // 卡片元素样式设置
             ele.closest('.card').style.backgroundColor = 'rgba(0, 0, 0, 0.1)';
 
@@ -405,8 +421,6 @@ async function loadCommandsAsync(ele, id, refresh = false) {
         }
     } else {
         cardStatus.isShown = false;
-        // 移除变量properties展示面板
-        removeDataPannel(`data-pannel-${id}`);
         // 更新选中状态
         ele.closest('.card').style.backgroundColor = '';
         ele.parentElement.style.backgroundColor = '';
@@ -442,6 +456,49 @@ createTable(
         const recordId = e.target.tagName === 'BUTTON' ? e.target.closest('.card-title').getAttribute('record-id') : e.target.getAttribute('record-id')
         loadCommandsAsync(e.target, recordId)
     })
+
+    // ✅ 环境变量按钮点击事件
+    document.querySelectorAll('.env-vars-btn').forEach(btn => {
+        btn.onclick = e => {
+            e.preventDefault();
+            e.stopPropagation();
+            const id = btn.getAttribute('data-id');
+            const panel = document.querySelector(`#env-panel-${id}`);
+            if (panel) {
+                const isVisible = panel.style.display !== 'none';
+                panel.style.display = isVisible ? 'none' : 'block';
+                btn.classList.toggle('btn-outline-secondary', isVisible);
+                btn.classList.toggle('btn-secondary', !isVisible);
+            }
+        };
+    });
+    
+    // ✅ 关闭环境变量面板按钮
+    document.querySelectorAll('.close-env-panel').forEach(btn => {
+        btn.onclick = e => {
+            e.preventDefault();
+            e.stopPropagation();
+            const panel = btn.closest('.env-vars-panel');
+            if (panel) {
+                panel.style.display = 'none';
+                const id = panel.id.replace('env-panel-', '');
+                const envBtn = document.querySelector(`.env-vars-btn[data-id="${id}"]`);
+                if (envBtn) {
+                    envBtn.classList.add('btn-outline-secondary');
+                    envBtn.classList.remove('btn-secondary');
+                }
+            }
+        };
+    });
+    
+    // ✅ 更新环境变量按钮
+    document.querySelectorAll('.update-env-btn').forEach(btn => {
+        btn.onclick = e => {
+            e.preventDefault();
+            e.stopPropagation();
+            showConfirmBox('确定更新变量吗?', () => execute(btn, null, null, true));
+        };
+    });
 
     document.querySelectorAll('.add-command-btn').forEach(x => x.onclick = e => {
         e.preventDefault()
