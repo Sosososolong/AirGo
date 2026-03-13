@@ -2,6 +2,97 @@
 // for details on configuring this project to bundle and minify static web assets.
 
 // Write your JavaScript code.
+
+/**
+ * 让 Bootstrap Modal 可拖拽（通用函数）
+ * @param {HTMLElement} modalEl - Modal 元素
+ */
+function makeModalDraggable(modalEl) {
+    if (!modalEl) return;
+    
+    const dialog = modalEl.querySelector('.modal-dialog');
+    const header = modalEl.querySelector('.modal-header');
+    if (!dialog || !header) return;
+    
+    let isDragging = false;
+    let startX, startY, initialX = 0, initialY = 0;
+    let animationId = null;
+    let currentX, currentY;
+    
+    // 设置拖拽样式和GPU加速
+    header.style.cursor = 'move';
+    header.style.userSelect = 'none';
+    dialog.style.willChange = 'transform';
+    
+    const onMouseDown = (e) => {
+        if (e.target.closest('.btn-close')) return;
+        
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        
+        // 禁用过渡动画，让拖拽即时响应
+        dialog.style.transition = 'none';
+        
+        // 获取当前位置
+        const transform = dialog.style.transform;
+        if (transform) {
+            const match = transform.match(/translate\(([\d.-]+)px,\s*([\d.-]+)px\)/);
+            if (match) {
+                initialX = parseFloat(match[1]);
+                initialY = parseFloat(match[2]);
+            }
+        }
+        
+        document.body.style.cursor = 'move';
+        e.preventDefault();
+    };
+    
+    const onMouseMove = (e) => {
+        if (!isDragging) return;
+        
+        currentX = initialX + e.clientX - startX;
+        currentY = initialY + e.clientY - startY;
+        
+        // 使用 requestAnimationFrame 优化渲染
+        if (!animationId) {
+            animationId = requestAnimationFrame(() => {
+                dialog.style.transform = `translate(${currentX}px, ${currentY}px)`;
+                animationId = null;
+            });
+        }
+    };
+    
+    const onMouseUp = () => {
+        if (isDragging) {
+            isDragging = false;
+            initialX = currentX || initialX;
+            initialY = currentY || initialY;
+            document.body.style.cursor = '';
+            
+            // 恢复过渡动画
+            dialog.style.transition = '';
+            
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+        }
+    };
+    
+    header.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('mousemove', onMouseMove, { passive: true });
+    document.addEventListener('mouseup', onMouseUp);
+    
+    // Modal关闭时重置
+    modalEl.addEventListener('hidden.bs.modal', () => {
+        dialog.style.transform = '';
+        dialog.style.willChange = '';
+        initialX = 0;
+        initialY = 0;
+    });
+}
+
 const VIDEO_RE = /\.(mp4|mov|avi|mkv|webm|flv|wmv|m4v|3gp)$/i;
 const AUDIO_RE = /\.(mp3|wav|flac|aac|ogg|m4a|wma|ape)$/i;
 const IMAGE_RE = /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i;

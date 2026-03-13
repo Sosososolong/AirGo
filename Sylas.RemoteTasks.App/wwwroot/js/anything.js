@@ -288,6 +288,7 @@ async function loadCommandsAsync(ele, id, refresh = false) {
             cardStatus.originProperties = originProperties;
 
             let anythingInfo = data.anythingInfo;
+            cardStatus.resolvedProperties = anythingInfo.properties; // 保存解析后的变量（含内置变量）
             const commandsLength = anythingInfo.commands.length;
             // cardStatus对象保存命令数组
             cardStatus.commandArray = anythingInfo.commands;
@@ -333,6 +334,7 @@ async function loadCommandsAsync(ele, id, refresh = false) {
             <div class="d-flex justify-content-between">
                 <div><button class="btn btn-sm btn-danger mb-2 run-command-btn ${(commandInfo && commandInfo.executedState ? " disabled" : "")}" type="button" command-id="${commandInfo.id}" command-name="${commandInfo.name}" id="button-cmd-${commandInfo.id}">${commandInfo.name}</button></div>
                 <div>
+                    <button class="btn btn-sm btn-outline-warning mb-2 visual-edit-btn" type="button" command-id="${commandInfo.id}" anything-id="${id}" title="可视化编辑">📝</button>
                     <button class="btn btn-sm btn-primary mb-2 resolve-command-btn" type="button" command-id="${commandInfo.id}">解析模板</button>
                     <button class="btn btn-sm btn-primary mb-2 update-command-btn" type="button" command-id="${commandInfo.id}">更新命令</button>
                 </div>
@@ -364,6 +366,24 @@ async function loadCommandsAsync(ele, id, refresh = false) {
                 e.preventDefault();
                 e.stopPropagation();
                 updateCommandAsync(e.target.getAttribute('command-id'))
+            })
+            // 可视化编辑按钮事件
+            card.querySelectorAll('.visual-edit-btn').forEach(x => x.onclick = e => {
+                e.preventDefault();
+                e.stopPropagation();
+                const commandId = e.target.getAttribute('command-id');
+                const anythingId = e.target.getAttribute('anything-id');
+                const commandInputClass = `command-input-${commandId}`;
+                // 调用模板编辑器，传递环境变量和 settingId
+                if (typeof TemplateEditor !== 'undefined') {
+                    const cardStatus = cardsStatus.find(x => x.id == anythingId);
+                    const envVarsJson = cardStatus?.originProperties || '{}';
+                    const resolvedProps = cardStatus?.resolvedProperties || {};
+                    TemplateEditor.showEditor(commandInputClass, envVarsJson, resolvedProps, anythingId);
+                } else {
+                    console.error('TemplateEditor 未加载');
+                    showErrorBox('模板编辑器未加载，请刷新页面重试');
+                }
             })
             card.querySelectorAll('.run-command-btn').forEach(x => x.onclick = e => {
                 e.preventDefault();

@@ -52,7 +52,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             }
             var anythingInfo = await anythingService.GetAnythingInfoBySettingIdAsync(id);
 
-            return RequestResult<object>.Success(new { AnythingSetting = anythingDetails, AnythingInfo = anythingInfo });
+            return RequestResult<object>.Success(new { anythingSetting = anythingDetails, anythingInfo = anythingInfo });
         }
 
         /// <summary>
@@ -414,9 +414,10 @@ namespace Sylas.RemoteTasks.App.Controllers
                 return Ok(RequestResult<bool>.Error("未找到备份信息"));
             }
             int affectedRows = await repository.DeleteAsync(id);
-
+        
             return Ok(affectedRows > 0 ? RequestResult<bool>.Success(true) : RequestResult<bool>.Error("删除失败"));
         }
+        
         /// <summary>
         /// 将命令的环境变量同步到工作流
         /// </summary>

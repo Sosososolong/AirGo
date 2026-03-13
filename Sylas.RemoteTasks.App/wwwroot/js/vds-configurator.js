@@ -18,9 +18,9 @@ const VdsConfigurator = {
         this.modal = new bootstrap.Modal(document.getElementById('vdsConfiguratorModal'));
         this.fieldModal = new bootstrap.Modal(document.getElementById('fieldEditModal'));
         
-        // 让Modal可拖拽
-        this.makeModalDraggable(document.getElementById('vdsConfiguratorModal'));
-        this.makeModalDraggable(document.getElementById('fieldEditModal'));
+        // 让Modal可拖拽（使用 site.js 中的全局函数）
+        makeModalDraggable(document.getElementById('vdsConfiguratorModal'));
+        makeModalDraggable(document.getElementById('fieldEditModal'));
         
         // 监听Tab切换，同步JSON
         document.querySelectorAll('#configTabs button').forEach(btn => {
@@ -29,95 +29,6 @@ const VdsConfigurator = {
                     this.syncToJson();
                 }
             });
-        });
-    },
-
-    /**
-     * 让Modal可拖拽
-     */
-    makeModalDraggable(modalEl) {
-        if (!modalEl) return;
-        
-        const dialog = modalEl.querySelector('.modal-dialog');
-        const header = modalEl.querySelector('.modal-header');
-        if (!dialog || !header) return;
-        
-        let isDragging = false;
-        let startX, startY, initialX = 0, initialY = 0;
-        let animationId = null;
-        let currentX, currentY;
-        
-        // 设置拖拽样式和GPU加速
-        header.style.cursor = 'move';
-        header.style.userSelect = 'none';
-        dialog.style.willChange = 'transform';
-        
-        const onMouseDown = (e) => {
-            if (e.target.closest('.btn-close')) return;
-            
-            isDragging = true;
-            startX = e.clientX;
-            startY = e.clientY;
-            
-            // 禁用过渡动画，让拖拽即时响应
-            dialog.style.transition = 'none';
-            
-            // 获取当前位置
-            const transform = dialog.style.transform;
-            if (transform) {
-                const match = transform.match(/translate\(([\d.-]+)px,\s*([\d.-]+)px\)/);
-                if (match) {
-                    initialX = parseFloat(match[1]);
-                    initialY = parseFloat(match[2]);
-                }
-            }
-            
-            document.body.style.cursor = 'move';
-            e.preventDefault();
-        };
-        
-        const onMouseMove = (e) => {
-            if (!isDragging) return;
-            
-            currentX = initialX + e.clientX - startX;
-            currentY = initialY + e.clientY - startY;
-            
-            // 使用 requestAnimationFrame 优化渲染
-            if (!animationId) {
-                animationId = requestAnimationFrame(() => {
-                    dialog.style.transform = `translate(${currentX}px, ${currentY}px)`;
-                    animationId = null;
-                });
-            }
-        };
-        
-        const onMouseUp = () => {
-            if (isDragging) {
-                isDragging = false;
-                initialX = currentX || initialX;
-                initialY = currentY || initialY;
-                document.body.style.cursor = '';
-                
-                // 恢复过渡动画
-                dialog.style.transition = '';
-                
-                if (animationId) {
-                    cancelAnimationFrame(animationId);
-                    animationId = null;
-                }
-            }
-        };
-        
-        header.addEventListener('mousedown', onMouseDown);
-        document.addEventListener('mousemove', onMouseMove, { passive: true });
-        document.addEventListener('mouseup', onMouseUp);
-        
-        // Modal关闭时重置
-        modalEl.addEventListener('hidden.bs.modal', () => {
-            dialog.style.transform = '';
-            dialog.style.willChange = '';
-            initialX = 0;
-            initialY = 0;
         });
     },
 
@@ -682,7 +593,7 @@ const VdsConfigurator = {
             modal.hide();
         };
         
-        this.makeModalDraggable(div);
+        makeModalDraggable(div);
         modal.show();
     },
 
@@ -859,7 +770,7 @@ const VdsConfigurator = {
             modal.hide();
         };
 
-        this.makeModalDraggable(div);
+        makeModalDraggable(div);
         modal.show();
     },
 
