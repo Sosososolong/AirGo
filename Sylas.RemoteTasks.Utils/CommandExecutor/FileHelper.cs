@@ -599,7 +599,7 @@ public partial class FileHelper
         // 匹配操作名称和工作目录
         Operation selectedOp = new();
         string[] titleLines = Regex.Match(commandContent, @"##[\w\W]+?(?=###)").Value.Split('\n');
-        selectedOp.GlobalVariables = titleLines.Skip(1).ToList();
+        selectedOp.GlobalVariables = [.. titleLines.Skip(1)];
 
         #region RazorEngine解析模板
         Match useRazorEngineMatch = Regex.Match(commandContent, @"\s*ENGINE:\s*Razor\s+", RegexOptions.IgnoreCase);
@@ -673,7 +673,7 @@ public partial class FileHelper
         StringBuilder valueBuilder = new();
         string type = string.Empty;
         string linePattern = string.Empty;
-        string[] lines = nodeConfig.Split('\n');
+        string[] lines = [.. nodeConfig.Split('\n').Select(x => x.TrimEnd('\r'))]; // windows环境CRLF换行(\r\n), \n分割后行尾会有一个\r, 后面AppendLine会多一个\r, 所以trim掉行尾的\r
         string configItemKey = string.Empty;
         string configItemValue;
         bool isConfigItemFirstLine = false;
@@ -687,7 +687,7 @@ public partial class FileHelper
             {
                 configItemKey = lineConfigItemKey;
                 // configItemKey.Length + 1: 加1是因为后面还有一个冒号
-                configItemValue = line[(lineConfigItemKey.Length + 1)..].Trim().Replace("&nbsp;", SpaceConstants.OneSpace.ToString());
+                configItemValue = SpaceConstants.ReplaceSpacePlaceholders(line[(lineConfigItemKey.Length + 1)..].Trim());
             }
             if (string.IsNullOrWhiteSpace(configItemKey))
             {
@@ -699,6 +699,11 @@ public partial class FileHelper
             }
             else if (configItemKey == nameof(NodeStep.Value))
             {
+                // 对于 Value 字段的非首行，也需要处理空格占位符
+                if (!isConfigItemFirstLine)
+                {
+                    configItemValue = SpaceConstants.ReplaceSpacePlaceholders(line);
+                }
                 valueBuilder.AppendLine(configItemValue);
             }
             else if (configItemKey == nameof(NodeStep.OperationType))
@@ -728,7 +733,7 @@ public partial class FileHelper
         {
             NodeStep step = new()
             {
-                Value = values[j],
+                Value = values[j].TrimEnd('\r', '\n'),
                 LinePattern = linePatterns[j]
             };
             var opType = types[j].Trim();
@@ -895,7 +900,7 @@ public partial class FileHelper
     static async Task<List<Operation>> GetOperationsAsync(string fileOperationConfigPath)
     {
         string settings = await File.ReadAllTextAsync(fileOperationConfigPath);
-        var settingLines = settings.Split('\n').Select(x => x.TrimEnd().Replace("&nbsp;", SpaceConstants.OneSpace.ToString())).ToArray();
+        var settingLines = settings.Split('\n').Select(x => SpaceConstants.ReplaceSpacePlaceholders(x.TrimEnd())).ToArray();
         List<Operation> operations = [];
         bool isGlobalVarsBlock = false;
         for (int i = 0; i < settingLines.Length; i++)
@@ -1060,7 +1065,9 @@ public partial class FileHelper
     /// <exception cref="Exception"></exception>
     static async Task<string> ResolveFunctionVariablesAsync(string originTxt)
     {
-        var matches = originTxt.ResolvePairedSymbolsContent("\\(", "\\)", "(?<FunctionName>[A-Z]\\w+)", "->(?<SavedKey>\\w+)->\\[(?<index>\\d+|[,A-Za-z,\\s,\"]+)\\]");
+        // 语法：FuncName(params) => A, B, C 或 FuncName(params) => [0]
+        // 旧格式兼容：FuncName(params)->Key->["A", "B"] 会忽略 Key
+        var matches = originTxt.ResolvePairedSymbolsContent("\\(", "\\)", "(?<FunctionName>[A-Z]\\w+)", "(->\\w+)?(->|\\s*=>\\s*)\\[?(?<index>\\d+|[,A-Za-z,\\s,\"]+)\\]?");
         foreach (Match functionMatch in matches)
         {
             var functionName = functionMatch.Groups["FunctionName"].Value;
@@ -1072,6 +1079,7 @@ public partial class FileHelper
                 continue;
             }
             string val = string.Empty;
+            // 使用 ||| 分隔参数（避免与代码中的逗号冲突）
             string[] parameters = resolvedParametersTxt.Split("|||");
             MethodInfo? method = typeof(FileHelper).GetMethods().FirstOrDefault(x => x.Name == functionName) ?? throw new Exception($"没有找到方法:{functionName}");
             LoggerHelper.LogInformation($"即将调用方法{functionName}, 参数:");
@@ -1102,29 +1110,23 @@ public partial class FileHelper
                     : methodResult?.ToString() ?? throw new Exception($"方法{functionName}返回值为空");
             }
 
-            var savedKey = functionMatch.Groups["SavedKey"].Value;
-            if (!string.IsNullOrWhiteSpace(savedKey))
-            {
-                _variables[savedKey] = val;
-            }
-
             var index = functionMatch.Groups["index"].Value;
             if (int.TryParse(index, out int indexIntVal))
             {
-                originTxt = originTxt.Replace(functionMatch.Value, string.IsNullOrWhiteSpace(index) ? val : val.Split("|||")[indexIntVal]);
+                // 数字索引：取返回值数组的第 n 个元素
+                originTxt = originTxt.Replace(functionMatch.Value, val.Split("|||")[indexIntVal]);
             }
             else
             {
-                // index不是要去的值的索引,  而是要以index为key保存到全局变量_variables中
+                // 变量名列表：将返回值数组各元素分别保存到变量中
                 var vals = val.Split("|||");
-                var indexes = index.Split(',').Select(x => x.Trim()).ToArray();
+                var varNames = index.Split(',').Select(x => x.Trim().Trim('"')).ToArray();
 
-                for (int i = 0; i < indexes.Length; i++)
+                for (int i = 0; i < varNames.Length && i < vals.Length; i++)
                 {
-                    string key = indexes[i].Trim('"');
-                    if (!_variables.ContainsKey(key))
+                    if (!_variables.ContainsKey(varNames[i]))
                     {
-                        _variables[key] = vals[i];
+                        _variables[varNames[i]] = vals[i];
                     }
                 }
 
@@ -1374,6 +1376,8 @@ public partial class FileHelper
     }
     static async Task<string> ModifyAsync(string file, string operationTitle, string value, string appendedLinePattern, OperationType operationType)
     {
+        // 在实际使用 value 前替换换行占位符
+        value = SpaceConstants.ReplaceBreakPlaceholders(value);
         StringBuilder operationLog = new();
         var content = await File.ReadAllTextAsync(file);
         if ((operationType == OperationType.Append || operationType == OperationType.Prepend) && content.Contains(value))
@@ -1406,7 +1410,25 @@ public partial class FileHelper
                 var lines = content.Split('\n').Select(x => x.TrimEnd()).ToList();
                 if (string.IsNullOrWhiteSpace(appendedLinePattern))
                 {
+                    // 计算末尾空字符串的数量
+                    int trailingEmptyCount = 0;
+                    for (int i = lines.Count - 1; i >= 0; i--)
+                    {
+                        if (string.IsNullOrWhiteSpace(lines[i]))
+                            trailingEmptyCount++;
+                        else
+                            break;
+                    }
+                    // 移除末尾空字符串
+                    for (int i = 0; i < trailingEmptyCount; i++)
+                        lines.RemoveAt(lines.Count - 1);
+                    // 添加一个空字符串（与前面内容的空行分隔）
+                    lines.Add("");
+                    // 添加值
                     lines.Add(value);
+                    // 恢复原来的末尾空字符串数量
+                    for (int i = 0; i < trailingEmptyCount; i++)
+                        lines.Add("");
                 }
                 else
                 {
