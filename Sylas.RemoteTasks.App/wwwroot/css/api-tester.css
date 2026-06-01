@@ -1,0 +1,1112 @@
+/* ==========================================================================
+   API Tester 模块样式 - 复刻 Coze API Tester
+   ========================================================================== */
+
+:root {
+    --at-primary: #6366F1;
+    --at-primary-hover: #4F46E5;
+    --at-border: #E5E7EB;
+    --at-bg: #F9FAFB;
+    --at-surface: #fff;
+    --at-text: #111827;
+    --at-text-muted: #6B7280;
+    --at-method-get: #7FD56F;
+    --at-method-post: #FFA500;
+    --at-method-put: #6366F1;
+    --at-method-delete: #FF6B6B;
+    --at-method-patch: #A78BFA;
+    --at-method-other: #9CA3AF;
+}
+
+/* 暗黑模式: 跟随全局主题 body.bg-black */
+body.bg-black {
+    --at-border: #374151;
+    --at-bg: #1F2937;
+    --at-surface: #111827;
+    /* --at-surface: rgba(var(--bs-dark-rgb), var(--bs-bg-opacity)); */
+    --at-text: #E5E7EB;
+    --at-text-muted: #9CA3AF;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    color: var(--at-text);
+    background: var(--at-surface);
+}
+
+/* ---------- 根容器 ---------- */
+.api-tester-root {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: var(--at-surface);
+}
+
+/* ---------- 顶部 Header ---------- */
+.at-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--at-border);
+    background: var(--at-surface);
+    flex-shrink: 0;
+}
+
+.at-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 16px;
+}
+
+.at-logo-icon {
+    color: var(--at-primary);
+    font-size: 20px;
+}
+
+.at-toolbar {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.at-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    height: 32px;
+    border: 1px solid var(--at-border);
+    border-radius: 6px;
+    background: var(--at-surface);
+    color: var(--at-text);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all .15s;
+}
+
+.at-btn:hover:not(:disabled) {
+    border-color: var(--at-primary);
+    color: var(--at-primary);
+}
+
+.at-btn:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
+.at-btn-primary {
+    background: var(--at-primary);
+    border-color: var(--at-primary);
+    color: #fff !important;
+}
+
+.at-btn-primary:hover:not(:disabled) {
+    background: var(--at-primary-hover);
+    border-color: var(--at-primary-hover);
+    color: #fff !important;
+}
+
+.at-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: var(--at-bg);
+    color: var(--at-text-muted);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.at-icon-btn {
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: transparent;
+    color: var(--at-text-muted);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+}
+
+.at-icon-btn:hover {
+    background: var(--at-bg);
+    color: var(--at-text);
+}
+
+/* ---------- 三栏主体 ---------- */
+.at-main {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.at-sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--at-border);
+    background: var(--at-bg);
+    display: flex;
+    flex-direction: column;
+}
+
+.at-editor {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--at-surface);
+}
+
+.at-response {
+    width: 480px;
+    flex-shrink: 0;
+    border-left: 1px solid var(--at-border);
+    background: var(--at-surface);
+    display: flex;
+    flex-direction: column;
+}
+
+/* ---------- Sidebar 内部 ---------- */
+.at-collection-bar {
+    display: flex;
+    gap: 4px;
+    padding: 8px;
+    border-bottom: 1px solid var(--at-border);
+}
+
+.at-collection-select {
+    flex: 1;
+    height: 32px;
+    padding: 0 8px;
+    border: 1px solid var(--at-border);
+    border-radius: 6px;
+    background: var(--at-surface);
+    font-size: 13px;
+}
+
+.at-search-bar {
+    padding: 8px;
+}
+
+.at-search-input {
+    width: 100%;
+    height: 32px;
+    padding: 0 10px;
+    border: 1px solid var(--at-border);
+    border-radius: 6px;
+    background: var(--at-surface);
+    font-size: 13px;
+}
+
+/* 批量选中工具栏 */
+.at-batch-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px 6px;
+    font-size: 12px;
+    color: var(--at-text-muted);
+    border-bottom: 1px dashed var(--at-border);
+}
+
+.at-batch-all-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.at-mini-btn {
+    height: 22px;
+    padding: 0 8px;
+    border: 1px solid var(--at-border);
+    background: var(--at-surface);
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--at-text-muted);
+}
+
+.at-mini-btn:hover {
+    border-color: var(--at-primary, #6366f1);
+    color: var(--at-primary, #6366f1);
+}
+
+.at-batch-summary {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--at-text-muted);
+}
+
+.at-batch-summary b {
+    color: var(--at-primary, #6366f1);
+}
+
+.at-tag-checkbox {
+    flex-shrink: 0;
+    cursor: pointer;
+}
+
+.at-endpoint-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 4px 8px;
+}
+
+.at-tag-group {
+    margin-bottom: 4px;
+}
+
+.at-tag-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--at-text-muted);
+    user-select: none;
+}
+
+.at-tag-header:hover {
+    background: rgba(99, 102, 241, .04);
+    border-radius: 4px;
+}
+
+.at-tag-arrow {
+    width: 10px;
+    transition: transform .15s;
+}
+
+.at-tag-group.collapsed .at-tag-arrow {
+    transform: rotate(-90deg);
+}
+
+.at-tag-group.collapsed .at-endpoint-item {
+    display: none;
+}
+
+.at-tag-count {
+    margin-left: auto;
+    color: var(--at-text-muted);
+    font-weight: 500;
+    font-size: 11px;
+}
+
+.at-endpoint-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.at-endpoint-item:hover {
+    background: rgba(99, 102, 241, .06);
+}
+
+.at-endpoint-item.active {
+    background: rgba(99, 102, 241, .12);
+}
+
+/* 拖拽排序 */
+.at-endpoint-item.at-dragging {
+    opacity: .4;
+}
+
+.at-endpoint-item.at-drop-before {
+    box-shadow: inset 0 2px 0 0 var(--at-primary, #6366f1);
+}
+
+.at-endpoint-item.at-drop-after {
+    box-shadow: inset 0 -2px 0 0 var(--at-primary, #6366f1);
+}
+
+.at-endpoint-checkbox {
+    flex-shrink: 0;
+}
+
+.at-method {
+    flex-shrink: 0;
+    display: inline-block;
+    width: 50px;
+    text-align: center;
+    padding: 2px 4px;
+    border-radius: 4px;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .5px;
+}
+
+.at-method-GET { background: var(--at-method-get); }
+.at-method-POST { background: var(--at-method-post); }
+.at-method-PUT { background: var(--at-method-put); }
+.at-method-DELETE { background: var(--at-method-delete); }
+.at-method-PATCH { background: var(--at-method-patch); }
+.at-method-HEAD,
+.at-method-OPTIONS { background: var(--at-method-other); }
+
+.at-endpoint-info {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.at-endpoint-name {
+    font-size: 12px;
+    color: var(--at-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.at-endpoint-path {
+    font-size: 11px;
+    color: var(--at-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.at-empty-tip {
+    padding: 24px 12px;
+    text-align: center;
+    color: var(--at-text-muted);
+    font-size: 12px;
+}
+
+/* ---------- Editor / Response 空态 ---------- */
+.at-empty-state {
+    margin: auto;
+    text-align: center;
+    color: var(--at-text-muted);
+}
+
+/* ---------- Editor 区(中间栏) ---------- */
+.at-editor {
+    overflow: hidden;
+}
+
+.at-empty-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+    opacity: .5;
+}
+
+.at-empty-title {
+    font-size: 16px;
+    color: var(--at-text);
+    margin-bottom: 4px;
+}
+
+.at-empty-desc {
+    font-size: 13px;
+}
+
+.at-editor-top {
+    display: flex;
+    gap: 8px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--at-border);
+}
+
+.at-method-select {
+    width: 100px;
+    height: 36px;
+    border: 1px solid var(--at-border);
+    border-radius: 6px;
+    padding: 0 8px;
+    font-weight: 600;
+    color: #fff;
+}
+
+.at-method-select.at-method-GET { background: var(--at-method-get); border-color: var(--at-method-get); }
+.at-method-select.at-method-POST { background: var(--at-method-post); border-color: var(--at-method-post); }
+.at-method-select.at-method-PUT { background: var(--at-method-put); border-color: var(--at-method-put); }
+.at-method-select.at-method-DELETE { background: var(--at-method-delete); border-color: var(--at-method-delete); }
+.at-method-select.at-method-PATCH { background: var(--at-method-patch); border-color: var(--at-method-patch); }
+.at-method-select.at-method-HEAD,
+.at-method-select.at-method-OPTIONS { background: var(--at-method-other); border-color: var(--at-method-other); }
+
+.at-url-input {
+    flex: 1;
+    height: 36px;
+    border: 1px solid var(--at-border);
+    border-radius: 6px;
+    padding: 0 10px;
+    font-size: 13px;
+}
+
+.at-editor-name {
+    padding: 8px 16px 4px;
+}
+
+.at-editor-name input {
+    width: 100%;
+    border: none;
+    outline: none;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--at-text);
+}
+
+.at-tabs-head {
+    display: flex;
+    gap: 4px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--at-border);
+}
+
+.at-tab {
+    padding: 8px 12px;
+    cursor: pointer;
+    color: var(--at-text-muted);
+    font-size: 13px;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+}
+
+.at-tab:hover { color: var(--at-text); }
+.at-tab.active {
+    color: var(--at-primary);
+    border-bottom-color: var(--at-primary);
+}
+
+.at-tab-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    margin-left: 4px;
+    border-radius: 8px;
+    background: var(--at-bg);
+    color: var(--at-text-muted);
+    font-size: 10px;
+}
+
+.at-tab.active .at-tab-badge {
+    background: var(--at-primary);
+    color: #fff;
+}
+
+.at-tabs-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 16px;
+    min-height: 0;
+}
+
+.at-editor-footer {
+    display: flex;
+    justify-content: flex-end;
+    padding: 8px 16px;
+    border-top: 1px solid var(--at-border);
+}
+
+/* KV 表格 */
+.at-kv-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+.at-kv-table th {
+    text-align: left;
+    padding: 6px 6px;
+    color: var(--at-text-muted);
+    font-weight: 500;
+    border-bottom: 1px solid var(--at-border);
+}
+.at-kv-table td {
+    padding: 4px 6px;
+    border-bottom: 1px solid var(--at-border);
+}
+.at-kv-table input[type=text] {
+    width: 100%;
+    border: 1px solid transparent;
+    padding: 4px 6px;
+    background: transparent;
+    border-radius: 4px;
+    font-size: 12px;
+}
+.at-kv-table input[type=text]:focus {
+    outline: none;
+    border-color: var(--at-border);
+    background: var(--at-surface);
+}
+.at-add-row {
+    margin-top: 8px;
+    color: var(--at-primary);
+    border-style: dashed;
+}
+
+/* Body */
+.at-body-toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+.at-body-toolbar select {
+    height: 30px;
+    border: 1px solid var(--at-border);
+    border-radius: 6px;
+    padding: 0 8px;
+    font-size: 12px;
+}
+.at-body-area {
+    width: 100%;
+    min-height: 240px;
+    border: 1px solid var(--at-border);
+    border-radius: 6px;
+    padding: 8px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+    resize: vertical;
+}
+
+/* Auth */
+.at-auth-row {
+    margin-bottom: 10px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.at-auth-row label {
+    width: 100px;
+    font-size: 12px;
+    color: var(--at-text-muted);
+}
+.at-auth-row input[type=text],
+.at-auth-row select {
+    flex: 1;
+    height: 30px;
+    padding: 0 8px;
+    border: 1px solid var(--at-border);
+    border-radius: 6px;
+    font-size: 12px;
+}
+
+/* ---------- Response 区(右侧栏) ---------- */
+.at-response {
+    overflow: hidden;
+}
+.at-resp-status-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--at-border);
+    font-size: 12px;
+}
+.at-resp-status {
+    padding: 4px 8px;
+    border-radius: 4px;
+    color: #fff;
+    font-weight: 600;
+}
+.at-status-2xx { background: #10B981; }
+.at-status-3xx { background: #3B82F6; }
+.at-status-4xx { background: #F59E0B; }
+.at-status-5xx { background: #EF4444; }
+.at-status-err { background: #6B7280; }
+.at-resp-meta {
+    color: var(--at-text-muted);
+}
+.at-resp-error {
+    color: #EF4444;
+}
+.at-resp-section {
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--at-border);
+    font-size: 12px;
+}
+.at-resp-section-title {
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: var(--at-text);
+}
+.at-vr-pass { color: #10B981; }
+.at-vr-fail { color: #EF4444; }
+.at-resp-tabs-head {
+    display: flex;
+    gap: 4px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--at-border);
+}
+.at-resp-tab {
+    padding: 8px 12px;
+    cursor: pointer;
+    color: var(--at-text-muted);
+    font-size: 12px;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+}
+.at-resp-tab.active {
+    color: var(--at-primary);
+    border-bottom-color: var(--at-primary);
+}
+.at-resp-tabs-body {
+    flex: 1;
+    overflow: auto;
+    padding: 12px 16px;
+}
+.at-resp-pre {
+    margin: 0;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+.at-resp-headers {
+    width: 100%;
+    font-size: 12px;
+    border-collapse: collapse;
+}
+.at-resp-headers td {
+    padding: 4px 6px;
+    border-bottom: 1px solid var(--at-border);
+    word-break: break-all;
+}
+.at-resp-headers td:first-child {
+    width: 35%;
+    color: var(--at-text-muted);
+}
+
+/* ---------- 弹窗 ---------- */
+.at-modal-mask {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.at-modal-mask[hidden] {
+    display: none !important;
+}
+
+.at-modal {
+    width: 600px;
+    max-width: 92vw;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--at-surface);
+    border-radius: 10px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, .15);
+}
+
+.at-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--at-border);
+    font-weight: 600;
+}
+
+.at-modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px 18px;
+}
+
+.at-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 18px;
+    border-top: 1px solid var(--at-border);
+}
+
+.at-form-row {
+    margin-bottom: 12px;
+}
+
+.at-form-row label {
+    display: block;
+    font-size: 12px;
+    color: var(--at-text-muted);
+    margin-bottom: 4px;
+}
+
+.at-form-row input,
+.at-form-row textarea {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid var(--at-border);
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+    resize: vertical;
+}
+
+.at-form-row textarea {
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+}
+
+.at-form-row input:focus,
+.at-form-row textarea:focus {
+    outline: none;
+    border-color: var(--at-primary);
+}
+
+/* ---------- Toast ---------- */
+.at-toast {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 8px 16px;
+    background: rgba(0, 0, 0, .85);
+    color: #fff;
+    border-radius: 6px;
+    font-size: 13px;
+    z-index: 2000;
+}
+
+/* ---------- 提取 Tab ---------- */
+.at-extract-table th,
+.at-extract-table td {
+    padding: 4px 6px;
+    font-size: 12px;
+}
+
+.at-extract-table input {
+    width: 100%;
+    padding: 4px 6px;
+    border: 1px solid var(--at-border);
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.at-extract-table input:focus {
+    outline: none;
+    border-color: var(--at-primary);
+}
+
+.at-extract-tip {
+    margin-top: 12px;
+    padding: 8px 12px;
+    background: #F3F4F6;
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--at-text-muted);
+    line-height: 1.6;
+}
+
+.at-extract-tip code {
+    padding: 1px 4px;
+    background: var(--at-surface);
+    border: 1px solid var(--at-border);
+    border-radius: 3px;
+    color: var(--at-primary);
+    font-family: "Consolas", "Courier New", monospace;
+}
+
+/* ---------- 环境变量弹窗 ---------- */
+.at-modal-lg {
+    width: 920px;
+    max-width: 95vw;
+    height: 600px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.at-modal-lg .at-modal-body {
+    flex: 1;
+    overflow: hidden;
+}
+
+/* 批量测试弹窗 body 需要滚动 (覆盖上面针对环境变量弹窗的 overflow:hidden) */
+#atBatchModal .at-modal-body {
+    overflow-y: auto;
+}
+
+.at-env-body {
+    display: flex;
+    gap: 0;
+    padding: 0;
+    height: 100%;
+}
+
+.at-env-left {
+    width: 240px;
+    border-right: 1px solid var(--at-border);
+    display: flex;
+    flex-direction: column;
+    background: var(--at-bg);
+}
+
+.at-env-left-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--at-border);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--at-text);
+}
+
+.at-env-list {
+    list-style: none;
+    margin: 0;
+    padding: 6px 0;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.at-env-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--at-text);
+    border-left: 3px solid transparent;
+}
+
+.at-env-item:hover {
+    background: var(--at-surface);
+}
+
+.at-env-item.selected {
+    background: var(--at-surface);
+    border-left-color: var(--at-primary);
+}
+
+.at-env-item.active .at-env-name {
+    font-weight: 600;
+    color: var(--at-primary);
+}
+
+.at-env-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.at-env-tag {
+    padding: 1px 6px;
+    background: var(--at-primary);
+    color: #fff;
+    border-radius: 3px;
+    font-size: 11px;
+}
+
+.at-env-actions {
+    display: none;
+    gap: 2px;
+}
+
+.at-env-item:hover .at-env-actions,
+.at-env-item.selected .at-env-actions {
+    display: flex;
+}
+
+.at-env-right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.at-env-right-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--at-border);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+#atVarTable {
+    margin: 0;
+    flex: 1;
+    overflow-y: auto;
+    width: 100%;
+}
+
+#atVarTable thead {
+    position: sticky;
+    top: 0;
+    background: var(--at-surface);
+    z-index: 1;
+}
+
+#atVarTable th,
+#atVarTable td {
+    padding: 6px 8px;
+    font-size: 12px;
+    border-bottom: 1px solid var(--at-border);
+}
+
+#atVarTable input[type="text"] {
+    width: 100%;
+    padding: 4px 6px;
+    border: 1px solid var(--at-border);
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+#atVarTable input[type="text"]:focus {
+    outline: none;
+    border-color: var(--at-primary);
+}
+
+#atVarTable .var-copy {
+    font-size: 14px;
+}
+
+/* ---------- 校验 Tab ---------- */
+.at-validate-toolbar {
+    margin-bottom: 8px;
+    padding: 6px 10px;
+    background: #F3F4F6;
+    border-radius: 6px;
+    font-size: 12px;
+}
+
+.at-validate-toolbar input[type="checkbox"] {
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+.at-validate-table input,
+.at-validate-table select {
+    width: 100%;
+    padding: 4px 6px;
+    border: 1px solid var(--at-border);
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.at-validate-table input:focus,
+.at-validate-table select:focus {
+    outline: none;
+    border-color: var(--at-primary);
+}
+
+/* ---------- Auth 自定义 Header ---------- */
+.at-auth-custom-table {
+    margin-top: 8px;
+}
+
+.at-auth-custom-table input[type="text"] {
+    width: 100%;
+    padding: 4px 6px;
+    border: 1px solid var(--at-border);
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.at-auth-custom-table input:focus {
+    outline: none;
+    border-color: var(--at-primary);
+}
+
+.at-auth-row code {
+    padding: 1px 4px;
+    background: #F3F4F6;
+    border-radius: 3px;
+    color: var(--at-primary);
+    font-family: "Consolas", "Courier New", monospace;
+}
+
+/* ---------- 批量测试 ---------- */
+.at-batch-tip {
+    margin-bottom: 10px;
+    padding: 6px 10px;
+    background: #F3F4F6;
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--at-text-muted);
+}
+
+.at-batch-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.at-batch-table th,
+.at-batch-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--at-border);
+    vertical-align: middle;
+}
+
+.at-batch-table tbody tr {
+    cursor: move;
+}
+
+.at-batch-table tbody tr:hover {
+    background: var(--at-bg);
+}
+
+.at-batch-name {
+    font-weight: 500;
+}
+
+.at-batch-path {
+    color: var(--at-text-muted);
+    margin-left: 6px;
+}
+
+/* ---------- 暗黑模式补充: 表单控件/弹窗等细节 ---------- */
+body.bg-black input,
+body.bg-black select,
+body.bg-black textarea {
+    color: var(--at-text);
+    background: var(--at-bg);
+    border-color: var(--at-border);
+}
+
+body.bg-black .at-modal {
+    box-shadow: 0 12px 40px rgba(0, 0, 0, .5);
+}
+
+body.bg-black .at-kv-table input[type=text] {
+    color: var(--at-text);
+}
+
+body.bg-black .at-editor-name input {
+    background: transparent;
+    color: var(--at-text);
+}
+
+body.bg-black pre {
+    color: var(--at-text);
+}

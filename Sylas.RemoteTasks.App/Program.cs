@@ -63,9 +63,18 @@ builder.Services.AddTransient<RequestProcessorService>();
 
 // MailKit
 
+// ApiTester 模块
+builder.Services.AddScoped<Sylas.RemoteTasks.App.ApiTester.Repositories.ApiTesterRepository>();
+builder.Services.AddScoped<Sylas.RemoteTasks.App.ApiTester.Services.SwaggerImportService>();
+builder.Services.AddScoped<Sylas.RemoteTasks.App.ApiTester.Services.ApiTesterService>();
+builder.Services.AddScoped<Sylas.RemoteTasks.App.ApiTester.Services.RequestProxyService>();
+builder.Services.AddScoped<Sylas.RemoteTasks.App.ApiTester.Services.VariableExtractorService>();
+builder.Services.AddScoped<Sylas.RemoteTasks.App.ApiTester.Services.AssertionService>();
+
 // 后台任务
 builder.Services.AddHostedService<PublishService>();
 builder.Services.AddHostedService<ServerRegistrationService>();
+builder.Services.AddHostedService<Sylas.RemoteTasks.App.BackgroundServices.ApiTesterInitService>();
 
 // BOOKMARK: Action过滤器
 builder.Services.AddScoped<CustomActionFilter>();

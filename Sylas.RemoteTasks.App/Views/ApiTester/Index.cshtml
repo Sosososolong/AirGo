@@ -1,0 +1,287 @@
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>API Tester</title>
+    @* <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" /> *@
+    <link rel="stylesheet" href="~/css/api-tester.css" asp-append-version="true" />
+    <script>
+        // 跟随全局主题: 从 localStorage 读取并应用到 body
+        (function () {
+            var theme = localStorage.getItem('site-theme') || 'bg-black';
+            document.documentElement.className = theme;
+            document.addEventListener('DOMContentLoaded', function () {
+                document.body.classList.add(theme);
+            });
+        })();
+
+        // 预定义核心全局对象 - 即使外部 JS 文件加载失败也不会报错
+        window.apiTesterState = {
+            collections: [], endpoints: [],
+            activeCollectionId: 0, activeEndpointId: 0, activeEnvId: 0,
+            variables: {}, searchKeyword: '',
+            collapsedTags: {}, batchSelected: {}
+        };
+    </script>
+</head>
+<body>
+    <div id="apiTesterApp" class="api-tester-root">
+        <!-- 顶部工具栏 -->
+        <header class="at-header">
+            <div class="at-logo">
+                <span class="at-logo-icon">⚡</span>
+                <span class="at-logo-text">API Tester</span>
+            </div>
+            <div class="at-toolbar">
+                <button type="button" class="btn at-btn at-btn-primary" data-action="import-swagger">
+                    导入 Swagger
+                </button>
+                <button type="button" class="btn at-btn" data-action="global-auth" title="全局授权">
+                    全局授权
+                </button>
+                <button type="button" class="btn at-btn" data-action="env-vars" title="环境变量">
+                    环境变量 <span class="at-badge" id="envCount">0</span>
+                </button>
+                <button type="button" class="btn at-btn" data-action="global-validators" title="全局校验">
+                    全局校验 <span class="at-badge" id="globalValidatorCount">0</span>
+                </button>
+                <button type="button" class="btn at-btn" data-action="batch-test" title="批量测试">
+                    批量测试 <span class="at-badge" id="batchCount">0</span>
+                </button>
+                <button type="button" class="btn at-btn" data-action="new-endpoint" title="新建接口">
+                    新建接口
+                </button>
+                <button type="button" class="btn at-btn" data-action="export" title="导出当前集合为 JSON">
+                    导出
+                </button>
+                <button type="button" class="btn at-btn" data-action="import-json" title="导入 JSON (自有格式 或 swagger)">
+                    导入
+                </button>
+            </div>
+        </header>
+
+        <!-- 三栏主体 -->
+        <main class="at-main">
+            <!-- 左侧栏: 集合 + 接口列表 -->
+            <aside class="at-sidebar" id="atSidebar">
+                <div class="at-collection-bar">
+                    <select class="at-collection-select" id="atCollectionSelect">
+                        <option value="">-- 选择集合 --</option>
+                    </select>
+                    <button class="at-icon-btn" id="atDeleteCollection" title="删除当前集合"
+                            data-execute-url="/ApiTester/DeleteCollection"
+                            data-method="POST"
+                            onclick="if(!window.apiTesterState.activeCollectionId){window.atToast('未选中集合');return;}this.setAttribute('data-content', JSON.stringify({id:window.apiTesterState.activeCollectionId}));showConfirmBox('确定要删除当前集合及其所有接口吗?', () =&gt; execute(this, () =&gt; { window.apiTesterState.activeCollectionId = 0; window.apiTesterState.activeEndpointId = 0; window.atReloadCollections(); window.atToast('已删除'); }))">×</button>
+                </div>
+                <div class="at-search-bar">
+                    <input type="text" class="at-search-input" id="atSearchInput" placeholder="搜索接口..." />
+                </div>
+                <div class="at-batch-toolbar">
+                    <label class="at-batch-all-label" title="全选/取消当前可见接口">
+                        <input type="checkbox" id="atBatchAll" />
+                        <span>全选可见</span>
+                    </label>
+                    <button type="button" class="at-mini-btn" id="atBatchInvert" title="在可见范围内反选">反选</button>
+                    <button type="button" class="at-mini-btn" id="atBatchClear" title="清空当前集合的所有选中">清空</button>
+                    <span class="at-batch-summary">已选 <b id="atBatchSelectedInline">0</b></span>
+                </div>
+                <div class="at-endpoint-list" id="atEndpointList">
+                    <div class="at-empty-tip">请选择或导入一个集合</div>
+                </div>
+            </aside>
+
+            <!-- 中间: 接口编辑器(Task 3 实现) -->
+            <section class="at-editor" id="atEditor">
+                <div class="at-empty-state">
+                    <div class="at-empty-icon">🔌</div>
+                    <div class="at-empty-title">选择一个接口开始测试</div>
+                    <div class="at-empty-desc">从左侧列表选择接口, 或导入 Swagger 文档</div>
+                </div>
+            </section>
+
+            <!-- 右侧: 响应面板(Task 3 实现) -->
+            <aside class="at-response" id="atResponse">
+                <div class="at-empty-state">
+                    <div class="at-empty-icon">📨</div>
+                    <div class="at-empty-title">点击发送按钮查看响应</div>
+                </div>
+            </aside>
+        </main>
+    </div>
+
+    <!-- Swagger 导入弹窗 -->
+    <div class="at-modal-mask" id="atSwaggerModal" hidden>
+        <div class="at-modal">
+            <div class="at-modal-header">
+                <span>导入 Swagger / OpenAPI</span>
+                <button class="at-icon-btn" data-action="close-modal">×</button>
+            </div>
+            <div class="at-modal-body">
+                <div class="at-form-row">
+                    <label>集合名称(可选)</label>
+                    <input type="text" id="swaggerCollectionName" placeholder="留空则使用 swagger 内的 info.title" />
+                </div>
+                <div class="at-form-row">
+                    <label>Base URL(可选)</label>
+                    <input type="text" id="swaggerBaseUrl" placeholder="留空则使用 swagger 内的 servers/host" />
+                </div>
+                <div class="at-form-row">
+                    <label>来源 URL(与下方内容二选一)</label>
+                    <input type="text" id="swaggerUrl" placeholder="https://example.com/swagger.json" />
+                </div>
+                <div class="at-form-row">
+                    <label>或直接粘贴 swagger.json / swagger.yaml 内容</label>
+                    <textarea id="swaggerContent" rows="12" placeholder="支持 JSON 或 YAML 格式"></textarea>
+                </div>
+            </div>
+            <div class="at-modal-footer">
+                <button class="btn at-btn" data-action="close-modal">取消</button>
+                <button class="btn at-btn at-btn-primary" id="atSwaggerSubmit">开始导入</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 环境变量管理弹窗 -->
+    <div class="at-modal-mask" id="atEnvModal" hidden>
+        <div class="at-modal at-modal-lg">
+            <div class="at-modal-header">
+                <span>环境与变量管理</span>
+                <button class="at-icon-btn" data-action="close-env-modal">×</button>
+            </div>
+            <div class="at-modal-body at-env-body">
+                <div class="at-env-left">
+                    <div class="at-env-left-header">
+                        <span>环境列表</span>
+                        <button class="at-icon-btn" id="atEnvAdd" title="新建环境">+</button>
+                    </div>
+                    <ul class="at-env-list" id="atEnvList"></ul>
+                </div>
+                <div class="at-env-right">
+                    <div class="at-env-right-header">
+                        <span id="atEnvCurrentName">变量列表</span>
+                        <button class="btn at-btn at-btn-primary" id="atVarAdd">+ 添加变量</button>
+                    </div>
+                    <table class="at-kv-table" id="atVarTable">
+                        <thead>
+                            <tr>
+                                <th>变量名</th>
+                                <th>值</th>
+                                <th>描述</th>
+                                <th style="width:50px">加密</th>
+                                <th style="width:80px">引用</th>
+                                <th style="width:30px"></th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="at-modal-footer">
+                <button class="btn at-btn" data-action="close-env-modal">关闭</button>
+                <button class="btn at-btn at-btn-primary" id="atVarSaveAll">保存所有修改</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 全局授权弹窗 -->
+    <div class="at-modal-mask" id="atGlobalAuthModal" hidden>
+        <div class="at-modal">
+            <div class="at-modal-header">
+                <span>全局授权 (集合级)</span>
+                <button class="at-icon-btn" data-action="close-global-auth">×</button>
+            </div>
+            <div class="at-modal-body" id="atGlobalAuthBody">
+                <!-- 动态渲染 -->
+            </div>
+            <div class="at-modal-footer">
+                <button class="btn at-btn" data-action="close-global-auth">取消</button>
+                <button class="btn at-btn at-btn-primary" id="atGlobalAuthSave">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 全局校验弹窗 -->
+    <div class="at-modal-mask" id="atGlobalValModal" hidden>
+        <div class="at-modal">
+            <div class="at-modal-header">
+                <span>全局校验 (集合级)</span>
+                <button class="at-icon-btn" data-action="close-global-val">×</button>
+            </div>
+            <div class="at-modal-body" id="atGlobalValBody">
+                <!-- 动态渲染 -->
+            </div>
+            <div class="at-modal-footer">
+                <button class="btn at-btn" data-action="close-global-val">取消</button>
+                <button class="btn at-btn at-btn-primary" id="atGlobalValSave">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 批量测试弹窗 -->
+    <div class="at-modal-mask" id="atBatchModal" hidden>
+        <div class="at-modal at-modal-lg">
+            <div class="at-modal-header">
+                <span>批量测试</span>
+                <button class="at-icon-btn" data-action="close-batch">×</button>
+            </div>
+            <div class="at-modal-body" id="atBatchBody">
+                <div class="at-batch-tip">按上下顺序顺次执行, 拖拽调整顺序, 上一个接口提取的变量可被后续接口使用</div>
+                <table class="at-batch-table">
+                    <thead>
+                        <tr>
+                            <th style="width:30px">#</th>
+                            <th>接口</th>
+                            <th style="width:80px">状态</th>
+                            <th style="width:80px">耗时</th>
+                            <th style="width:80px">校验</th>
+                            <th style="width:30px"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="atBatchSelected"></tbody>
+                </table>
+            </div>
+            <div class="at-modal-footer">
+                <button class="btn at-btn" data-action="close-batch">关闭</button>
+                <button class="btn at-btn at-btn-primary" id="atBatchRun">依次执行</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 导入 JSON 弹窗 -->
+    <div class="at-modal-mask" id="atImportJsonModal" hidden>
+        <div class="at-modal">
+            <div class="at-modal-header">
+                <span>导入 JSON</span>
+                <button class="at-icon-btn" data-action="close-import-json">×</button>
+            </div>
+            <div class="at-modal-body">
+                <div class="at-form-row">
+                    <label>选择 JSON 文件 (可选)</label>
+                    <input type="file" id="atImportJsonFile" accept=".json,application/json" />
+                </div>
+                <div class="at-form-row">
+                    <label>或直接粘贴 JSON 内容 (自有格式 或 swagger 都可)</label>
+                    <textarea id="atImportJsonContent" rows="14" placeholder='{"format":"sylas-apitester",...} 或 swagger.json'></textarea>
+                </div>
+            </div>
+            <div class="at-modal-footer">
+                <button class="btn at-btn" data-action="close-import-json">取消</button>
+                <button class="btn at-btn at-btn-primary" id="atImportJsonSubmit">开始导入</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    <script src="~/js/api-tester.js" asp-append-version="true"></script>
+    <script src="~/js/api-tester-editor.js" asp-append-version="true"></script>
+    <script src="~/js/api-tester-env.js" asp-append-version="true"></script>
+    <script src="~/js/api-tester-batch.js" asp-append-version="true"></script>
+    <script src="~/js/api-tester-io.js" asp-append-version="true"></script>
+</body>
+</html>
