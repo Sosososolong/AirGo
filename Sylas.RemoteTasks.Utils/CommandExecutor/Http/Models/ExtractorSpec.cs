@@ -14,13 +14,17 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor.Http.Models
         /// </summary>
         public string DataPath { get; set; } = string.Empty;
         /// <summary>
-        /// 过滤data中的数据的条件, 如通过name=xxxx(ExtractorFilter { FieldName = "name", MatchValue = "xxxx" })过滤出name为xxxx的那条数据, 然后取这条数据的某个字段(下面的Field属性指定)值
+        /// 当 dataPath 命中数组时, 通过此过滤器选定一项; 如: FieldName=id, MatchValue=123, 表示选定 data(DataPath) 数组中 id 字段值为 123 的那一项数据
         /// </summary>
         public ExtractorFilter? Filter { get; set; }
         /// <summary>
         /// 提取字段名称, 如:id, name 即data中具体某条数据的id或name值
         /// </summary>
         public string Field { get; set; } = string.Empty;
+        /// <summary>
+        /// 正则提取(当 dataPath/field 不够用时, 直接对响应文本/JSON 字段做正则)
+        /// </summary>
+        public string RegexPattern { get; set; } = string.Empty;
     }
     /// <summary>
     /// 提取器过滤条件

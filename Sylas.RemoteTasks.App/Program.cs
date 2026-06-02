@@ -8,6 +8,7 @@ using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
 using Sylas.RemoteTasks.App.RequestProcessor;
 using Sylas.RemoteTasks.Database;
+using Sylas.RemoteTasks.Utils.CommandExecutor.Http;
 using Sylas.RemoteTasks.Utils.Constants;
 var builder = WebApplication.CreateBuilder(args);
 
@@ -39,6 +40,7 @@ builder.Services.AddSignalR();
 
 builder.Services.AddHttpClient();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton<IHttpRequestPipeline, HttpRequestPipeline>();
 
 // 添加"网络请求任务"工厂
 builder.Services.AddSingleton<RequestProcessorBase>();
