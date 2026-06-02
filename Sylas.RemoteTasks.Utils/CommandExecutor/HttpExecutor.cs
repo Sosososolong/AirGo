@@ -109,7 +109,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         /// <exception cref="Exception"></exception>
         async Task<CommandResult> SendRequestAsync(HttpRequestDto dto, Dictionary<string, object> threadVars)
         {
-            using var httpClient = httpClientFactory.CreateClient();
+            var httpClient = httpClientFactory.CreateClient();
             var (statusCode, responseContent) = await RemoteHelpers.FetchAsync(httpClient, dto);
 
             CommandResult result;
@@ -124,7 +124,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                     result = new CommandResult(statusCode == System.Net.HttpStatusCode.OK, responseContent);
                     if (!string.IsNullOrWhiteSpace(dto.ResponseExtractors))
                     {
-                        var responseObj = JsonConvert.DeserializeObject<JToken>(responseContent) ?? throw new Exception($"返序列化相应内容失败:{responseContent}");
+                        //var responseObj = JsonConvert.DeserializeObject<JToken>(responseContent) ?? throw new Exception($"返序列化相应内容失败:{responseContent}");
                         if (threadVars is not null && threadVars.Count > 0)
                         {
                             TmplHelper2.ResolveExtractors(dto.ResponseExtractors, threadVars);

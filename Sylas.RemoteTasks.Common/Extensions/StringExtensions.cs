@@ -353,7 +353,7 @@ namespace Sylas.RemoteTasks.Common.Extensions
                     propValueIndexEnd = nextPropIndexStart - 1;
                 }
                 // 属性值长度 = 属性值的最后一个字符索引 - 属性值的索引 + 1
-                int propValueLength = (propValueIndexEnd - propValueIndexStart) + 1; ;
+                int propValueLength = (propValueIndexEnd - propValueIndexStart) + 1;
 
                 string propVal = objSettingSplitedByProps.Substring(propValueIndexStart, propValueLength);
                 var property = properties.First(x => x.Name.Equals(propName, StringComparison.OrdinalIgnoreCase));
