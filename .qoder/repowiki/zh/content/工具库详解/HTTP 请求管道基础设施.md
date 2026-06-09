@@ -11,13 +11,19 @@
 - [KvPair.cs](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/Models/KvPair.cs)
 - [HttpRequestResult.cs](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/Models/HttpRequestResult.cs)
 - [ValidatorSpec.cs](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/Models/ValidatorSpec.cs)
-- [ExtractorSpec.cs](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/Models/ExtractorSpec.cs)
-- [ExtractedVar.cs](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/Models/ExtractedVar.cs)
-- [ValidatorResult.cs](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/Models/ValidatorResult.cs)
-- [HttpRequestDto.cs](file://Sylas.RemoteTasks.Utils/CommandExecutor/HttpRequestDto.cs)
 - [RequestProcessorService.cs](file://Sylas.RemoteTasks.App/RequestProcessor/RequestProcessorService.cs)
 - [HttpRequestProcessor.cs](file://Sylas.RemoteTasks.App/RequestProcessor/Models/HttpRequestProcessor.cs)
+- [HttpRequestProcessorEntity.cs](file://Sylas.RemoteTasks.App/RequestProcessor/Models/HttpRequestProcessorEntity.cs)
+- [HttpRequestProcessorRepository.cs](file://Sylas.RemoteTasks.App/RequestProcessor/HttpRequestProcessorRepository.cs)
 </cite>
+
+## 更新摘要
+**所做更改**
+- 新增了完整的 HTTP 请求管道架构分析
+- 增强了请求处理能力和响应验证功能说明
+- 补充了数据提取和变量上下文管理机制
+- 完善了请求处理器服务和数据库集成
+- 更新了架构图和组件关系图
 
 ## 目录
 1. [简介](#简介)
@@ -34,56 +40,72 @@
 
 本文档深入分析了 Sylas.RemoteTasks 项目中的 HTTP 请求管道基础设施。该系统提供了完整的 HTTP 请求执行能力，包括模板解析、认证处理、请求构建、响应提取和验证等功能。系统采用模块化设计，支持单请求执行、批量请求执行和复杂的请求流水线处理。
 
-该基础设施的核心目标是提供一个灵活、可扩展的 HTTP 请求执行框架，能够处理从简单 API 调用到复杂业务流程的各种场景。
+该基础设施的核心目标是提供一个灵活、可扩展的 HTTP 请求执行框架，能够处理从简单 API 调用到复杂业务流程的各种场景。通过引入统一的请求规范和强大的数据处理能力，系统实现了高度的自动化和智能化。
 
 ## 项目结构
 
-HTTP 请求管道基础设施主要分布在两个核心项目中：
+HTTP 请求管道基础设施主要分布在两个核心项目中，形成了完整的分层架构：
 
 ```mermaid
 graph TB
-subgraph "Utils 层"
+subgraph "Utils 层 - 核心执行引擎"
 A[IHttpRequestPipeline 接口]
 B[HttpRequestPipeline 实现]
 C[HttpExecutor 执行器]
 D[请求模型集合]
+E[模板处理]
+F[JSON 解析]
 end
-subgraph "App 层"
-E[RequestProcessorService]
-F[HttpRequestProcessor 模型]
-G[请求处理器集合]
+subgraph "App 层 - 业务处理层"
+G[RequestProcessorService]
+H[HttpRequestProcessor 模型]
+I[HttpRequestProcessorRepository]
+J[数据库实体]
+K[数据处理器]
 end
-subgraph "共享模型"
-H[HttpRequestSpec]
-I[AuthSpec]
-J[KvPair]
-K[HttpRequestResult]
+subgraph "共享模型层"
+L[HttpRequestSpec]
+M[AuthSpec]
+N[KvPair]
+O[HttpRequestResult]
+P[ValidatorSpec]
+Q[ExtractorSpec]
+R[ExtractedVar]
+S[ValidatorResult]
 end
 A --> B
 C --> B
-E --> G
-F --> G
-B --> H
-H --> I
+G --> H
+G --> I
 H --> J
-B --> K
+I --> K
+B --> L
+L --> M
+L --> N
+L --> O
+B --> P
+B --> Q
+B --> R
+B --> S
 ```
 
 **图表来源**
 - [IHttpRequestPipeline.cs:1-19](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/IHttpRequestPipeline.cs#L1-L19)
-- [HttpRequestPipeline.cs:1-145](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/HttpRequestPipeline.cs#L1-L145)
+- [HttpRequestPipeline.cs:1-533](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/HttpRequestPipeline.cs#L1-L533)
 - [HttpExecutor.cs:1-258](file://Sylas.RemoteTasks.Utils/CommandExecutor/HttpExecutor.cs#L1-L258)
+- [RequestProcessorService.cs:1-72](file://Sylas.RemoteTasks.App/RequestProcessor/RequestProcessorService.cs#L1-L72)
 
 **章节来源**
 - [IHttpRequestPipeline.cs:1-19](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/IHttpRequestPipeline.cs#L1-L19)
-- [HttpRequestPipeline.cs:1-145](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/HttpRequestPipeline.cs#L1-L145)
+- [HttpRequestPipeline.cs:1-533](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/HttpRequestPipeline.cs#L1-L533)
 - [HttpExecutor.cs:1-258](file://Sylas.RemoteTasks.Utils/CommandExecutor/HttpExecutor.cs#L1-L258)
+- [RequestProcessorService.cs:1-72](file://Sylas.RemoteTasks.App/RequestProcessor/RequestProcessorService.cs#L1-L72)
 
 ## 核心组件
 
 ### HTTP 请求管道接口
 
-IHttpRequestPipeline 定义了 HTTP 请求执行的核心接口，采用职责链模式设计：
+IHttpRequestPipeline 定义了 HTTP 请求执行的核心接口，采用职责链模式设计，实现了完整的请求生命周期管理：
 
 ```mermaid
 classDiagram
@@ -92,37 +114,75 @@ class IHttpRequestPipeline {
 +SendAsync(spec, cancellationToken) Task~HttpRequestResult~
 }
 class HttpRequestPipeline {
--httpClientFactory IHttpClientFactory
--logger ILogger
+-private httpClientFactory IHttpClientFactory
+-private logger ILogger
 +SendAsync(spec, cancellationToken) Task~HttpRequestResult~
--ResolveTemplate(template, context) string
--BuildFullUrl(spec, ctx) string
--ApplyAuth(req, auth, ctx, url) void
--BuildContent(kind, body, headers) HttpContent
+-private ResolveTemplate(template, context) string
+-private BuildFullUrl(spec, ctx) string
+-private ApplyAuth(req, auth, ctx, url) void
+-private BuildContent(kind, body, headers) HttpContent
+-private ExtractVars(body, extractors, ctx) ExtractedVar[]
+-private Validate(result, validators, ctx) ValidatorResult[]
 }
 IHttpRequestPipeline <|.. HttpRequestPipeline
 ```
 
 **图表来源**
 - [IHttpRequestPipeline.cs:11-17](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/IHttpRequestPipeline.cs#L11-L17)
-- [HttpRequestPipeline.cs:17-145](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/HttpRequestPipeline.cs#L17-L145)
+- [HttpRequestPipeline.cs:23-533](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/HttpRequestPipeline.cs#L23-L533)
 
 ### HTTP 执行器
 
-HttpExecutor 提供了多种执行模式：
+HttpExecutor 提供了三种执行模式，满足不同场景的需求：
 
-1. **单请求执行**：适用于简单的 API 调用
-2. **多线程批量执行**：支持压力测试场景
-3. **请求流水线执行**：支持复杂的业务流程
+1. **单请求执行**：适用于简单的 API 调用和测试场景
+2. **多线程批量执行**：支持压力测试和并发场景
+3. **请求流水线执行**：支持复杂的业务流程编排
 
 **章节来源**
-- [HttpExecutor.cs:20-102](file://Sylas.RemoteTasks.Utils/CommandExecutor/HttpExecutor.cs#L20-L102)
+- [HttpExecutor.cs:29-102](file://Sylas.RemoteTasks.Utils/CommandExecutor/HttpExecutor.cs#L29-L102)
 - [HttpExecutor.cs:109-140](file://Sylas.RemoteTasks.Utils/CommandExecutor/HttpExecutor.cs#L109-L140)
 - [HttpExecutor.cs:148-255](file://Sylas.RemoteTasks.Utils/CommandExecutor/HttpExecutor.cs#L148-L255)
 
+### 请求处理器服务
+
+RequestProcessorService 提供了基于数据库的请求处理器管理，支持复杂的业务流程编排：
+
+```mermaid
+classDiagram
+class RequestProcessorService {
+-private logger ILogger
+-private serviceProvider IServiceProvider
+-private repository HttpRequestProcessorRepository
++ExecuteHttpRequestProcessorsAsync(ids, stepId) Task~OperationResult~
+}
+class HttpRequestProcessor {
++int Id
++string Title
++string Name
++string Url
++string Headers
++bool StepCirleRunningWhenLastStepHasData
++IEnumerable~HttpRequestProcessorStep~ Steps
+}
+class RequestProcessorBase {
++Dictionary~string,object~ DataContext
++ExecuteStepsFromDbAsync(processor, stepId) Task~RequestProcessorBase~
+}
+RequestProcessorService --> HttpRequestProcessor
+RequestProcessorService --> RequestProcessorBase
+```
+
+**图表来源**
+- [RequestProcessorService.cs:7-72](file://Sylas.RemoteTasks.App/RequestProcessor/RequestProcessorService.cs#L7-L72)
+- [HttpRequestProcessor.cs:9-22](file://Sylas.RemoteTasks.App/RequestProcessor/Models/HttpRequestProcessor.cs#L9-L22)
+
+**章节来源**
+- [RequestProcessorService.cs:11-69](file://Sylas.RemoteTasks.App/RequestProcessor/RequestProcessorService.cs#L11-L69)
+
 ## 架构概览
 
-HTTP 请求管道采用分层架构设计，实现了清晰的关注点分离：
+HTTP 请求管道采用分层架构设计，实现了清晰的关注点分离和高度的模块化：
 
 ```mermaid
 sequenceDiagram
@@ -158,13 +218,13 @@ Executor-->>Client : CommandResult
 
 **图表来源**
 - [HttpExecutor.cs:29-102](file://Sylas.RemoteTasks.Utils/CommandExecutor/HttpExecutor.cs#L29-L102)
-- [HttpRequestPipeline.cs:19-28](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/HttpRequestPipeline.cs#L19-L28)
+- [HttpRequestPipeline.cs:31-149](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/HttpRequestPipeline.cs#L31-L149)
 
 ## 详细组件分析
 
 ### 请求规格模型
 
-HttpRequestSpec 是整个管道的核心数据模型，定义了完整的 HTTP 请求描述：
+HttpRequestSpec 是整个管道的核心数据模型，定义了完整的 HTTP 请求描述，支持复杂的配置选项：
 
 ```mermaid
 classDiagram
@@ -217,23 +277,23 @@ HttpRequestSpec --> HttpRequestResult
 ```
 
 **图表来源**
-- [HttpRequestSpec.cs:8-55](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/Models/HttpRequestSpec.cs#L8-L55)
-- [AuthSpec.cs:8-47](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/Models/AuthSpec.cs#L8-L47)
-- [KvPair.cs:6-28](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/Models/KvPair.cs#L6-L28)
-- [HttpRequestResult.cs:8-70](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/Models/HttpRequestResult.cs#L8-L70)
+- [HttpRequestSpec.cs:8-56](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/Models/HttpRequestSpec.cs#L8-L56)
+- [AuthSpec.cs:8-48](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/Models/AuthSpec.cs#L8-L48)
+- [KvPair.cs:6-29](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/Models/KvPair.cs#L6-L29)
+- [HttpRequestResult.cs:8-71](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/Models/HttpRequestResult.cs#L8-L71)
 
 ### 认证处理机制
 
-系统支持五种认证方式：
+系统支持五种认证方式，每种都有其特定的应用场景：
 
-1. **无认证 (None)**：不添加任何认证信息
-2. **Bearer Token**：支持 JWT 令牌认证
-3. **Basic Auth**：标准 HTTP 基本身份验证
-4. **API Key**：支持在头部或查询参数中传递
-5. **自定义头部**：允许用户自定义任意请求头
+1. **无认证 (None)**：适用于公开 API 或测试场景
+2. **Bearer Token**：支持 JWT 令牌认证，自动添加 Authorization 头
+3. **Basic Auth**：标准 HTTP 基本身份验证，支持用户名密码
+4. **API Key**：支持在头部或查询参数中传递 API 密钥
+5. **自定义头部**：允许用户自定义任意请求头组合
 
 **章节来源**
-- [HttpRequestPipeline.cs:82-136](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/HttpRequestPipeline.cs#L82-L136)
+- [HttpRequestPipeline.cs:203-257](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/HttpRequestPipeline.cs#L203-L257)
 
 ### 请求构建流程
 
@@ -253,18 +313,18 @@ style ReturnResult fill:#c8e6c9
 ```
 
 **图表来源**
-- [HttpRequestPipeline.cs:19-145](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/HttpRequestPipeline.cs#L19-L145)
+- [HttpRequestPipeline.cs:31-149](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/HttpRequestPipeline.cs#L31-L149)
 
 ### 数据处理和持久化
 
-RequestProcessorService 提供了基于数据库的请求处理器管理：
+RequestProcessorService 提供了完整的数据处理和持久化机制：
 
 ```mermaid
 classDiagram
 class RequestProcessorService {
--logger ILogger
--serviceProvider IServiceProvider
--repository HttpRequestProcessorRepository
+-private logger ILogger
+-private serviceProvider IServiceProvider
+-private repository HttpRequestProcessorRepository
 +ExecuteHttpRequestProcessorsAsync(ids, stepId) Task~OperationResult~
 }
 class HttpRequestProcessor {
@@ -273,7 +333,6 @@ class HttpRequestProcessor {
 +string Name
 +string Url
 +string Headers
-+string Remark
 +bool StepCirleRunningWhenLastStepHasData
 +IEnumerable~HttpRequestProcessorStep~ Steps
 }
@@ -303,39 +362,53 @@ A[IHttpClientFactory]
 B[ILogger]
 C[Json.NET]
 D[TmplHelper2]
+E[DatabaseProvider]
+F[Newtonsoft.Json]
 end
 subgraph "内部组件"
-E[IHttpRequestPipeline]
-F[HttpRequestPipeline]
-G[HttpExecutor]
-H[RequestProcessorService]
+G[IHttpRequestPipeline]
+H[HttpRequestPipeline]
+I[HttpExecutor]
+J[RequestProcessorService]
+K[HttpRequestProcessorRepository]
 end
 subgraph "数据模型"
-I[HttpRequestSpec]
-J[AuthSpec]
-K[KvPair]
-L[HttpRequestResult]
+L[HttpRequestSpec]
+M[AuthSpec]
+N[KvPair]
+O[HttpRequestResult]
+P[ValidatorSpec]
+Q[ExtractorSpec]
+R[ExtractedVar]
+S[ValidatorResult]
 end
-A --> F
-B --> F
-C --> G
-D --> F
-E --> F
-F --> I
-G --> I
-H --> F
-I --> J
-I --> K
-F --> L
+A --> H
+B --> H
+C --> I
+D --> H
+E --> K
+F --> H
+G --> H
+H --> L
+I --> L
+J --> H
+K --> L
+L --> M
+L --> N
+L --> O
+H --> P
+H --> Q
+H --> R
+H --> S
 ```
 
 **图表来源**
-- [HttpRequestPipeline.cs:17](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/HttpRequestPipeline.cs#L17)
+- [HttpRequestPipeline.cs:23](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/HttpRequestPipeline.cs#L23)
 - [HttpExecutor.cs:21](file://Sylas.RemoteTasks.Utils/CommandExecutor/HttpExecutor.cs#L21)
 - [RequestProcessorService.cs:7-9](file://Sylas.RemoteTasks.App/RequestProcessor/RequestProcessorService.cs#L7-L9)
 
 **章节来源**
-- [HttpRequestPipeline.cs:17](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/HttpRequestPipeline.cs#L17)
+- [HttpRequestPipeline.cs:23](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/HttpRequestPipeline.cs#L23)
 - [HttpExecutor.cs:21](file://Sylas.RemoteTasks.Utils/CommandExecutor/HttpExecutor.cs#L21)
 - [RequestProcessorService.cs:7-9](file://Sylas.RemoteTasks.App/RequestProcessor/RequestProcessorService.cs#L7-L9)
 
@@ -387,7 +460,7 @@ F --> L
 - **验证数据流**：确认变量提取和传递正确性
 
 **章节来源**
-- [HttpRequestPipeline.cs:49-53](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/HttpRequestPipeline.cs#L49-L53)
+- [HttpRequestPipeline.cs:96-104](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/HttpRequestPipeline.cs#L96-L104)
 
 ## 结论
 
@@ -397,5 +470,7 @@ Sylas.RemoteTasks 的 HTTP 请求管道基础设施展现了现代 .NET 应用�
 2. **可扩展性**：支持多种认证方式和请求类型
 3. **性能优化**：并发处理和资源管理
 4. **易用性**：简洁的 API 和丰富的配置选项
+5. **数据驱动**：基于数据库的请求处理器管理
+6. **智能验证**：完整的响应验证和数据提取机制
 
-该基础设施为复杂的 HTTP 请求场景提供了坚实的基础，无论是简单的 API 调用还是复杂的业务流程编排，都能提供稳定可靠的支持。通过合理的架构设计和完善的错误处理机制，确保了系统的健壮性和可维护性。
+该基础设施为复杂的 HTTP 请求场景提供了坚实的基础，无论是简单的 API 调用还是复杂的业务流程编排，都能提供稳定可靠的支持。通过合理的架构设计和完善的错误处理机制，确保了系统的健壮性和可维护性。新增的请求处理器服务进一步增强了系统的业务处理能力，使其能够适应更复杂的自动化需求。

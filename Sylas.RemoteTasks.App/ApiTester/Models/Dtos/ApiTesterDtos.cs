@@ -144,7 +144,7 @@ namespace Sylas.RemoteTasks.App.ApiTester.Models.Dtos
     /// <summary>
     /// 发送请求结果
     /// </summary>
-    public class SendRequestResult
+    public class HttpRequestResultDto
     {
         public int Status { get; set; }
         public string StatusText { get; set; } = string.Empty;

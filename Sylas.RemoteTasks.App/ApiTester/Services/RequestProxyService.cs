@@ -1,13 +1,10 @@
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using Sylas.RemoteTasks.App.ApiTester.Models.Dtos;
 using Sylas.RemoteTasks.App.ApiTester.Models.Entities;
 using Sylas.RemoteTasks.App.ApiTester.Repositories;
 using Sylas.RemoteTasks.Database;
-using Sylas.RemoteTasks.Utils.Template;
-using System.Diagnostics;
-using System.Net.Http.Headers;
-using System.Text;
+using Sylas.RemoteTasks.Utils.CommandExecutor.Http;
+using Sylas.RemoteTasks.Utils.CommandExecutor.Http.Models;
 
 namespace Sylas.RemoteTasks.App.ApiTester.Services
 {
@@ -16,21 +13,19 @@ namespace Sylas.RemoteTasks.App.ApiTester.Services
     /// 变量提取与校验由 Task 4/5 的 VariableExtractorService / AssertionService 负责
     /// </summary>
     public class RequestProxyService(
-        IHttpClientFactory httpClientFactory,
+        IHttpRequestPipeline pipeline,
         ApiTesterRepository repository,
         IDatabaseProvider db,
         VariableExtractorService extractor,
-        AssertionService assertion,
         ILogger<RequestProxyService> logger)
     {
-        private readonly IHttpClientFactory _httpClientFactory = httpClientFactory;
+        private readonly IHttpRequestPipeline _pipeline = pipeline;
         private readonly ApiTesterRepository _repo = repository;
         private readonly IDatabaseProvider _db = db;
         private readonly VariableExtractorService _extractor = extractor;
-        private readonly AssertionService _assertion = assertion;
         private readonly ILogger<RequestProxyService> _logger = logger;
 
-        public async Task<SendRequestResult> SendAsync(SendRequestDto dto)
+        public async Task<HttpRequestResultDto> SendAsync(SendRequestDto dto)
         {
             // 顶层入口：独立一次请求, 使用当前激活环境变量上下文
             var ctx = await BuildVariableContextAsync();
@@ -100,148 +95,146 @@ namespace Sylas.RemoteTasks.App.ApiTester.Services
             if (string.IsNullOrWhiteSpace(json)) return null;
             try { return JsonConvert.DeserializeObject<T>(json); } catch { return null; }
         }
-
-        async Task<SendRequestResult> SendAsync(SendRequestDto dto, Dictionary<string, object?> variableMap)
+        async Task<HttpRequestResultDto> SendAsync(SendRequestDto dto, Dictionary<string, object?> variableMap)
         {
-            var result = new SendRequestResult();
+            // 1) ApiTester 业务专属: 合并集合级全局 Headers / Auth / Validators
+            var mergedHeaders = await BuildEffectiveHeadersAsync(dto);
+            var effectiveAuth = await ResolveEffectiveAuthAsync(dto);
+            var effectiveValidators = await BuildEffectiveValidatorsAsync(dto);
 
-            // 2) 模板解析
-            //    注意: BuildFullUrl 需传入 variableMap, 让 param.Value 中的 {{var}} 在 EscapeDataString 之前被替换,
-            //    否则 "{{newTypeId}}" 会被转义为 "%7B%7BnewTypeId%7D%7D", 导致后续 ResolveTemplate 正则匹配不到
-            string finalUrl = ResolveTemplate(BuildFullUrl(dto, variableMap), variableMap);
-            string finalBody = ResolveTemplate(dto.Body ?? string.Empty, variableMap);
-            var finalHeaders = (dto.Headers ?? [])
-                .Where(h => h.Enabled && !string.IsNullOrWhiteSpace(h.Name))
-                .Select(h => new KeyValuePair<string, string>(
-                    h.Name, ResolveTemplate(h.Value ?? string.Empty, variableMap)))
-                .ToList();
+            // 2) 映射成共享层 Spec
+            var spec = new HttpRequestSpec
+            {
+                Method = dto.Method ?? "GET",
+                Url = dto.Url ?? string.Empty,
+                QueryParams = (dto.Params ?? []).Select(MapKv).ToList(),
+                Headers = mergedHeaders,
+                Body = dto.Body ?? string.Empty,
+                BodyKind = ParseBodyKind(dto.BodyType),
+                Auth = MapAuth(effectiveAuth),
+                Extractors = (dto.Extractors ?? []).Select(MapExtractor).ToList(),
+                Validators = [.. effectiveValidators.Select(t => MapValidator(t.Item1, t.Item2))],
+                VariableContext = variableMap,
+                TimeoutSeconds = 60
+            };
 
-            // 2b) 合并集合全局 Headers (名同名覆盖, 接口级优先)
+            // 3) 调共享层
+            var raw = await _pipeline.SendAsync(spec);
+
+            // 4) 映射回 ApiTester DTO
+            var result = new HttpRequestResultDto
+            {
+                Status = raw.Status,
+                StatusText = raw.StatusText,
+                Headers = raw.Headers,
+                Body = raw.Body,
+                Size = (int)raw.Size,
+                DurationMs = raw.DurationMs,
+                Error = raw.Error,
+                ExtractedVars = [.. raw.ExtractedVars.Select(x => new ExtractedVarResult { Name = x.Name, Value = x.Value })],
+                ValidatorResults = [.. raw.ValidatorResults.Select(x => new Models.Dtos.ValidatorResult { Field = x.Field, Op = x.Op, Expected = x.Expected, Actual = x.Actual, Passed = x.Passed, Source = x.Source })]
+            };
+
+            // 5) ApiTester 业务专属: 持久化提取的变量到激活环境
+            if (string.IsNullOrWhiteSpace(result.Error) && result.ExtractedVars.Count > 0)
+            {
+                try
+                {
+                    await _extractor.PersistVariablesAsync(result.ExtractedVars);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "持久化提取变量失败");
+                }
+            }
+
+            // 6) ApiTester 历史落库
+            await SaveHistoryAsync(dto, raw, result);
+            return result;
+        }
+        /// <summary>
+        /// 合并集合全局 Headers + 接口 Headers, 接口同名优先
+        /// </summary>
+        /// <param name="dto"></param>
+        /// <returns></returns>
+        async Task<List<KvPair>> BuildEffectiveHeadersAsync(SendRequestDto dto)
+        {
+            var list = (dto.Headers ?? []).Where(h => h.Enabled && !string.IsNullOrWhiteSpace(h.Name)).Select(MapKv).ToList();
             if (dto.CollectionId > 0)
             {
                 try
                 {
                     var col = await _repo.Collections.GetByIdAsync(dto.CollectionId);
-                    if (col is not null && !string.IsNullOrWhiteSpace(col.GlobalHeaders) && col.GlobalHeaders != "[]")
+                    if (col is not null && !string.IsNullOrWhiteSpace(col.GlobalHeaders))
                     {
-                        var globals = JsonConvert.DeserializeObject<List<KvRow>>(col.GlobalHeaders) ?? [];
-                        foreach (var g in globals)
+                        var globals = JsonConvert.DeserializeObject<List<KvRow>>(col.GlobalHeaders);
+                        foreach (var g in globals ?? [])
                         {
-                            if (!g.Enabled || string.IsNullOrWhiteSpace(g.Name)) continue;
-                            if (finalHeaders.Any(h => string.Equals(h.Key, g.Name, StringComparison.OrdinalIgnoreCase))) continue;
-                            finalHeaders.Add(new KeyValuePair<string, string>(g.Name, ResolveTemplate(g.Value ?? string.Empty, variableMap)));
-                        }
-                    }
-                }
-                catch (Exception ex) { _logger.LogWarning(ex, "合并全局 Headers 失败"); }
-            }
-
-            // 3) 构建 HttpRequestMessage
-            var method = (dto.Method ?? "GET").ToUpperInvariant();
-            using var req = new HttpRequestMessage(new HttpMethod(method), finalUrl);
-
-            // Auth: 支持继承全局 Auth, 5 种类型全覆盖
-            var effectiveAuth = await ResolveEffectiveAuthAsync(dto);
-            ApplyAuth(req, effectiveAuth, variableMap, finalUrl, out finalUrl);
-            if (req.RequestUri?.ToString() != finalUrl)
-            {
-                req.RequestUri = new Uri(finalUrl);
-            }
-
-            // 设置 Body
-            req.Content = BuildContent(dto.BodyType, finalBody, finalHeaders);
-
-            // 设置非 content 类 header
-            foreach (var h in finalHeaders)
-            {
-                if (IsContentHeader(h.Key)) continue;
-                req.Headers.TryAddWithoutValidation(h.Key, h.Value);
-            }
-
-            // 4) 发送
-            var sw = Stopwatch.StartNew();
-            HttpResponseMessage? resp = null;
-            string respBody = string.Empty;
-            try
-            {
-                var client = _httpClientFactory.CreateClient();
-                client.Timeout = TimeSpan.FromSeconds(60);
-                resp = await client.SendAsync(req);
-                respBody = await resp.Content.ReadAsStringAsync();
-
-                result.Status = (int)resp.StatusCode;
-                result.StatusText = resp.ReasonPhrase ?? string.Empty;
-                result.Body = respBody;
-                foreach (var h in resp.Headers)
-                {
-                    result.Headers[h.Key] = string.Join(", ", h.Value);
-                }
-                if (resp.Content.Headers != null)
-                {
-                    foreach (var h in resp.Content.Headers)
-                    {
-                        result.Headers[h.Key] = string.Join(", ", h.Value);
-                    }
-                }
-                result.Size = Encoding.UTF8.GetByteCount(respBody ?? string.Empty);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "代理请求失败: {Method} {Url}", method, finalUrl);
-                result.Error = ex.Message;
-            }
-            finally
-            {
-                sw.Stop();
-                result.DurationMs = (int)sw.ElapsedMilliseconds;
-                resp?.Dispose();
-            }
-
-            // 5) 变量提取(Task 4): 请求成功且有 extractors 时执行
-            if (string.IsNullOrEmpty(result.Error) && dto.Extractors is not null && dto.Extractors.Count > 0)
-            {
-                try
-                {
-                    result.ExtractedVars = await _extractor.ExtractAsync(result.Body, dto.Extractors, variableMap);
-                    // 将提取出的变量同步到上下文, 供后续校验使用
-                    foreach (var ev in result.ExtractedVars)
-                    {
-                        if (!string.IsNullOrEmpty(ev.Name)) variableMap[ev.Name] = ev.Value;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "变量提取出错");
-                }
-            }
-
-            // 5b) 响应校验(Task 5): 合并集合全局校验 + 接口本身校验
-            if (string.IsNullOrEmpty(result.Error))
-            {
-                try
-                {
-                    var validators = await BuildEffectiveValidatorsAsync(dto);
-                    if (validators.Count > 0)
-                    {
-                        result.ValidatorResults = _assertion.Validate(result, validators.Select(x => x.Item1).ToList(), variableMap);
-                        // 补上 Source
-                        for (int i = 0; i < result.ValidatorResults.Count && i < validators.Count; i++)
-                        {
-                            result.ValidatorResults[i].Source = validators[i].Item2;
+                            if (!g.Enabled || string.IsNullOrWhiteSpace(g.Name))
+                            {
+                                continue;
+                            }
+                            if (list.Any(h => string.Equals(h.Name, g.Name, StringComparison.OrdinalIgnoreCase)))
+                            {
+                                continue;
+                            }
+                            list.Add(MapKv(g));
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "响应校验出错");
+                    _logger.LogWarning(ex, "合并全局 Headers 失败");
                 }
             }
 
-            // 6) 落历史(限长保护)
-            await SaveHistoryAsync(dto, finalUrl, method, finalHeaders, finalBody, result);
-
-            return result;
+            return list;
         }
+        #region DTO ↔ Spec 映射
+        static KvPair MapKv(KvRow row) => new() { Name = row.Name, Value = row.Value, Enabled = row.Enabled, Description = row.Description };
+        static BodyKind ParseBodyKind(string? bodyType) => (bodyType ?? "none").ToLowerInvariant() switch
+        {
+            "json" => BodyKind.Json,
+            "form-urlencoded" => BodyKind.FormUrlEncoded,
+            "form-data" => BodyKind.FormData,
+            "xml" => BodyKind.Xml,
+            "text" => BodyKind.Text,
+            _ => BodyKind.None,
+        };
+        static AuthSpec? MapAuth(AuthDto? auth)
+        {
+            if (auth is null) return null;
+            return new()
+            {
+                Type = auth.Type ?? "none",
+                Token = auth.Token ?? string.Empty,
+                Username = auth.Username ?? string.Empty,
+                Password = auth.Password ?? string.Empty,
+                KeyName = auth.KeyName ?? string.Empty,
+                KeyValue = auth.KeyValue ?? string.Empty,
+                KeyIn = auth.KeyIn ?? "header",
+                CustomHeaders = [.. (auth.CustomHeaders ?? []).Select(MapKv)]
+            };
+        }
+        static ExtractorSpec MapExtractor(ExtractorDto e) => new()
+        {
+            VarName = e.VarName,
+            DataPath = e.DataPath,
+            Field = e.Field,
+            Filter = e.Filter is null ? null : new ExtractorFilter
+            {
+                FieldName = e.Filter.FieldName,
+                MatchValue = e.Filter.MatchValue,
+            },
+        };
+        static ValidatorSpec MapValidator(ValidatorDto v, string source) => new()
+        {
+            Field = v.Field,
+            Op = v.Op,
+            Expected = v.Expected,
+            Source = source,
+        };
+        #endregion
 
         #region 内部辅助
         /// <summary>
@@ -315,158 +308,19 @@ namespace Sylas.RemoteTasks.App.ApiTester.Services
             }
             return map;
         }
-
-        static string ResolveTemplate(string tmpl, Dictionary<string, object?> ctx)
-        {
-            if (string.IsNullOrEmpty(tmpl)) return tmpl ?? string.Empty;
-            try
-            {
-                var resolved = TmplHelper.ResolveExpressionValue(tmpl, ctx);
-                return resolved?.ToString() ?? string.Empty;
-            }
-            catch
-            {
-                return tmpl;
-            }
-        }
-
-        static string BuildFullUrl(SendRequestDto dto, Dictionary<string, object?> variableMap)
-        {
-            var url = dto.Url ?? string.Empty;
-            var enabledParams = (dto.Params ?? []).Where(p => p.Enabled && !string.IsNullOrWhiteSpace(p.Name)).ToList();
-            if (enabledParams.Count == 0) return url;
-
-            var sb = new StringBuilder();
-            foreach (var p in enabledParams)
-            {
-                if (sb.Length > 0) sb.Append('&');
-                // 先对 value 进行模板解析({{var}}/${var}/$var), 再 EscapeDataString
-                var resolvedValue = ResolveTemplate(p.Value ?? string.Empty, variableMap);
-                sb.Append(Uri.EscapeDataString(p.Name)).Append('=').Append(Uri.EscapeDataString(resolvedValue));
-            }
-            return url.Contains('?') ? $"{url}&{sb}" : $"{url}?{sb}";
-        }
-
-        static HttpContent? BuildContent(string bodyType, string body, List<KeyValuePair<string, string>> headers)
-        {
-            switch ((bodyType ?? "none").ToLowerInvariant())
-            {
-                case "none":
-                    return null;
-                case "json":
-                    return new StringContent(body ?? string.Empty, Encoding.UTF8, "application/json");
-                case "form-urlencoded":
-                    {
-                        var pairs = ParseFormPairs(body);
-                        return new FormUrlEncodedContent(pairs);
-                    }
-                case "form-data":
-                    {
-                        var mp = new MultipartFormDataContent();
-                        foreach (var p in ParseFormPairs(body))
-                        {
-                            mp.Add(new StringContent(p.Value ?? string.Empty), p.Key);
-                        }
-                        return mp;
-                    }
-                case "xml":
-                    return new StringContent(body ?? string.Empty, Encoding.UTF8, "text/xml");
-                case "text":
-                    return new StringContent(body ?? string.Empty, Encoding.UTF8, "text/plain");
-                default:
-                    return new StringContent(body ?? string.Empty, Encoding.UTF8, "application/json");
-            }
-        }
-
-        static IEnumerable<KeyValuePair<string, string>> ParseFormPairs(string body)
-        {
-            // 兼容 JSON 对象 与 a=1&b=2 两种形式
-            if (string.IsNullOrWhiteSpace(body)) yield break;
-            var trimmed = body.TrimStart();
-            if (trimmed.StartsWith('{'))
-            {
-                JObject? obj = null;
-                try { obj = JObject.Parse(body); } catch { obj = null; }
-                if (obj is null) yield break;
-                foreach (var p in obj.Properties())
-                {
-                    yield return new KeyValuePair<string, string>(p.Name, p.Value?.ToString() ?? string.Empty);
-                }
-                yield break;
-            }
-            foreach (var pair in body.Split('&', StringSplitOptions.RemoveEmptyEntries))
-            {
-                var idx = pair.IndexOf('=');
-                if (idx < 0) yield return new KeyValuePair<string, string>(pair, string.Empty);
-                else yield return new KeyValuePair<string, string>(pair[..idx], pair[(idx + 1)..]);
-            }
-        }
-
-        static bool IsContentHeader(string name) =>
-            name.StartsWith("Content-", StringComparison.OrdinalIgnoreCase);
-
-        /// <summary>
-        /// 应用 Auth 配置(简化版, Task 5 提供完整继承全局 / 5 种类型切换)
-        /// </summary>
-        static void ApplyAuth(HttpRequestMessage req, AuthDto? auth, Dictionary<string, object?> ctx, string currentUrl, out string updatedUrl)
-        {
-            updatedUrl = currentUrl;
-            if (auth is null || auth.Inherit) return;
-            switch ((auth.Type ?? "none").ToLowerInvariant())
-            {
-                case "bearer":
-                    {
-                        var t = ResolveTemplate(auth.Token ?? string.Empty, ctx);
-                        if (!string.IsNullOrWhiteSpace(t))
-                            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", t);
-                        break;
-                    }
-                case "basic":
-                    {
-                        var u = ResolveTemplate(auth.Username ?? string.Empty, ctx);
-                        var p = ResolveTemplate(auth.Password ?? string.Empty, ctx);
-                        var token = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{u}:{p}"));
-                        req.Headers.Authorization = new AuthenticationHeaderValue("Basic", token);
-                        break;
-                    }
-                case "apikey":
-                    {
-                        var name = ResolveTemplate(auth.KeyName ?? string.Empty, ctx);
-                        var val = ResolveTemplate(auth.KeyValue ?? string.Empty, ctx);
-                        if (string.IsNullOrWhiteSpace(name)) break;
-                        if (string.Equals(auth.KeyIn, "query", StringComparison.OrdinalIgnoreCase))
-                        {
-                            updatedUrl = currentUrl + (currentUrl.Contains('?') ? "&" : "?") +
-                                $"{Uri.EscapeDataString(name)}={Uri.EscapeDataString(val)}";
-                        }
-                        else
-                        {
-                            req.Headers.TryAddWithoutValidation(name, val);
-                        }
-                        break;
-                    }
-                case "custom":
-                    foreach (var h in auth.CustomHeaders ?? [])
-                    {
-                        if (!h.Enabled || string.IsNullOrWhiteSpace(h.Name)) continue;
-                        req.Headers.TryAddWithoutValidation(h.Name, ResolveTemplate(h.Value ?? string.Empty, ctx));
-                    }
-                    break;
-            }
-        }
-
         const int MaxBodyLen = 1024 * 1024; // 1MB
-        async Task SaveHistoryAsync(SendRequestDto dto, string finalUrl, string method, List<KeyValuePair<string, string>> headers, string finalBody, SendRequestResult result)
+
+        async Task SaveHistoryAsync(SendRequestDto dto, HttpRequestResult raw, HttpRequestResultDto result)
         {
             try
             {
                 var snapshot = JsonConvert.SerializeObject(new
                 {
-                    method,
-                    url = finalUrl,
-                    headers,
-                    body = Truncate(finalBody, MaxBodyLen),
-                    bodyType = dto.BodyType,
+                    method = dto.Method,
+                    url = raw.FinalUrl,
+                    headers = raw.FinalHeaders,
+                    body = Truncate(raw.FinalBody, MaxBodyLen),
+                    bodyType = dto.BodyType
                 });
                 var record = new Dictionary<string, object?>
                 {
@@ -481,6 +335,7 @@ namespace Sylas.RemoteTasks.App.ApiTester.Services
                     { "createTime", DateTime.Now },
                     { "updateTime", DateTime.Now },
                 };
+
                 await _db.InsertDataAsync(ApiHistory.TableName, [record]);
             }
             catch (Exception ex)
@@ -492,7 +347,7 @@ namespace Sylas.RemoteTasks.App.ApiTester.Services
         static string Truncate(string s, int max)
         {
             if (string.IsNullOrEmpty(s) || s.Length <= max) return s ?? string.Empty;
-            return s.Substring(0, max) + "...[truncated]";
+            return string.Concat(s.AsSpan(0, max), "...[truncated]");
         }
         #endregion
     }

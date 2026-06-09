@@ -71,7 +71,6 @@ builder.Services.AddScoped<Sylas.RemoteTasks.App.ApiTester.Services.SwaggerImpor
 builder.Services.AddScoped<Sylas.RemoteTasks.App.ApiTester.Services.ApiTesterService>();
 builder.Services.AddScoped<Sylas.RemoteTasks.App.ApiTester.Services.RequestProxyService>();
 builder.Services.AddScoped<Sylas.RemoteTasks.App.ApiTester.Services.VariableExtractorService>();
-builder.Services.AddScoped<Sylas.RemoteTasks.App.ApiTester.Services.AssertionService>();
 
 // 后台任务
 builder.Services.AddHostedService<PublishService>();
