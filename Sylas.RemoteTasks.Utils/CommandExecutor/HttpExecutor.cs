@@ -3,12 +3,13 @@ using Newtonsoft.Json.Linq;
 using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Common.Extensions;
 using Sylas.RemoteTasks.Database.SyncBase;
+using Sylas.RemoteTasks.Utils.CommandExecutor.Http;
+using Sylas.RemoteTasks.Utils.CommandExecutor.Http.Models;
 using Sylas.RemoteTasks.Utils.Template;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
@@ -18,7 +19,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
     /// 用于执行Http请求
     /// </summary>
     [Executor]
-    public class HttpExecutor(IHttpClientFactory httpClientFactory) : ICommandExecutor
+    public class HttpExecutor(IHttpRequestPipeline pipeline) : ICommandExecutor
     {
         /// <summary>
         /// 发送一个的HTTP请求
@@ -65,7 +66,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                             {
                                 // 解析请求中的变量
                                 request.Url = TmplHelper.ResolveTemplate(request.Url, threadVars);
-                                request.Headers = request.Headers.Select(h => TmplHelper.ResolveTemplate(h, threadVars)).ToArray();
+                                request.Headers = [.. request.Headers.Select(h => TmplHelper.ResolveTemplate(h, threadVars))];
                                 request.Body = TmplHelper.ResolveTemplate(request.Body, threadVars);
                                 requestTasks.Add(SendRequestAsync(request, threadVars));
                             }
@@ -109,35 +110,96 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         /// <exception cref="Exception"></exception>
         async Task<CommandResult> SendRequestAsync(HttpRequestDto dto, Dictionary<string, object> threadVars)
         {
-            var httpClient = httpClientFactory.CreateClient();
-            var (statusCode, responseContent) = await RemoteHelpers.FetchAsync(httpClient, dto);
+            // 1) DTO → Spec 映射
+            var spec = MapDtoToSpec(dto, threadVars);
 
-            CommandResult result;
-            if (statusCode == System.Net.HttpStatusCode.OK)
+            // 2) 调用共享层pipeline
+            var raw = await pipeline.SendAsync(spec);
+
+            // 3) Pipeline 异常 / 非 200 → 失败
+            if (!string.IsNullOrEmpty(raw.Error))
             {
-                if (!Regex.IsMatch(responseContent, dto.IsSuccessPattern))
+                return new CommandResult(false, raw.Error);
+            }
+            if (raw.Status != (int)System.Net.HttpStatusCode.OK)
+            {
+                return new CommandResult(false, $"{raw.Status} {raw.StatusText}");
+            }
+
+            // 4) 旧字段 IsSuccessPattern: 由 HttpExecutor 自己判定 (保持原行为)
+            var responseContent = raw.Body ?? string.Empty;
+            if (!string.IsNullOrEmpty(dto.IsSuccessPattern) && !Regex.IsMatch(responseContent, dto.IsSuccessPattern))
+            {
+                return new CommandResult(false, responseContent);
+            }
+
+            // 5) 旧字段 ResponseExtractors DSL: 仍由 TmplHelper2 处理 (保持原行为)
+            if (!string.IsNullOrWhiteSpace(dto.ResponseExtractors) && threadVars is { Count: > 0 })
+            {
+                TmplHelper2.ResolveExtractors(dto.ResponseExtractors, threadVars);
+            }
+
+            return new CommandResult(true, responseContent);
+        }
+        #region DTO → Spec 映射
+        static HttpRequestSpec MapDtoToSpec(HttpRequestDto dto, Dictionary<string, object> threadVars)
+        {
+            return new HttpRequestSpec
+            {
+                Method = string.IsNullOrWhiteSpace(dto.Method) ? "GET" : dto.Method,
+                Url = dto.Url ?? string.Empty,
+                Headers = ParseHeadersArray(dto.Headers, dto.ContentType),
+                Body = dto.Body ?? string.Empty,
+                BodyKind = dto.BodyKind ?? InferBodyKind(dto.ContentType),
+                Auth = dto.Auth,
+                TimeoutSeconds = dto.TimeoutSeconds,
+                // 模板上下文: 由于 ExecuteFetchFlowsAsync / ExecuteAsync 已经在调用前用 TmplHelper2.ResolveTmpl 解析过模板,
+                // 这里再传 threadVars 给 pipeline 是双保险(TmplHelper.ResolveExpressionValue 解析未替换的模板表达式)
+                VariableContext = threadVars?.ToDictionary(kv => kv.Key, kv => (object?)kv.Value, StringComparer.OrdinalIgnoreCase) ?? []
+                // IsSuccessPattern 与 ResponseExtractors 不映射给 pipeline, 由 HttpExecutor 自己处理(保持旧行为)
+            };
+        }
+
+        static List<KvPair> ParseHeadersArray(string[]? headers, string? contentType)
+        {
+            List<KvPair> headerList = [];
+            if (headers is not null)
+            {
+                foreach (var header in headers)
                 {
-                    result = new CommandResult(false, responseContent);
-                }
-                else
-                {
-                    result = new CommandResult(statusCode == System.Net.HttpStatusCode.OK, responseContent);
-                    if (!string.IsNullOrWhiteSpace(dto.ResponseExtractors))
+                    if (string.IsNullOrWhiteSpace(header)) continue;
+                    var separatorIndex = header.IndexOf(':');
+                    if (separatorIndex > 0)
                     {
-                        //var responseObj = JsonConvert.DeserializeObject<JToken>(responseContent) ?? throw new Exception($"返序列化相应内容失败:{responseContent}");
-                        if (threadVars is not null && threadVars.Count > 0)
-                        {
-                            TmplHelper2.ResolveExtractors(dto.ResponseExtractors, threadVars);
-                        }
+                        var name = header[..separatorIndex].Trim();
+                        var value = header[(separatorIndex + 1)..].Trim();
+                        headerList.Add(new KvPair { Name = name, Value = value });
                     }
                 }
             }
-            else
+            if (!string.IsNullOrWhiteSpace(contentType) && !headerList.Any(h => h.Name.Equals("Content-Type", StringComparison.OrdinalIgnoreCase)))
             {
-                result = new CommandResult(false, statusCode.ToString());
+                headerList.Add(new KvPair { Name = "Content-Type", Value = contentType });
             }
-            return result;
+            return headerList;
         }
+        /// <summary>
+        /// 推断Body类型
+        /// </summary>
+        /// <param name="contentType"></param>
+        /// <returns></returns>
+        static BodyKind InferBodyKind(string? contentType)
+        {
+            if (string.IsNullOrWhiteSpace(contentType)) return BodyKind.None;
+            var ct = contentType.ToLowerInvariant();
+            if (ct.Contains("application/json")) return BodyKind.Json;
+            if (ct.Contains("application/x-www-form-urlencoded")) return BodyKind.FormUrlEncoded;
+            if (ct.Contains("multipart/form-data")) return BodyKind.FormData;
+            if (ct.Contains("xml")) return BodyKind.Xml;
+            return BodyKind.Text;
+        }
+
+        #endregion
         /// <summary>
         /// 执行一系列HTTP请求流程
         /// </summary>

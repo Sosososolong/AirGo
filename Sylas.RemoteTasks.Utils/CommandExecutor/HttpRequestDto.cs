@@ -1,6 +1,4 @@
-using Newtonsoft.Json.Linq;
-using System.Collections.Generic;
-using System;
+using Sylas.RemoteTasks.Utils.CommandExecutor.Http.Models;
 using System.Linq;
 
 namespace Sylas.RemoteTasks.Utils.CommandExecutor
@@ -54,6 +52,22 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         /// 响应数据处理器列表, 用来处理响应数据
         /// </summary>
         public string[] DataHandlers { get; set; } = [];
+
+        /// <summary>
+        /// 统一Auth描述, 不配置时不影响旧的Headers数组写法
+        /// </summary>
+        public AuthSpec? Auth { get; set; }
+
+        /// <summary>
+        /// Body类型, 不配置时由ContentType推断: 含"json"→Json / 含"xml"→Xml / 含 "form-urlencoded"→FormUrlEncoded / 含 "form-data"→FormData / 否则 Text
+        /// </summary>
+        public BodyKind? BodyKind { get; set; }
+
+        /// <summary>
+        /// 请求超时秒数 0/未配置 = pipeline默认60s
+        /// </summary>
+        public int TimeoutSeconds { get; set; }
+
         /// <summary>
         /// 复制一份当前对象
         /// </summary>
@@ -70,7 +84,10 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                 IsSuccessPattern = IsSuccessPattern,
                 ResponseDataPropty = ResponseDataPropty,
                 ResponseExtractors = ResponseExtractors,
-                DataHandlers = DataHandlers.Select(dh => dh).ToArray()
+                DataHandlers = [.. DataHandlers.Select(dh => dh)],
+                Auth = Auth,
+                BodyKind = BodyKind,
+                TimeoutSeconds = TimeoutSeconds,
             };
         }
     }
