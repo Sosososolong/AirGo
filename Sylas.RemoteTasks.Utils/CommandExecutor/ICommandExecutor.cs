@@ -24,19 +24,19 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         /// </summary>
         /// <param name="executorName"></param>
         /// <param name="args"></param>
-        /// <param name="serviceScopeFactory"></param>
+        /// <param name="serviceProvider"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static RequestResult<Func<object[], IAsyncEnumerable<CommandResult>>> GetCommandHandler(string executorName, object[] args, IServiceScopeFactory? serviceScopeFactory = null)
+        public static RequestResult<Func<object[], IAsyncEnumerable<CommandResult>>> GetCommandHandler(string executorName, object[] args, IServiceProvider? serviceProvider = null)
         {
             object? executor = null;
             var t = ReflectionHelper.GetTypeByClassName(executorName);
-            if (serviceScopeFactory is not null)
+            if (serviceProvider is not null)
             {
                 var exeAttr = t.GetCustomAttribute<ExecutorAttribute>();
                 if (exeAttr is not null)
                 {
-                    executor = exeAttr.GetExecutor(t.Name, serviceScopeFactory);
+                    executor = exeAttr.GetExecutor(t.Name, serviceProvider);
                 }
             }
 

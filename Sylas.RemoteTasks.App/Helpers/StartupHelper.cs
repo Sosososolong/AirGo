@@ -1,6 +1,4 @@
 using IdentityModel;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Common.Extensions;
 using Sylas.RemoteTasks.Database;
@@ -83,6 +81,7 @@ namespace Sylas.RemoteTasks.App.Helpers
             // AiService.Instance 的赋值需要在 DI 容器构建后才能做(Program中处理)
             services.AddSingleton<AiService>();
         }
+
         /// <summary>
         /// 注册Executor(通过ExecutorAttribute只注册依赖DI容器中其他对象的)
         /// </summary>
@@ -98,6 +97,8 @@ namespace Sylas.RemoteTasks.App.Helpers
                     services.Add(new ServiceDescriptor(typeof(ICommandExecutor), type.Name, type, ServiceLifetime.Scoped));
                 }
             }
+
+            services.AddScoped<CommandExecutionContext>();
         }
 
         public static void AddGlobalHotKeys(this IServiceCollection services, IConfiguration configuration)

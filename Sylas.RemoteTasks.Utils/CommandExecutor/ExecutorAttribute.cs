@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using System;
 
 namespace Sylas.RemoteTasks.Utils.CommandExecutor
@@ -13,12 +13,11 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         /// 获取命令执行器
         /// </summary>
         /// <param name="executorName"></param>
-        /// <param name="serviceScopeFactory"></param>
+        /// <param name="serviceProvider"></param>
         /// <returns></returns>
-        public ICommandExecutor? GetExecutor(string executorName, IServiceScopeFactory serviceScopeFactory)
+        public ICommandExecutor? GetExecutor(string executorName, IServiceProvider serviceProvider)
         {
-            using IServiceScope scope = serviceScopeFactory.CreateScope();
-            ICommandExecutor? executor = scope.ServiceProvider.GetKeyedService<ICommandExecutor>(executorName);
+            ICommandExecutor? executor = serviceProvider.GetKeyedService<ICommandExecutor>(executorName);
             return executor;
         }
     }

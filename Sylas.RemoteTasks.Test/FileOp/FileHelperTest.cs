@@ -26,7 +26,7 @@ namespace Sylas.RemoteTasks.Test.FileOp
             string testDir = $"unit-test-temp-dir-{DateTime.Now:yyyyMMdd}";
             if (Directory.Exists(testDir))
             {
-                throw new Exception("我希望测试目录不存在, 我将会创建它并且测试完成我会再删除它");
+                Directory.Delete(testDir, true);
             }
             Directory.CreateDirectory(testDir);
             if (!Directory.Exists(testDir))
@@ -429,8 +429,7 @@ namespace Sylas.RemoteTasks.Test.FileOp
             //opCmd = TmplHelper.ResolveTemplate
             opCmd = TmplHelper.ResolveExpressionValue(opCmd, new Dictionary<string, string> { { "SlnDir", testDir } })?.ToString() ?? throw new Exception("模板解析结果为空");
 
-            var serviceScopeFactory = fixture.ServiceProvider.GetService<IServiceScopeFactory>();
-            var result = ICommandExecutor.GetCommandHandler("FileHelper", [], serviceScopeFactory);
+            var result = ICommandExecutor.GetCommandHandler("FileHelper", [], fixture.ServiceProvider);
             if (result.Code != 1)
             {
                 throw new Exception(result.ErrMsg);

@@ -62,7 +62,7 @@ namespace Sylas.RemoteTasks.Test
             services.Add(new ServiceDescriptor(typeof(ICommandExecutor), nameof(SystemCmd), typeof(SystemCmd), ServiceLifetime.Scoped));
             services.Add(new ServiceDescriptor(typeof(ICommandExecutor), nameof(HttpExecutor), typeof(HttpExecutor), ServiceLifetime.Scoped));
             services.Add(new ServiceDescriptor(typeof(ICommandExecutor), nameof(DatabaseExecutor), typeof(DatabaseExecutor), ServiceLifetime.Scoped));
-            services.Add(new ServiceDescriptor(typeof(ICommandExecutor), nameof(Utils.CommandExecutor.FileHelper), typeof(Utils.CommandExecutor.FileHelper), ServiceLifetime.Scoped));
+            services.Add(new ServiceDescriptor(typeof(ICommandExecutor), nameof(FileHelper), typeof(FileHelper), ServiceLifetime.Scoped));
             services.AddTransient<AnythingService>();
         }
     }

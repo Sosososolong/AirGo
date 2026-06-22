@@ -5,12 +5,10 @@ using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.Common;
 using Sylas.RemoteTasks.Common.Dtos;
 using Sylas.RemoteTasks.Database.SyncBase;
-using Sylas.RemoteTasks.Utils;
 using Sylas.RemoteTasks.Utils.CommandExecutor;
 using Sylas.RemoteTasks.Utils.Constants;
 using Sylas.RemoteTasks.Utils.Dtos;
 using Sylas.RemoteTasks.Utils.Template;
-using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
 
@@ -26,7 +24,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
     /// <param name="memoryCache"></param>
     /// <param name="httpClientFactory"></param>
     /// <param name="httpContextAccessor"></param>
-    /// <param name="serviceScopeFactory"></param>
+    /// <param name="serviceProvider"></param>
     public class AnythingService(
         RepositoryBase<AnythingSetting> repository,
         RepositoryBase<AnythingExecutor> executorRepository,
@@ -35,7 +33,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         IMemoryCache memoryCache,
         IHttpClientFactory httpClientFactory,
         IHttpContextAccessor httpContextAccessor,
-        IServiceScopeFactory serviceScopeFactory)
+        IServiceProvider serviceProvider)
     {
         /// <summary>
         /// 查询
@@ -218,7 +216,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             {
                 return new OperationResult(false, "命令id不能为空");
             }
-            
+
             var affectedRows = await _commandRepository.UpdateAsync(command);
             if (affectedRows > 0)
             {
@@ -375,9 +373,16 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             }
             var resolvedResult = await ResolveCommandSettingAsync(new CommandResolveDto() { Id = commandInfo.AnythingId, CmdTxt = commandInfo.CommandTxt });
             string resolvedCommandContent = resolvedResult.Data ?? string.Empty;
-            // 获取缓存的执行器对象并执行命令
-            var commandResults = AnythingIdAndCommandExecutorMap[anythingInfo.SettingId]([resolvedCommandContent]);
+            // AnythingInfo会被缓存, 没关系, 基础信息已经获取, 每次GetCommandHandler创建新的执行器: 每次执行时从 DI 创建新的执行器实例（真正的 Scoped 生命周期）
+            var handlerResult = ICommandExecutor.GetCommandHandler(anythingInfo.CommandExecutor, anythingInfo.ExecutorArgs, serviceProvider);
+            if (handlerResult.Code != 1)
+            {
+                throw new Exception(handlerResult.ErrMsg);
+            }
+            Func<object[], IAsyncEnumerable<CommandResult>> anythingCommandHandler = handlerResult.Data ?? throw new Exception("无法解析命令执行器");
             
+            var commandResults = anythingCommandHandler([resolvedCommandContent]);
+
             await foreach (var commandResult in commandResults)
             {
                 if (!string.IsNullOrWhiteSpace(dto.CommandExecuteNo))
@@ -386,7 +391,6 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
                 }
                 yield return commandResult;
             }
-            //yield return new CommandResult(false, string.Empty, "-cmd-end");
         }
         static readonly List<string> _remoteCommandResults = [];
         static readonly Dictionary<string, Queue<CommandInfoTaskDto>> _serverNodeQueues = [];
@@ -520,7 +524,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             memoryCache.Set(cacheKeyAnythingInfo, anythingInfo, cacheEntryOptions);
             return anythingInfo;
         }
-        static readonly ConcurrentDictionary<int, Func<object[], IAsyncEnumerable<CommandResult>>> AnythingIdAndCommandExecutorMap = new();
+
         /// <summary>
         /// 从AnythingSetting解析一个AnythingInfo对象
         /// </summary>
@@ -575,19 +579,6 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
                     }
                 }
             }
-
-            Func<object[], IAsyncEnumerable<CommandResult>> anythingCommandExecutor;
-            using (IServiceScope scope = serviceScopeFactory.CreateScope())
-            {
-                var result = ICommandExecutor.GetCommandHandler(executorName, args, serviceScopeFactory);
-                if (result.Code != 1)
-                {
-                    throw new Exception(result.ErrMsg);
-                }
-                anythingCommandExecutor = result.Data ?? throw new Exception("无法解析命令执行器");
-            }
-            
-            AnythingIdAndCommandExecutorMap.AddOrUpdate(anythingSettingDetails.Id, anythingCommandExecutor, (k, v) => anythingCommandExecutor);
             #endregion
 
             #region 解析出AnythingInfo
@@ -605,15 +596,25 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
                 if (!string.IsNullOrWhiteSpace(anythingCommand.ExecutedState))
                 {
                     var start = DateTime.Now;
-                    StringBuilder stateBuiler = new();
-                    await foreach (var item in anythingCommandExecutor([anythingCommand.ExecutedState]))
+                    var result = ICommandExecutor.GetCommandHandler(executorName, args, serviceProvider);
+                    if (result.Code != 1)
                     {
-                        stateBuiler.AppendLine(item.Message);
+                        throw new Exception(result.ErrMsg);
                     }
-                    anythingCommand.ExecutedState = stateBuiler.ToString();
+                    
+                    if (result.Code  == 1 && result.Data is not null)
+                    {
+                        var handler = result.Data;
+                        StringBuilder stateBuiler = new();
+                        await foreach (var item in handler([anythingCommand.ExecutedState]))
+                        {
+                            stateBuiler.AppendLine(item.Message);
+                        }
+                        anythingCommand.ExecutedState = stateBuiler.ToString();
 
 
-                    Console.WriteLine($"获取命令状态耗时: {(DateTime.Now - start).TotalMilliseconds}/ms");
+                        Console.WriteLine($"获取命令状态耗时: {(DateTime.Now - start).TotalMilliseconds}/ms");
+                    }
                 }
             }
 
