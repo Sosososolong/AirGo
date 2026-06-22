@@ -430,7 +430,7 @@ namespace Sylas.RemoteTasks.Test.FileOp
             opCmd = TmplHelper.ResolveExpressionValue(opCmd, new Dictionary<string, string> { { "SlnDir", testDir } })?.ToString() ?? throw new Exception("模板解析结果为空");
 
             var serviceScopeFactory = fixture.ServiceProvider.GetService<IServiceScopeFactory>();
-            var result = ICommandExecutor.Create("FileHelper", [], serviceScopeFactory);
+            var result = ICommandExecutor.GetCommandHandler("FileHelper", [], serviceScopeFactory);
             if (result.Code != 1)
             {
                 throw new Exception(result.ErrMsg);

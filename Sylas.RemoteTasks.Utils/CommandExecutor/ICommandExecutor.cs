@@ -27,7 +27,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         /// <param name="serviceScopeFactory"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static RequestResult<Func<object[], IAsyncEnumerable<CommandResult>>> Create(string executorName, object[] args, IServiceScopeFactory? serviceScopeFactory = null)
+        public static RequestResult<Func<object[], IAsyncEnumerable<CommandResult>>> GetCommandHandler(string executorName, object[] args, IServiceScopeFactory? serviceScopeFactory = null)
         {
             object? executor = null;
             var t = ReflectionHelper.GetTypeByClassName(executorName);

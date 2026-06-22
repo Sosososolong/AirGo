@@ -59,6 +59,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             var anythingSetting = await repository.GetByIdAsync(id);
             return anythingSetting;
         }
+
         /// <summary>
         /// 根据Id查询Anything配置包括命令明细
         /// </summary>
@@ -578,7 +579,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             Func<object[], IAsyncEnumerable<CommandResult>> anythingCommandExecutor;
             using (IServiceScope scope = serviceScopeFactory.CreateScope())
             {
-                var result = ICommandExecutor.Create(executorName, args, serviceScopeFactory);
+                var result = ICommandExecutor.GetCommandHandler(executorName, args, serviceScopeFactory);
                 if (result.Code != 1)
                 {
                     throw new Exception(result.ErrMsg);
@@ -586,7 +587,6 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
                 anythingCommandExecutor = result.Data ?? throw new Exception("无法解析命令执行器");
             }
             
-
             AnythingIdAndCommandExecutorMap.AddOrUpdate(anythingSettingDetails.Id, anythingCommandExecutor, (k, v) => anythingCommandExecutor);
             #endregion
 

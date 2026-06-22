@@ -8,7 +8,6 @@ using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
 using Sylas.RemoteTasks.App.RequestProcessor;
 using Sylas.RemoteTasks.Database;
-using Sylas.RemoteTasks.Utils;
 using Sylas.RemoteTasks.Utils.CommandExecutor.Http;
 using Sylas.RemoteTasks.Utils.Constants;
 var builder = WebApplication.CreateBuilder(args);

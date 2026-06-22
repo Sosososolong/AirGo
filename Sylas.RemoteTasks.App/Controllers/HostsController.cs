@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
-using Sylas.RemoteTasks.App.DatabaseManager.Models;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
 using Sylas.RemoteTasks.Common;
@@ -11,7 +10,6 @@ using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils.CommandExecutor;
 using Sylas.RemoteTasks.Utils.Template;
 using Sylas.RemoteTasks.Utils.Template.Dtos;
-using System.Linq;
 using System.Text;
 
 namespace Sylas.RemoteTasks.App.Controllers
@@ -119,7 +117,7 @@ namespace Sylas.RemoteTasks.App.Controllers
                 await response.WriteAsync($"{endJson}\n", Encoding.UTF8);
                 await response.Body.FlushAsync();
             }
-            
+
             LoggerHelper.LogCritical("命令执行完毕");
         }
         /// <summary>
@@ -414,10 +412,10 @@ namespace Sylas.RemoteTasks.App.Controllers
                 return Ok(RequestResult<bool>.Error("未找到备份信息"));
             }
             int affectedRows = await repository.DeleteAsync(id);
-        
+
             return Ok(affectedRows > 0 ? RequestResult<bool>.Success(true) : RequestResult<bool>.Error("删除失败"));
         }
-        
+
         /// <summary>
         /// 将命令的环境变量同步到工作流
         /// </summary>
@@ -461,7 +459,7 @@ namespace Sylas.RemoteTasks.App.Controllers
 
             flow.EnvVars = JsonConvert.SerializeObject(flowVars);
             int updated = await repository.UpdateAsync(flow);
-            
+
             return Ok(RequestResult<bool>.Success(updated > 0));
         }
     }

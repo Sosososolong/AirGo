@@ -4,8 +4,6 @@ using Sylas.RemoteTasks.Utils.CommandExecutor.Http;
 using Sylas.RemoteTasks.Utils.CommandExecutor.Http.Models;
 using Sylas.RemoteTasks.Utils.Dtos;
 using System;
-using System.Collections.Generic;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Sylas.RemoteTasks.Utils
