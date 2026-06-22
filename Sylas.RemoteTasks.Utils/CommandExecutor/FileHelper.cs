@@ -891,7 +891,7 @@ public partial class FileHelper
             table = table[(table.IndexOf('_') + 1)..];
         }
         string question = $"我的数据库表名为{table},使用PascalCase风格转换为C#的实体类名称(单数形式,不要添加Entry,Model等后缀)应该为?只回答名字即可";
-        string answer = await RemoteHelpers.AskAiAsync(question);
+        string answer = await AiService.Instance.AskAsync(question);
         int index = answer.IndexOf('\n');
         string entityClassName = index > -1 ? answer[..index].Trim() : answer;
         return entityClassName;

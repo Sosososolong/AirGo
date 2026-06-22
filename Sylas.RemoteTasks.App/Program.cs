@@ -8,6 +8,7 @@ using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
 using Sylas.RemoteTasks.App.RequestProcessor;
 using Sylas.RemoteTasks.Database;
+using Sylas.RemoteTasks.Utils;
 using Sylas.RemoteTasks.Utils.CommandExecutor.Http;
 using Sylas.RemoteTasks.Utils.Constants;
 var builder = WebApplication.CreateBuilder(args);
@@ -75,7 +76,7 @@ builder.Services.AddScoped<Sylas.RemoteTasks.App.ApiTester.Services.VariableExtr
 // 后台任务
 builder.Services.AddHostedService<PublishService>();
 builder.Services.AddHostedService<ServerRegistrationService>();
-builder.Services.AddHostedService<Sylas.RemoteTasks.App.BackgroundServices.ApiTesterInitService>();
+builder.Services.AddHostedService<ApiTesterInitService>();
 
 // BOOKMARK: Action过滤器
 builder.Services.AddScoped<CustomActionFilter>();
@@ -97,6 +98,8 @@ builder.Services.AddAuthorization(options =>
 });
 
 var app = builder.Build();
+
+AiService.Instance = app.Services.GetRequiredService<AiService>();
 
 // 服务已经全部注册, 暴露给全局使用
 //    这是一种反模式

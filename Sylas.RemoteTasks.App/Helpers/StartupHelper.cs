@@ -79,7 +79,9 @@ namespace Sylas.RemoteTasks.App.Helpers
             var aiConfig = new AiConfig();
             configuration.GetSection("AiConfig").Bind(aiConfig);
             services.AddSingleton(aiConfig);
-            RemoteHelpers.AiConfig = aiConfig;
+
+            // AiService.Instance 的赋值需要在 DI 容器构建后才能做(Program中处理)
+            services.AddSingleton<AiService>();
         }
         /// <summary>
         /// 注册Executor(通过ExecutorAttribute只注册依赖DI容器中其他对象的)

@@ -72,8 +72,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor.Http
             try
             {
                 var client = httpClientFactory.CreateClient();
-                int timeoutSeconds = spec.TimeoutSeconds > 0 ? spec.TimeoutSeconds : 60;
-                client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
+                client.Timeout = spec.TimeoutSeconds == 1 ? Timeout.InfiniteTimeSpan : TimeSpan.FromSeconds(spec.TimeoutSeconds > 0 ? spec.TimeoutSeconds : 60);
                 resp = await client.SendAsync(req, cancellationToken);
                 respBody = await resp.Content.ReadAsStringAsync();
 

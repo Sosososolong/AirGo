@@ -1,22 +1,16 @@
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Sylas.RemoteTasks.Common;
-using Sylas.RemoteTasks.Common.Dtos;
 using Sylas.RemoteTasks.Common.Extensions;
-using Sylas.RemoteTasks.Utils.CommandExecutor;
-using Sylas.RemoteTasks.Utils.Dtos;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Net.Mime;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace Sylas.RemoteTasks.Utils
@@ -380,61 +374,6 @@ namespace Sylas.RemoteTasks.Utils
                 throw new Exception($"{errPrefix}: API没有获取到任何数据");
             }
             return dataArr;
-        }
-        /// <summary>
-        /// AI服务的相关配置
-        /// </summary>
-        public static AiConfig AiConfig = new();
-        /// <summary>
-        /// 通过AI模型的API获取答案
-        /// </summary>
-        /// <param name="question"></param>
-        /// <returns></returns>
-        /// <exception cref="Exception"></exception>
-        public static async Task<string> AskAiAsync(string question)
-        {
-            if (string.IsNullOrWhiteSpace(AiConfig.Server) || string.IsNullOrWhiteSpace(AiConfig.Model))
-            {
-                throw new Exception("请在程序启动时初始化RemoteHelpers.AiConfig实例");
-            }
-            // 创建一个 HttpClient 对象
-            using HttpClient client = new();
-            //client.Timeout = TimeSpan.FromSeconds(180);
-            client.Timeout = Timeout.InfiniteTimeSpan;
-            // 设置请求头，包括 API 密钥和请求内容类型
-            client.DefaultRequestHeaders.Add("Authorization", "Bearer " + AiConfig.ApiKey);
-
-            // 设置请求内容，包括问题和 GPT 模型的名称
-            // 设置请求内容类型为 application/json
-            // max_tokens在kimi中需要和实际预取的token数差不多, 差太多会返回400
-            string requestBody = $$"""
-                {
-                  "model": "{{AiConfig.Model}}",
-                  "max_tokens": 700,
-                  "messages": [
-                    {
-                      "role": "system",
-                      "content": "You are a helpful assistant."
-                    },
-                    {
-                      "role": "user",
-                      "content": "{{question}}"
-                    }
-                  ],
-                  "temperature": 0.7
-                }
-                """;
-            HttpContent httpContent = new StringContent(requestBody, Encoding.UTF8, "application/json");
-
-            // 发送 POST 请求并获取响应
-            HttpResponseMessage response = await client.PostAsync($"{AiConfig.Server.TrimEnd('/')}/chat/completions", httpContent);
-            string responseContent = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} Ai Response: {responseContent}{Environment.NewLine}");
-
-            // 解析响应 JSON 并返回 GPT 的回答
-            dynamic responseData = JsonConvert.DeserializeObject<dynamic>(responseContent) ?? throw new Exception("获取回答失败");
-            string answer = responseData.choices[0].message.content;
-            return answer;
         }
     }
     /// <summary>

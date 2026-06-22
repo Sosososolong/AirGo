@@ -44,7 +44,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor.Http.Models
         /// </summary>
         public List<ExtractorSpec> Extractors { get; set; } = [];
         /// <summary>
-        /// 请求超时(秒), 0 = 默认
+        /// 请求超时(秒), 0 = 默认60s, -1 = 无限超时(适用于AI/长耗时请求)
         /// </summary>
         public int TimeoutSeconds { get; set; }
         /// <summary>
