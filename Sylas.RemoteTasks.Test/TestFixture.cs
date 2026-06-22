@@ -1,11 +1,17 @@
-﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.VisualStudio.TestPlatform.Utilities.Helpers;
 using Sylas.RemoteTasks.App.Infrastructure;
 using Sylas.RemoteTasks.App.RemoteHostModule;
+using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
 using Sylas.RemoteTasks.Database;
 using Sylas.RemoteTasks.Database.SyncBase;
+using Sylas.RemoteTasks.Utils;
+using Sylas.RemoteTasks.Utils.CommandExecutor;
+using Sylas.RemoteTasks.Utils.CommandExecutor.Http;
+using Sylas.RemoteTasks.Utils.Dtos;
 
 namespace Sylas.RemoteTasks.Test
 {
@@ -47,6 +53,20 @@ namespace Sylas.RemoteTasks.Test
 
             services.AddScoped<DatabaseInfo>();
             services.AddScoped<IDatabaseProvider, DatabaseInfo>();
+            services.AddMemoryCache();
+            services.AddHttpClient();
+            services.AddHttpContextAccessor();
+
+            var aiConfig = new AiConfig();
+            _configuration.GetSection("AiConfig").Bind(aiConfig);
+            services.AddSingleton<AiConfig>(aiConfig);
+            services.AddSingleton<AiService>();
+            services.AddSingleton<IHttpRequestPipeline, HttpRequestPipeline>();
+            services.Add(new ServiceDescriptor(typeof(ICommandExecutor), nameof(SystemCmd), typeof(SystemCmd), ServiceLifetime.Scoped));
+            services.Add(new ServiceDescriptor(typeof(ICommandExecutor), nameof(HttpExecutor), typeof(HttpExecutor), ServiceLifetime.Scoped));
+            services.Add(new ServiceDescriptor(typeof(ICommandExecutor), nameof(DatabaseExecutor), typeof(DatabaseExecutor), ServiceLifetime.Scoped));
+            services.Add(new ServiceDescriptor(typeof(ICommandExecutor), nameof(Utils.CommandExecutor.FileHelper), typeof(Utils.CommandExecutor.FileHelper), ServiceLifetime.Scoped));
+            services.AddTransient<AnythingService>();
         }
     }
 }

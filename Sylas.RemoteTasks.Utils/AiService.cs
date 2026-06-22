@@ -20,11 +20,6 @@ namespace Sylas.RemoteTasks.Utils
         private readonly ILogger<AiService> _logger = logger;
 
         /// <summary>
-        /// 静态实例入口, 供无法通过DI注入的场景使用(静态方法中调用)
-        /// </summary>
-        public  static AiService Instance { get; set; } = null!;
-
-        /// <summary>
         /// 向AI模型提问并获取回答
         /// </summary>
         /// <param name="question"></param>

@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Threading.Tasks;
 
 namespace Sylas.RemoteTasks.Utils.CommandExecutor
 {
@@ -49,7 +48,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
                     executor = ReflectionHelper.CreateInstance(t, args);
                 }
             }
-            
+
             // 获取 ExecuteAsync 方法
             MethodInfo executeAsyncMethod = t.GetMethods().FirstOrDefault(x => x.Name.Equals("ExecuteAsync"));
             return RequestResult<Func<object[], IAsyncEnumerable<CommandResult>>>.Success(commandHandler);

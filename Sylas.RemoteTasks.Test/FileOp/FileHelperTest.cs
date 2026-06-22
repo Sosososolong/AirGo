@@ -1,5 +1,8 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
+using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
 using Sylas.RemoteTasks.Database.SyncBase;
 using Sylas.RemoteTasks.Utils.CommandExecutor;
 using Sylas.RemoteTasks.Utils.Constants;
@@ -17,7 +20,7 @@ namespace Sylas.RemoteTasks.Test.FileOp
         /// 文件执行器功能测试 - 更新文件
         /// </summary>
         [Fact]
-        public async Task FileHeExecutor_UpdateFileTest()
+        public async Task FileExecutor_UpdateFileTest()
         {
             #region 准备阶段
             string testDir = $"unit-test-temp-dir-{DateTime.Now:yyyyMMdd}";
@@ -459,7 +462,7 @@ namespace Sylas.RemoteTasks.Test.FileOp
             #endregion
 
             #region 准备阶段 - 命令2
-            
+
             #region Mainlayout.razor
             string mainLayoutOriginTxt = """
                 @inherits LayoutComponentBase
@@ -694,6 +697,30 @@ namespace Sylas.RemoteTasks.Test.FileOp
             Directory.Delete(testDir, true);
         }
 
+        [Fact]
+        public async Task FileExecutor_MultiOperationsTest()
+        {
+            var anythingService = fixture.ServiceProvider.GetRequiredService<AnythingService>();
+            var commandResults = anythingService.ExecuteAsync(new CommandInfoInDto { CommandId = 60 });
+            await foreach (CommandResult commandResult in commandResults)
+            {
+                string commandResultJosn = JsonConvert.SerializeObject(commandResult, new JsonSerializerSettings() { ContractResolver = new CamelCasePropertyNamesContractResolver() });
+                outputHelper.WriteLine(commandResultJosn);
+            }
+
+            string configBakDir = "D:/temp/config/bak/";
+            string[] files = Directory.GetFiles(configBakDir);
+            foreach (var bakFile in files)
+            {
+                string bakFileCon = await File.ReadAllTextAsync(bakFile);
+
+                string file = bakFile.Replace("bak/", string.Empty);
+                string fileCon = await File.ReadAllTextAsync(file);
+
+                Assert.Equal(bakFileCon.Trim(), fileCon.Trim());
+            }
+        }
+
         /// <summary>
         /// 测试换行占位符 {br} 和 {br:N} 的替换功能
         /// </summary>
@@ -702,20 +729,20 @@ namespace Sylas.RemoteTasks.Test.FileOp
         {
             // {br} 等价于 1 个换行
             Assert.Equal("line1\nline2", SpaceConstants.ReplaceBreakPlaceholders("line1{br}line2"));
-            
+
             // {br:1} 等价于 1 个换行
             Assert.Equal("line1\nline2", SpaceConstants.ReplaceBreakPlaceholders("line1{br:1}line2"));
-            
+
             // {br:2} 等价于 2 个换行（产生一个空行效果）
             Assert.Equal("line1\n\nline2", SpaceConstants.ReplaceBreakPlaceholders("line1{br:2}line2"));
-            
+
             // {br:3} 等价于 3 个换行
             Assert.Equal("line1\n\n\nline2", SpaceConstants.ReplaceBreakPlaceholders("line1{br:3}line2"));
-            
+
             // 空字符串和 null 输入
             Assert.Equal("", SpaceConstants.ReplaceBreakPlaceholders(""));
             Assert.Null(SpaceConstants.ReplaceBreakPlaceholders(null!));
-            
+
             // 无占位符的情况
             Assert.Equal("no placeholders here", SpaceConstants.ReplaceBreakPlaceholders("no placeholders here"));
         }
@@ -731,7 +758,7 @@ namespace Sylas.RemoteTasks.Test.FileOp
             string afterSpace = SpaceConstants.ReplaceSpacePlaceholders(input);
             string afterBreak = SpaceConstants.ReplaceBreakPlaceholders(afterSpace);
             Assert.Equal("    line1\n    line2", afterBreak);
-            
+
             // 多个换行占位符
             input = "a{br}b{br:2}c";
             afterBreak = SpaceConstants.ReplaceBreakPlaceholders(input);

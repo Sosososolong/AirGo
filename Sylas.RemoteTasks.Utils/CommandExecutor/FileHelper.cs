@@ -24,7 +24,8 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor;
 /// <summary>
 /// 文件操作帮助类
 /// </summary>
-public partial class FileHelper
+[Executor]
+public class FileHelper(AiService aiService) : ICommandExecutor
 {
     /// <summary>
     /// 删除文件
@@ -554,24 +555,10 @@ public partial class FileHelper
     static string _parameterLineStartPattern = string.Empty;
     static string[] _configItemKeys = [];
     /// <summary>
-    /// 匹配类定义文件中的时间属性的正则表达式
-    /// </summary>
-    private static readonly Regex RemoveDateTimeFieldPattern = new(@"[\n\s]+///\s+<summary>[\s\n]+///\s*\w*[\n\s]+///\s*</summary>[\s\n]+private\s+DateTime.+");
-
-    /// <summary>
-    /// 匹配实体StringLength等特性的正则表达式
-    /// </summary>
-    private static readonly Regex DataAnnotationsCodePattern = new(@"[\n\s]+\[StringLength.+\]");
-    /// <summary>
     /// 解析{key}和{{key}}的全局变量
     /// </summary>
     /// <returns></returns>
     private static readonly Regex GlobalVariablesPattern = new(@"(?<!\$)\{\{{0,1}(?<key>[^\s;]+?)(\[(?<index>\d+)\]){0,1}\}\}{0,1}(?<CallReplaceFunc>\.Replace\(((?<Quotation>""{0,1})(?<First>[\w\s]+)\k<Quotation>,\s*\k<Quotation>(?<Second>[\w\s\?]+)\k<Quotation>)\);){0,1}");
-
-    /// <summary>
-    /// 解析用户输入的变量
-    /// </summary>
-    private static readonly Regex CustomInputVariablesPattern = new(@"\{\{(?<varName>.+?)\}\}");
 
     /// <summary>
     /// IF条件指令
@@ -584,7 +571,7 @@ public partial class FileHelper
     /// <param name="commandContent"></param>
     /// <returns></returns>
     /// <exception cref="Exception"></exception>
-    public static async IAsyncEnumerable<CommandResult> ExecuteAsync(string commandContent)
+    public async IAsyncEnumerable<CommandResult> ExecuteAsync(string commandContent)
     {
         if (string.IsNullOrWhiteSpace(_parameterLineStartPattern))
         {
@@ -593,7 +580,7 @@ public partial class FileHelper
             string propsPattern = string.Join('|', props.Select(x => x.Name)) + "|" + string.Join('|', stepProps.Select(x => x.Name));
 
             _parameterLineStartPattern = $@"^-{{0,1}}\s*(?<paramName>{propsPattern}):\s*";
-            _configItemKeys = props.Select(x => x.Name).Concat(stepProps.Select(x => x.Name)).ToArray();
+            _configItemKeys = [.. props.Select(x => x.Name), .. stepProps.Select(x => x.Name)];
         }
         
         // 匹配操作名称和工作目录
@@ -769,7 +756,7 @@ public partial class FileHelper
     /// <param name="connectionString">数据库连接字符串</param>
     /// <param name="table"></param>
     /// <returns></returns>
-    public static async Task<string[]> BuildEntityClassCodeAsync(string connectionString, string table)
+    public async Task<string[]> BuildEntityClassCodeAsync(string connectionString, string table)
     {
         var columnInfos = await DatabaseInfo.GetTableColumnsInfoAsync(connectionString, table);
         #region 表字段分析
@@ -884,20 +871,20 @@ public partial class FileHelper
     /// </summary>
     /// <param name="table"></param>
     /// <returns></returns>
-    static async Task<string> GetEntityClassName(string table)
+    async Task<string> GetEntityClassName(string table)
     {
         if (table.Contains('_'))
         {
             table = table[(table.IndexOf('_') + 1)..];
         }
         string question = $"我的数据库表名为{table},使用PascalCase风格转换为C#的实体类名称(单数形式,不要添加Entry,Model等后缀)应该为?只回答名字即可";
-        string answer = await AiService.Instance.AskAsync(question);
+        string answer = await aiService.AskAsync(question);
         int index = answer.IndexOf('\n');
         string entityClassName = index > -1 ? answer[..index].Trim() : answer;
         return entityClassName;
     }
 
-    static async Task<List<Operation>> GetOperationsAsync(string fileOperationConfigPath)
+    async Task<List<Operation>> GetOperationsAsync(string fileOperationConfigPath)
     {
         string settings = await File.ReadAllTextAsync(fileOperationConfigPath);
         var settingLines = settings.Split('\n').Select(x => SpaceConstants.ReplaceSpacePlaceholders(x.TrimEnd())).ToArray();
@@ -1001,11 +988,11 @@ public partial class FileHelper
         }
         return operations;
     }
-    static readonly Dictionary<string, string> _variables = new()
+    readonly Dictionary<string, string> _variables = new()
     {
         { "TAB", SpaceConstants.OneTabSpaces }
     };
-    static void ResolveTargetFileNamespace(string classFileDir, string classFileProjFile)
+    void ResolveTargetFileNamespace(string classFileDir, string classFileProjFile)
     {
         #region 解析文件的命名空间(命名空间随着文件位置不同而变化)
         if (!string.IsNullOrWhiteSpace(classFileProjFile))
@@ -1029,7 +1016,7 @@ public partial class FileHelper
     /// </summary>
     /// <param name="opNode"></param>
     /// <returns></returns>
-    static async Task ResolveVariablesAsync(OperationNode opNode)
+    async Task ResolveVariablesAsync(OperationNode opNode)
     {
         // 解析函数变量(TargetFilePattern和Steps中每个项的Value)
         opNode.TargetFilePattern = await ResolveFunctionVariablesAsync(opNode.TargetFilePattern);
@@ -1051,7 +1038,7 @@ public partial class FileHelper
     /// </summary>
     /// <param name="originTxt"></param>
     /// <returns></returns>
-    static async Task<string> ResolveVariablesAsync(string originTxt)
+    async Task<string> ResolveVariablesAsync(string originTxt)
     {
         originTxt = await ResolveFunctionVariablesAsync(originTxt);
         return originTxt;
@@ -1063,7 +1050,7 @@ public partial class FileHelper
     /// <param name="originTxt"></param>
     /// <returns></returns>
     /// <exception cref="Exception"></exception>
-    static async Task<string> ResolveFunctionVariablesAsync(string originTxt)
+    async Task<string> ResolveFunctionVariablesAsync(string originTxt)
     {
         // 语法：FuncName(params) => A, B, C 或 FuncName(params) => [0]
         // 旧格式兼容：FuncName(params)->Key->["A", "B"] 会忽略 Key
@@ -1087,7 +1074,8 @@ public partial class FileHelper
             {
                 LoggerHelper.LogInformation($"{SpaceConstants.OneTabSpaces} - {parameter}");
             }
-            var methodResult = method.Invoke(null, parameters) ?? throw new Exception($"方法{functionName}调用异常");
+
+            var methodResult = method.IsStatic ? method.Invoke(null, parameters) : method.Invoke(null, parameters) ?? throw new Exception($"方法{functionName}调用异常");
             if (functionName.EndsWith("Async"))
             {
                 if (methodResult is Task<string[]> resultTask)
@@ -1143,7 +1131,7 @@ public partial class FileHelper
     /// </summary>
     /// <param name="originTxt"></param>
     /// <returns></returns>
-    static string ResolveIfStatement(string originTxt)
+    string ResolveIfStatement(string originTxt)
     {
         var ifMatches = IfStatementPattern.Matches(originTxt);
         foreach (Match m in ifMatches)
@@ -1185,7 +1173,7 @@ public partial class FileHelper
     /// </summary>
     /// <param name="originTxt"></param>
     /// <returns></returns>
-    static string ResolveGlobalVariables(string originTxt)
+    string ResolveGlobalVariables(string originTxt)
     {
         // 获取所有匹配的全局变量并去重
         var allMatches = GlobalVariablesPattern.Matches(originTxt);
@@ -1283,7 +1271,7 @@ public partial class FileHelper
 
     // string file, string value, string operationTitle, OperationType operationType, string appendedLinePattern = ""
     /// <summary>执行用户选择的操作(所有子命令)</summary>
-    static async IAsyncEnumerable<string> ExecuteOperationAsync(Operation selectedOp)
+    async IAsyncEnumerable<string> ExecuteOperationAsync(Operation selectedOp)
     {
         #region 准备工作 - 解析变量
         // 预设全局变量
