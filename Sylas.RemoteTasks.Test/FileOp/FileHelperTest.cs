@@ -444,20 +444,20 @@ namespace Sylas.RemoteTasks.Test.FileOp
 
             #region 断言
             string sharedResultTxt = await File.ReadAllTextAsync(file);
-            Assert.Equal(sharedResultTxt, sharedExpectedTxt);
+            Assert.Equal(sharedResultTxt.Replace("\r\n", "\n"), sharedExpectedTxt.Replace("\r\n", "\n"));
 
             string importsResultTxt = await File.ReadAllTextAsync(importsFile);
-            Assert.Equal(importsResultTxt, importsExpectedTxt);
+            Assert.Equal(importsResultTxt.Replace("\r\n", "\n"), importsExpectedTxt.Replace("\r\n", "\n"));
 
             string webProgramResultTxt = await File.ReadAllTextAsync(webProgramFile);
-            Assert.Equal(webProgramResultTxt, webProgramExpectedTxt);
+            Assert.Equal(webProgramResultTxt.Replace("\r\n", "\n"), webProgramExpectedTxt.Replace("\r\n", "\n"));
             string mauiProgramResultTxt = await File.ReadAllTextAsync(mauiProgramFile);
-            Assert.Equal(mauiProgramResultTxt, mauiProgramExpectedTxt);
+            Assert.Equal(mauiProgramResultTxt.Replace("\r\n", "\n"), mauiProgramExpectedTxt.Replace("\r\n", "\n"));
 
             string indexResultTxt = await File.ReadAllTextAsync(indexFile);
-            Assert.Equal(indexResultTxt, indexExpectedTxt);
+            Assert.Equal(indexResultTxt.Replace("\r\n", "\n"), indexExpectedTxt.Replace("\r\n", "\n"));
             string appRazorResultTxt = await File.ReadAllTextAsync(appRazorFile);
-            Assert.Equal(appRazorResultTxt, appRazorExpectedTxt);
+            Assert.Equal(appRazorResultTxt.Replace("\r\n", "\n"), appRazorExpectedTxt.Replace("\r\n", "\n"));
             #endregion
 
             #region 准备阶段 - 命令2
@@ -687,10 +687,10 @@ namespace Sylas.RemoteTasks.Test.FileOp
 
             #region 断言
             var mainLayoutResultTxt = await File.ReadAllTextAsync(mainLayoutFile);
-            Assert.Equal(mainLayoutResultTxt, mainLayoutExpectedTxt);
+            Assert.Equal(mainLayoutResultTxt.Replace("\r\n", "\n"), mainLayoutExpectedTxt.Replace("\r\n", "\n"));
 
             var navMenuResultTxt = await File.ReadAllTextAsync(navMenuFile);
-            Assert.Equal(navMenuExpectedTxt.TrimEnd(), navMenuResultTxt.TrimEnd());
+            Assert.Equal(navMenuExpectedTxt.TrimEnd().Replace("\r\n", "\n"), navMenuResultTxt.TrimEnd().Replace("\r\n", "\n"));
             #endregion
 
             Directory.Delete(testDir, true);

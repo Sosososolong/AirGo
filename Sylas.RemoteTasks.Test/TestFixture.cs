@@ -56,13 +56,15 @@ namespace Sylas.RemoteTasks.Test
 
             var aiConfig = new AiConfig();
             _configuration.GetSection("AiConfig").Bind(aiConfig);
-            services.AddSingleton<AiConfig>(aiConfig);
+            services.AddSingleton(aiConfig);
+
             services.AddSingleton<AiService>();
             services.AddSingleton<IHttpRequestPipeline, HttpRequestPipeline>();
             services.Add(new ServiceDescriptor(typeof(ICommandExecutor), nameof(SystemCmd), typeof(SystemCmd), ServiceLifetime.Scoped));
             services.Add(new ServiceDescriptor(typeof(ICommandExecutor), nameof(HttpExecutor), typeof(HttpExecutor), ServiceLifetime.Scoped));
             services.Add(new ServiceDescriptor(typeof(ICommandExecutor), nameof(DatabaseExecutor), typeof(DatabaseExecutor), ServiceLifetime.Scoped));
             services.Add(new ServiceDescriptor(typeof(ICommandExecutor), nameof(FileHelper), typeof(FileHelper), ServiceLifetime.Scoped));
+            services.AddScoped<CommandExecutionContext>();
             services.AddTransient<AnythingService>();
         }
     }

@@ -25,7 +25,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor;
 /// 文件操作帮助类
 /// </summary>
 [Executor]
-public class FileHelper(AiService aiService) : ICommandExecutor
+public class FileHelper(AiService aiService, CommandExecutionContext executionContext) : ICommandExecutor
 {
     /// <summary>
     /// 删除文件
@@ -586,6 +586,7 @@ public class FileHelper(AiService aiService) : ICommandExecutor
         // 匹配操作名称和工作目录
         Operation selectedOp = new();
         string[] titleLines = Regex.Match(commandContent, @"##[\w\W]+?(?=###)").Value.Split('\n');
+        // selectedOp.GlobalVariables中只有函数调用生成全局变量的表达式
         selectedOp.GlobalVariables = [.. titleLines.Skip(1)];
 
         #region RazorEngine解析模板
@@ -595,22 +596,17 @@ public class FileHelper(AiService aiService) : ICommandExecutor
             LoggerHelper.LogInformation("FileHelper.ExecuteAsync 使用Razor模板引擎");
             // 使用标题和模板变量作为模板缓存的唯一标识符
             string titleLine = useRazorEngineMatch.Value.Trim();
-            string currentTmpl = titleLine + string.Join("", selectedOp.GlobalVariables);
+            string currentTmpl = titleLine + string.Join(string.Empty, selectedOp.GlobalVariables);
 
             ExpandoObject dataModel = new();
             var dataModelDictionary = (IDictionary<string, object>)dataModel;
-            foreach (var variable in selectedOp.GlobalVariables)
+
+            // 从_执行上下文获取
+            foreach (var kvp in executionContext.EnvironmentVariables)
             {
-                if (!string.IsNullOrWhiteSpace(variable) && variable.Contains('='))
-                {
-                    var variableArr = variable.Split("=");
-                    if (variableArr.Length != 2)
-                    {
-                        throw new Exception($"模板变量语法错误:{variable}");
-                    }
-                    dataModelDictionary[variableArr[0].Trim()] = variableArr[1].Trim();
-                }
+                dataModelDictionary[kvp.Key] = kvp.Value;
             }
+
             if (!RazorEngine.Engine.Razor.IsTemplateCached(currentTmpl, null))
             {
                 RazorEngine.Engine.Razor.AddTemplate(currentTmpl, commandContent);
@@ -884,110 +880,6 @@ public class FileHelper(AiService aiService) : ICommandExecutor
         return entityClassName;
     }
 
-    async Task<List<Operation>> GetOperationsAsync(string fileOperationConfigPath)
-    {
-        string settings = await File.ReadAllTextAsync(fileOperationConfigPath);
-        var settingLines = settings.Split('\n').Select(x => SpaceConstants.ReplaceSpacePlaceholders(x.TrimEnd())).ToArray();
-        List<Operation> operations = [];
-        bool isGlobalVarsBlock = false;
-        for (int i = 0; i < settingLines.Length; i++)
-        {
-            string line = settingLines[i];
-            string lineTrimed = line.Trim();
-            if (lineTrimed.StartsWith("###"))
-            {
-                isGlobalVarsBlock = false;
-                // ### 表示Operation内的一个子命令
-                var operationTitle = lineTrimed.Replace("###", string.Empty).Trim();
-                #region 忽略顺序读取子命令的所有属性
-                string targetFilePattern = string.Empty;
-                string value = string.Empty;
-                string type = string.Empty;
-                string linePattern = string.Empty;
-                for (int paramIndex = 0; paramIndex < 100; paramIndex++)
-                {
-                    (var paramName, var paramValue, i) = GetNextParameter(settingLines, i);
-                    if (paramName == nameof(OperationNode.TargetFilePattern))
-                    {
-                        targetFilePattern = paramValue;
-                    }
-                    else if (paramName == nameof(NodeStep.Value))
-                    {
-                        value = paramValue;
-                    }
-                    else if (paramName == nameof(NodeStep.OperationType))
-                    {
-                        type = paramValue;
-                    }
-                    else if (paramName == nameof(NodeStep.LinePattern))
-                    {
-                        linePattern = paramValue;
-                    }
-                    else
-                    {
-                        break;
-                    }
-                }
-                OperationNode opNode = new()
-                {
-                    NodeTitle = operationTitle,
-                    TargetFilePattern = targetFilePattern,
-                    Steps = []
-                };
-                #endregion
-
-                #region 解析操作节点的步骤集合
-                var values = value.Split("|||");
-                var types = type.Split("|||");
-                var linePatterns = linePattern.Split("|||");
-                for (int j = 0; j < values.Length; j++)
-                {
-                    NodeStep step = new()
-                    {
-                        Value = values[j],
-                        LinePattern = linePatterns[j]
-                    };
-                    var opType = types[j].Trim();
-                    step.OperationType = opType switch
-                    {
-                        nameof(OperationType.Append) => OperationType.Append,
-                        nameof(OperationType.Prepend) => OperationType.Prepend,
-                        nameof(OperationType.Replace) => OperationType.Replace,
-                        nameof(OperationType.Override) => OperationType.Override,
-                        nameof(OperationType.Create) => OperationType.Create,
-                        _ => throw new Exception($"无效的操作类型:{opType}"),
-                    };
-                    opNode.Steps.Add(step);
-                    operations.Last().Nodes.Add(opNode);
-                }
-                #endregion
-            }
-            else if (lineTrimed.StartsWith("##"))
-            {
-                isGlobalVarsBlock = true;
-                // 遇到"##", 创建一个Operation对象
-                string titleLineCon = lineTrimed.Replace("##", string.Empty).Trim();
-                var workingDirMatch = Regex.Match(titleLineCon, @"(?<name>.+)\((?<workingDir>.*)\)");
-                if (!workingDirMatch.Success)
-                {
-                    throw new Exception($"请将工作目录配置到末尾:{titleLineCon}");
-                }
-                var op = new Operation
-                {
-                    Name = workingDirMatch.Groups["name"].Value,
-                    WorkingDir = workingDirMatch.Groups["workingDir"].Value,
-                    Nodes = []
-                };
-
-                operations.Add(op);
-            }
-            else if (isGlobalVarsBlock && Regex.IsMatch(line.Trim(), @"(\w+\()|(\{\{\w+\}\})"))
-            {
-                operations.Last().GlobalVariables.Add(line.Trim());
-            }
-        }
-        return operations;
-    }
     readonly Dictionary<string, string> _variables = new()
     {
         { "TAB", SpaceConstants.OneTabSpaces }

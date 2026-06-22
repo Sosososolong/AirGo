@@ -24,6 +24,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
     /// <param name="memoryCache"></param>
     /// <param name="httpClientFactory"></param>
     /// <param name="httpContextAccessor"></param>
+    /// <param name="commandExecutionContext"></param>
     /// <param name="serviceProvider"></param>
     public class AnythingService(
         RepositoryBase<AnythingSetting> repository,
@@ -33,6 +34,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
         IMemoryCache memoryCache,
         IHttpClientFactory httpClientFactory,
         IHttpContextAccessor httpContextAccessor,
+        CommandExecutionContext commandExecutionContext,
         IServiceProvider serviceProvider)
     {
         /// <summary>
@@ -380,7 +382,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
                 throw new Exception(handlerResult.ErrMsg);
             }
             Func<object[], IAsyncEnumerable<CommandResult>> anythingCommandHandler = handlerResult.Data ?? throw new Exception("无法解析命令执行器");
-            
+            commandExecutionContext.EnvironmentVariables = anythingInfo.Properties;
             var commandResults = anythingCommandHandler([resolvedCommandContent]);
 
             await foreach (var commandResult in commandResults)

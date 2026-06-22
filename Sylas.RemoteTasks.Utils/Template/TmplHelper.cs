@@ -486,7 +486,7 @@ namespace Sylas.RemoteTasks.Utils.Template
             List<string> resolvedExp = [];
             if (stringTmplMatches.Count == 0)
             {
-                return tmplWithParser;
+                return tmplWithParser.Replace(_doubleFlag, "$");
             }
 
             // 如果只有一个表达式, 且表达式与源模板相等, 则直接返回解析后的值
