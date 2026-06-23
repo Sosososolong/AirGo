@@ -601,7 +601,7 @@ public class FileHelper(AiService aiService, CommandExecutionContext executionCo
             ExpandoObject dataModel = new();
             var dataModelDictionary = (IDictionary<string, object>)dataModel;
 
-            // 从_执行上下文获取
+            // 从执行上下文获取
             foreach (var kvp in executionContext.EnvironmentVariables)
             {
                 dataModelDictionary[kvp.Key] = kvp.Value;
