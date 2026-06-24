@@ -168,6 +168,17 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             return pageData.Data;
         }
         /// <summary>
+        /// 获取命令分页数据
+        /// </summary>
+        /// <param name="anythingId"></param>
+        /// <returns></returns>
+        public async Task<PagedData<AnythingCommand>> GetPagedAnythingCommandsAsync(DataSearch? search = null)
+        {
+            search ??= new();
+            var pageData = await _commandRepository.GetPageAsync(search);
+            return pageData;
+        }
+        /// <summary>
         /// 为Anything配置添加一条命令
         /// </summary>
         /// <param name="command"></param>

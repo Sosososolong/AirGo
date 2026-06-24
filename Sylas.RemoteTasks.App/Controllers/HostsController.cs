@@ -222,6 +222,17 @@ namespace Sylas.RemoteTasks.App.Controllers
             return Json(await anythingService.AddCommandAsync(command));
         }
         /// <summary>
+        /// 获取命令分页数据
+        /// </summary>
+        /// <param name="anythingId"></param>
+        /// <returns></returns>
+        public async Task<IActionResult> GetPagedAnythingCommandsAsync(DataSearch? search = null)
+        {
+            var anythingCommands = await anythingService.GetPagedAnythingCommandsAsync(search);
+            var result = new RequestResult<PagedData<AnythingCommand>>(anythingCommands);
+            return Ok(result);
+        }
+        /// <summary>
         /// 解析一个命令模板
         /// </summary>
         /// <param name="dto">dto.Id:命令所属AnythingSetting的Id, 需要根据它的Properties解析命令中的模板; dto.CmdTxt:要解析的命令脚本</param>
