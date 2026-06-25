@@ -22,9 +22,9 @@
 
 ## 更新摘要
 **变更内容**
-- 新增分页命令管理功能：在HostsController中添加GetPagedAnythingCommandsAsync方法
-- 增强命令管理系统的可扩展性，支持大数据量的命令查询
-- 新增统一的分页查询参数DataSearch支持
+- 端点清理：移除了冗余的 AnythingSettingsAsync 方法，统一了分页查询接口
+- 统一参数绑定：所有分页查询接口统一使用 [FromBody] DataSearch? 参数绑定
+- 改进分页查询：优化了分页查询的参数处理和默认值设置
 
 ## 目录
 1. [简介](#简介)
@@ -44,7 +44,7 @@
 - 命令执行：SSE 流式响应，支持单条与批量执行
 - 工作流（Flow）管理：节点增删改、重排、环境变量同步
 - 服务器与应用信息查询
-- **新增**：分页命令管理功能，支持大数据量命令查询
+- **更新**：统一的分页查询接口，移除了冗余的端点
 - 认证与权限说明、错误码规范、常见使用场景与最佳实践
 
 本 API 基于 ASP.NET Core MVC 构建，采用仓储模式与内存缓存优化，结合模板解析与命令执行器抽象，实现灵活的远程主机自动化。
@@ -59,7 +59,7 @@
 - 命令执行结果：CommandResult
 - 仓储基类：RepositoryBase
 - 请求处理流程扩展：RequestProcessorService（用于请求处理器工作流）
-- **新增**：分页数据模型：PagedData、DataSearch
+- **更新**：统一的分页查询参数：DataSearch
 
 ```mermaid
 graph TB
@@ -107,7 +107,7 @@ ProcSvc --> Repo
 ```
 
 **图表来源**
-- [Sylas.RemoteTasks.App/Controllers/HostsController.cs:1-478](file://Sylas.RemoteTasks.App/Controllers/HostsController.cs#L1-L478)
+- [Sylas.RemoteTasks.App/Controllers/HostsController.cs:1-467](file://Sylas.RemoteTasks.App/Controllers/HostsController.cs#L1-L467)
 - [Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingService.cs:1-694](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingService.cs#L1-L694)
 - [Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingSetting.cs:1-34](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingSetting.cs#L1-L34)
 - [Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingCommand.cs:1-35](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingCommand.cs#L1-L35)
@@ -125,7 +125,7 @@ ProcSvc --> Repo
 - [Sylas.RemoteTasks.Database/SyncBase/DataSearch.cs:1-49](file://Sylas.RemoteTasks.Database/SyncBase/DataSearch.cs#L1-L49)
 
 **章节来源**
-- [Sylas.RemoteTasks.App/Controllers/HostsController.cs:1-478](file://Sylas.RemoteTasks.App/Controllers/HostsController.cs#L1-L478)
+- [Sylas.RemoteTasks.App/Controllers/HostsController.cs:1-467](file://Sylas.RemoteTasks.App/Controllers/HostsController.cs#L1-L467)
 - [Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingService.cs:1-694](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingService.cs#L1-L694)
 
 ## 核心组件
@@ -140,13 +140,13 @@ ProcSvc --> Repo
   - CommandInfoInDto：命令执行输入（命令Id、执行编号）
   - CommandResolveDto：命令解析输入（AnythingId、命令模板）
   - FlowAddAnthingInDto：工作流节点添加输入（工作流Id、节点Id、索引）
-  - **新增**：DataSearch：分页查询参数（页码、页大小、过滤条件、排序规则）
+  - **更新**：DataSearch：统一的分页查询参数（页码、页大小、过滤条件、排序规则）
 - 结果封装：
   - RequestResult<T>：统一响应结构（Code、ErrMsg、Data）
   - OperationResult：操作结果（Succeed、Message、Data）
   - CommandResult：命令执行结果（Succeed、Message、CommandExecuteNo）
-  - **新增**：PagedData<T>：分页数据结构（Count、TotalPages、Data）
-- **新增**：分页查询支持：GetPagedAnythingCommandsAsync 提供分页命令查询功能
+  - **更新**：PagedData<T>：分页数据结构（Count、TotalPages、Data）
+- **更新**：统一分页查询接口：所有分页查询统一使用 DataSearch 参数绑定
 
 **章节来源**
 - [Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingSetting.cs:1-34](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingSetting.cs#L1-L34)
@@ -186,17 +186,18 @@ SSE-->>Client : "实时流式输出"
 ```
 
 **图表来源**
-- [Sylas.RemoteTasks.App/Controllers/HostsController.cs:85-124](file://Sylas.RemoteTasks.App/Controllers/HostsController.cs#L85-L124)
+- [Sylas.RemoteTasks.App/Controllers/HostsController.cs:83-122](file://Sylas.RemoteTasks.App/Controllers/HostsController.cs#L83-L122)
 - [Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingService.cs:306-389](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingService.cs#L306-L389)
 - [Sylas.RemoteTasks.Utils/CommandExecutor/CommandResult.cs:1-38](file://Sylas.RemoteTasks.Utils/CommandExecutor/CommandResult.cs#L1-L38)
 
 ## 详细组件分析
 
 ### 1) Anything 配置管理（增删改查与命令管理）
-- 分页查询 Anything 配置
-  - 方法与路径：GET /Hosts/AnythingSettingsAsync
+- **更新**：统一的分页查询 Anything 配置
+  - 方法与路径：POST /Hosts/AnythingSettingsAsync
   - 请求体：DataSearch（分页与筛选）
   - 响应：RequestResult<PagedData<AnythingSetting>>
+  - **更新**：移除了冗余的 GET 版本，统一使用 POST 方式
 - 根据 Id 查询 Anything 配置与命令详情
   - 方法与路径：GET /Hosts/AnythingSettingAndInfoAsync/{id}
   - 路径参数：id（整型）
@@ -225,10 +226,11 @@ SSE-->>Client : "实时流式输出"
   - 方法与路径：POST /Hosts/DeleteAnythingCommandByIdAsync
   - 请求体：id（整型）
   - 响应：Json(OperationResult)
-- **新增**：分页查询命令
-  - 方法与路径：GET /Hosts/GetPagedAnythingCommandsAsync
+- **更新**：统一的分页查询命令
+  - 方法与路径：POST /Hosts/GetPagedAnythingCommandsAsync
   - 请求体：DataSearch（分页与筛选）
   - 响应：RequestResult<PagedData<AnythingCommand>>
+  - **更新**：移除了 GET 版本，统一使用 POST 方式
 - 解析命令模板
   - 方法与路径：POST /Hosts/ResolveCommandSetttingAsync
   - 请求体：CommandResolveDto（Id、CmdTxt）
@@ -315,10 +317,11 @@ end
   - 方法与路径：POST /Hosts/ReorderFlowAnything
   - 请求体：flowId、anythingIndex、forward
   - 响应：RequestResult<bool>
-- 分页查询工作流
+- **更新**：统一的工作流分页查询
   - 方法与路径：POST /Hosts/QueryAnythingFlowsAsync
-  - 请求体：DataSearch
+  - 请求体：DataSearch（分页与筛选）
   - 响应：RequestResult<PagedData<AnythingFlow>>
+  - **更新**：移除了 GET 版本，统一使用 POST 方式
 - 新增工作流
   - 方法与路径：POST /Hosts/AddAnythingFlowAsync
   - 请求体：AnythingFlow
@@ -384,17 +387,28 @@ SaveEnv --> Done
 **章节来源**
 - [Sylas.RemoteTasks.App/RequestProcessor/RequestProcessorService.cs:11-69](file://Sylas.RemoteTasks.App/RequestProcessor/RequestProcessorService.cs#L11-L69)
 
-### 6) 分页命令管理功能（新增）
-- 分页查询命令
-  - 方法与路径：GET /Hosts/GetPagedAnythingCommandsAsync
+### 6) 统一分页查询功能（更新）
+- **更新**：统一的分页查询接口
+  - 方法与路径：POST /Hosts/AnythingSettingsAsync
+  - 请求体：DataSearch（分页与筛选）
+  - 响应：RequestResult<PagedData<AnythingSetting>>
+  - **更新**：移除了冗余的 GET 版本，统一使用 POST 方式
+- **更新**：统一的命令分页查询
+  - 方法与路径：POST /Hosts/GetPagedAnythingCommandsAsync
   - 请求体：DataSearch（分页与筛选）
   - 响应：RequestResult<PagedData<AnythingCommand>>
-  - 功能：支持大数据量命令的分页查询，提升系统可扩展性
-- 分页查询参数 DataSearch
+  - **更新**：移除了 GET 版本，统一使用 POST 方式
+- **更新**：统一的工作流分页查询
+  - 方法与路径：POST /Hosts/QueryAnythingFlowsAsync
+  - 请求体：DataSearch（分页与筛选）
+  - 响应：RequestResult<PagedData<AnythingFlow>>
+  - **更新**：移除了 GET 版本，统一使用 POST 方式
+- **更新**：分页查询参数 DataSearch
   - PageIndex：当前页码，默认1
   - PageSize：每页记录数，默认20
   - Filter：过滤条件
   - Rules：排序规则列表
+  - **更新**：所有分页查询统一使用 [FromBody] 参数绑定
 - 服务层实现
   - AnythingService.GetPagedAnythingCommandsAsync：调用仓储层的GetPageAsync方法
   - RepositoryBase.GetPageAsync：统一的分页查询实现
@@ -415,18 +429,17 @@ SaveEnv --> Done
 - 服务依赖仓储与缓存：AnythingService 通过 RepositoryBase 访问数据库，使用内存缓存优化执行器与 AnythingInfo
 - 命令执行器：通过反射与工厂创建具体执行器，支持模板参数解析
 - SSE 输出：控制器直接写入响应流，无需中间缓冲
-- **新增**：分页查询依赖：GetPagedAnythingCommandsAsync 依赖 DataSearch 和 PagedData 模型
+- **更新**：统一分页查询依赖：所有分页查询接口依赖统一的 DataSearch 参数绑定
 
 ```mermaid
 classDiagram
 class HostsController {
-+AnythingSettingsAsync()
++AnythingSettingsAsync(search)
 +AnythingSettingAndInfoAsync(id)
 +Executors(pageIndex,pageSize)
 +ExecuteCommandAsync(dto)
 +ExecuteCommandsAsync(dtos)
 +AddAnythingSettingAsync(setting)
-+GetAnythingSettingsAsync(search)
 +UpdateAnythingSettingAsync(patch)
 +UpdateCommandAsync(patch)
 +DeleteAnythingSettingByIdAsync(id)
@@ -495,14 +508,14 @@ AnythingService --> PagedData~AnythingCommand~ : "返回"
 ```
 
 **图表来源**
-- [Sylas.RemoteTasks.App/Controllers/HostsController.cs:17-478](file://Sylas.RemoteTasks.App/Controllers/HostsController.cs#L17-L478)
+- [Sylas.RemoteTasks.App/Controllers/HostsController.cs:17-467](file://Sylas.RemoteTasks.App/Controllers/HostsController.cs#L17-L467)
 - [Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingService.cs:10-694](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingService.cs#L10-L694)
 - [Sylas.RemoteTasks.App/Infrastructure/RepositoryBase.cs:10-233](file://Sylas.RemoteTasks.App/Infrastructure/RepositoryBase.cs#L10-L233)
 - [Sylas.RemoteTasks.Database/SyncBase/DataSearch.cs:8-47](file://Sylas.RemoteTasks.Database/SyncBase/DataSearch.cs#L8-L47)
 - [Sylas.RemoteTasks.Database/SyncBase/PagedData.cs:30-44](file://Sylas.RemoteTasks.Database/SyncBase/PagedData.cs#L30-L44)
 
 **章节来源**
-- [Sylas.RemoteTasks.App/Controllers/HostsController.cs:17-478](file://Sylas.RemoteTasks.App/Controllers/HostsController.cs#L17-L478)
+- [Sylas.RemoteTasks.App/Controllers/HostsController.cs:17-467](file://Sylas.RemoteTasks.App/Controllers/HostsController.cs#L17-L467)
 - [Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingService.cs:10-694](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingService.cs#L10-L694)
 - [Sylas.RemoteTasks.App/Infrastructure/RepositoryBase.cs:10-233](file://Sylas.RemoteTasks.App/Infrastructure/RepositoryBase.cs#L10-L233)
 
@@ -514,12 +527,12 @@ AnythingService --> PagedData~AnythingCommand~ : "返回"
   - 命令执行结果以 IAsyncEnumerable 形式流式返回，降低内存峰值
 - 数据库访问
   - 仓储统一实现分页与局部更新，避免全表扫描
-  - **新增**：分页查询支持大数据量命令管理，提升查询性能
+  - **更新**：统一分页查询优化，所有分页查询接口使用统一的参数绑定方式
 - 跨域/跨节点执行
   - 子节点将任务入队并轮询中心服务器结果，避免阻塞主线程
-- **新增**：分页查询优化
-  - DataSearch 默认页大小为20，可根据需求调整
-  - 支持自定义排序规则，优化查询性能
+- **更新**：参数绑定优化
+  - 统一使用 [FromBody] DataSearch? 参数绑定，简化客户端调用
+  - 移除了冗余的端点，减少了 API 表面复杂度
 
 ## 故障排查指南
 - 常见错误码与含义
@@ -530,16 +543,17 @@ AnythingService --> PagedData~AnythingCommand~ : "返回"
   - 若解析命令模板失败，返回解析异常
 - 工作流节点管理
   - 未找到工作流或节点时，返回相应错误信息
-- **新增**：分页查询问题
+- **更新**：分页查询问题
   - PageIndex 必须大于0，PageSize 默认20，最大值可根据数据库限制调整
   - Filter 条件必须符合数据库查询语法
   - 排序规则需指定有效的字段名
+  - **更新**：确认使用正确的 HTTP 方法（POST）和参数绑定方式
 - 建议排查步骤
   - 检查 Anything 配置与命令模板是否正确
   - 确认执行器名称与参数类型匹配
   - 检查中心服务器连通性与授权头透传
   - 查看 SSE 客户端是否正确处理"结束标记"
-  - **新增**：验证 DataSearch 参数格式是否正确
+  - **更新**：验证 DataSearch 参数格式是否正确，确认使用 POST 请求
 
 **章节来源**
 - [Sylas.RemoteTasks.Common/Dtos/RequestResult.cs:44-50](file://Sylas.RemoteTasks.Common/Dtos/RequestResult.cs#L44-L50)
@@ -549,7 +563,7 @@ AnythingService --> PagedData~AnythingCommand~ : "返回"
 - [Sylas.RemoteTasks.Database/SyncBase/DataSearch.cs:24-47](file://Sylas.RemoteTasks.Database/SyncBase/DataSearch.cs#L24-L47)
 
 ## 结论
-本 API 通过清晰的分层设计与统一响应封装，提供了完整的主机配置、命令执行与工作流管理能力。**新增的分页命令管理功能进一步增强了系统的可扩展性，能够高效处理大规模命令数据**。SSE 流式输出与缓存机制确保了良好的用户体验与性能表现。建议在生产环境中配合鉴权与限流策略使用，并对命令模板与执行器参数进行严格的校验与测试。
+本 API 通过清晰的分层设计与统一响应封装，提供了完整的主机配置、命令执行与工作流管理能力。**更新后的统一分页查询接口进一步简化了 API 使用，移除了冗余端点，提升了系统的易用性和一致性**。SSE 流式输出与缓存机制确保了良好的用户体验与性能表现。建议在生产环境中配合鉴权与限流策略使用，并对命令模板与执行器参数进行严格的校验与测试。
 
 ## 附录
 
@@ -562,7 +576,7 @@ AnythingService --> PagedData~AnythingCommand~ : "返回"
   - Succeed：布尔值
   - Message：消息
   - Data：可选数据集合
-- **新增**：PagedData<T>
+- **更新**：PagedData<T>
   - Count：总记录数
   - TotalPages：总页数
   - Data：分页数据集合
@@ -582,15 +596,16 @@ AnythingService --> PagedData~AnythingCommand~ : "返回"
 **章节来源**
 - [Sylas.RemoteTasks.Utils/CommandExecutor/CommandResult.cs:6-36](file://Sylas.RemoteTasks.Utils/CommandExecutor/CommandResult.cs#L6-L36)
 
-### C. 分页查询参数结构（新增）
+### C. 统一分页查询参数结构（更新）
 - DataSearch
   - PageIndex：当前页码，默认1
   - PageSize：每页记录数，默认20
   - Filter：DataFilter 过滤条件
   - Rules：List<OrderField> 排序规则
-- **新增**：DataFilter 过滤条件
+  - **更新**：统一使用 [FromBody] 参数绑定
+- **更新**：DataFilter 过滤条件
   - FilterItems：List<FilterItem> 过滤项列表
-- **新增**：OrderField 排序规则
+- **更新**：OrderField 排序规则
   - Field：排序字段名
   - Asc：是否升序
 
@@ -604,15 +619,15 @@ AnythingService --> PagedData~AnythingCommand~ : "返回"
   - 步骤：调用 ExecuteCommandAsync，客户端以 SSE 方式订阅；为每条命令设置唯一 CommandExecuteNo
 - 场景三：构建工作流
   - 步骤：创建工作流，添加节点，必要时调用 SyncEnvVarsAsync 合并环境变量
-- **新增**：场景四：管理大量命令
-  - 步骤：使用 GetPagedAnythingCommandsAsync 进行分页查询，支持过滤和排序
-  - 最佳实践：合理设置 PageSize，使用 Filter 进行精确查询，利用 Rules 进行性能优化
+- **更新**：场景四：统一的分页查询
+  - 步骤：使用统一的分页查询接口（POST），支持 Anything 配置、命令和工作流的分页查询
+  - 最佳实践：使用 DataSearch 参数进行精确查询，合理设置 PageSize，利用 Rules 进行性能优化
 - 最佳实践
   - 严格校验命令模板中的变量引用
   - 为并发执行设置不同的 CommandExecuteNo
   - 合理设置缓存过期时间，避免脏数据
   - 对中心服务器与子节点的网络与授权进行监控
-  - **新增**：分页查询时注意参数验证，避免超大页码和页大小导致性能问题
+  - **更新**：使用统一的 POST 请求方式调用分页查询接口，简化客户端实现
 
 **章节来源**
 - [Sylas.RemoteTasks.App/Controllers/HostsController.cs:229-234](file://Sylas.RemoteTasks.App/Controllers/HostsController.cs#L229-L234)

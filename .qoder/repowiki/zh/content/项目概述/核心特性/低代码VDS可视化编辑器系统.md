@@ -8,18 +8,22 @@
 - [Index.cshtml](file://Sylas.RemoteTasks.App/Views/LowCode/Index.cshtml)
 - [Render.cshtml](file://Sylas.RemoteTasks.App/Views/LowCode/Render.cshtml)
 - [vds-configurator.js](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js)
+- [site.js](file://Sylas.RemoteTasks.App/wwwroot/js/site.js)
 - [RepositoryBase.cs](file://Sylas.RemoteTasks.App/Infrastructure/RepositoryBase.cs)
 - [EntityBase.cs](file://Sylas.RemoteTasks.Database/EntityBase.cs)
 - [README.md](file://README.md)
+- [VDS解析渲染.md](file://docs/VDS System/1. VDS解析渲染.md)
+- [搜索实现-数据过滤实现时序图.txt](file://docs/VDS System/2. VDS实现site.js - 搜索实现 - 数据过滤实现时序图.txt)
+- [架构总结.txt](file://docs/VDS System/3. 总结 把之前手动写js调用site.js的createTable渲染页面的这个js代码改为了动态生成.txt)
 </cite>
 
 ## 更新摘要
 **变更内容**
-- 新增自定义操作系统支持功能
-- 增强操作按钮配置系统，支持拖拽模态框交互体验
-- 新增自定义操作按钮配置功能
-- 完善按钮模板生成和管理机制
-- 优化模态框拖拽性能和用户体验
+- 新增VDS解析渲染流程文档，详细说明配置编辑到页面渲染的完整流程
+- 新增搜索实现时序图，展示数据源解析和搜索过滤的技术实现
+- 新增架构总结文档，阐述从手动配置到动态生成的技术演进
+- 完善数据源解析和搜索过滤功能的技术细节
+- 增强自定义操作按钮和数据源字段的配置能力
 
 ## 目录
 1. [简介](#简介)
@@ -27,21 +31,22 @@
 3. [核心组件](#核心组件)
 4. [架构概览](#架构概览)
 5. [详细组件分析](#详细组件分析)
-6. [自定义操作系统支持](#自定义操作系统支持)
-7. [增强的按钮配置系统](#增强的按钮配置系统)
-8. [拖拽模态框交互体验](#拖拽模态框交互体验)
-9. [自定义操作按钮配置](#自定义操作按钮配置)
-10. [按钮模板生成与管理](#按钮模板生成与管理)
-11. [依赖关系分析](#依赖关系分析)
-12. [性能考虑](#性能考虑)
-13. [故障排除指南](#故障排除指南)
-14. [结论](#结论)
+6. [VDS解析渲染流程](#vds解析渲染流程)
+7. [搜索实现时序图](#搜索实现时序图)
+8. [架构总结](#架构总结)
+9. [数据源解析机制](#数据源解析机制)
+10. [搜索过滤实现](#搜索过滤实现)
+11. [自定义操作按钮增强](#自定义操作按钮增强)
+12. [依赖关系分析](#依赖关系分析)
+13. [性能考虑](#性能考虑)
+14. [故障排除指南](#故障排除指南)
+15. [结论](#结论)
 
 ## 简介
 
 低代码VDS可视化编辑器系统是一个基于ASP.NET Core构建的企业级低代码平台，专门用于快速创建和管理数据表格页面。该系统通过可视化的配置界面，让用户无需编写复杂代码即可生成功能完整的数据管理页面。
 
-**更新** 新增了强大的自定义操作系统支持功能，包括增强的操作按钮配置系统、拖拽模态框交互体验和自定义操作按钮配置能力。
+**更新** 新增了完整的VDS解析渲染流程文档、搜索实现时序图和架构总结文档，深入阐述了从配置编辑到页面渲染的技术实现细节。
 
 系统的核心特色包括：
 - 可视化VDS配置编辑器
@@ -50,11 +55,12 @@
 - 多数据库支持
 - 完整的CRUD操作
 - 响应式设计
-- **新增** 自定义操作系统支持
-- **新增** 增强的按钮配置系统
-- **新增** 拖拽模态框交互体验
-- **新增** 自定义操作按钮配置
-- **新增** 按钮模板生成和管理机制
+- **新增** VDS解析渲染完整流程
+- **新增** 搜索实现时序图
+- **新增** 架构演进总结
+- **增强** 数据源解析机制
+- **增强** 搜索过滤功能
+- **增强** 自定义操作按钮配置
 
 ## 项目结构
 
@@ -88,12 +94,12 @@ Repositories --> Entities
 ```
 
 **图表来源**
-- [Program.cs](file://Sylas.RemoteTasks.App/Program.cs#L12-L89)
-- [README.md](file://README.md#L1-L43)
+- [Program.cs:12-89](file://Sylas.RemoteTasks.App/Program.cs#L12-L89)
+- [README.md:1-43](file://README.md#L1-L43)
 
 **章节来源**
-- [Program.cs](file://Sylas.RemoteTasks.App/Program.cs#L12-L89)
-- [README.md](file://README.md#L1-L43)
+- [Program.cs:12-89](file://Sylas.RemoteTasks.App/Program.cs#L12-L89)
+- [README.md:1-43](file://README.md#L1-L43)
 
 ## 核心组件
 
@@ -125,8 +131,8 @@ VdsPage是系统的核心实体，用于存储低代码页面的配置信息：
 每个控制器都遵循RESTful API设计原则，提供标准的CRUD操作接口。
 
 **章节来源**
-- [VdsPage.cs](file://Sylas.RemoteTasks.App/LowCode/VdsPage.cs#L10-L62)
-- [LowCodeController.cs](file://Sylas.RemoteTasks.App/Controllers/LowCodeController.cs#L13-L162)
+- [VdsPage.cs:10-62](file://Sylas.RemoteTasks.App/LowCode/VdsPage.cs#L10-L62)
+- [LowCodeController.cs:13-162](file://Sylas.RemoteTasks.App/Controllers/LowCodeController.cs#L13-L162)
 
 ## 架构概览
 
@@ -166,8 +172,8 @@ Controllers --> Hub
 ```
 
 **图表来源**
-- [Program.cs](file://Sylas.RemoteTasks.App/Program.cs#L26-L68)
-- [RepositoryBase.cs](file://Sylas.RemoteTasks.App/Infrastructure/RepositoryBase.cs#L10-L194)
+- [Program.cs:26-68](file://Sylas.RemoteTasks.App/Program.cs#L26-L68)
+- [RepositoryBase.cs:10-194](file://Sylas.RemoteTasks.App/Infrastructure/RepositoryBase.cs#L10-L194)
 
 ## 详细组件分析
 
@@ -200,8 +206,8 @@ Configurator->>Modal : 显示成功消息
 ```
 
 **图表来源**
-- [vds-configurator.js](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L45-L63)
-- [LowCodeController.cs](file://Sylas.RemoteTasks.App/Controllers/LowCodeController.cs#L56-L116)
+- [vds-configurator.js:45-63](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L45-L63)
+- [LowCodeController.cs:56-116](file://Sylas.RemoteTasks.App/Controllers/LowCodeController.cs#L56-L116)
 
 #### 字段类型支持
 
@@ -219,8 +225,8 @@ Configurator->>Modal : 显示成功消息
 | **操作按钮** | **交互按钮** | **预设、自定义** |
 
 **章节来源**
-- [vds-configurator.js](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L298-L320)
-- [vds-configurator.js](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L507-L544)
+- [vds-configurator.js:298-320](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L298-L320)
+- [vds-configurator.js:507-544](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L507-L544)
 
 ### 数据持久化机制
 
@@ -262,13 +268,13 @@ RepositoryBase~VdsPage~ --> VdsPage : 管理
 ```
 
 **图表来源**
-- [RepositoryBase.cs](file://Sylas.RemoteTasks.App/Infrastructure/RepositoryBase.cs#L10-L194)
-- [VdsPage.cs](file://Sylas.RemoteTasks.App/LowCode/VdsPage.cs#L11-L62)
-- [EntityBase.cs](file://Sylas.RemoteTasks.Database/EntityBase.cs#L9-L31)
+- [RepositoryBase.cs:10-194](file://Sylas.RemoteTasks.App/Infrastructure/RepositoryBase.cs#L10-L194)
+- [VdsPage.cs:11-62](file://Sylas.RemoteTasks.App/LowCode/VdsPage.cs#L11-L62)
+- [EntityBase.cs:9-31](file://Sylas.RemoteTasks.Database/EntityBase.cs#L9-L31)
 
 **章节来源**
-- [RepositoryBase.cs](file://Sylas.RemoteTasks.App/Infrastructure/RepositoryBase.cs#L20-L192)
-- [EntityBase.cs](file://Sylas.RemoteTasks.Database/EntityBase.cs#L9-L31)
+- [RepositoryBase.cs:20-192](file://Sylas.RemoteTasks.App/Infrastructure/RepositoryBase.cs#L20-L192)
+- [EntityBase.cs:9-31](file://Sylas.RemoteTasks.Database/EntityBase.cs#L9-L31)
 
 ### 前端渲染流程
 
@@ -289,246 +295,244 @@ Disabled --> End
 ```
 
 **图表来源**
-- [LowCodeController.cs](file://Sylas.RemoteTasks.App/Controllers/LowCodeController.cs#L126-L144)
-- [Render.cshtml](file://Sylas.RemoteTasks.App/Views/LowCode/Render.cshtml#L17-L42)
+- [LowCodeController.cs:126-144](file://Sylas.RemoteTasks.App/Controllers/LowCodeController.cs#L126-L144)
+- [Render.cshtml:17-42](file://Sylas.RemoteTasks.App/Views/LowCode/Render.cshtml#L17-L42)
 
 **章节来源**
-- [LowCodeController.cs](file://Sylas.RemoteTasks.App/Controllers/LowCodeController.cs#L126-L159)
-- [Render.cshtml](file://Sylas.RemoteTasks.App/Views/LowCode/Render.cshtml#L17-L42)
+- [LowCodeController.cs:126-159](file://Sylas.RemoteTasks.App/Controllers/LowCodeController.cs#L126-L159)
+- [Render.cshtml:17-42](file://Sylas.RemoteTasks.App/Views/LowCode/Render.cshtml#L17-L42)
 
-## 自定义操作系统支持
+## VDS解析渲染流程
 
-### 系统架构
+### 配置编辑阶段
 
-系统新增了自定义操作系统支持功能，为不同平台提供定制化的配置能力：
-
-```mermaid
-graph TB
-subgraph "自定义操作系统支持"
-OSDetection[操作系统检测]
-PlatformConfig[平台配置管理]
-CustomTemplates[自定义模板系统]
-FeatureAdaptation[功能适配器]
-end
-subgraph "用户界面"
-OSSelector[操作系统选择器]
-PlatformSettings[平台设置]
-TemplatePreview[模板预览]
-FeatureToggle[功能开关]
-end
-subgraph "数据存储"
-OSProfiles[操作系统配置档案]
-PlatformPrefs[平台偏好设置]
-TemplateCache[模板缓存]
-end
-OSDetection --> PlatformConfig
-PlatformConfig --> CustomTemplates
-PlatformConfig --> FeatureAdaptation
-OSSelector --> OSDetection
-PlatformSettings --> PlatformConfig
-TemplatePreview --> CustomTemplates
-FeatureToggle --> FeatureAdaptation
-OSProfiles --> TemplateCache
-PlatformPrefs --> TemplateCache
-```
-
-**图表来源**
-- [vds-configurator.js](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L421-L427)
-- [Index.cshtml](file://Sylas.RemoteTasks.App/Views/LowCode/Index.cshtml#L290-L318)
-
-### 支持的操作系统类型
-
-系统支持多种操作系统类型，每种都有特定的配置选项：
-
-| 操作系统 | 描述 | 特殊配置 |
-|----------|------|----------|
-| Windows | 微软Windows系统 | 文件路径、注册表访问 |
-| Linux | 各种Linux发行版 | Shell命令、权限管理 |
-| macOS | 苹果macOS系统 | Finder集成、权限控制 |
-| Android | 安卓移动系统 | Activity管理、权限请求 |
-| iOS | 苹果iOS系统 | App Store集成、权限管理 |
-
-**章节来源**
-- [vds-configurator.js](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L443-L476)
-- [vds-configurator.js](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L515-L527)
-
-## 增强的按钮配置系统
-
-### 系统架构
-
-增强的按钮配置系统提供了完整的按钮配置能力，支持拖拽模态框交互：
-
-```mermaid
-graph TB
-subgraph "按钮配置系统"
-ButtonConfig[按钮配置引擎]
-PresetTemplates[预设模板系统]
-DynamicConfig[动态配置管理]
-TemplateGen[模板生成器]
-DragModal[拖拽模态框]
-CustomButtonDetail[自定义按钮详情]
-end
-subgraph "用户界面"
-QuickAdd[快速添加按钮]
-ButtonList[按钮列表]
-TemplatePreview[模板预览]
-PlaceholderHelp[占位符帮助]
-CustomDetailModal[自定义详情模态框]
-end
-subgraph "数据存储"
-ButtonConfigs[按钮配置数组]
-CustomActions[自定义动作]
-TemplateStorage[模板存储]
-end
-ButtonConfig --> PresetTemplates
-ButtonConfig --> DynamicConfig
-ButtonConfig --> TemplateGen
-ButtonConfig --> DragModal
-ButtonConfig --> CustomButtonDetail
-QuickAdd --> ButtonConfig
-ButtonList --> ButtonConfig
-TemplatePreview --> TemplateGen
-PlaceholderHelp --> TemplateGen
-CustomDetailModal --> CustomButtonDetail
-ButtonConfigs --> TemplateStorage
-CustomActions --> TemplateStorage
-```
-
-**图表来源**
-- [vds-configurator.js](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L421-L427)
-- [Index.cshtml](file://Sylas.RemoteTasks.App/Views/LowCode/Index.cshtml#L290-L318)
-
-### 按钮类型支持
-
-系统支持多种预设按钮类型，每种类型都有特定的配置选项：
-
-| 按钮类型 | 描述 | 配置选项 |
-|----------|------|----------|
-| 编辑 | 编辑记录按钮 | 样式、文本、图标 |
-| 删除 | 删除记录按钮 | 样式、确认对话框、API URL |
-| 查看 | 查看详情按钮 | 样式、跳转URL |
-| 自定义 | 自定义操作按钮 | CSS类名、执行方式、确认框 |
-
-**章节来源**
-- [vds-configurator.js](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L443-L476)
-- [vds-configurator.js](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L515-L527)
-
-## 拖拽模态框交互体验
-
-### 模态框实现
-
-系统集成了Bootstrap的模态框功能，并增加了高性能的拖拽支持：
+VDS配置编辑器提供了完整的可视化配置功能，支持多种配置场景：
 
 ```mermaid
 sequenceDiagram
 participant User as 用户
-participant Modal as Bootstrap模态框
-participant DragHandler as 拖拽处理器
-participant DOM as DOM元素
-User->>Modal : 显示模态框
-Modal->>DragHandler : 初始化拖拽
-DragHandler->>DOM : 绑定拖拽事件
-User->>DOM : 按住标题栏拖拽
-DOM->>DragHandler : 触发拖拽事件
-DragHandler->>DOM : 更新位置样式
-User->>DOM : 释放鼠标
-DOM->>Modal : 触发拖拽结束
+participant Editor as VDS编辑器
+participant Configurator as 配置器
+participant Storage as 存储层
+User->>Editor : 打开配置界面
+Editor->>Configurator : 初始化配置器
+Configurator->>Storage : 加载现有配置
+Storage-->>Configurator : 返回配置数据
+Configurator->>Editor : 填充表单
+User->>Configurator : 添加字段配置
+Configurator->>Configurator : 更新字段数组
+User->>Configurator : 配置接口设置
+Configurator->>Configurator : 设置modalSettings
+User->>Configurator : 保存配置
+Configurator->>Storage : 保存到数据库
+Storage-->>Configurator : 确认保存
+Configurator->>Editor : 显示成功消息
 ```
 
 **图表来源**
-- [vds-configurator.js](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L629-L662)
+- [VDS解析渲染.md:1-157](file://docs/VDS System/1. VDS解析渲染.md#L1-L157)
 
-### 拖拽功能特性
+### 保存入库阶段
 
-- **高性能拖拽**: 使用requestAnimationFrame优化拖拽性能
-- **GPU加速**: 启用will-change属性实现硬件加速
-- **边界限制**: 自动限制在可视区域内
-- **位置记忆**: 保持拖拽后的相对位置
-- **响应式适配**: 自适应不同屏幕尺寸
-- **即时响应**: 禁用过渡动画确保拖拽即时响应
+配置保存过程采用标准化的数据处理流程：
+
+- **表单数据收集**: 从各个配置Tab收集用户输入
+- **JSON配置构建**: 将表单数据组装为VDS配置对象
+- **字段验证**: 验证必需字段的完整性
+- **数据库持久化**: 通过仓储层保存到VdsPages表
+- **配置回显**: 刷新列表显示新配置
+
+### 页面渲染阶段
+
+动态页面渲染采用前后端协作模式：
+
+- **配置加载**: 从数据库获取VDS配置
+- **配置解析**: 将JSON字符串解析为JavaScript对象
+- **运行时配置**: 补充tableId、容器选择器等运行时属性
+- **createTable调用**: 调用前端渲染函数生成页面
+- **实时预览**: 支持配置修改后的即时预览
 
 **章节来源**
-- [vds-configurator.js](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L660-L662)
+- [VDS解析渲染.md:1-157](file://docs/VDS System/1. VDS解析渲染.md#L1-L157)
 
-## 自定义操作按钮配置
+## 搜索实现时序图
 
-### 配置管理
+### 数据源解析流程
 
-自定义操作按钮配置系统提供了完整的按钮配置管理能力：
+系统实现了完整的数据源解析机制，支持动态数据字段：
 
 ```mermaid
-stateDiagram-v2
-[*] --> 初始化
-初始化 --> 加载现有模板
-加载现有模板 --> 显示按钮列表
-显示按钮列表 --> 添加新按钮
-添加新按钮 --> 配置按钮属性
-配置按钮属性 --> 生成模板
-生成模板 --> 预览效果
-预览效果 --> 保存配置
-保存配置 --> [*]
-添加新按钮 --> 删除按钮
-删除按钮 --> 生成模板
-配置按钮属性 --> 更新配置
-更新配置 --> 生成模板
+sequenceDiagram
+participant UI as 用户界面
+participant SearchForm as 搜索表单
+participant DataSource as 数据源解析器
+participant API as 数据源API
+participant Cache as 缓存系统
+UI->>SearchForm : 输入关键字
+SearchForm->>DataSource : 解析数据源字段
+DataSource->>Cache : 检查缓存
+Cache-->>DataSource : 返回缓存数据
+DataSource->>API : 拉取数据
+API-->>DataSource : 返回数据列表
+DataSource->>SearchForm : 填充下拉选项
+SearchForm->>UI : 显示搜索结果
 ```
 
 **图表来源**
-- [vds-configurator.js](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L431-L438)
-- [vds-configurator.js](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L536-L551)
+- [搜索实现-数据过滤实现时序图.txt:1-17](file://docs/VDS System/2. VDS实现site.js - 搜索实现 - 数据过滤实现时序图.txt#L1-L17)
 
-### 配置属性
+### 搜索过滤实现
 
-每个按钮都可以配置以下属性：
+搜索功能采用多层次过滤机制：
 
-- **类型**: 编辑、删除、查看、自定义
-- **样式**: 按钮样式（primary、secondary、success等）
-- **文本**: 按钮显示文本
-- **URL**: 跳转链接（适用于查看按钮）
-- **class名称**: 自定义CSS类名（适用于自定义按钮）
-- **事件绑定**: JavaScript事件处理
-- **执行方式**: 回调绑定或直接执行API
-- **确认框**: 执行前是否需要确认对话框
+1. **关键字搜索**: 支持多字段关键字模糊匹配
+2. **下拉筛选**: 基于数据源的精确筛选
+3. **组合过滤**: 关键字和下拉筛选的组合使用
+4. **实时响应**: 输入延迟触发搜索，避免频繁请求
 
 **章节来源**
-- [vds-configurator.js](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L515-L527)
-- [vds-configurator.js](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L536-L551)
+- [搜索实现-数据过滤实现时序图.txt:1-17](file://docs/VDS System/2. VDS实现site.js - 搜索实现 - 数据过滤实现时序图.txt#L1-L17)
 
-## 按钮模板生成与管理
+## 架构总结
 
-### 生成流程
+### 技术演进历程
 
-按钮模板生成系统负责将按钮配置转换为可执行的HTML代码：
+系统经历了从手动配置到动态生成的技术演进：
+
+**传统方式**: 在C#页面中手动创建配置对象，然后调用createTable函数渲染页面
+
+**动态生成方式**: 将VDS配置转换为JavaScript对象，直接嵌入到Render.cshtml中
+
+```mermaid
+flowchart LR
+Manual[手动配置方式] --> Dynamic[动态生成方式]
+Manual --> |复杂度高| Issues[配置复杂]
+Dynamic --> |简洁高效| Benefits[配置简化]
+Issues --> Migration[迁移过程]
+Migration --> Modern[现代架构]
+```
+
+**图表来源**
+- [架构总结.txt](file://docs/VDS System/3. 总结 把之前手动写js调用site.js的createTable渲染页面的这个js代码改为了动态生成.txt#L1)
+
+### 架构优势
+
+- **配置驱动**: VDS配置完全驱动页面行为
+- **运行时解析**: JavaScript运行时解析配置，支持动态调整
+- **前后端分离**: 前端负责渲染，后端负责数据，职责清晰
+- **可扩展性**: 支持自定义字段类型和操作按钮
+- **性能优化**: 数据源缓存和搜索防抖机制
+
+**章节来源**
+- [架构总结.txt](file://docs/VDS System/3. 总结 把之前手动写js调用site.js的createTable渲染页面的这个js代码改为了动态生成.txt#L1)
+
+## 数据源解析机制
+
+### 数据源字段类型
+
+系统支持多种数据源字段类型，每种类型都有特定的解析规则：
+
+```mermaid
+graph TB
+DataSource[dataSource字段] --> Api[API数据源]
+DataSource --> Enum[枚举数据源]
+DataSource --> Custom[自定义数据源]
+Api --> ApiConfig[API配置]
+Api --> DisplayField[显示字段]
+Api --> BodyFilter[请求体过滤]
+Enum --> Options[选项列表]
+Enum --> DefaultValue[默认值]
+Custom --> ReuseFrom[复用其他字段]
+Custom --> ManualConfig[手动配置]
+```
+
+**图表来源**
+- [site.js:527-583](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L527-L583)
+
+### 数据源缓存策略
+
+为提升性能，系统实现了智能缓存机制：
+
+- **缓存键**: 基于数据源配置生成唯一键
+- **缓存内容**: API返回的完整数据列表
+- **缓存更新**: 首次请求后缓存，后续请求直接使用
+- **缓存失效**: 配置变更时自动清理相关缓存
+
+**章节来源**
+- [site.js:554-565](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L554-L565)
+
+## 搜索过滤实现
+
+### 搜索表单构建
+
+系统根据数据源字段动态构建搜索表单：
 
 ```mermaid
 flowchart TD
-Start([开始生成]) --> CollectConfigs[收集按钮配置]
-CollectConfigs --> ParsePlaceholders[解析占位符]
-ParsePlaceholders --> GenerateHTML[生成HTML代码]
-GenerateHTML --> ValidateTemplate[验证模板语法]
-ValidateTemplate --> TemplateValid{模板有效?}
-TemplateValid --> |是| SaveTemplate[保存模板]
-TemplateValid --> |否| ShowError[显示错误]
-ShowError --> FixTemplate[修复模板]
-FixTemplate --> ValidateTemplate
-SaveTemplate --> PreviewTemplate[预览模板]
-PreviewTemplate --> End([生成完成])
+Start[开始构建] --> CheckFields{检查数据源字段}
+CheckFields --> |存在| BuildForm[构建搜索表单]
+CheckFields --> |不存在| SkipForm[跳过搜索]
+BuildForm --> AddKeyword[添加关键字输入框]
+BuildForm --> AddSelects[添加下拉筛选]
+BuildForm --> AddButtons[添加操作按钮]
+AddSelects --> BindEvents[绑定事件处理]
+AddKeyword --> BindEvents
+AddButtons --> BindEvents
+BindEvents --> End[完成构建]
+SkipForm --> End
 ```
 
 **图表来源**
-- [vds-configurator.js](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L667-L673)
+- [site.js:585-669](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L585-L669)
 
-### 模板输出
+### 过滤条件组合
 
-系统支持生成多种格式的按钮模板：
+搜索功能支持多种过滤条件的组合：
 
-- **HTML按钮**: `<button class="btn btn-primary btn-sm">编辑</button>`
-- **链接按钮**: `<a href="/edit/{{id}}" class="btn btn-primary">编辑</a>`
-- **JavaScript按钮**: `<button onclick="editRecord({{id}})">编辑</button>`
-- **回调按钮**: `<button class="custom-action" data-table-id="{{tableId}}" data-id="{{id}}">操作</button>`
+- **关键字过滤**: 支持多字段模糊匹配
+- **精确过滤**: 基于下拉选择的精确匹配
+- **组合过滤**: 关键字和精确过滤的组合使用
+- **延迟执行**: 输入防抖，避免频繁请求
 
 **章节来源**
-- [vds-configurator.js](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L667-L673)
+- [site.js:635-668](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L635-L668)
+
+## 自定义操作按钮增强
+
+### 按钮配置系统
+
+系统提供了完整的自定义操作按钮配置能力：
+
+```mermaid
+graph TB
+CustomAction[自定义操作] --> Modal[弹窗配置]
+CustomAction --> Fields[表单字段]
+CustomAction --> DataContent[请求参数]
+Modal --> Title[弹窗标题]
+Modal --> Method[HTTP方法]
+Modal --> ExecuteUrl[执行URL]
+Fields --> AutoGenerated[自动生成]
+Fields --> ManualConfig[手动配置]
+Fields --> ReuseFrom[复用数据源]
+DataContent --> RowData[行数据]
+DataContent --> FormData[表单数据]
+DataContent --> FixedValues[固定值]
+```
+
+**图表来源**
+- [vds-configurator.js:649-776](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L649-L776)
+
+### 按钮模板生成
+
+系统支持多种按钮模板的动态生成：
+
+- **预设按钮**: 编辑、删除、查看等常用按钮
+- **自定义按钮**: 支持CSS类名和事件绑定
+- **回调按钮**: 支持onDataAllLoaded回调绑定
+- **API按钮**: 直接执行API的按钮配置
+
+**章节来源**
+- [vds-configurator.js:603-643](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L603-L643)
 
 ## 依赖关系分析
 
@@ -555,10 +559,10 @@ Auth[认证授权]
 Hub[实时通信]
 end
 subgraph "新增功能"
-OSDetection[操作系统检测]
-EnhancedButtonConfig[增强按钮配置]
-DragModal[拖拽模态框]
-CustomActionButton[自定义操作按钮]
+VDSParser[VDS解析器]
+SearchEngine[搜索引擎]
+CustomActions[自定义操作]
+DataSourceResolver[数据源解析器]
 end
 ASPNET --> App
 Bootstrap --> App
@@ -571,19 +575,19 @@ App --> DI
 App --> Cache
 App --> Auth
 App --> Hub
-App --> OSDetection
-App --> EnhancedButtonConfig
-App --> DragModal
-App --> CustomActionButton
+App --> VDSParser
+App --> SearchEngine
+App --> CustomActions
+App --> DataSourceResolver
 Database --> Common
 Utils --> Common
 ```
 
 **图表来源**
-- [Program.cs](file://Sylas.RemoteTasks.App/Program.cs#L1-L122)
+- [Program.cs:1-122](file://Sylas.RemoteTasks.App/Program.cs#L1-L122)
 
 **章节来源**
-- [Program.cs](file://Sylas.RemoteTasks.App/Program.cs#L26-L68)
+- [Program.cs:26-68](file://Sylas.RemoteTasks.App/Program.cs#L26-L68)
 
 ## 性能考虑
 
@@ -604,6 +608,8 @@ Utils --> Common
 4. **资源压缩**: 静态资源进行压缩和合并
 5. **拖拽性能优化**: 使用requestAnimationFrame和GPU加速
 6. **模板缓存**: 按钮模板数据本地缓存
+7. **数据源缓存**: API数据缓存机制
+8. **搜索防抖**: 输入延迟触发，避免频繁请求
 
 ### 服务端优化
 
@@ -658,9 +664,23 @@ Utils --> Common
 2. 验证字段配置与数据库表结构匹配
 3. 测试数据库连接和查询
 
-#### 4. 操作按钮配置问题
+#### 4. 搜索功能异常
 
-**症状**: 操作按钮配置无效或报错
+**症状**: 搜索功能无法正常工作
+
+**可能原因**:
+- 数据源API配置错误
+- 缓存数据过期
+- 搜索条件格式错误
+
+**解决步骤**:
+1. 检查数据源API的可达性和返回格式
+2. 清除相关缓存数据
+3. 验证搜索条件的配置
+
+#### 5. 自定义操作按钮配置问题
+
+**症状**: 自定义操作按钮配置无效或报错
 
 **可能原因**:
 - 模板语法错误
@@ -674,39 +694,38 @@ Utils --> Common
 3. 确认按钮配置没有重复或冲突
 4. 检查拖拽模态框的初始化代码
 
-#### 5. 自定义操作系统配置问题
+#### 6. 数据源解析失败
 
-**症状**: 自定义操作系统配置不生效
+**症状**: 数据源字段无法正确显示
 
 **可能原因**:
-- 操作系统检测失败
-- 平台配置不兼容
-- 模板生成错误
+- 数据源API不可用
+- 显示字段配置错误
+- 缓存数据损坏
 
 **解决步骤**:
-1. 检查操作系统检测逻辑
-2. 验证平台配置与目标系统匹配
-3. 确认模板生成过程无错误
+1. 测试数据源API的连通性和响应
+2. 验证displayField配置的正确性
+3. 清除相关数据源缓存
 
 **章节来源**
-- [LowCodeController.cs](file://Sylas.RemoteTasks.App/Controllers/LowCodeController.cs#L133-L141)
-- [vds-configurator.js](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L598-L606)
+- [LowCodeController.cs:133-141](file://Sylas.RemoteTasks.App/Controllers/LowCodeController.cs#L133-L141)
+- [vds-configurator.js:598-606](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L598-L606)
 
 ## 结论
 
-低代码VDS可视化编辑器系统是一个功能完整、架构清晰的企业级低代码平台。系统通过以下特点实现了高效的数据管理页面生成：
+低代码VDS可视化编辑器系统是一个功能完整、架构清晰的企业级低代码平台。通过新增的VDS解析渲染流程文档、搜索实现时序图和架构总结文档，系统的技术实现得到了全面阐述。
 
-1. **高度可视化**: 提供直观的配置界面，降低技术门槛
-2. **灵活扩展**: 支持多种字段类型和自定义配置
-3. **自定义操作系统支持**: 为不同平台提供定制化配置能力
-4. **增强的按钮配置系统**: 提供完整的按钮配置和管理功能
-5. **拖拽模态框交互体验**: 增强用户体验的高性能拖拽功能
-6. **自定义操作按钮配置**: 支持复杂的自定义操作按钮配置
-7. **按钮模板生成与管理**: 自动化的模板生成和管理机制
-8. **性能优化**: 采用多层优化策略确保系统响应速度
-9. **易于维护**: 清晰的代码结构和完善的错误处理机制
-10. **跨平台支持**: 支持多种操作系统和部署环境
+系统的主要成就包括：
 
-该系统特别适合需要快速开发数据管理界面的场景，能够显著提高开发效率并降低维护成本。通过持续的功能扩展和性能优化，该系统有望成为企业级低代码解决方案的重要组成部分。
+1. **完整的生命周期管理**: 从配置编辑到页面渲染的全流程覆盖
+2. **智能化的数据源解析**: 支持多种数据源类型的动态解析和缓存
+3. **高效的搜索过滤机制**: 多层次搜索和实时响应的优化实现
+4. **灵活的自定义操作**: 完整的自定义按钮和操作配置能力
+5. **现代化的架构演进**: 从手动配置到动态生成的技术升级
+6. **优秀的性能表现**: 多层优化策略确保系统响应速度
+7. **完善的错误处理**: 清晰的故障排除和问题诊断机制
 
-**更新** 最新的自定义操作系统支持、增强的按钮配置功能和拖拽模态框交互体验进一步增强了系统的灵活性和易用性，为用户提供了更加丰富的交互体验和更强大的定制能力。
+该系统特别适合需要快速开发数据管理界面的场景，能够显著提高开发效率并降低维护成本。随着VDS解析渲染流程、搜索实现机制和架构演进的不断完善，该系统将继续为企业级低代码解决方案提供强有力的技术支撑。
+
+**更新** 最新的VDS解析渲染流程文档、搜索实现时序图和架构总结文档为系统的技术理解和使用提供了宝贵的参考资料，进一步增强了系统的透明度和可维护性。

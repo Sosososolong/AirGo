@@ -168,7 +168,10 @@ const VdsConfigurator = {
         let html = '';
         this.fields.forEach((field, index) => {
             const typeLabel = this.getFieldTypeLabel(field);
-            const searchBadge = field.searchedByKeywords ? '<span class="badge bg-info ms-1">可搜索</span>' : '';
+            const isDataSource = field.type && field.type.startsWith('dataSource');
+            const searchBadge = isDataSource
+                ? ((field.searchable || field.searchedByKeywords) ? '<span class="badge bg-success ms-1">可筛选</span>' : '')
+                : (field.searchedByKeywords ? '<span class="badge bg-info ms-1">可搜索</span>' : '');
             const isButton = field.type === 'button';
             const typeBadgeClass = isButton ? 'bg-warning text-dark' : 'bg-secondary';
             
@@ -279,7 +282,6 @@ const VdsConfigurator = {
         document.getElementById('field-index').value = index;
         document.getElementById('field-name').value = field.name || '';
         document.getElementById('field-title').value = field.title || '';
-        document.getElementById('field-searchedByKeywords').checked = field.searchedByKeywords || false;
         document.getElementById('field-showPart').value = field.showPart || '';
         document.getElementById('field-align').value = field.align || '';
         
@@ -294,6 +296,9 @@ const VdsConfigurator = {
         else if (field.enumValus && field.enumValus.length > 0) type = 'enum';
         
         document.getElementById('field-type').value = type;
+        document.getElementById('field-searchedByKeywords').checked = (type === 'dataSource')
+            ? (field.searchable || field.searchedByKeywords || false)
+            : (field.searchedByKeywords || false);
         
         // 特殊类型配置
         if (type === 'enum') {
@@ -334,6 +339,8 @@ const VdsConfigurator = {
         document.getElementById('field-button-group').classList.add('d-none');
         document.getElementById('field-searchable-group').classList.remove('d-none');
         document.getElementById('field-display-group').classList.remove('d-none');
+        // 根据字段类型切换复选框标签
+        document.getElementById('field-searchable-label').textContent = (type === 'dataSource') ? '可筛选' : '可搜索';
         if (nameGroup) nameGroup.classList.remove('d-none');
         
         // 根据类型显示配置
@@ -1104,9 +1111,12 @@ const VdsConfigurator = {
             title: document.getElementById('field-title').value
         };
         
-        // 通用配置
-        if (document.getElementById('field-searchedByKeywords').checked) {
-            field.searchedByKeywords = true;
+        // 搜索/筛选配置：根据字段类型写入不同属性
+        const isChecked = document.getElementById('field-searchedByKeywords').checked;
+        if (type === 'dataSource') {
+            if (isChecked) field.searchable = true;
+        } else {
+            if (isChecked) field.searchedByKeywords = true;
         }
         const showPart = document.getElementById('field-showPart').value;
         if (showPart) {

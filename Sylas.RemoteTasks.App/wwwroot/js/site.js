@@ -249,12 +249,14 @@ async function createTable(customOptions) {
                         if (!this.dataSourceField || !this.dataSourceField[th.name]) {
                             await this.resolveDataSourceField(th);
                         }
-                        for (let dataSourceIndex = 0; dataSourceIndex < this.dataSourceField[th.name].length; dataSourceIndex++) {
-                            let dataSource = this.dataSourceField[th.name][dataSourceIndex];
-                            // 字段值由id转为name
-                            if (tdValue === dataSource.id) {
-                                tdValue = dataSource.value;
-                                break;
+                        if (this.dataSourceField[th.name]) {
+                            for (let dataSourceIndex = 0; dataSourceIndex < this.dataSourceField[th.name].length; dataSourceIndex++) {
+                                let dataSource = this.dataSourceField[th.name][dataSourceIndex];
+                                // 字段值由id转为name
+                                if (tdValue === dataSource.id) {
+                                    tdValue = dataSource.value;
+                                    break;
+                                }
                             }
                         }
                     }
@@ -282,13 +284,14 @@ async function createTable(customOptions) {
                         }
                     }
 
-                    // 单元格只显示部分值
+                    // 单元格只显示部分值（先截断原始文本，避免截断 HTML 标签）
                     if (th.showPart && tdValue && tdValue.length > 12) {
                         tdValue = tdValue.substring(0, th.showPart) + '...'
                     }
 
                     const align = th.align ? ` align="${th.align}"` : ''
-                    tr.append(`<td${align}>${tdValue}</td>`);
+                    const whitespace = th.multiLines ? ' style="white-space:pre-line;"' : ''
+                    tr.append(`<td${align}${whitespace}>${tdValue}</td>`);
                 }
             }
             tbody.append(tr);
@@ -560,17 +563,17 @@ ${formItemComponent}
         }
 
         // 数据源选项集对应的下拉项集合
+        if (!this.dataSourceField) {
+            this.dataSourceField = {};
+        }
+        if (!this.dataSourceField[thDataSource.name]) {
+            this.dataSourceField[thDataSource.name] = []
+        }
         let dataSourceOptions = `<option value="${defaultValue}">请选择</option>`;
         dataSourceData.forEach(row => {
             dataSourceOptions += `<option value="${row['id']}">${row[displayField]}</option>`
 
-            if (!this.dataSourceField) {
-                this.dataSourceField = {};
-            }
-            if (!this.dataSourceField[thDataSource.name]) {
-                this.dataSourceField[thDataSource.name] = []
-            }
-            // HttpRequestProcessor的id和title(id: 1, value: 同步应用和流程数据 - zcmu)
+            // HttpRequestProcessor的id和title(id: 1, value: 同步应用和流程数据)
             this.dataSourceField[thDataSource.name].push({ id: row['id'], value: row[displayField] })
         });
         this.dataSourceField[`${thDataSource.name}_options`] = dataSourceOptions;
@@ -598,8 +601,10 @@ ${formItemComponent}
                 if (key.endsWith('_options')) {
                     return;
                 }
+                // 只有标记了 searchable 或 searchedByKeywords 的数据源字段才在搜索栏生成下拉框
+                const thConfig = this.ths.find(th => th.name === key);
+                if (!thConfig || (!thConfig.searchable && !thConfig.searchedByKeywords)) return;
                 const field = key;
-                const data = this.dataSourceField[key];
                 const dataOptionsHtml = this.dataSourceField[`${key}_options`];
                 dataSourceFormItems += `<div class="col-sm-3">
                     <select class="form-control form-select-sm" aria-label="Default select" name="${field}" id="${field}">${dataOptionsHtml}</select>
@@ -1123,7 +1128,7 @@ async function showUpdatePannel(eventTrigger, onDataReloading, onDataReloaded) {
                     cachedFiles[field] = [];
                     field = field.replace('_files', '');
                 }
-                fieldValue = record[field] ? record[field].toString() : '';
+                fieldValue = record[field] != null ? record[field].toString() : '';
             } catch (e) {
                 console.log(e);
             }
