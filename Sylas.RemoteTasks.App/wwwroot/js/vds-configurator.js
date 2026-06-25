@@ -605,7 +605,8 @@ const VdsConfigurator = {
             const btnClass = `btn btn-${btn.style} btn-sm`;
             switch (btn.type) {
                 case 'edit':
-                    return `<button type="button" class="${btnClass}" onclick="showAddPannel(tables['{{tableId}}'], {{id}})">${btn.text}</button>`;
+                    const editApiUrl = document.getElementById('cfg-apiUrl').value || '';
+                    return `<button type="button" class="${btnClass}" data-table-id="{{tableId}}" data-id="{{id}}" data-fetch-url="${editApiUrl}" data-method="POST" onclick="showUpdatePannel(this)">${btn.text}</button>`;
                 case 'delete':
                     return `<button type="button" class="${btnClass}" data-table-id="{{tableId}}" data-content="&quot;{{id}}&quot;" data-execute-url="${btn.url}" data-method="POST" onclick="showConfirmBox('${btn.confirmText}', () => execute(this))">${btn.text}</button>`;
                 case 'view':

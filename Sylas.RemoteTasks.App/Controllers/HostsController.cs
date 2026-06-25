@@ -30,7 +30,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         public async Task<IActionResult> AnythingSettingsAsync([FromBody] DataSearch? search = null)
         {
             var anythingSettings = await anythingService.GetAnythingSettingsAsync(search);
-            var result = new RequestResult<PagedData<AnythingSetting>>(anythingSettings);
+            var result = RequestResult<PagedData<AnythingSetting>>.Success(anythingSettings);
             return Ok(result);
         }
         /// <summary>
@@ -164,17 +164,6 @@ namespace Sylas.RemoteTasks.App.Controllers
             return Json(await anythingService.AddAnythingSettingAsync(anythingSetting));
         }
         /// <summary>
-        /// AnythingSetting分页查询
-        /// </summary>
-        /// <param name="search">分页查询参数</param>
-        /// <returns></returns>
-        public async Task<IActionResult> GetAnythingSettingsAsync([FromBody] DataSearch? search = null)
-        {
-            search ??= new();
-            var anythingSettings = await anythingService.GetAnythingSettingsAsync(search);
-            return Json(anythingSettings);
-        }
-        /// <summary>
         /// 更新AnythingSetting
         /// </summary>
         /// <param name="anythingSetting"></param>
@@ -226,7 +215,7 @@ namespace Sylas.RemoteTasks.App.Controllers
         /// </summary>
         /// <param name="anythingId"></param>
         /// <returns></returns>
-        public async Task<IActionResult> GetPagedAnythingCommandsAsync(DataSearch? search = null)
+        public async Task<IActionResult> GetPagedAnythingCommandsAsync([FromBody] DataSearch? search = null)
         {
             var anythingCommands = await anythingService.GetPagedAnythingCommandsAsync(search);
             var result = new RequestResult<PagedData<AnythingCommand>>(anythingCommands);

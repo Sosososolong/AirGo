@@ -1,0 +1,1 @@
+本质就是把之前cshhtml中手动创建配置对象然后调用createTable的js代码改为了动态生成js代码了 VDS配置最终抓换为js对象直接放到Render.cshtml

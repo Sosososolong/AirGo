@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
@@ -40,13 +40,12 @@ namespace Sylas.RemoteTasks.Database.SyncBase
         /// <param name="fields"></param>
         /// <param name="includeValue"></param>
         /// <returns></returns>
-
         public FilterGroup AddKeywordsQuerying(IEnumerable<string> fields, string includeValue)
         {
             if (fields is not null && fields.Any() && !string.IsNullOrWhiteSpace(includeValue))
             {
                 var filterItems = fields.Select(item => new FilterItem(item, CompareTypeConsts.Include, includeValue));
-                var keywordFilterGroup = new FilterGroup(filterItems.Cast<object>().ToList(), SqlLogic.Or);
+                var keywordFilterGroup = new FilterGroup([.. filterItems.Cast<object>()], SqlLogic.Or);
 
                 FilterGroup newFilterGroup = new()
                 {

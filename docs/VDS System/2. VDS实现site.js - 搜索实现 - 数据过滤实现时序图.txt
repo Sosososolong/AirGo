@@ -1,0 +1,17 @@
+createTable(vdsConfig)
+       │
+       ├─ 遍历 ths
+       │     └── type.startsWith('dataSource')
+       │              └── resolveDataSourceField(th)
+       │                     ├── 解析 type DSL（api, displayField, body...）
+       │                     ├── POST dataSourceApi 拉取数据（有缓存）
+       │                     └── 填充 dataSourceField[name] + dataSourceField[name_options]
+       │
+       ├─ 创建弹窗表单（dataSource字段 → <select>）
+       │
+       ├─ initSearchForm()
+       │     ├── 关键字输入框
+       │     └── 每个 dataSource 字段 → <select>（用 _options HTML）
+       │
+       └─ renderBody(data)
+             └── 渲染行时 dataSource 字段 id → displayField 值
