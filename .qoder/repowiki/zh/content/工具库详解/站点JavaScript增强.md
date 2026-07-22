@@ -16,9 +16,12 @@
 
 ## 更新摘要
 **变更内容**
-- 新增了通用的拖拽模态框功能，支持Bootstrap模态框的拖拽操作
-- 重构了SSE请求处理逻辑，新增了sendSseRequestCommon通用函数和readSSEStream异步生成器
-- 简化了anything.js中的命令执行逻辑，提升了代码组织性和可维护性
+- 新增多行文本CSS处理（white-space:pre-line），增强文本显示效果
+- 增强错误处理机制，增加null检查和健壮性
+- 改进搜索栏生成逻辑，优化条件判断和用户体验
+- 新增拖拽模态框功能，支持Bootstrap模态框的拖拽操作
+- 重构SSE请求处理逻辑，新增sendSseRequestCommon通用函数和readSSEStream异步生成器
+- 简化anything.js中的命令执行逻辑，提升了代码组织性和可维护性
 - 改进了消息处理和超时控制机制
 - 优化了VDS配置器的用户体验，支持拖拽排序和模态框拖拽
 
@@ -39,7 +42,7 @@
 
 项目的核心特色在于其JavaScript增强架构，通过统一的工具函数和组件化设计，实现了高度可复用的前端功能模块。这些模块不仅提升了用户体验，还为后续的功能扩展奠定了坚实的基础。
 
-**最新更新**：新增拖拽模态框功能，重构SSE请求处理逻辑，优化消息处理机制。
+**最新更新**：新增多行文本CSS处理、增强错误处理机制、改进搜索栏生成逻辑，以及拖拽模态框功能。
 
 ## 项目结构
 
@@ -61,11 +64,11 @@ end
 ```
 
 **图表来源**
-- [site.js:1-1867](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1867)
+- [site.js:1-1872](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1872)
 - [_Layout.cshtml:1-842](file://Sylas.RemoteTasks.App/Views/Shared/_Layout.cshtml#L1-L842)
 
 **章节来源**
-- [site.js:1-1867](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1867)
+- [site.js:1-1872](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1872)
 - [site.css:1-178](file://Sylas.RemoteTasks.App/wwwroot/css/site.css#L1-L178)
 - [_Layout.cshtml:1-842](file://Sylas.RemoteTasks.App/Views/Shared/_Layout.cshtml#L1-L842)
 
@@ -109,7 +112,7 @@ TableManager --> SearchFormBuilder : "创建"
 ```
 
 **图表来源**
-- [site.js:123-761](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L123-L761)
+- [site.js:123-766](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L123-L766)
 
 ### 2. 实时命令执行系统
 
@@ -136,7 +139,7 @@ Common->>User : 显示最终结果
 
 **图表来源**
 - [anything.js:1-762](file://Sylas.RemoteTasks.App/wwwroot/js/anything.js#L1-L762)
-- [site.js:1517-1599](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1517-L1599)
+- [site.js:1522-1619](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1522-L1619)
 
 ### 3. 可视化配置器
 
@@ -156,7 +159,7 @@ K --> L[格式化验证]
 ```
 
 **图表来源**
-- [vds-configurator.js:1-1341](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1341)
+- [vds-configurator.js:1-1352](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1352)
 
 ### 4. 拖拽模态框功能
 
@@ -241,9 +244,10 @@ I --> A
 - 关键字搜索
 - 分页导航
 - 自定义数据视图
+- **新增多行文本CSS处理**：支持`white-space:pre-line`保持换行格式
 
 **章节来源**
-- [site.js:123-761](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L123-L761)
+- [site.js:123-766](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L123-L766)
 
 #### HTTP请求处理
 统一的HTTP请求处理机制确保了数据交互的一致性和可靠性：
@@ -262,10 +266,10 @@ H --> J[错误处理]
 ```
 
 **图表来源**
-- [site.js:823-877](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L823-L877)
+- [site.js:828-882](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L828-L882)
 
 **章节来源**
-- [site.js:823-877](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L823-L877)
+- [site.js:828-882](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L828-L882)
 
 #### SSE请求处理系统（重构后）
 
@@ -284,10 +288,10 @@ H --> I[完成处理]
 ```
 
 **图表来源**
-- [site.js:1517-1599](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1517-L1599)
+- [site.js:1522-1619](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1522-L1619)
 
 **章节来源**
-- [site.js:1467-1599](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1467-L1599)
+- [site.js:1522-1619](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1522-L1619)
 
 #### 拖拽模态框功能（新增）
 
@@ -312,6 +316,28 @@ I --> J[重置拖拽状态]
 **章节来源**
 - [site.js:10-94](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L10-L94)
 
+#### 搜索栏生成逻辑优化
+
+**改进** 搜索栏生成的条件判断，只对标记了`searchable`或`searchedByKeywords`的字段生成下拉框：
+
+```mermaid
+flowchart TD
+A[初始化搜索表单] --> B[遍历数据源字段]
+B --> C{字段配置检查}
+C --> |searchable=true| D[生成下拉框]
+C --> |searchedByKeywords=true| D
+C --> |其他字段| E[跳过]
+D --> F[添加到搜索表单]
+E --> G[继续下一个字段]
+F --> H[绑定事件处理]
+```
+
+**图表来源**
+- [site.js:603-613](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L603-L613)
+
+**章节来源**
+- [site.js:603-613](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L603-L613)
+
 ### 2. 任务执行模块 (anything.js)
 
 #### 实时命令执行（重构后）
@@ -323,6 +349,7 @@ I --> J[重置拖拽状态]
 - 实时进度显示
 - 错误处理和重试
 - **新增** 通用消息处理函数
+- **新增** 多行文本字段支持（properties和commands）
 
 **章节来源**
 - [anything.js:1-762](file://Sylas.RemoteTasks.App/wwwroot/js/anything.js#L1-L762)
@@ -357,6 +384,7 @@ stateDiagram-v2
 - 接口参数设置
 - 排序规则配置
 - JSON模式支持
+- **新增** 多行文本字段类型支持
 
 **新增** 拖拽模态框功能，支持配置器和字段编辑器的拖拽操作：
 
@@ -373,7 +401,7 @@ E --> F[释放鼠标时恢复状态]
 - [vds-configurator.js:21-23](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L21-L23)
 
 **章节来源**
-- [vds-configurator.js:1-1341](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1341)
+- [vds-configurator.js:1-1352](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1352)
 
 ### 4. 流程组件 (flow.js)
 
@@ -448,9 +476,23 @@ O[makeModalDraggable] --> C
 - 事件委托减少事件监听器数量
 - 自动重置拖拽状态，避免内存泄漏
 
+### 6. 多行文本处理优化（新增）
+**新增功能优化**：
+- CSS `white-space:pre-line`保持换行格式
+- 避免不必要的DOM操作
+- 优化文本渲染性能
+
+### 7. 搜索栏生成优化（改进）
+**改进功能优化**：
+- 条件判断减少不必要的DOM操作
+- 仅对标记的字段生成下拉框
+- 优化事件绑定和处理
+
 **章节来源**
-- [site.js:1467-1599](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1467-L1599)
+- [site.js:1522-1619](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1522-L1619)
 - [site.js:10-94](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L10-L94)
+- [site.js:292-294](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L292-L294)
+- [site.js:603-613](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L603-L613)
 
 ## 故障排除指南
 
@@ -481,6 +523,16 @@ O[makeModalDraggable] --> C
 - 验证模态框元素存在
 - 确认事件监听器正常工作
 
+**多行文本显示问题（新增）：**
+- 检查CSS样式应用
+- 验证字段配置中的multiLines属性
+- 确认white-space:pre-line样式生效
+
+**搜索栏生成问题（改进）：**
+- 检查字段配置中的searchable和searchedByKeywords属性
+- 验证条件判断逻辑
+- 确认DOM元素正确生成
+
 ### 2. 调试技巧
 
 **开发工具使用：**
@@ -503,8 +555,18 @@ O[makeModalDraggable] --> C
 - 验证transform属性更新
 - 监控requestAnimationFrame调用
 
+**多行文本调试（新增）：**
+- 检查CSS样式应用
+- 验证white-space属性
+- 确认文本换行处理
+
+**搜索栏调试（改进）：**
+- 检查字段配置属性
+- 验证条件判断逻辑
+- 监控DOM元素生成
+
 **章节来源**
-- [site.js:823-877](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L823-L877)
+- [site.js:828-882](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L828-L882)
 - [anything.js:1-762](file://Sylas.RemoteTasks.App/wwwroot/js/anything.js#L1-L762)
 
 ## 结论
@@ -516,8 +578,12 @@ O[makeModalDraggable] --> C
 - 实现了复杂的实时交互功能
 - 提供了直观的可视化配置界面
 - 采用了现代化的Web技术栈
-- **新增拖拽模态框功能，提升用户体验**
+- **新增多行文本CSS处理，提升文本显示效果**
+- **增强错误处理机制，提高系统稳定性**
+- **改进搜索栏生成逻辑，优化用户体验**
+- **新增拖拽模态框功能，提升交互体验**
 - **重构SSE处理逻辑，提升了代码组织性**
+- **简化anything.js中的命令执行逻辑**
 
 **技术亮点：**
 - 模块化JavaScript架构
@@ -525,6 +591,8 @@ O[makeModalDraggable] --> C
 - 自定义Web Components实现
 - 响应式设计和主题系统
 - **通用SSE处理函数，提升可复用性**
+- **多行文本CSS处理，增强显示效果**
+- **条件优化的搜索栏生成，提升性能**
 - **拖拽模态框功能，增强交互体验**
 
 **重构成果：**
@@ -533,10 +601,12 @@ O[makeModalDraggable] --> C
 - 提升代码组织性和可维护性
 - 改进性能和错误处理机制
 - **新增makeModalDraggable函数，支持模态框拖拽**
+- **新增多行文本CSS处理，优化文本显示**
 
-**新增功能成果：**
-- **拖拽模态框功能，支持Bootstrap模态框拖拽**
-- **优化VDS配置器用户体验**
-- **提升整体交互流畅度**
+**改进成果：**
+- **增强错误处理机制，增加null检查**
+- **优化搜索栏生成逻辑，提升用户体验**
+- **改进SSE处理性能，使用异步生成器**
+- **增强拖拽功能性能，使用requestAnimationFrame**
 
 该项目为类似的企业级应用开发提供了优秀的参考模板，展示了如何通过精心设计的前端架构来提升用户体验和开发效率。

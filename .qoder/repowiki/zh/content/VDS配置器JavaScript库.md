@@ -13,10 +13,10 @@
 
 ## 更新摘要
 **变更内容**
-- VDS配置器功能简化，移除了90多行复杂配置逻辑
-- 保留核心功能但减少了代码复杂度
-- 优化了按钮配置系统，移除了不必要的复杂性
-- 简化了自定义操作配置流程
+- 增强搜索徽章逻辑，支持数据源字段的'可筛选'和普通字段的'可搜索'区分
+- 新增条件搜索属性判断机制，实现更精确的搜索控制
+- 优化字段类型配置系统，提供更清晰的搜索功能标识
+- 改进数据源字段的搜索配置逻辑，支持searchable和searchedByKeywords属性
 
 ## 目录
 1. [简介](#简介)
@@ -33,15 +33,16 @@
 
 VDS配置器JavaScript库是一个强大的可视化配置工具，专为Sylas.RemoteTasks远程任务管理系统设计。该库提供了直观的图形界面，允许用户轻松创建和编辑VDS（Virtual Data Sheet）页面配置，而无需编写复杂的代码。
 
-**更新** VDS配置器经过功能简化，移除了90多行复杂配置逻辑，保留了核心功能但显著减少了代码复杂度。新的版本专注于提供简洁高效的配置体验。
+**更新** VDS配置器经过重大功能增强，新增了精细化的搜索徽章逻辑和条件搜索属性判断机制。新版本能够智能区分数据源字段的'可筛选'和普通字段的'可搜索'功能，并提供更精确的搜索控制能力。
 
 该库的核心功能包括：
 - 可视化的VDS页面配置界面
 - 实时字段类型和属性配置
 - 拖拽排序的字段管理
 - JSON模式的高级配置
-- **简化** 按钮配置系统
-- **优化** 自定义操作配置
+- **增强** 搜索徽章逻辑系统
+- **改进** 条件搜索属性判断
+- **优化** 数据源字段搜索配置
 - 完整的CRUD操作支持
 
 ## 项目结构
@@ -74,13 +75,13 @@ REPO --> DB
 ```
 
 **图表来源**
-- [vds-configurator.js:1-1341](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1341)
-- [site.js:1-1867](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1867)
+- [vds-configurator.js:1-1352](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1352)
+- [site.js:1-1872](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1872)
 - [LowCodeController.cs:1-163](file://Sylas.RemoteTasks.App/Controllers/LowCodeController.cs#L1-L163)
 
 **章节来源**
-- [vds-configurator.js:1-1341](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1341)
-- [site.js:1-1867](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1867)
+- [vds-configurator.js:1-1352](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1352)
+- [site.js:1-1872](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1872)
 
 ## 核心组件
 
@@ -122,6 +123,7 @@ class Field {
 +title : string
 +type : string
 +searchedByKeywords : boolean
++searchable : boolean
 +showPart : number
 +align : string
 +isNumber : boolean
@@ -133,7 +135,7 @@ VdsConfigurator --> Field : manages
 ```
 
 **图表来源**
-- [vds-configurator.js:5-1341](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L5-L1341)
+- [vds-configurator.js:5-1352](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L5-L1352)
 
 ### 数据表渲染引擎
 
@@ -161,12 +163,12 @@ SiteJS-->>User : 显示数据表格
 ```
 
 **图表来源**
-- [vds-configurator.js:1272-1326](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1272-L1326)
+- [vds-configurator.js:1283-1337](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1283-L1337)
 - [site.js:123-761](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L123-L761)
 
 **章节来源**
-- [vds-configurator.js:1-1341](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1341)
-- [site.js:1-1867](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1867)
+- [vds-configurator.js:1-1352](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1352)
+- [site.js:1-1872](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1872)
 
 ## 架构概览
 
@@ -180,32 +182,36 @@ MODAL[模态框组件]
 TABS[标签页导航]
 BUTTONCFG[按钮配置系统]
 CUSTOMACTION[自定义操作]
-end
+SEARCHBADGE[搜索徽章系统]
+ENDSUBGRAPH
 subgraph "业务逻辑层"
 CONFIG[VDS配置器]
 TABLE[数据表格引擎]
 VALIDATION[数据验证]
 BUTTONSYS[按钮系统]
 ACTIONSYS[操作系统]
-end
+SEARCHLOGIC[搜索逻辑]
+ENDSUBGRAPH
 subgraph "数据访问层"
 REPO[仓储层]
 MODEL[VdsPage模型]
 FILTER[数据过滤]
-end
+ENDSUBGRAPH
 subgraph "数据存储层"
 SQL[SQL数据库]
 CACHE[缓存机制]
-end
+ENDSUBGRAPH
 WEB --> MODAL
 MODAL --> CONFIG
 TABS --> CONFIG
 BUTTONCFG --> CONFIG
 CUSTOMACTION --> CONFIG
+SEARCHBADGE --> CONFIG
 CONFIG --> TABLE
 CONFIG --> VALIDATION
 CONFIG --> BUTTONSYS
 CONFIG --> ACTIONSYS
+CONFIG --> SEARCHLOGIC
 TABLE --> REPO
 VALIDATION --> REPO
 BUTTONSYS --> REPO
@@ -246,7 +252,7 @@ DRAGMODAL --> READY([初始化完成])
 
 #### 模态框拖拽功能
 
-**简化** 系统支持模态框头部拖拽移动功能，经过优化以提高性能：
+系统支持模态框头部拖拽移动功能，经过优化以提高性能：
 
 ```mermaid
 flowchart LR
@@ -269,23 +275,93 @@ RESETSTATE --> ENABLETRANS["恢复过渡动画"]
 
 系统支持多种字段类型，每种类型都有特定的配置选项：
 
-| 字段类型 | 描述 | 配置选项 |
-|---------|------|----------|
-| 文本 | 标准文本字段 | 搜索、截断、对齐 |
-| 数字 | 数值字段 | 数字格式、精度控制 |
-| 多行文本 | 文本区域 | 行数、字符限制 |
-| 枚举 | 下拉选择 | 选项列表、默认值 |
-| 图片 | 图片上传 | 文件类型、尺寸限制 |
-| 媒体 | 多媒体文件 | 支持类型、播放器 |
-| 数据源 | 动态数据 | API接口、显示字段 |
-| **简化** 按钮 | **交互按钮** | **模板生成、样式** |
+| 字段类型 | 描述 | 配置选项 | 搜索功能 |
+|---------|------|----------|----------|
+| 文本 | 标准文本字段 | 搜索、截断、对齐 | 可搜索 |
+| 数字 | 数值字段 | 数字格式、精度控制 | 可搜索 |
+| 多行文本 | 文本区域 | 行数、字符限制 | 可搜索 |
+| 枚举 | 下拉选择 | 选项列表、默认值 | 可搜索 |
+| 图片 | 图片上传 | 文件类型、尺寸限制 | 不支持搜索 |
+| 媒体 | 多媒体文件 | 支持类型、播放器 | 不支持搜索 |
+| 数据源 | 动态数据 | API接口、显示字段 | 可筛选 |
+| 按钮 | 交互按钮 | 模板生成、样式 | 不支持搜索 |
+
+**更新** 新增了搜索徽章系统，智能区分不同字段类型的搜索能力：
+
+```mermaid
+flowchart TD
+FIELDTYPE["字段类型检测"] --> DATASOURCE{"数据源字段?"}
+DATASOURCE --> |是| SEARCHABLE["searchable属性"]
+DATASOURCE --> |否| SEARCHKEYWORDS["searchedByKeywords属性"]
+SEARCHABLE --> BADGESUCCESS["<span class='badge bg-success'>可筛选</span>"]
+SEARCHKEYWORDS --> BADGENORMAL["<span class='badge bg-info'>可搜索</span>"]
+```
+
+**图表来源**
+- [vds-configurator.js:172-174](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L172-L174)
 
 **章节来源**
-- [vds-configurator.js:198-207](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L198-L207)
+- [vds-configurator.js:198-210](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L198-L210)
+
+### 搜索徽章系统
+
+**新增** 搜索徽章系统提供了智能化的搜索功能标识：
+
+#### 徽章显示逻辑
+
+系统根据字段类型自动显示相应的搜索徽章：
+
+```mermaid
+sequenceDiagram
+participant Field as 字段配置
+participant BadgeSystem as 徽章系统
+participant UI as 用户界面
+Field->>BadgeSystem : 检查字段类型
+BadgeSystem->>BadgeSystem : 判断是否为数据源字段
+alt 数据源字段
+BadgeSystem->>BadgeSystem : 检查searchable属性
+alt searchable为true
+BadgeSystem->>UI : 显示"可筛选"徽章
+else searchable为false
+BadgeSystem->>UI : 不显示徽章
+end
+else 普通字段
+BadgeSystem->>BadgeSystem : 检查searchedByKeywords属性
+alt searchedByKeywords为true
+BadgeSystem->>UI : 显示"可搜索"徽章
+else searchedByKeywords为false
+BadgeSystem->>UI : 不显示徽章
+end
+end
+```
+
+**图表来源**
+- [vds-configurator.js:172-174](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L172-L174)
+
+#### 条件搜索属性判断
+
+系统实现了精确的条件搜索属性判断机制：
+
+```mermaid
+flowchart TD
+PROPERTYCHECK["属性检查"] --> TYPEDETECTION["字段类型检测"]
+TYPEDETECTION --> DATASOURCETYPE{"数据源类型?"}
+DATASOURCETYPE --> |是| SEARCHABLECHECK["searchable属性检查"]
+DATASOURCETYPE --> |否| KEYWORDSCHECK["searchedByKeywords属性检查"]
+SEARCHABLECHECK --> SEARCHABLETRUE{"searchable=true?"}
+SEARCHABLETRUE --> |是| ENABLEFILTER["启用筛选功能"]
+SEARCHABLETRUE --> |否| DISABLEFILTER["禁用筛选功能"]
+KEYWORDSCHECK --> KEYWORDSTrue{"searchedByKeywords=true?"}
+KEYWORDSTrue --> |是| ENABLESEARCH["启用搜索功能"]
+KEYWORDSTrue --> |否| DISABLESEARCH["禁用搜索功能"]
+```
+
+**图表来源**
+- [vds-configurator.js:1114-1120](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1114-L1120)
 
 ### 操作按钮配置系统
 
-**简化** VdsConfigurator提供了简化的操作按钮配置功能：
+VdsConfigurator提供了简化的操作按钮配置功能：
 
 #### 预设按钮模板
 
@@ -308,11 +384,11 @@ CUSTOMCONF --> CUSTOMTEMPLATE["生成自定义模板"]
 ```
 
 **图表来源**
-- [vds-configurator.js:379-417](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L379-L417)
+- [vds-configurator.js:386-424](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L386-L424)
 
 #### 动态按钮配置
 
-**简化** 按钮配置系统支持实时编辑和模板生成，移除了复杂的嵌套逻辑：
+按钮配置系统支持实时编辑和模板生成：
 
 ```mermaid
 sequenceDiagram
@@ -332,11 +408,11 @@ TemplateGen-->>User : 更新模板预览
 ```
 
 **图表来源**
-- [vds-configurator.js:422-487](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L422-L487)
+- [vds-configurator.js:429-474](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L429-L474)
 
 #### 自定义操作配置系统
 
-**优化** 系统支持简化的自定义操作配置：
+系统支持简化的自定义操作配置：
 
 ```mermaid
 classDiagram
@@ -363,7 +439,7 @@ CustomAction --> DataContent : contains
 ```
 
 **图表来源**
-- [vds-configurator.js:651-1057](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L651-L1057)
+- [vds-configurator.js:659-1065](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L659-L1065)
 
 ### 数据表格渲染引擎
 
@@ -410,10 +486,34 @@ RESOLVE --> OPTIONS["生成下拉选项"]
 ```
 
 **图表来源**
-- [site.js:522-578](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L522-L578)
+- [site.js:525-581](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L525-L581)
+
+#### 搜索表单生成逻辑
+
+**更新** 搜索表单生成逻辑现在支持条件搜索属性判断：
+
+```mermaid
+flowchart TD
+THCONFIG["字段配置"] --> CHECKSEARCHABLE["检查searchable属性"]
+CHECKSEARCHABLE --> CHECKKEYWORDS["检查searchedByKeywords属性"]
+CHECKKEYWORDS --> DATASOURCEFORM{"数据源字段?"}
+DATASOURCEFORM --> |是| DATASOURCECHECK["searchable=true?"]
+DATASOURCEFORM --> |否| KEYWORDSCHECK["searchedByKeywords=true?"]
+DATASOURCECHECK --> |是| ADDBOX["添加筛选框"]
+DATASOURCECHECK --> |否| SKIPBOX["跳过字段"]
+KEYWORDSCHECK --> |是| ADDKEYBOX["添加关键字搜索"]
+KEYWORDSCHECK --> |否| SKIPKEY["跳过字段"]
+ADDBOX --> RENDERFORM["渲染搜索表单"]
+ADDKEYBOX --> RENDERFORM
+SKIPBOX --> RENDERFORM
+SKIPKEY --> RENDERFORM
+```
+
+**图表来源**
+- [site.js:603-613](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L603-L613)
 
 **章节来源**
-- [site.js:1-1867](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1867)
+- [site.js:1-1872](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1872)
 
 ### 控制器层
 
@@ -473,17 +573,18 @@ UTIL[工具函数]
 MODAL[模态框拖拽]
 BUTTONSYS[按钮系统]
 ACTIONSYS[操作系统]
-end
+SEARCHBADGE[搜索徽章系统]
+ENDSUBGRAPH
 subgraph "第三方库"
 BOOTSTRAP[Bootstrap]
 JQUERY[jQuery]
 FETCH[Fetch API]
-end
+ENDSUBGRAPH
 subgraph "后端服务"
 AUTH[认证服务]
 API[API接口]
 DB[数据库]
-end
+ENDSUBGRAPH
 VDS --> BOOTSTRAP
 VDS --> JQUERY
 VDS --> FETCH
@@ -492,6 +593,7 @@ VDS --> API
 VDS --> MODAL
 VDS --> BUTTONSYS
 VDS --> ACTIONSYS
+VDS --> SEARCHBADGE
 SITE --> BOOTSTRAP
 SITE --> JQUERY
 SITE --> FETCH
@@ -501,8 +603,8 @@ AUTH --> DB
 ```
 
 **图表来源**
-- [vds-configurator.js:1-1341](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1341)
-- [site.js:1-1867](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1867)
+- [vds-configurator.js:1-1352](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1352)
+- [site.js:1-1872](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1872)
 
 ### 后端依赖关系
 
@@ -513,16 +615,16 @@ graph TD
 subgraph "应用层"
 CONTROLLER[控制器]
 SERVICE[服务层]
-end
+ENDSUBGRAPH
 subgraph "基础设施层"
 REPOSITORY[仓储层]
 DATABASE[数据库提供者]
 CONFIG[配置管理]
-end
+ENDSUBGRAPH
 subgraph "领域层"
 ENTITY[实体模型]
 DTO[数据传输对象]
-end
+ENDSUBGRAPH
 CONTROLLER --> SERVICE
 SERVICE --> REPOSITORY
 REPOSITORY --> DATABASE
@@ -536,8 +638,8 @@ CONTROLLER --> CONFIG
 - [RepositoryBase.cs:1-233](file://Sylas.RemoteTasks.App/Infrastructure/RepositoryBase.cs#L1-L233)
 
 **章节来源**
-- [vds-configurator.js:1-1341](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1341)
-- [site.js:1-1867](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1867)
+- [vds-configurator.js:1-1352](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1352)
+- [site.js:1-1872](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1872)
 - [LowCodeController.cs:1-163](file://Sylas.RemoteTasks.App/Controllers/LowCodeController.cs#L1-L163)
 
 ## 性能考虑
@@ -550,7 +652,8 @@ CONTROLLER --> CONFIG
 4. **缓存机制**：重复数据源请求进行缓存
 5. **模态框拖拽优化**：使用requestAnimationFrame优化拖拽性能
 6. **按钮模板生成优化**：智能模板缓存和增量更新
-7. **代码简化**：移除了90多行复杂逻辑，提高执行效率
+7. **搜索徽章优化**：智能徽章显示逻辑减少DOM操作
+8. **条件搜索判断优化**：高效的属性检查机制
 
 ### 后端性能优化
 
@@ -558,6 +661,7 @@ CONTROLLER --> CONFIG
 2. **批量操作**：支持批量数据处理
 3. **连接池管理**：数据库连接池优化
 4. **查询优化**：SQL查询优化和索引使用
+5. **搜索条件优化**：基于属性的精确搜索判断
 
 ## 故障排除指南
 
@@ -582,15 +686,25 @@ CONTROLLER --> CONFIG
 3. 确认requestAnimationFrame兼容性
 4. 检查GPU加速设置
 
-#### 按钮配置生成失败
+#### 搜索徽章显示错误
 
-**症状**：按钮模板无法生成或生成错误
-**原因**：按钮配置数据异常或模板生成逻辑错误
+**症状**：搜索徽章显示不正确或不显示
+**原因**：字段类型识别错误或属性配置问题
 **解决方案**：
-1. 检查按钮配置数据格式
-2. 验证占位符替换逻辑
-3. 确认按钮类型映射正确
-4. 检查模板缓存状态
+1. 检查字段配置中的searchable和searchedByKeywords属性
+2. 验证字段类型是否正确设置
+3. 确认徽章显示逻辑正常工作
+4. 检查字段类型检测函数
+
+#### 条件搜索属性判断失败
+
+**症状**：搜索功能无法正常工作
+**原因**：属性判断逻辑错误或配置不匹配
+**解决方案**：
+1. 检查字段配置中的搜索属性设置
+2. 验证数据源字段的searchable属性
+3. 确认普通字段的searchedByKeywords属性
+4. 检查搜索表单生成逻辑
 
 #### 数据加载超时
 
@@ -612,12 +726,12 @@ CONTROLLER --> CONFIG
 3. 使用内置验证功能
 
 **章节来源**
-- [vds-configurator.js:1-1341](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1341)
-- [site.js:1-1867](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1867)
+- [vds-configurator.js:1-1352](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1352)
+- [site.js:1-1872](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1872)
 
 ## 结论
 
-VDS配置器JavaScript库是一个功能强大、设计精良的可视化配置工具。经过功能简化后，该库在保持核心功能的同时，显著减少了代码复杂度，提高了可维护性和性能。
+VDS配置器JavaScript库是一个功能强大、设计精良的可视化配置工具。经过重大功能增强后，该库在保持核心功能的同时，显著提升了搜索功能的智能化程度和用户体验。
 
 ### 主要优势
 
@@ -626,8 +740,8 @@ VDS配置器JavaScript库是一个功能强大、设计精良的可视化配置�
 3. **性能优秀**：优化的数据加载和渲染机制
 4. **可扩展性**：模块化设计便于功能扩展
 5. **可靠性**：完善的错误处理和验证机制
-6. **代码简化**：移除了90多行复杂逻辑，提高可维护性
-7. **性能提升**：简化的配置流程提高了执行效率
+6. **智能化搜索**：增强的搜索徽章逻辑和条件判断
+7. **精确控制**：区分数据源字段的'可筛选'和普通字段的'可搜索'
 
 ### 技术亮点
 
@@ -636,8 +750,8 @@ VDS配置器JavaScript库是一个功能强大、设计精良的可视化配置�
 - 实现完整的前后端分离架构
 - 支持多种数据源和字段类型
 - 提供丰富的API和扩展点
-- **优化** 模态框拖拽性能
-- **简化** 智能按钮模板生成系统
-- **优化** 自定义操作配置管理
+- **增强** 智能搜索徽章系统
+- **改进** 条件搜索属性判断机制
+- **优化** 数据源字段搜索配置
 
-该库为Sylas.RemoteTasks系统的低代码开发提供了坚实的技术基础，是现代Web应用开发的最佳实践范例。经过功能简化后，VDS配置器成为了更加高效、易用且易于维护的工具，为开发者提供了更好的配置体验。
+该库为Sylas.RemoteTasks系统的低代码开发提供了坚实的技术基础，是现代Web应用开发的最佳实践范例。经过功能增强后，VDS配置器成为了更加智能、易用且功能强大的工具，为开发者提供了更好的配置体验和用户搜索体验。

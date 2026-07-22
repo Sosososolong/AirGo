@@ -289,6 +289,8 @@ async function loadCommandsAsync(ele, id, refresh = false) {
 
             let anythingInfo = data.anythingInfo;
             cardStatus.resolvedProperties = anythingInfo.properties; // 保存解析后的变量（含内置变量）
+            // 可视化编辑器(模板编辑器)仅适用于FileHelper命令, 其他执行器不显示📝按钮
+            const isFileHelper = anythingInfo.commandExecutor === 'FileHelper';
             const commandsLength = anythingInfo.commands.length;
             // cardStatus对象保存命令数组
             cardStatus.commandArray = anythingInfo.commands;
@@ -334,7 +336,7 @@ async function loadCommandsAsync(ele, id, refresh = false) {
             <div class="d-flex justify-content-between">
                 <div><button class="btn btn-sm btn-danger mb-2 run-command-btn ${(commandInfo && commandInfo.executedState ? " disabled" : "")}" type="button" command-id="${commandInfo.id}" command-name="${commandInfo.name}" id="button-cmd-${commandInfo.id}">${commandInfo.name}</button></div>
                 <div>
-                    <button class="btn btn-sm btn-outline-warning mb-2 visual-edit-btn" type="button" command-id="${commandInfo.id}" anything-id="${id}" title="可视化编辑">📝</button>
+                    ${isFileHelper ? `<button class="btn btn-sm btn-outline-warning mb-2 visual-edit-btn" type="button" command-id="${commandInfo.id}" anything-id="${id}" title="可视化编辑">📝</button>` : ''}
                     <button class="btn btn-sm btn-primary mb-2 resolve-command-btn" type="button" command-id="${commandInfo.id}">解析模板</button>
                     <button class="btn btn-sm btn-primary mb-2 update-command-btn" type="button" command-id="${commandInfo.id}">更新命令</button>
                 </div>
