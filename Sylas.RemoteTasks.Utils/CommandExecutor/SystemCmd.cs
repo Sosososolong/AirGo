@@ -226,6 +226,18 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         /// <returns></returns>
         public static async IAsyncEnumerable<string> ExecuteSingleCommandAsync(string cmdTxt)
         {
+            // 脚本开头可以像Linux的shebang一样指定执行器, 如: #! /bin/bash、#! python3、#! pwsh; 指定了则使用对应执行器执行脚本, 没指定则保持原有逻辑
+            var shebangMatch = Regex.Match(cmdTxt.TrimStart(), @"^#!\s*(?<interpreter>[^\r\n]+)");
+            if (shebangMatch.Success)
+            {
+                string interpreter = shebangMatch.Groups["interpreter"].Value.Trim();
+                string scriptBody = cmdTxt.TrimStart()[shebangMatch.Value.Length..].TrimStart('\r', '\n');
+                await foreach (var line in ExecuteByInterpreterAsync(interpreter, scriptBody))
+                {
+                    yield return line;
+                }
+                yield break;
+            }
             // TODO: 修改为配置
             string winShell = "powershell.exe";
             var currentDir = AppDomain.CurrentDomain.BaseDirectory;
@@ -291,6 +303,89 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
             if (File.Exists(outputFile))
             {
                 yield return File.ReadAllText(outputFile);
+            }
+        }
+        /// <summary>
+        /// 使用脚本开头#!指定的执行器执行脚本, 如: #! python3、#! /bin/bash、#! pwsh -NoProfile
+        /// </summary>
+        /// <param name="interpreter">执行器(可以带参数, 如"python3 -u")</param>
+        /// <param name="scriptBody">去掉#!行之后的脚本内容</param>
+        /// <returns></returns>
+        public static async IAsyncEnumerable<string> ExecuteByInterpreterAsync(string interpreter, string scriptBody)
+        {
+            var currentDir = AppDomain.CurrentDomain.BaseDirectory;
+            var tempDir = Path.Combine(currentDir, $"TEMP_SYSTEMCMD_{DateTime.Now:yyyyMMddHHmmssFFFFFFF}");
+            _ = Directory.CreateDirectory(tempDir);
+
+            // 执行器可能带参数, 如"python3 -u", 第一部分是执行器程序, 其余是附加参数
+            var interpreterParts = interpreter.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            string interpreterFile = interpreterParts[0];
+            string extraArgs = string.Join(' ', interpreterParts.Skip(1));
+            string interpreterName = Path.GetFileNameWithoutExtension(interpreterFile).ToLower();
+
+            // cmd和powershell对脚本扩展名敏感, 根据执行器决定脚本文件扩展名
+            string extension = interpreterName switch
+            {
+                "powershell" or "pwsh" => ".ps1",
+                "cmd" => ".bat",
+                "python" or "python2" or "python3" => ".py",
+                "bash" or "sh" or "zsh" => ".sh",
+                "node" => ".js",
+                _ => ".script"
+            };
+            string tempScriptFile = Path.Combine(tempDir, $"cmd{extension}");
+            // powershell脚本带BOM避免中文乱码; bash等脚本带BOM会导致解析失败
+            var encoding = extension == ".ps1" ? Encoding.UTF8 : new UTF8Encoding(false);
+            File.WriteAllText(tempScriptFile, scriptBody, encoding);
+
+            string arguments = interpreterName switch
+            {
+                "powershell" or "pwsh" => $"{extraArgs} -ExecutionPolicy Bypass -File \"{tempScriptFile}\"".Trim(),
+                "cmd" => $"/c \"{tempScriptFile}\"",
+                _ => $"{extraArgs} \"{tempScriptFile}\"".Trim()
+            };
+            var startInfo = new ProcessStartInfo
+            {
+                // 直接启动指定的执行器执行脚本文件
+                FileName = interpreterFile,
+                Arguments = arguments,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+                StandardOutputEncoding = Encoding.UTF8,
+                StandardErrorEncoding = Encoding.UTF8
+            };
+
+            using Process p = new() { StartInfo = startInfo };
+            p.Start();
+
+            // 先异步读取错误输出, 避免错误缓冲区写满导致死锁
+            var errorTask = p.StandardError.ReadToEndAsync();
+            while (!p.StandardOutput.EndOfStream)
+            {
+                string line = await p.StandardOutput.ReadLineAsync();
+                yield return line;
+            }
+            string error = await errorTask;
+            // netstandard2.1没有WaitForExitAsync; 此时输出流已读完, 进程基本已结束, 同步等待不会阻塞
+            p.WaitForExit();
+            if (!string.IsNullOrWhiteSpace(error))
+            {
+                // 很多程序(如docker/git/pip)会把正常的进度信息写到stderr, 不能仅凭stderr有内容就判定失败, 以退出码为准
+                if (p.ExitCode == 0)
+                {
+                    yield return error.Trim();
+                }
+                else
+                {
+                    // 以[ERR]开头, ExecuteAsync会将其识别为失败的CommandResult
+                    yield return $"[ERR] {error.Trim()}";
+                }
+            }
+            else if (p.ExitCode != 0)
+            {
+                yield return $"[ERR] 脚本执行失败, 退出码: {p.ExitCode}";
             }
         }
         /// <summary>
