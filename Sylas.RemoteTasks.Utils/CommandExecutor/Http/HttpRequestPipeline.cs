@@ -34,7 +34,8 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor.Http
             var ctx = spec.VariableContext ?? [];
 
             // 1) 模板解析: Url + Query拼接 (注意 query.Value 必须先解模板再 EscapeDataString)
-            string finalUrl = ResolveTemplate(spec.Url, ctx);
+            // BuildFullUrl先把启用的QueryParams拼接到Url上(参数值已解模板并转义), 再解析Url本身的模板变量
+            string finalUrl = ResolveTemplate(BuildFullUrl(spec, ctx), ctx);
             string finalBody = ResolveTemplate(spec.Body ?? string.Empty, ctx);
             var finalHeaders = (spec.Headers ?? [])
                 .Where(h => h.Enabled && !string.IsNullOrWhiteSpace(h.Name))
