@@ -1052,7 +1052,7 @@ body {
     padding: 8px 10px;
     border: 1px solid var(--at-border);
     border-radius: 6px;
-    background: #FAFBFC;
+    background: var(--at-bg);
 }
 
 .at-suite-list {
@@ -1075,7 +1075,8 @@ body {
     padding: 3px 8px;
     border: 1px solid var(--at-border);
     border-radius: 12px;
-    background: #fff;
+    background: var(--at-surface);
+    color: var(--at-text);
     font-size: 12px;
     cursor: pointer;
     user-select: none;
@@ -1112,6 +1113,8 @@ body {
     padding: 4px 8px;
     border: 1px solid var(--at-border);
     border-radius: 6px;
+    background: var(--at-surface);
+    color: var(--at-text);
     font-size: 12px;
     outline: none;
 }
