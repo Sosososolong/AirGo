@@ -468,6 +468,8 @@ namespace Sylas.RemoteTasks.Utils.Template
             {
                 return tmplWithParser;
             }
+            // 先解析 {{now()...}} 时间表达式(类PostgreSQL interval语法, 如 {{now() - interval '5 minutes'}}), 避免被当作普通变量表达式解析
+            tmplWithParser = TimeExprHelper.ResolveTimeExpressions(tmplWithParser);
             if (dataContextObject is null)
             {
                 return tmplWithParser;

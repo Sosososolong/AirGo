@@ -26,6 +26,8 @@ namespace Sylas.RemoteTasks.Utils.Template
         /// <returns></returns>
         public static string ResolveTmpl(string tmpl, object globalVars, bool ignoreNotExistExpressions = false)
         {
+            // 先解析 {{now()...}} 时间表达式(类PostgreSQL interval语法, 如 {{now() - interval '5 minutes'}}), 否则StringTmpl正则会把它整体当作变量名解析导致失败
+            tmpl = TimeExprHelper.ResolveTimeExpressions(tmpl);
             string resolved = ResolveTmplForLoopInfos(tmpl, globalVars);
             return ResolveTmplExpressions(resolved, globalVars, ignoreNotExistExpressions);
         }
@@ -73,7 +75,8 @@ namespace Sylas.RemoteTasks.Utils.Template
                 }
                 else
                 {
-                    tmpl = tmpl.Replace(m.Value, $"{varVal}");
+                    // 变量的值本身可以是时间表达式(如环境变量配置为: now() - interval '5 minutes'), 替换前动态计算
+                    tmpl = tmpl.Replace(m.Value, TimeExprHelper.ResolveValueIfTimeExpression($"{varVal}"));
                 }
                 resolvedVarNames.Add(varName);
             }
