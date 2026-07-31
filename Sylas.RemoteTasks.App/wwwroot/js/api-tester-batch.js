@@ -334,10 +334,24 @@
 
     // ---------- 批量测试弹窗 ----------
     let batchOrder = []; // [endpointId,...]
+    // 按左侧列表的显示顺序(Tag字母序分组, 组内按接口顺序)返回所有endpointId
+    function leftListOrderedIds() {
+        const groups = {};
+        (state.endpoints || []).forEach(function (ep) {
+            const tag = ep.tag || 'default';
+            (groups[tag] = groups[tag] || []).push(ep.id);
+        });
+        const ids = [];
+        Object.keys(groups).sort().forEach(function (tag) {
+            groups[tag].forEach(function (id) { ids.push(id); });
+        });
+        return ids;
+    }
     function openBatch() {
         const set = activeSelectedSet();
         if (!set || set.size === 0) { toast('请在左侧勾选至少 1 个接口'); return; }
-        batchOrder = Array.from(set);
+        // Set的遍历顺序是勾选(插入)顺序, 与左侧列表显示顺序无关; 这里按左侧列表顺序排列, 弹窗内仍可拖拽调整
+        batchOrder = leftListOrderedIds().filter(function (id) { return set.has(id); });
         renderBatchBody();
         $('#atBatchModal').prop('hidden', false);
     }

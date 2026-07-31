@@ -5,6 +5,7 @@ using Sylas.RemoteTasks.App.ApiTester.Repositories;
 using Sylas.RemoteTasks.Database;
 using Sylas.RemoteTasks.Utils.CommandExecutor.Http;
 using Sylas.RemoteTasks.Utils.CommandExecutor.Http.Models;
+using Sylas.RemoteTasks.Utils.Template;
 
 namespace Sylas.RemoteTasks.App.ApiTester.Services
 {
@@ -299,7 +300,8 @@ namespace Sylas.RemoteTasks.App.ApiTester.Services
                 var vars = await _repo.GetVariablesByEnvAsync(activeEnv.Id);
                 foreach (var v in vars.Data)
                 {
-                    map[v.Name] = v.Value;
+                    // 变量值本身可以是时间表达式(如: now() - interval '5 minutes'), 每次发送时动态计算
+                    map[v.Name] = TimeExprHelper.ResolveValueIfTimeExpression(v.Value);
                 }
             }
             catch (Exception ex)

@@ -164,6 +164,9 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor.Http
 
             try
             {
+                // 先解析 {{now()...}} 时间表达式(类PostgreSQL interval语法, 如 {{now() - interval '5 minutes'}}),
+                // 否则StringTmpl正则会把它整体当作变量名交给TmplHelper2解析导致失败
+                template = TimeExprHelper.ResolveTimeExpressions(template);
                 var resolved = TmplHelper2.ResolveTmpl(template, variableContext);
                 return resolved ?? string.Empty;
             }
