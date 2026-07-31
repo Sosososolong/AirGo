@@ -25,6 +25,7 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                 await db.CreateTableIfNotExistAsync(ApiEnvironment.TableName, BuildEnvironmentColumns());
                 await db.CreateTableIfNotExistAsync(ApiVariable.TableName, BuildVariableColumns());
                 await db.CreateTableIfNotExistAsync(ApiHistory.TableName, BuildHistoryColumns());
+                await db.CreateTableIfNotExistAsync(ApiTestSuite.TableName, BuildTestSuiteColumns());
 
                 // 确保存在 default 环境且激活
                 var envPage = await db.QueryPagedDataAsync<ApiEnvironment>(ApiEnvironment.TableName,
@@ -125,6 +126,17 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
             new() { ColumnCode = "DurationMs", ColumnCSharpType = "int", ColumnType = "int", IsNullable = 0 },
             new() { ColumnCode = "ExtractedVars", ColumnCSharpType = "string", ColumnType = "text", IsNullable = 1 },
             new() { ColumnCode = "ValidationResults", ColumnCSharpType = "string", ColumnType = "text", IsNullable = 1 },
+            new() { ColumnCode = "CreateTime", ColumnCSharpType = "datetime", ColumnType = "timestamp", IsNullable = 0 },
+            new() { ColumnCode = "UpdateTime", ColumnCSharpType = "datetime", ColumnType = "timestamp", IsNullable = 0 },
+        ];
+
+        static List<ColumnInfo> BuildTestSuiteColumns() =>
+        [
+            new() { ColumnCode = "Id", IsPK = 1, ColumnCSharpType = "int", ColumnType = "int", IsNullable = 0 },
+            new() { ColumnCode = "CollectionId", ColumnCSharpType = "int", ColumnType = "int", IsNullable = 0 },
+            new() { ColumnCode = "Name", ColumnCSharpType = "string", ColumnType = "varchar", ColumnLength = "200", IsNullable = 0 },
+            new() { ColumnCode = "Description", ColumnCSharpType = "string", ColumnType = "varchar", ColumnLength = "1000", IsNullable = 1 },
+            new() { ColumnCode = "EndpointIds", ColumnCSharpType = "string", ColumnType = "text", IsNullable = 0 },
             new() { ColumnCode = "CreateTime", ColumnCSharpType = "datetime", ColumnType = "timestamp", IsNullable = 0 },
             new() { ColumnCode = "UpdateTime", ColumnCSharpType = "datetime", ColumnType = "timestamp", IsNullable = 0 },
         ];

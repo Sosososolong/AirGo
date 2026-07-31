@@ -121,6 +121,36 @@ namespace Sylas.RemoteTasks.App.Controllers
         }
         #endregion
 
+        #region 测试套件
+        [HttpPost]
+        public async Task<IActionResult> GetTestSuites([FromBody] CollectionIdDto dto)
+        {
+            var page = await _service.GetTestSuitesAsync(dto.CollectionId);
+            return Json(new { code = 0, data = page.Data, total = page.Count });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> SaveTestSuite([FromBody] ApiTestSuiteSaveDto dto)
+        {
+            try
+            {
+                var id = await _service.SaveTestSuiteAsync(dto);
+                return Json(new { code = 0, data = new { id } });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { code = 1, msg = ex.Message });
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> DeleteTestSuite([FromBody] IdDto dto)
+        {
+            var rows = await _service.DeleteTestSuiteAsync(dto.Id);
+            return Json(new { code = 0, data = new { rows } });
+        }
+        #endregion
+
         #region 环境与变量
         [HttpPost]
         public async Task<IActionResult> GetEnvironments()

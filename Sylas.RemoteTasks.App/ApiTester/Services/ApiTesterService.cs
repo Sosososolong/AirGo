@@ -158,6 +158,43 @@ namespace Sylas.RemoteTasks.App.ApiTester.Services
 
         public Task<int> SetActiveEnvironmentAsync(int id) => _repo.SetActiveEnvironmentAsync(id);
 
+        #region 测试套件
+        public Task<PagedData<ApiTestSuite>> GetTestSuitesAsync(int collectionId)
+            => _repo.GetTestSuitesByCollectionAsync(collectionId);
+
+        public async Task<int> SaveTestSuiteAsync(ApiTestSuiteSaveDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Name))
+            {
+                throw new Exception("套件名称不能为空");
+            }
+            if (dto.EndpointIds.Count == 0)
+            {
+                throw new Exception("套件至少包含 1 个接口");
+            }
+            string endpointIdsJson = System.Text.Json.JsonSerializer.Serialize(dto.EndpointIds);
+            if (dto.Id > 0)
+            {
+                var existed = await _repo.TestSuites.GetByIdAsync(dto.Id) ?? throw new Exception($"套件不存在: {dto.Id}");
+                existed.Name = dto.Name;
+                existed.Description = dto.Description;
+                existed.EndpointIds = endpointIdsJson;
+                await _repo.TestSuites.UpdateAsync(existed);
+                return existed.Id;
+            }
+            var suite = new ApiTestSuite
+            {
+                CollectionId = dto.CollectionId,
+                Name = dto.Name,
+                Description = dto.Description,
+                EndpointIds = endpointIdsJson
+            };
+            return await _repo.TestSuites.AddAsync(suite);
+        }
+
+        public Task<int> DeleteTestSuiteAsync(int id) => _repo.TestSuites.DeleteAsync(id);
+        #endregion
+
         public Task<PagedData<ApiVariable>> GetVariablesAsync(int environmentId)
             => _repo.GetVariablesByEnvAsync(environmentId);
 

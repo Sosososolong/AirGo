@@ -1046,6 +1046,80 @@ body {
 }
 
 /* ---------- 批量测试 ---------- */
+/* 测试套件栏: 套件列表 + 保存/加载操作 */
+.at-suite-bar {
+    margin-bottom: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--at-border);
+    border-radius: 6px;
+    background: #FAFBFC;
+}
+
+.at-suite-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.at-suite-list:empty::before {
+    content: "暂无套件, 可将下方批次保存为套件";
+    font-size: 12px;
+    color: var(--at-text-muted);
+}
+
+.at-suite-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border: 1px solid var(--at-border);
+    border-radius: 12px;
+    background: #fff;
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.at-suite-item:hover {
+    border-color: var(--at-primary);
+}
+
+.at-suite-item .at-suite-count {
+    color: var(--at-text-muted);
+}
+
+.at-suite-item .at-suite-del {
+    border: none;
+    background: none;
+    color: var(--at-text-muted);
+    cursor: pointer;
+    padding: 0 2px;
+    font-size: 12px;
+}
+
+.at-suite-item .at-suite-del:hover {
+    color: #DC2626;
+}
+
+.at-suite-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.at-suite-actions .at-input {
+    padding: 4px 8px;
+    border: 1px solid var(--at-border);
+    border-radius: 6px;
+    font-size: 12px;
+    outline: none;
+}
+
+.at-suite-actions .at-input:focus {
+    border-color: var(--at-primary);
+}
+
 .at-batch-tip {
     margin-bottom: 10px;
     padding: 6px 10px;

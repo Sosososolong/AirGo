@@ -229,6 +229,15 @@
                 <button class="at-icon-btn" data-action="close-batch">×</button>
             </div>
             <div class="at-modal-body" id="atBatchBody">
+                <!-- 测试套件: 把当前批次保存为命名套件, 或勾选多个套件加载为当前批次 -->
+                <div class="at-suite-bar" id="atSuiteBar">
+                    <div class="at-suite-list" id="atSuiteList"></div>
+                    <div class="at-suite-actions">
+                        <button class="btn at-btn" id="atSuiteLoad" title="按套件顺序拼接勾选的套件接口, 替换下方批次列表">加载所选套件</button>
+                        <input type="text" id="atSuiteName" class="at-input" placeholder="套件名称(如: 下单流程回归)" style="width:180px;" />
+                        <button class="btn at-btn" id="atSuiteSave" title="将下方批次列表(含顺序)保存为套件">保存为套件</button>
+                    </div>
+                </div>
                 <div class="at-batch-tip">按上下顺序顺次执行, 拖拽调整顺序, 上一个接口提取的变量可被后续接口使用</div>
                 <table class="at-batch-table">
                     <thead>

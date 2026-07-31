@@ -6,7 +6,7 @@ using Sylas.RemoteTasks.Database.SyncBase;
 namespace Sylas.RemoteTasks.App.ApiTester.Repositories
 {
     /// <summary>
-    /// ApiTester 模块仓储, 5 张表的 CRUD 由 RepositoryBase 提供, 这里集中持有
+    /// ApiTester 模块仓储, 6 张表的 CRUD 由 RepositoryBase 提供, 这里集中持有
     /// </summary>
     public class ApiTesterRepository(
         IDatabaseProvider db,
@@ -14,7 +14,8 @@ namespace Sylas.RemoteTasks.App.ApiTester.Repositories
         RepositoryBase<ApiEndpoint> endpoints,
         RepositoryBase<ApiEnvironment> environments,
         RepositoryBase<ApiVariable> variables,
-        RepositoryBase<ApiHistory> histories)
+        RepositoryBase<ApiHistory> histories,
+        RepositoryBase<ApiTestSuite> testSuites)
     {
         private readonly IDatabaseProvider _db = db;
         public RepositoryBase<ApiCollection> Collections { get; } = collections;
@@ -22,6 +23,18 @@ namespace Sylas.RemoteTasks.App.ApiTester.Repositories
         public RepositoryBase<ApiEnvironment> Environments { get; } = environments;
         public RepositoryBase<ApiVariable> Variables { get; } = variables;
         public RepositoryBase<ApiHistory> Histories { get; } = histories;
+        public RepositoryBase<ApiTestSuite> TestSuites { get; } = testSuites;
+
+        /// <summary>
+        /// 按集合 Id 查询测试套件列表(不分页, 按创建时间)
+        /// </summary>
+        public async Task<PagedData<ApiTestSuite>> GetTestSuitesByCollectionAsync(int collectionId)
+        {
+            var search = new DataSearch(1, int.MaxValue,
+                new DataFilter { FilterItems = [new FilterItem("collectionId", "=", collectionId)] },
+                [new("id", true)]);
+            return await TestSuites.GetPageAsync(search);
+        }
 
         /// <summary>
         /// 按集合 Id 查询接口列表(不分页, 按 OrderNo)

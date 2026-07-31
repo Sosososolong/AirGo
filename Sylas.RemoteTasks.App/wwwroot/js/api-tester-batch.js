@@ -57,7 +57,10 @@
     window.atApi = window.atApi || {};
     Object.assign(window.atApi, {
         saveCollection: (dto) => _post('/ApiTester/SaveCollection', dto),
-        batchSend: (dto) => _post('/ApiTester/BatchSend', dto)
+        batchSend: (dto) => _post('/ApiTester/BatchSend', dto),
+        getTestSuites: (collectionId) => _post('/ApiTester/GetTestSuites', { collectionId: collectionId }),
+        saveTestSuite: (dto) => _post('/ApiTester/SaveTestSuite', dto),
+        deleteTestSuite: (id) => _post('/ApiTester/DeleteTestSuite', { id: id })
         // saveEndpoint 已在 api-tester.js 中提供, 不重复定义
     });
 
@@ -353,9 +356,102 @@
         // Set的遍历顺序是勾选(插入)顺序, 与左侧列表显示顺序无关; 这里按左侧列表顺序排列, 弹窗内仍可拖拽调整
         batchOrder = leftListOrderedIds().filter(function (id) { return set.has(id); });
         renderBatchBody();
+        loadSuitesAsync();
         $('#atBatchModal').prop('hidden', false);
     }
     function closeBatch() { $('#atBatchModal').prop('hidden', true); }
+
+    // ---------- 测试套件(持久化到数据库, 一批可连续执行的接口, 对应某个业务功能或测试需求) ----------
+    let suites = []; // 当前集合的套件列表
+    async function loadSuitesAsync() {
+        const cid = state.activeCollectionId;
+        if (!cid) { suites = []; renderSuites(); return; }
+        try {
+            suites = (await window.atApi.getTestSuites(cid)) || [];
+        } catch (e) { suites = []; }
+        renderSuites();
+    }
+    function suiteEndpointIds(suite) {
+        try {
+            const arr = JSON.parse(suite.endpointIds || '[]');
+            return Array.isArray(arr) ? arr : [];
+        } catch (e) { return []; }
+    }
+    function renderSuites() {
+        const $list = $('#atSuiteList').empty();
+        suites.forEach(function (s) {
+            const ids = suiteEndpointIds(s);
+            $list.append('<label class="at-suite-item" data-id="' + s.id + '" title="' + escape(s.description || s.name) + '">' +
+                '<input type="checkbox" class="at-suite-check" />' +
+                '<span>' + escape(s.name) + '</span>' +
+                '<span class="at-suite-count">(' + ids.length + ')</span>' +
+                '<button type="button" class="at-suite-del" title="删除套件">×</button>' +
+                '</label>');
+        });
+    }
+    async function saveSuiteAsync() {
+        const name = ($('#atSuiteName').val() || '').trim();
+        if (!name) { toast('请输入套件名称'); return; }
+        if (!batchOrder.length) { toast('批次列表为空, 无法保存'); return; }
+        // 同名套件视为更新(覆盖接口列表), 否则新建
+        const existed = suites.find(s => (s.name || '').toLowerCase() === name.toLowerCase());
+        try {
+            await window.atApi.saveTestSuite({
+                id: existed ? existed.id : 0,
+                collectionId: state.activeCollectionId,
+                name: name,
+                description: existed ? (existed.description || '') : '',
+                endpointIds: batchOrder
+            });
+            toast(existed ? '套件已更新: ' + name : '套件已保存: ' + name);
+            $('#atSuiteName').val('');
+            await loadSuitesAsync();
+        } catch (e) { toast('保存套件失败: ' + e.message); }
+    }
+    function loadCheckedSuites() {
+        const checkedIds = [];
+        $('#atSuiteList .at-suite-item').each(function () {
+            if ($(this).find('.at-suite-check').prop('checked')) checkedIds.push(parseInt($(this).data('id'), 10));
+        });
+        if (!checkedIds.length) { toast('请先勾选至少 1 个套件'); return; }
+        // 按套件列表顺序拼接各套件的接口(保留套件内部顺序), 跨套件重复的接口只保留首次出现
+        const merged = [];
+        const seen = new Set();
+        const existIds = new Set((state.endpoints || []).map(e => e.id));
+        let missing = 0;
+        suites.filter(s => checkedIds.indexOf(s.id) >= 0).forEach(function (s) {
+            suiteEndpointIds(s).forEach(function (id) {
+                if (seen.has(id)) return;
+                seen.add(id);
+                // 套件保存后接口可能已被删除, 跳过并提醒
+                if (!existIds.has(id)) { missing++; return; }
+                merged.push(id);
+            });
+        });
+        if (!merged.length) { toast('所选套件中没有可用接口'); return; }
+        batchOrder = merged;
+        // 同步左侧勾选状态为套件内容, 保持弹窗与侧边栏一致
+        const set = activeSelectedSet();
+        if (set) {
+            set.clear();
+            merged.forEach(id => set.add(id));
+            saveSelected();
+            refreshBatchBadge();
+            if (typeof window.atRenderEndpoints === 'function') window.atRenderEndpoints();
+        }
+        renderBatchBody();
+        toast('已加载 ' + merged.length + ' 个接口' + (missing ? ' (' + missing + ' 个接口已不存在, 已跳过)' : ''));
+    }
+    async function deleteSuiteAsync(id) {
+        const suite = suites.find(s => s.id === id);
+        if (!suite) return;
+        if (!confirm('确定删除套件"' + suite.name + '"?')) return;
+        try {
+            await window.atApi.deleteTestSuite(id);
+            toast('已删除套件: ' + suite.name);
+            await loadSuitesAsync();
+        } catch (e) { toast('删除套件失败: ' + e.message); }
+    }
 
     function renderBatchBody() {
         const $tb = $('#atBatchSelected').empty();
@@ -518,6 +614,16 @@
         $(document).on('click', '[data-action="batch-test"]', openBatch);
         $(document).on('click', '[data-action="close-batch"]', closeBatch);
         $(document).on('click', '#atBatchRun', runBatch);
+
+        // 测试套件: 保存/加载/删除
+        $(document).on('click', '#atSuiteSave', saveSuiteAsync);
+        $(document).on('click', '#atSuiteLoad', loadCheckedSuites);
+        $(document).on('click', '.at-suite-del', function (e) {
+            // 删除按钮位于 label 内, 阻止冒泡以免触发 checkbox 勾选
+            e.preventDefault();
+            e.stopPropagation();
+            deleteSuiteAsync(parseInt($(this).closest('.at-suite-item').data('id'), 10));
+        });
 
         $(document).on('click', '[data-action="new-endpoint"]', newEndpoint);
 

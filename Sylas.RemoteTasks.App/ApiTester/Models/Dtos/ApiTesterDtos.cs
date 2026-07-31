@@ -209,6 +209,21 @@ namespace Sylas.RemoteTasks.App.ApiTester.Models.Dtos
         public List<int> EndpointIds { get; set; } = [];
     }
 
+    /// <summary>
+    /// 创建/更新测试套件 Dto
+    /// </summary>
+    public class ApiTestSuiteSaveDto
+    {
+        public int Id { get; set; }
+        public int CollectionId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        /// <summary>
+        /// 有序的接口 Id 列表
+        /// </summary>
+        public List<int> EndpointIds { get; set; } = [];
+    }
+
     public class BatchSendResult
     {
         public List<BatchItemResult> Items { get; set; } = [];
