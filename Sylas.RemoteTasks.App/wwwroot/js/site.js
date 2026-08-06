@@ -1629,7 +1629,9 @@ function msgsHandler(data, requestTitle, showMsgEl) {
         const errMsgLines = errMsg.split('\n');
         msgContent += `<p style="color:red;">${requestTitle}: <p>`;
         for (var i = 0; i < errMsgLines.length; i++) {
-            msgContent += `<p style="color:red;">&nbsp;&nbsp;&nbsp;&nbsp;${trimMsg(errMsgLines[i], 50)}</p>`
+            // 错误信息不截断, 全部打印出来便于排查问题(转义防止错误文本中的HTML被渲染)
+            const escapedErrLine = errMsgLines[i].replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            msgContent += `<p style="color:red;white-space:pre-wrap;">&nbsp;&nbsp;&nbsp;&nbsp;${escapedErrLine}</p>`
         }
     } else if (!data.message) {
         if (data.commandExecuteNo.endsWith('-cmd-end')) {

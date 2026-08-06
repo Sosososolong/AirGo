@@ -178,6 +178,19 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
             using var scope = scopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<IDatabaseProvider>();
             await db.CreateTableIfNotExistAsync(_table, columns);
+
+            // 公共脚本库表: SystemCmd执行前按语言将片段写入临时目录, 供脚本用原生机制引用(如Python的import)
+            List<ColumnInfo> scriptLibraryColumns =
+            [
+                new() { ColumnCode = "Id", IsPK = 1, ColumnCSharpType = "int", ColumnType = "int", IsNullable = 0 },
+                new() { ColumnCode = "Lang", ColumnCSharpType = "string", ColumnType = "varchar", ColumnLength = "50", IsNullable = 0 },
+                new() { ColumnCode = "FilePath", ColumnCSharpType = "string", ColumnType = "varchar", ColumnLength = "300", IsNullable = 0 },
+                new() { ColumnCode = "Content", ColumnCSharpType = "string", ColumnType = "text", IsNullable = 0 },
+                new() { ColumnCode = "Description", ColumnCSharpType = "string", ColumnType = "varchar", ColumnLength = "500", IsNullable = 1 },
+                new() { ColumnCode = "CreateTime", ColumnCSharpType = "datetime", ColumnType = "timestamp", IsNullable = 0 },
+                new() { ColumnCode = "UpdateTime", ColumnCSharpType = "datetime", ColumnType = "timestamp", IsNullable = 0 }
+            ];
+            await db.CreateTableIfNotExistAsync(DbScriptLibraryProvider.TableName, scriptLibraryColumns);
         }
         readonly ConcurrentDictionary<int, (AnythingFlow, CancellationTokenSource)> runningSchedules = [];
         /// <summary>
@@ -314,7 +327,9 @@ namespace Sylas.RemoteTasks.App.BackgroundServices
                                             string systemCmd = $"{flow.OnExecuted} -- \"{Convert.ToBase64String(Encoding.UTF8.GetBytes(result))}\"";
                                             try
                                             {
-                                                await foreach (var item in new SystemCmd().ExecuteAsync(systemCmd))
+                                                // 从 DI 获取 SystemCmd(带公共脚本库), 获取不到时降级为无片段模式
+                                                var systemCmdExecutor = innerScope.ServiceProvider.GetKeyedService<ICommandExecutor>(nameof(SystemCmd)) as SystemCmd ?? new SystemCmd();
+                                                await foreach (var item in systemCmdExecutor.ExecuteAsync(systemCmd))
                                                 {
                                                     LoggerHelper.WriteLog($"{item.Message}{Environment.NewLine}", logDirectory: nameof(AnythingFlow));
                                                 }

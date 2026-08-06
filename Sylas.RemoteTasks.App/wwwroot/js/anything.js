@@ -55,10 +55,11 @@ function commandResultHandler(data, commandName, msgPannel) {
         fragment.appendChild(titleP);
 
         for (var i = 0; i < errMsgLines.length; i++) {
-            // msgPannel.innerHTML += `<p style="color:red;">&nbsp;&nbsp;&nbsp;&nbsp;${trimMsg(errMsgLines[i], 50)}</p>`
+            // 错误信息不截断, 全部打印出来便于排查问题
             const p = document.createElement('p');
             p.style.color = 'red';
-            p.innerHTML = `&nbsp;&nbsp;&nbsp;&nbsp;${trimMsg(errMsgLines[i], 50)}`;
+            p.style.whiteSpace = 'pre-wrap';
+            p.textContent = `    ${errMsgLines[i]}`;
             fragment.appendChild(p);
         }
     } else if (!data.message) {

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Sylas.RemoteTasks.App.Helpers;
 using Sylas.RemoteTasks.App.Infrastructure;

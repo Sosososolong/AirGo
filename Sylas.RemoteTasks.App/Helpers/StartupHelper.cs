@@ -88,6 +88,9 @@ namespace Sylas.RemoteTasks.App.Helpers
         /// <param name="services"></param>
         public static void AddExecutor(this IServiceCollection services)
         {
+            // 公共脚本库: SystemCmd等执行器执行前将片段写入临时目录, 默认实现从数据库表ScriptLibraries读取(DatabaseInfo为Scoped, 此处同用Scoped)
+            services.AddScoped<IScriptLibraryProvider, DbScriptLibraryProvider>();
+
             var types = ReflectionHelper.GetTypes(typeof(ICommandExecutor));
             foreach (var type in types)
             {

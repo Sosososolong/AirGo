@@ -600,7 +600,11 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             {
                 try
                 {
-                    anythingCommand.CommandTxt = TmplHelper.ResolveExpressionValue(anythingCommand.CommandTxt, properties)?.ToString() ?? throw new Exception($"解析命令\"{anythingCommand.CommandTxt}\"异常");
+                    // #!开头的shebang脚本是完整代码文件(如Python脚本), 其中的{{ }}是代码语法而非模板表达式, 跳过模板解析
+                    if (!string.IsNullOrWhiteSpace(anythingCommand.CommandTxt) && !anythingCommand.CommandTxt.TrimStart().StartsWith("#!"))
+                    {
+                        anythingCommand.CommandTxt = TmplHelper.ResolveExpressionValue(anythingCommand.CommandTxt, properties)?.ToString() ?? throw new Exception($"解析命令\"{anythingCommand.CommandTxt}\"异常");
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -682,6 +686,15 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
                 return RequestResult<string>.Error($"未找到id为{dto.Id}的操作对象");
             }
             var properties = GetAllProperties(anythingSetting);
+            // #!开头的shebang脚本是完整代码文件, 不参与模板解析, 直接返回原文
+            if (string.IsNullOrWhiteSpace(dto.CmdTxt))
+            {
+                return RequestResult<string>.Error("命令内容为空");
+            }
+            if (dto.CmdTxt.TrimStart().StartsWith("#!"))
+            {
+                return RequestResult<string>.Success(dto.CmdTxt);
+            }
             var commandResolved = TmplHelper.ResolveExpressionValue(dto.CmdTxt, properties)?.ToString();
             if (string.IsNullOrWhiteSpace(commandResolved))
             {
