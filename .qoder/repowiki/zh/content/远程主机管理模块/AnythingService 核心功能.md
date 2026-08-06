@@ -21,6 +21,11 @@
 - [CommandExecutionContext.cs](file://Sylas.RemoteTasks.Utils/CommandExecutor/CommandExecutionContext.cs)
 - [FileHelper.cs](file://Sylas.RemoteTasks.Utils/CommandExecutor/FileHelper.cs)
 - [TmplHelper2.cs](file://Sylas.RemoteTasks.Utils/Template/TmplHelper2.cs)
+- [IScriptLibraryProvider.cs](file://Sylas.RemoteTasks.Utils/CommandExecutor/IScriptLibraryProvider.cs)
+- [DbScriptLibraryProvider.cs](file://Sylas.RemoteTasks.Utils/CommandExecutor/DbScriptLibraryProvider.cs)
+- [SystemCmd.cs](file://Sylas.RemoteTasks.Utils/CommandExecutor/SystemCmd.cs)
+- [StartupHelper.cs](file://Sylas.RemoteTasks.App/Helpers/StartupHelper.cs)
+- [ServerRegistrationService.cs](file://Sylas.RemoteTasks.App/BackgroundServices/ServerRegistrationService.cs)
 - [anything.js](file://Sylas.RemoteTasks.App/wwwroot/js/anything.js)
 - [DataSearch.cs](file://Sylas.RemoteTasks.Database/SyncBase/DataSearch.cs)
 - [PagedData.cs](file://Sylas.RemoteTasks.Database/SyncBase/PagedData.cs)
@@ -28,10 +33,11 @@
 
 ## 更新摘要
 **所做更改**
-- 新增了分页查询功能：AnythingService 现在提供 GetPagedAnythingCommandsAsync 方法，支持通过 DataSearch 参数进行分页的数据检索
-- 增强了大数据集处理能力，提升了命令查询的性能和可扩展性
-- 更新了控制器集成，新增了 GetPagedAnythingCommandsAsync API 端点
-- 完善了分页查询的参数配置和返回值结构
+- 新增了脚本库提供程序集成：AnythingService 现在支持通过 IScriptLibraryProvider 接口为命令执行器提供公共脚本片段
+- 增强了 SystemCmd 执行器，支持在脚本执行前自动写入公共脚本到临时目录
+- 实现了 DbScriptLibraryProvider 默认实现，从数据库表 ScriptLibraries 读取公共脚本
+- 更新了依赖注入配置，注册了脚本库提供程序服务
+- 完善了分布式部署支持，各节点可共享同一脚本库表
 
 ## 目录
 1. [简介](#简介)
@@ -48,10 +54,10 @@
 ## 简介
 本文围绕 AnythingService 的核心功能进行系统化说明，涵盖其职责边界、关键方法、数据模型、调用流程与错误处理策略，并结合实际代码路径给出使用范式与最佳实践。读者可据此快速上手配置与扩展 Anything 相关能力，同时获得面向资深开发者的实现细节与优化建议。
 
-**更新** 本文档已更新以反映应用的最新变更：AnythingService 现已新增分页查询功能，通过 GetPagedAnythingCommandsAsync 方法支持大数据集的高效检索，显著提升了系统的可扩展性和性能表现。
+**最新更新** 本文档已反映应用的最新变更：AnythingService 现已集成脚本库提供程序功能，通过 IScriptLibraryProvider 接口为命令执行器（特别是 SystemCmd）提供公共脚本片段支持，显著提升了脚本执行的复用性和可维护性。新增的 DbScriptLibraryProvider 实现支持从数据库动态加载脚本，适配分布式部署场景。
 
 ## 项目结构
-AnythingService 所属模块位于远程主机模块下，围绕"配置-命令-执行器"三元组组织业务逻辑；其依赖仓储层完成持久化，使用内存缓存提升读取性能，并通过命令执行器接口解耦具体执行实现。新版本增强了环境变量管理，通过 CommandExecutionContext 为执行器提供统一的环境变量访问接口，并新增了分页查询功能以支持大规模数据集的高效处理。
+AnythingService 所属模块位于远程主机模块下，围绕"配置-命令-执行器"三元组组织业务逻辑；其依赖仓储层完成持久化，使用内存缓存提升读取性能，并通过命令执行器接口解耦具体执行实现。新版本增强了环境变量管理和脚本库提供程序集成，通过 CommandExecutionContext 为执行器提供统一的环境变量访问接口，并新增了分页查询功能以支持大规模数据集的高效处理。
 
 ```mermaid
 graph TB
@@ -67,12 +73,21 @@ CIT["CommandInfoTaskDto"]
 CR["CommandResolveDto"]
 CEC["CommandExecutionContext"]
 end
+subgraph "脚本库提供程序"
+ISLP["IScriptLibraryProvider"]
+DSLP["DbScriptLibraryProvider"]
+DB["DatabaseInfo"]
+SLT["ScriptLibraries 表"]
+end
 subgraph "基础设施"
 RB["RepositoryBase<T>"]
 IC["ICommandExecutor"]
 EA["ExecutorAttribute"]
+SC["SystemCmd"]
 DS["DataSearch"]
 PD["PagedData<T>"]
+SH["StartupHelper"]
+SRS["ServerRegistrationService"]
 end
 subgraph "公共DTO"
 OR["OperationResult"]
@@ -98,22 +113,21 @@ AS --> AJ
 AS --> CEC
 AS --> DS
 AS --> PD
-AJ --> AV
-IC --> EA
+ISLP --> DSLP
+DSLP --> DB
+DB --> SLT
+SC --> ISLP
+SH --> ISLP
+SRS --> DSLP
 ```
 
 **图表来源**
 - [AnythingService.cs:30-694](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingService.cs#L30-L694)
-- [CommandExecutionContext.cs:9-15](file://Sylas.RemoteTasks.Utils/CommandExecutor/CommandExecutionContext.cs#L9-L15)
-- [RepositoryBase.cs:10-233](file://Sylas.RemoteTasks.App/Infrastructure/RepositoryBase.cs#L10-L233)
-- [ICommandExecutor.cs:14-73](file://Sylas.RemoteTasks.Utils/CommandExecutor/ICommandExecutor.cs#L14-L73)
-- [ExecutorAttribute.cs:9-25](file://Sylas.RemoteTasks.Utils/CommandExecutor/ExecutorAttribute.cs#L9-L25)
-- [OperationResult.cs:8-52](file://Sylas.RemoteTasks.Common/Dtos/OperationResult.cs#L8-L52)
-- [RequestResult.cs:6-65](file://Sylas.RemoteTasks.Common/Dtos/RequestResult.cs#L6-L65)
-- [anything.js:1-742](file://Sylas.RemoteTasks.App/wwwroot/js/anything.js#L1-L742)
-- [AnythingInfos.cshtml:1-10](file://Sylas.RemoteTasks.App/Views/Hosts/AnythingInfos.cshtml#L1-L10)
-- [DataSearch.cs:8-49](file://Sylas.RemoteTasks.Database/SyncBase/DataSearch.cs#L8-L49)
-- [PagedData.cs:30-45](file://Sylas.RemoteTasks.Database/SyncBase/PagedData.cs#L30-L45)
+- [IScriptLibraryProvider.cs:10-18](file://Sylas.RemoteTasks.Utils/CommandExecutor/IScriptLibraryProvider.cs#L10-L18)
+- [DbScriptLibraryProvider.cs:15-47](file://Sylas.RemoteTasks.Utils/CommandExecutor/DbScriptLibraryProvider.cs#L15-L47)
+- [SystemCmd.cs:30-62](file://Sylas.RemoteTasks.Utils/CommandExecutor/SystemCmd.cs#L30-L62)
+- [StartupHelper.cs:92](file://Sylas.RemoteTasks.App/Helpers/StartupHelper.cs#L92)
+- [ServerRegistrationService.cs:183-193](file://Sylas.RemoteTasks.App/BackgroundServices/ServerRegistrationService.cs#L183-L193)
 
 **章节来源**
 - [AnythingService.cs:17-694](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingService.cs#L17-L694)
@@ -128,11 +142,14 @@ IC --> EA
 - CommandExecutionContext：新的环境变量管理组件，提供统一的环境变量访问接口，供所有命令执行器使用。
 - RepositoryBase<T>：通用仓储，封装分页查询、新增、更新、删除等基础操作。
 - ICommandExecutor/ExecutorAttribute：命令执行器抽象与依赖注入装配标记。
+- **新增** IScriptLibraryProvider：脚本库提供程序接口，为命令执行器按语言提供公共脚本片段。
+- **新增** DbScriptLibraryProvider：脚本库提供程序的默认实现，从数据库表 ScriptLibraries 读取公共脚本。
+- **更新** SystemCmd：系统命令执行器，现已集成脚本库提供程序，支持在脚本执行前自动写入公共脚本到临时目录。
 - DTOs：OperationResult、RequestResult<T> 作为统一的返回体。
 - Frontend Integration：anything.js 提供完整的前端交互界面，包括环境变量面板、命令执行、模板解析等功能。
 - DataSearch/PagedData：分页查询参数和响应数据结构，支持复杂查询条件和排序规则。
 
-**更新** 新增分页查询功能，通过 DataSearch 参数支持复杂的过滤、排序和分页操作，显著提升了大数据集的处理能力。
+**更新** 新增了脚本库提供程序集成，通过 IScriptLibraryProvider 接口为命令执行器提供公共脚本片段支持，显著提升了脚本执行的复用性和可维护性。
 
 **章节来源**
 - [AnythingService.cs:30-694](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingService.cs#L30-L694)
@@ -143,7 +160,10 @@ IC --> EA
 - [AnythingCommand.cs:7-35](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingCommand.cs#L7-L35)
 - [RepositoryBase.cs:10-233](file://Sylas.RemoteTasks.App/Infrastructure/RepositoryBase.cs#L10-L233)
 - [ICommandExecutor.cs:14-73](file://Sylas.RemoteTasks.Utils/CommandExecutor/ICommandExecutor.cs#L14-L73)
-- [ExecutorAttribute.cs:9-25](file://Sylas.RemoteTasks.Utils/CommandExecutor/ExecutorAttribute.cs#L9-L25)
+- [ExecutorAttribute.cs:9-25](file://Sylas.RemoteTasks.Utils/CommandExecutor/ExecutorAttribute.cs#L9-25)
+- [IScriptLibraryProvider.cs:10-18](file://Sylas.RemoteTasks.Utils/CommandExecutor/IScriptLibraryProvider.cs#L10-L18)
+- [DbScriptLibraryProvider.cs:15-47](file://Sylas.RemoteTasks.Utils/CommandExecutor/DbScriptLibraryProvider.cs#L15-L47)
+- [SystemCmd.cs:30-62](file://Sylas.RemoteTasks.Utils/CommandExecutor/SystemCmd.cs#L30-L62)
 - [OperationResult.cs:8-52](file://Sylas.RemoteTasks.Common/Dtos/OperationResult.cs#L8-L52)
 - [RequestResult.cs:6-65](file://Sylas.RemoteTasks.Common/Dtos/RequestResult.cs#L6-L65)
 - [anything.js:1-742](file://Sylas.RemoteTasks.App/wwwroot/js/anything.js#L1-L742)
@@ -151,11 +171,12 @@ IC --> EA
 - [PagedData.cs:30-45](file://Sylas.RemoteTasks.Database/SyncBase/PagedData.cs#L30-L45)
 
 ## 架构总览
-AnythingService 采用"配置-命令-执行器"的三层结构，现已增强环境变量管理与分页查询功能：
+AnythingService 采用"配置-命令-执行器"的三层结构，现已增强环境变量管理与脚本库提供程序集成：
 - 配置层：AnythingSetting/Details 描述操作对象与执行器选择。
 - 命令层：AnythingCommand 定义可执行命令与模板化内容，支持分页查询。
 - 执行层：ICommandExecutor 抽象具体执行器，通过反射或 DI 创建实例，现在可通过 CommandExecutionContext 访问环境变量。
 - 环境管理层：CommandExecutionContext 提供统一的环境变量访问接口。
+- **新增** 脚本库管理层：IScriptLibraryProvider 接口和 DbScriptLibraryProvider 实现，为脚本执行提供公共片段支持。
 - 分页查询层：DataSearch/PagedData 支持复杂的过滤、排序和分页操作。
 - 前端层：anything.js 提供卡片式界面，直接嵌入环境变量管理面板。
 
@@ -206,6 +227,20 @@ class AnythingCommand {
 class CommandExecutionContext {
 +Dictionary~string,object~ EnvironmentVariables
 }
+class IScriptLibraryProvider {
+<<interface>>
++GetScriptsAsync(lang) Dictionary~string,string~
+}
+class DbScriptLibraryProvider {
++TableName string
++GetScriptsAsync(lang) Dictionary~string,string~
+}
+class SystemCmd {
++ScriptLibraryProvider IScriptLibraryProvider
++ExecuteAsync(command) IAsyncEnumerable~CommandResult~
++ExecuteSingleCommandAsync(cmdTxt, provider)
++WriteScriptLibraryAsync(tempDir, lang, provider)
+}
 class DataSearch {
 +int PageIndex
 +int PageSize
@@ -242,6 +277,8 @@ AnythingService --> CommandExecutionContext : "设置环境变量"
 AnythingService --> ICommandExecutor : "创建/调用"
 AnythingService --> DataSearch : "分页查询参数"
 AnythingService --> PagedData_T_ : "分页响应"
+SystemCmd --> IScriptLibraryProvider : "使用"
+DbScriptLibraryProvider ..|> IScriptLibraryProvider : "实现"
 FrontendIntegration --> AnythingInfo : "渲染"
 FrontendIntegration --> anything.js : "交互"
 ```
@@ -249,6 +286,9 @@ FrontendIntegration --> anything.js : "交互"
 **图表来源**
 - [AnythingService.cs:30-694](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingService.cs#L30-L694)
 - [CommandExecutionContext.cs:9-15](file://Sylas.RemoteTasks.Utils/CommandExecutor/CommandExecutionContext.cs#L9-L15)
+- [IScriptLibraryProvider.cs:10-18](file://Sylas.RemoteTasks.Utils/CommandExecutor/IScriptLibraryProvider.cs#L10-L18)
+- [DbScriptLibraryProvider.cs:15-47](file://Sylas.RemoteTasks.Utils/CommandExecutor/DbScriptLibraryProvider.cs#L15-L47)
+- [SystemCmd.cs:30-62](file://Sylas.RemoteTasks.Utils/CommandExecutor/SystemCmd.cs#L30-L62)
 - [AnythingSetting.cs:8-34](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingSetting.cs#L8-L34)
 - [AnythingSettingDetails.cs:3-11](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingSettingDetails.cs#L3-L11)
 - [AnythingInfo.cs:9-38](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingInfo.cs#L9-L38)
@@ -291,6 +331,50 @@ FrontendIntegration --> anything.js : "交互"
 
 **章节来源**
 - [AnythingService.cs:45-694](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingService.cs#L45-L694)
+
+### 脚本库提供程序集成详解
+**新增** 脚本库提供程序集成是 AnythingService 的重要增强功能，通过以下机制实现：
+
+- **IScriptLibraryProvider 接口**
+  - GetScriptsAsync(lang)：获取指定语言的公共脚本片段
+  - 返回 Dictionary<string, string>，键为相对路径，值为脚本内容
+  
+- **DbScriptLibraryProvider 实现**
+  - 从数据库表 ScriptLibraries 读取公共脚本
+  - 支持分布式部署，各节点读同一张表
+  - 字段包括 Lang、FilePath、Content、Description 等
+
+- **SystemCmd 集成**
+  - 构造函数支持可选的 IScriptLibraryProvider 参数
+  - ExecuteSingleCommandAsync 和 ExecuteByInterpreterAsync 方法支持脚本库提供者
+  - WriteScriptLibraryAsync 静态方法将脚本片段写入临时目录
+
+```mermaid
+flowchart TD
+Start(["开始执行脚本"]) --> CheckShebang{"检查 shebang<br/>#! interpreter"}
+CheckShebang --> |有| MapLang["映射语言分区<br/>python/powershell/bash"]
+CheckShebang --> |无| DirectExec["直接执行脚本"]
+MapLang --> CheckProvider{"检查脚本库提供者"}
+CheckProvider --> |有| GetScripts["provider.GetScriptsAsync(lang)"]
+CheckProvider --> |无| SkipLib["跳过脚本库"]
+GetScripts --> WriteTemp["WriteScriptLibraryAsync<br/>写入临时目录"]
+WriteTemp --> CreateProcess["创建进程执行脚本"]
+SkipLib --> CreateProcess
+DirectExec --> End(["结束"])
+CreateProcess --> End
+```
+
+**图表来源**
+- [SystemCmd.cs:226-312](file://Sylas.RemoteTasks.Utils/CommandExecutor/SystemCmd.cs#L226-L312)
+- [SystemCmd.cs:441-478](file://Sylas.RemoteTasks.Utils/CommandExecutor/SystemCmd.cs#L441-L478)
+- [DbScriptLibraryProvider.cs:29-47](file://Sylas.RemoteTasks.Utils/CommandExecutor/DbScriptLibraryProvider.cs#L29-L47)
+
+**章节来源**
+- [IScriptLibraryProvider.cs:10-18](file://Sylas.RemoteTasks.Utils/CommandExecutor/IScriptLibraryProvider.cs#L10-L18)
+- [DbScriptLibraryProvider.cs:15-47](file://Sylas.RemoteTasks.Utils/CommandExecutor/DbScriptLibraryProvider.cs#L15-L47)
+- [SystemCmd.cs:30-62](file://Sylas.RemoteTasks.Utils/CommandExecutor/SystemCmd.cs#L30-L62)
+- [SystemCmd.cs:226-312](file://Sylas.RemoteTasks.Utils/CommandExecutor/SystemCmd.cs#L226-L312)
+- [SystemCmd.cs:441-478](file://Sylas.RemoteTasks.Utils/CommandExecutor/SystemCmd.cs#L441-L478)
 
 ### 分页查询功能详解
 **新增** AnythingService 现已提供完整的分页查询功能，通过 GetPagedAnythingCommandsAsync 方法支持大数据集的高效处理：
@@ -368,6 +452,8 @@ ExecuteCmd --> End(["结束"])
 - AnythingInfo：运行时对象，包含标题、属性字典、命令集合与命令执行器名称。现包含直接嵌入的环境变量管理功能。
 - AnythingCommand：命令实体，包含命令内容、执行状态、域名等属性，现支持分页查询。
 - CommandExecutionContext：新的环境变量管理组件，提供统一的环境变量访问接口。
+- **新增** IScriptLibraryProvider：脚本库提供程序接口，定义获取公共脚本的方法。
+- **新增** DbScriptLibraryProvider：脚本库提供程序的默认实现，从数据库读取脚本。
 - DataSearch/PagedData：分页查询参数和响应数据结构，支持复杂查询条件和排序规则。
 - 实体基类：EntityBase<int> 提供 Id、CreateTime、UpdateTime 等通用字段。
 
@@ -402,6 +488,23 @@ datetime UpdateTime
 COMMAND_EXECUTION_CONTEXT {
 dict EnvironmentVariables
 }
+SCRIPT_LIBRARY_PROVIDER {
+<<interface>>
+GetScriptsAsync(lang)
+}
+DB_SCRIPT_LIBRARY_PROVIDER {
+TableName string
+GetScriptsAsync(lang)
+}
+SCRIPT_LIBRARIES_TABLE {
+int Id PK
+varchar Lang
+varchar FilePath
+text Content
+varchar Description
+datetime CreateTime
+datetime UpdateTime
+}
 DATA_SEARCH {
 int PageIndex
 int PageSize
@@ -416,6 +519,8 @@ IEnumerable~T~ Data
 ANYTHING_SETTING ||--o{ ANYTHING_COMMAND : "拥有"
 ANYTHING_SETTING }o--|| ANYTHING_EXECUTOR : "使用"
 COMMAND_EXECUTION_CONTEXT ||--|| ANYTHING_INFO : "被使用"
+DB_SCRIPT_LIBRARY_PROVIDER ..|> SCRIPT_LIBRARY_PROVIDER : "实现"
+DB_SCRIPT_LIBRARY_PROVIDER ||--o{ SCRIPT_LIBRARIES_TABLE : "读取"
 DATA_SEARCH ||--|| PAGED_DATA_T : "查询参数"
 ```
 
@@ -425,6 +530,8 @@ DATA_SEARCH ||--|| PAGED_DATA_T : "查询参数"
 - [AnythingInfo.cs:9-38](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingInfo.cs#L9-L38)
 - [AnythingCommand.cs:7-35](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingCommand.cs#L7-L35)
 - [CommandExecutionContext.cs:9-15](file://Sylas.RemoteTasks.Utils/CommandExecutor/CommandExecutionContext.cs#L9-L15)
+- [IScriptLibraryProvider.cs:10-18](file://Sylas.RemoteTasks.Utils/CommandExecutor/IScriptLibraryProvider.cs#L10-L18)
+- [DbScriptLibraryProvider.cs:15-47](file://Sylas.RemoteTasks.Utils/CommandExecutor/DbScriptLibraryProvider.cs#L15-L47)
 - [DataSearch.cs:8-49](file://Sylas.RemoteTasks.Database/SyncBase/DataSearch.cs#L8-L49)
 - [PagedData.cs:30-45](file://Sylas.RemoteTasks.Database/SyncBase/PagedData.cs#L30-L45)
 - [EntityBase.cs:9-32](file://Sylas.RemoteTasks.Database/EntityBase.cs#L9-L32)
@@ -435,12 +542,14 @@ DATA_SEARCH ||--|| PAGED_DATA_T : "查询参数"
 - [AnythingInfo.cs:9-38](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingInfo.cs#L9-L38)
 - [AnythingCommand.cs:7-35](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingCommand.cs#L7-L35)
 - [CommandExecutionContext.cs:9-15](file://Sylas.RemoteTasks.Utils/CommandExecutor/CommandExecutionContext.cs#L9-L15)
+- [IScriptLibraryProvider.cs:10-18](file://Sylas.RemoteTasks.Utils/CommandExecutor/IScriptLibraryProvider.cs#L10-L18)
+- [DbScriptLibraryProvider.cs:15-47](file://Sylas.RemoteTasks.Utils/CommandExecutor/DbScriptLibraryProvider.cs#L15-L47)
 - [DataSearch.cs:8-49](file://Sylas.RemoteTasks.Database/SyncBase/DataSearch.cs#L8-L49)
 - [PagedData.cs:30-45](file://Sylas.RemoteTasks.Database/SyncBase/PagedData.cs#L30-L45)
 - [EntityBase.cs:9-32](file://Sylas.RemoteTasks.Database/EntityBase.cs#L9-L32)
 
 ### 执行流程与序列图
-**更新** 以下序列图展示了 ExecuteAsync 的关键调用链，新增了环境变量传递步骤：
+**更新** 以下序列图展示了 ExecuteAsync 的关键调用链，新增了环境变量传递和脚本库集成步骤：
 
 ```mermaid
 sequenceDiagram
@@ -450,6 +559,7 @@ participant Service as "AnythingService"
 participant Repo as "RepositoryBase"
 participant Exec as "ICommandExecutor"
 participant Ctx as "CommandExecutionContext"
+participant Provider as "IScriptLibraryProvider"
 Client->>Controller : "POST /Hosts/ExecuteCommand"
 Controller->>Service : "ExecuteAsync(dto)"
 Service->>Repo : "GetByIdAsync(CommandId)"
@@ -463,6 +573,11 @@ Service->>Service : "ResolveCommandSettingAsync"
 Service->>Ctx : "设置 EnvironmentVariables"
 Service->>Exec : "Create(executorName, args)"
 Exec-->>Service : "Func<object[], IAsyncEnumerable<CommandResult>>"
+alt "SystemCmd 且提供脚本库"
+Exec->>Provider : "GetScriptsAsync(lang)"
+Provider-->>Exec : "Dictionary<string,string>"
+Exec->>Exec : "WriteScriptLibraryAsync(tempDir, lang, provider)"
+end
 Service->>Exec : "ExecuteAsync(resolvedCommand)"
 Exec-->>Service : "IAsyncEnumerable<CommandResult>"
 Service-->>Client : "SSE 流式返回结果"
@@ -473,6 +588,8 @@ end
 - [HostsController.cs:85-97](file://Sylas.RemoteTasks.App/Controllers/HostsController.cs#L85-L97)
 - [AnythingService.cs:306-407](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingService.cs#L306-L407)
 - [CommandExecutionContext.cs:14-14](file://Sylas.RemoteTasks.Utils/CommandExecutor/CommandExecutionContext.cs#L14-L14)
+- [SystemCmd.cs:226-312](file://Sylas.RemoteTasks.Utils/CommandExecutor/SystemCmd.cs#L226-L312)
+- [SystemCmd.cs:441-478](file://Sylas.RemoteTasks.Utils/CommandExecutor/SystemCmd.cs#L441-L478)
 - [CommandInfoInDto.cs:3-14](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/CommandInfoInDto.cs#L3-L14)
 - [CommandInfoTaskDto.cs:3-18](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/CommandInfoTaskDto.cs#L3-L18)
 - [ICommandExecutor.cs:31-73](file://Sylas.RemoteTasks.Utils/CommandExecutor/ICommandExecutor.cs#L31-L73)
@@ -481,6 +598,7 @@ end
 - [HostsController.cs:85-97](file://Sylas.RemoteTasks.App/Controllers/HostsController.cs#L85-L97)
 - [AnythingService.cs:306-407](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingService.cs#L306-L407)
 - [CommandExecutionContext.cs:9-15](file://Sylas.RemoteTasks.Utils/CommandExecutor/CommandExecutionContext.cs#L9-L15)
+- [SystemCmd.cs:226-312](file://Sylas.RemoteTasks.Utils/CommandExecutor/SystemCmd.cs#L226-L312)
 
 ### 命令解析与模板处理
 - ResolveCommandSettingAsync：根据 AnythingSetting 的 Properties 解析命令模板，返回解析后的命令文本。
@@ -598,8 +716,11 @@ UpdateAPI --> CardRefresh["刷新卡片内容"]
 - GetAllProperties
   - 参数：AnythingSetting
   - 返回：Dictionary<string, object>
+- **新增** IScriptLibraryProvider.GetScriptsAsync
+  - 参数：string lang（语言分区，如 python/powershell/bash）
+  - 返回：Dictionary<string, string>（相对路径 → 脚本内容）
 
-**更新** 新增 GetAllProperties 方法，用于环境变量的完整解析和管理。
+**更新** 新增 GetAllProperties 方法和 IScriptLibraryProvider 接口，用于环境变量的完整解析和管理以及脚本库提供程序功能。
 
 **章节来源**
 - [AnythingService.cs:45-694](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingService.cs#L45-L694)
@@ -607,6 +728,7 @@ UpdateAPI --> CardRefresh["刷新卡片内容"]
 - [CommandResolveDto.cs:3-14](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/CommandResolveDto.cs#L3-L14)
 - [OperationResult.cs:8-52](file://Sylas.RemoteTasks.Common/Dtos/OperationResult.cs#L8-L52)
 - [RequestResult.cs:6-65](file://Sylas.RemoteTasks.Common/Dtos/RequestResult.cs#L6-L65)
+- [IScriptLibraryProvider.cs:10-18](file://Sylas.RemoteTasks.Utils/CommandExecutor/IScriptLibraryProvider.cs#L10-L18)
 
 ### 与控制器的集成
 - HostsController.ExecuteCommandAsync：以 Server-Sent Events 形式推送命令执行结果，支持并发匹配 CommandExecuteNo。
@@ -627,6 +749,8 @@ UpdateAPI --> CardRefresh["刷新卡片内容"]
 - 控制器通过 ExecuteAsync 暴露流式执行接口，便于前端实时展示执行进度与日志。
 - 前端通过 anything.js 提供完整的用户界面，包括环境变量管理、命令执行、模板解析等功能。
 - CommandExecutionContext 作为新的依赖注入组件，为所有命令执行器提供标准化的环境变量访问接口。
+- **新增** IScriptLibraryProvider 作为脚本库提供程序接口，支持多种实现方式。
+- **新增** DbScriptLibraryProvider 作为默认实现，从数据库读取脚本库。
 - **新增** DataSearch/PagedData 作为分页查询的核心依赖，支持复杂查询条件和排序规则。
 
 ```mermaid
@@ -640,6 +764,9 @@ Service --> DataSearch["DataSearch"]
 Service --> PagedData["PagedData<T>"]
 Ctx --> EnvVars["EnvironmentVariables"]
 Exec --> Attr["ExecutorAttribute"]
+Exec --> Provider["IScriptLibraryProvider"]
+Provider --> Impl["DbScriptLibraryProvider"]
+Impl --> DB["DatabaseInfo"]
 Frontend["anything.js"] --> Controller
 Frontend --> Service
 Frontend --> AnythingInfo["AnythingInfo"]
@@ -652,6 +779,8 @@ Frontend --> AnythingInfo["AnythingInfo"]
 - [RepositoryBase.cs:10-233](file://Sylas.RemoteTasks.App/Infrastructure/RepositoryBase.cs#L10-L233)
 - [ICommandExecutor.cs:31-73](file://Sylas.RemoteTasks.Utils/CommandExecutor/ICommandExecutor.cs#L31-L73)
 - [ExecutorAttribute.cs:18-23](file://Sylas.RemoteTasks.Utils/CommandExecutor/ExecutorAttribute.cs#L18-L23)
+- [IScriptLibraryProvider.cs:10-18](file://Sylas.RemoteTasks.Utils/CommandExecutor/IScriptLibraryProvider.cs#L10-L18)
+- [DbScriptLibraryProvider.cs:15-47](file://Sylas.RemoteTasks.Utils/CommandExecutor/DbScriptLibraryProvider.cs#L15-L47)
 - [anything.js:1-742](file://Sylas.RemoteTasks.App/wwwroot/js/anything.js#L1-L742)
 - [DataSearch.cs:8-49](file://Sylas.RemoteTasks.Database/SyncBase/DataSearch.cs#L8-L49)
 - [PagedData.cs:30-45](file://Sylas.RemoteTasks.Database/SyncBase/PagedData.cs#L30-L45)
@@ -663,6 +792,8 @@ Frontend --> AnythingInfo["AnythingInfo"]
 - [RepositoryBase.cs:10-233](file://Sylas.RemoteTasks.App/Infrastructure/RepositoryBase.cs#L10-L233)
 - [ICommandExecutor.cs:31-73](file://Sylas.RemoteTasks.Utils/CommandExecutor/ICommandExecutor.cs#L31-L73)
 - [ExecutorAttribute.cs:18-23](file://Sylas.RemoteTasks.Utils/CommandExecutor/ExecutorAttribute.cs#L18-L23)
+- [IScriptLibraryProvider.cs:10-18](file://Sylas.RemoteTasks.Utils/CommandExecutor/IScriptLibraryProvider.cs#L10-L18)
+- [DbScriptLibraryProvider.cs:15-47](file://Sylas.RemoteTasks.Utils/CommandExecutor/DbScriptLibraryProvider.cs#L15-L47)
 - [anything.js:1-742](file://Sylas.RemoteTasks.App/wwwroot/js/anything.js#L1-L742)
 - [DataSearch.cs:8-49](file://Sylas.RemoteTasks.Database/SyncBase/DataSearch.cs#L8-L49)
 - [PagedData.cs:30-45](file://Sylas.RemoteTasks.Database/SyncBase/PagedData.cs#L30-L45)
@@ -673,11 +804,13 @@ Frontend --> AnythingInfo["AnythingInfo"]
   - 单个 AnythingInfo 缓存（滑动过期），按设置ID索引。
   - 执行器查询缓存（短时过期），降低频繁解析成本。
   - **新增**：CommandExecutionContext 环境变量缓存，避免重复解析。
+  - **新增**：脚本库提供程序缓存，减少数据库查询频率。
 - 异步与流式
   - ExecuteAsync 返回 IAsyncEnumerable，边执行边输出，降低等待时延。
 - 数据访问
   - RepositoryBase<T> 支持分页查询与局部更新，减少不必要的网络与解析开销。
   - **新增**：GetPagedAnythingCommandsAsync 支持复杂过滤和排序，避免全表扫描。
+  - **新增**：DbScriptLibraryProvider 使用分页查询，限制单次查询数量。
 - 前端优化
   - 卡片状态缓存，避免重复渲染。
   - 环境变量面板的懒加载，仅在需要时显示。
@@ -688,8 +821,12 @@ Frontend --> AnythingInfo["AnythingInfo"]
 - **新增**：环境变量解析优化
   - 模板表达式缓存，避免重复解析相同变量。
   - 执行器参数预解析，减少运行时计算开销。
+- **新增**：脚本库优化
+  - 脚本片段按需加载，仅在执行对应语言脚本时获取。
+  - 临时目录自动清理，保留最近100个执行目录。
+  - 路径安全校验，防止路径穿越攻击。
 
-**更新** 新增了 CommandExecutionContext 和环境变量相关的性能优化措施，以及分页查询功能的性能优化。
+**更新** 新增了 CommandExecutionContext、脚本库提供程序和分页查询相关的性能优化措施。
 
 **章节来源**
 - [AnythingService.cs:267-289](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingService.cs#L267-L289)
@@ -697,6 +834,8 @@ Frontend --> AnythingInfo["AnythingInfo"]
 - [RepositoryBase.cs:20-181](file://Sylas.RemoteTasks.App/Infrastructure/RepositoryBase.cs#L20-L181)
 - [anything.js:160-234](file://Sylas.RemoteTasks.App/wwwroot/js/anything.js#L160-L234)
 - [DataSearch.cs:24-30](file://Sylas.RemoteTasks.Database/SyncBase/DataSearch.cs#L24-L30)
+- [SystemCmd.cs:413-434](file://Sylas.RemoteTasks.Utils/CommandExecutor/SystemCmd.cs#L413-L434)
+- [DbScriptLibraryProvider.cs:37-39](file://Sylas.RemoteTasks.Utils/CommandExecutor/DbScriptLibraryProvider.cs#L37-L39)
 
 ## 故障排查指南
 - 未知命令
@@ -739,8 +878,20 @@ Frontend --> AnythingInfo["AnythingInfo"]
   - 现象：PagedData.Count 与实际数据不符。
   - 排查：确认数据库连接字符串，检查事务隔离级别；验证分页算法正确性。
   - 参考：[PagedData.cs:30-45](file://Sylas.RemoteTasks.Database/SyncBase/PagedData.cs#L30-L45)
+- **新增**：脚本库提供程序异常
+  - 现象：脚本执行时无法找到公共脚本片段。
+  - 排查：确认 ScriptLibraries 表是否存在；检查脚本片段的路径和内容；验证语言分区映射是否正确。
+  - 参考：[DbScriptLibraryProvider.cs:29-47](file://Sylas.RemoteTasks.Utils/CommandExecutor/DbScriptLibraryProvider.cs#L29-L47)
+- **新增**：脚本片段写入失败
+  - 现象：脚本执行时报找不到公共脚本文件。
+  - 排查：检查临时目录权限；确认路径安全校验逻辑；验证脚本文件编码格式。
+  - 参考：[SystemCmd.cs:441-478](file://Sylas.RemoteTasks.Utils/CommandExecutor/SystemCmd.cs#L441-L478)
+- **新增**：依赖注入配置问题
+  - 现象：SystemCmd 无法获取 IScriptLibraryProvider 实例。
+  - 排查：确认 StartupHelper.AddExecutor 方法是否调用；检查依赖注入容器配置。
+  - 参考：[StartupHelper.cs:92](file://Sylas.RemoteTasks.App/Helpers/StartupHelper.cs#L92)
 
-**更新** 新增了环境变量相关的故障排查指南和分页查询功能的故障排查指导。
+**更新** 新增了环境变量、脚本库提供程序和分页查询相关的故障排查指南。
 
 **章节来源**
 - [AnythingService.cs:308-691](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingService.cs#L308-L691)
@@ -749,13 +900,18 @@ Frontend --> AnythingInfo["AnythingInfo"]
 - [TmplHelper2.cs:43-66](file://Sylas.RemoteTasks.Utils/Template/TmplHelper2.cs#L43-L66)
 - [DataSearch.cs:8-49](file://Sylas.RemoteTasks.Database/SyncBase/DataSearch.cs#L8-L49)
 - [PagedData.cs:30-45](file://Sylas.RemoteTasks.Database/SyncBase/PagedData.cs#L30-L45)
+- [DbScriptLibraryProvider.cs:29-47](file://Sylas.RemoteTasks.Utils/CommandExecutor/DbScriptLibraryProvider.cs#L29-L47)
+- [SystemCmd.cs:441-478](file://Sylas.RemoteTasks.Utils/CommandExecutor/SystemCmd.cs#L441-L478)
+- [StartupHelper.cs:92](file://Sylas.RemoteTasks.App/Helpers/StartupHelper.cs#L92)
 
 ## 结论
-AnythingService 通过清晰的配置-命令-执行器分层设计，结合内存缓存与异步流式执行，提供了灵活且高性能的远程命令执行能力。**最新更新**通过引入 CommandExecutionContext 和增强环境变量管理，进一步提升了系统的可扩展性和易用性。**新增的分页查询功能**显著增强了系统处理大规模数据集的能力，通过 DataSearch 参数支持复杂的过滤、排序和分页操作，有效避免了内存溢出和性能问题。
+AnythingService 通过清晰的配置-命令-执行器分层设计，结合内存缓存与异步流式执行，提供了灵活且高性能的远程命令执行能力。**最新更新**通过引入 CommandExecutionContext、IScriptLibraryProvider 和增强环境变量管理，进一步提升了系统的可扩展性和易用性。**新增的分页查询功能**显著增强了系统处理大规模数据集的能力，通过 DataSearch 参数支持复杂的过滤、排序和分页操作，有效避免了内存溢出和性能问题。
+
+**新增的脚本库提供程序集成**为系统带来了重要的增强功能，通过 IScriptLibraryProvider 接口为命令执行器（特别是 SystemCmd）提供公共脚本片段支持。DbScriptLibraryProvider 的默认实现支持从数据库动态加载脚本，适配分布式部署场景，各节点可以共享同一脚本库表，修改后下次执行即生效。
 
 前端交互方式的重大改进使得环境变量管理更加直观和便捷，用户可以直接在卡片中编辑和查看环境变量，提升了整体的用户体验。对于初学者，建议从配置与命令模板入手，逐步掌握执行器参数与跨节点调度；对于资深开发者，可关注缓存策略、执行器扩展点与异常恢复机制，以及前端交互优化。
 
-**新增的分页查询功能**为系统提供了更强大的数据处理能力，建议充分利用 DataSearch 的过滤和排序功能来优化查询性能，特别是在处理大量命令数据时。**新的前端交互方式和环境变量管理**显著提升了系统的易用性和功能性，为复杂的企业级应用场景提供了坚实的技术基础。
+**新增的分页查询功能和脚本库提供程序集成**为系统提供了更强大的数据处理能力和脚本复用能力，建议充分利用 DataSearch 的过滤和排序功能来优化查询性能，特别是在处理大量命令数据时。**新的前端交互方式和环境变量管理**显著提升了系统的易用性和功能性，为复杂的企业级应用场景提供了坚实的技术基础。
 
 ## 附录
 - 常用调用路径参考
@@ -772,5 +928,10 @@ AnythingService 通过清晰的配置-命令-执行器分层设计，结合内�
   - 获取组合信息：[AnythingSettingAndInfoAsync:42-55](file://Sylas.RemoteTasks.App/Controllers/HostsController.cs#L42-L55)
   - **新增**：获取分页命令：[GetPagedAnythingCommandsAsync:175-180](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingService.cs#L175-L180)
   - **新增**：获取环境变量：[GetAllProperties:651-669](file://Sylas.RemoteTasks.App/RemoteHostModule/Anything/AnythingService.cs#L651-L669)
+  - **新增**：脚本库提供程序接口：[IScriptLibraryProvider:10-18](file://Sylas.RemoteTasks.Utils/CommandExecutor/IScriptLibraryProvider.cs#L10-L18)
+  - **新增**：脚本库默认实现：[DbScriptLibraryProvider:15-47](file://Sylas.RemoteTasks.Utils/CommandExecutor/DbScriptLibraryProvider.cs#L15-L47)
+  - **新增**：SystemCmd 脚本库集成：[SystemCmd:30-62](file://Sylas.RemoteTasks.Utils/CommandExecutor/SystemCmd.cs#L30-L62)
+  - **新增**：依赖注入配置：[StartupHelper.AddExecutor:92](file://Sylas.RemoteTasks.App/Helpers/StartupHelper.cs#L92)
+  - **新增**：脚本库表初始化：[ServerRegistrationService:183-193](file://Sylas.RemoteTasks.App/BackgroundServices/ServerRegistrationService.cs#L183-L193)
 
-**更新** 新增了分页查询和环境变量管理相关的 API 调用路径。
+**更新** 新增了分页查询、环境变量管理和脚本库提供程序相关的 API 调用路径。

@@ -378,13 +378,14 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
             while (!p.StandardOutput.EndOfStream)
             {
                 string line = await p.StandardOutput.ReadLineAsync();
-                yield return line;
+                yield return RemoveAnsiEscapeSequences(line);
             }
             string error = await errorTask;
             // netstandard2.1没有WaitForExitAsync; 此时输出流已读完, 进程基本已结束, 同步等待不会阻塞
             p.WaitForExit();
             if (!string.IsNullOrWhiteSpace(error))
             {
+                error = RemoveAnsiEscapeSequences(error);
                 // 很多程序(如docker/git/pip)会把正常的进度信息写到stderr, 不能仅凭stderr有内容就判定失败, 以退出码为准
                 if (p.ExitCode == 0)
                 {
@@ -402,6 +403,22 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
             }
         }
         /// <summary>
+        /// 匹配ANSI终端转义序列(如颜色码\u001b[0m), 输出被重定向捕获时终端颜色无法渲染, 需要剥离
+        /// </summary>
+        static readonly Regex AnsiEscapeRegex = new(@"\x1b\[[0-9;?]*[ -/]*[@-~]", RegexOptions.Compiled);
+
+        /// <summary>
+        /// 移除文本中的ANSI转义序列(颜色/格式控制码)
+        /// </summary>
+        static string RemoveAnsiEscapeSequences(string text)
+        {
+            if (string.IsNullOrEmpty(text) || text.IndexOf('\x1b') < 0)
+            {
+                return text;
+            }
+            return AnsiEscapeRegex.Replace(text, string.Empty);
+        }
+        /// <summary>
         /// 临时目录总目录名: 发布目录下所有 TEMP_SYSTEMCMD_时间戳 执行目录都放在此目录下
         /// </summary>
         public const string TempRootDirName = "TEMP_SYSTEMCMD";
@@ -414,7 +431,7 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
         {
             var rootDir = Directory.CreateDirectory(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, TempRootDirName));
 
-            // 保留最近的10个临时文件夹，其他删除
+            // 保留最近的100个临时文件夹，其他删除
             var tempDirs = Directory.GetDirectories(rootDir.FullName, "TEMP_SYSTEMCMD_*")
                                     .OrderByDescending(d => d)
                                     .Skip(100);
