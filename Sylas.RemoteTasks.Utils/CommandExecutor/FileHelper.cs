@@ -573,6 +573,131 @@ public class FileHelper(AiService aiService, CommandExecutionContext executionCo
     /// <exception cref="Exception"></exception>
     public async IAsyncEnumerable<CommandResult> ExecuteAsync(string commandContent)
     {
+        Operation selectedOp = ResolveOperation(commandContent);
+        await foreach (var stepResult in ExecuteOperationCoreAsync(selectedOp, dryRun: false))
+        {
+            yield return new CommandResult(true, stepResult.Log);
+        }
+    }
+
+    /// <summary>
+    /// 预览执行结果: 不修改任何文件, 只计算每个步骤改动前后的差异
+    /// 与<see cref="ExecuteAsync"/>共用配置解析(ResolveOperation)和改动计算(ComputeModification)逻辑, 仅“是否写入磁盘”不同, 以保证预览结果与真实执行一致
+    /// </summary>
+    /// <param name="commandContent">文件写入操作指令(已经过外部模板解析)</param>
+    /// <returns>每个操作步骤对每个目标文件的改动预览</returns>
+    public async Task<List<FileModificationPreview>> PreviewAsync(string commandContent)
+    {
+        Operation selectedOp = ResolveOperation(commandContent);
+        List<FileModificationPreview> previews = [];
+        await foreach (var stepResult in ExecuteOperationCoreAsync(selectedOp, dryRun: true))
+        {
+            previews.Add(new FileModificationPreview
+            {
+                File = stepResult.File,
+                NodeTitle = stepResult.NodeTitle,
+                OperationType = stepResult.OperationType.ToString(),
+                Changed = stepResult.Changed,
+                IsNewFile = stepResult.IsNewFile,
+                Log = stepResult.Log,
+                Hunks = stepResult.Changed ? DiffHelper.BuildHunks(stepResult.OriginContent, stepResult.NewContent) : []
+            });
+        }
+        return previews;
+    }
+
+    /// <summary>
+    /// 预览LinePattern正则在目标文件中匹配到的所有内容: 不修改任何文件, 用于验证正则是否有效
+    /// 匹配方式与<see cref="ComputeModification"/>中对应操作类型完全一致, 同一个文件的后续步骤也会基于前面步骤的结果匹配(与真实执行一致)
+    /// </summary>
+    /// <param name="commandContent">文件写入操作指令(已经过外部模板解析)</param>
+    /// <returns>每个操作步骤在每个目标文件中的匹配情况</returns>
+    public async Task<List<LinePatternMatchPreview>> PreviewLinePatternMatchesAsync(string commandContent)
+    {
+        Operation selectedOp = ResolveOperation(commandContent);
+        await ResolveOperationVariablesAsync(selectedOp);
+
+        List<LinePatternMatchPreview> previews = [];
+        var files = GetWorkingDirFiles(selectedOp);
+        // 同一个文件的多个步骤: 后面的步骤需要在前面步骤的结果上匹配, 才能与真实执行一致
+        Dictionary<string, string> simulatedContents = [];
+        foreach (var opNode in selectedOp.Nodes)
+        {
+            var targetFiles = ResolveTargetFiles(selectedOp, opNode, files, dryRun: true);
+            foreach (var targetFile in targetFiles)
+            {
+                ResolveFileNamespace(targetFile, files);
+                opNode.NodeTitle = ResolveGlobalVariables(opNode.NodeTitle);
+                foreach (var step in opNode.Steps)
+                {
+                    step.Value = ResolveGlobalVariables(step.Value);
+
+                    string content;
+                    if (simulatedContents.TryGetValue(targetFile, out var simulatedContent))
+                    {
+                        content = simulatedContent;
+                    }
+                    else
+                    {
+                        content = File.Exists(targetFile) ? await File.ReadAllTextAsync(targetFile) : string.Empty;
+                    }
+
+                    LinePatternMatchPreview preview = new()
+                    {
+                        File = targetFile,
+                        NodeTitle = opNode.NodeTitle,
+                        OperationType = step.OperationType.ToString(),
+                        LinePattern = step.LinePattern
+                    };
+                    try
+                    {
+                        var (matchScope, matches, note) = CollectLinePatternMatches(content, step.LinePattern, step.OperationType);
+                        preview.MatchScope = matchScope;
+                        preview.Matches = matches;
+                        preview.Note = note;
+                        if (matchScope != LinePatternMatchScopes.None && matches.Count == 0)
+                        {
+                            preview.Error = $"没有匹配到任何内容, 真实执行会失败或者不产生改动: {step.LinePattern}";
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        // 无效的正则表达式(调试LinePattern时很常见), 不能中断整个预览
+                        preview.MatchScope = LinePatternMatchScopes.None;
+                        preview.Error = $"正则表达式无效: {ex.Message}";
+                    }
+                    previews.Add(preview);
+
+                    try
+                    {
+                        // 推进模拟内容: 与真实执行一样, 让后续步骤在本步骤的结果上匹配
+                        var (newContent, changed, _) = ComputeModification(targetFile, opNode.NodeTitle, step.Value, step.LinePattern, step.OperationType, content);
+                        if (changed)
+                        {
+                            simulatedContents[targetFile] = newContent;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        // 本步骤真实执行时会失败(已经记录到preview.Error), 后续步骤基于未改动的内容继续匹配
+                        LoggerHelper.LogInformation($"预览正则匹配: 步骤\"{opNode.NodeTitle}\"计算改动失败({ex.Message}), 后续步骤基于未改动内容继续匹配");
+                    }
+                }
+                // "NAMESPACE"变量值每个文件需要实时解析, 不删除会导致下个文件会提前被解析出当前值
+                _variables.Remove("NAMESPACE");
+            }
+        }
+        return previews;
+    }
+
+    /// <summary>
+    /// 解析指令文本得到待执行的操作(真实执行与预览共用)
+    /// </summary>
+    /// <param name="commandContent"></param>
+    /// <returns></returns>
+    /// <exception cref="Exception"></exception>
+    Operation ResolveOperation(string commandContent)
+    {
         if (string.IsNullOrWhiteSpace(_parameterLineStartPattern))
         {
             var props = typeof(OperationNode).GetProperties();
@@ -637,11 +762,7 @@ public class FileHelper(AiService aiService, CommandExecutionContext executionCo
             selectedOp.Nodes.Add(opNode);
         }
 
-        var operationLogs = ExecuteOperationAsync(selectedOp);
-        await foreach (var operationLog in operationLogs)
-        {
-            yield return new CommandResult(true, operationLog);
-        }
+        return selectedOp;
     }
     static OperationNode ResolveNodeFromConfig(string nodeConfig)
     {
@@ -1161,11 +1282,28 @@ public class FileHelper(AiService aiService, CommandExecutionContext executionCo
         return (lineParamName, lineParamValue, lineIndex);
     }
 
-    // string file, string value, string operationTitle, OperationType operationType, string appendedLinePattern = ""
-    /// <summary>执行用户选择的操作(所有子命令)</summary>
-    async IAsyncEnumerable<string> ExecuteOperationAsync(Operation selectedOp)
+    /// <summary>
+    /// 一个操作步骤对一个文件的执行结果(真实执行与预览共用)
+    /// </summary>
+    class StepModificationResult
     {
-        #region 准备工作 - 解析变量
+        public string File { get; set; } = string.Empty;
+        public string NodeTitle { get; set; } = string.Empty;
+        public OperationType OperationType { get; set; }
+        /// <summary>是否产生改动(false表示已经是目标状态, 真实执行也会跳过)</summary>
+        public bool Changed { get; set; }
+        /// <summary>目标文件当前是否不存在</summary>
+        public bool IsNewFile { get; set; }
+        public string OriginContent { get; set; } = string.Empty;
+        public string NewContent { get; set; } = string.Empty;
+        public string Log { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// 解析操作中的所有变量(真实执行与预览共用)
+    /// </summary>
+    async Task ResolveOperationVariablesAsync(Operation selectedOp)
+    {
         // 预设全局变量
         foreach (var variable in selectedOp.GlobalVariables)
         {
@@ -1176,93 +1314,180 @@ public class FileHelper(AiService aiService, CommandExecutionContext executionCo
         {
             await ResolveVariablesAsync(opNode);
         }
-        #endregion
+    }
 
-        string opLog = string.Empty;
-        var files = GetSourceCodeFiles(selectedOp.WorkingDir);
-        foreach (var opNode in selectedOp.Nodes)
+    /// <summary>
+    /// 获取工作目录中的所有文件(真实执行与预览共用)
+    /// </summary>
+    static IEnumerable<string> GetWorkingDirFiles(Operation selectedOp)
+    {
+        if (string.IsNullOrWhiteSpace(selectedOp.WorkingDir))
         {
-            // 多个target(比如index.html和App.razor文件同时)需要执行多个步骤Step(比如添加css引用和js引用)
-            IEnumerable<string>? targetFiles = null;
-            var createFileSteps = opNode.Steps.Where(x => x.OperationType == OperationType.Create);
-            if (createFileSteps.Count() > 1)
+            throw new Exception($"{selectedOp.Name}缺少工作目录配置");
+        }
+        return GetSourceCodeFiles(selectedOp.WorkingDir);
+    }
+
+    /// <summary>
+    /// 解析操作节点的目标文件(真实执行与预览共用)
+    /// </summary>
+    /// <param name="selectedOp">待执行的操作</param>
+    /// <param name="opNode">当前操作节点</param>
+    /// <param name="files">工作目录中的所有文件</param>
+    /// <param name="dryRun">true表示预览: 不会真的创建文件</param>
+    static IEnumerable<string> ResolveTargetFiles(Operation selectedOp, OperationNode opNode, IEnumerable<string> files, bool dryRun)
+    {
+        // 多个target(比如index.html和App.razor文件同时)需要执行多个步骤Step(比如添加css引用和js引用)
+        IEnumerable<string> targetFiles;
+        var createFileSteps = opNode.Steps.Where(x => x.OperationType == OperationType.Create);
+        if (createFileSteps.Count() > 1)
+        {
+            throw new Exception($"创建文件操作\"{opNode.NodeTitle}\"只能包含一个步骤");
+        }
+        else if (createFileSteps.Count() == 1)
+        {
+            int lastSlashIndex = opNode.TargetFilePattern.LastIndexOf('/');
+            var creatingFile = opNode.TargetFilePattern[(lastSlashIndex + 1)..];
+            if (string.IsNullOrWhiteSpace(creatingFile))
             {
-                throw new Exception($"创建文件操作\"{opNode.NodeTitle}\"只能包含一个步骤");
+                throw new Exception($"\"{opNode.NodeTitle}\"没有匹配到需要创建的文件名:{opNode.TargetFilePattern}");
             }
-            else if (createFileSteps.Count() == 1)
+            string creatingFilePath;
+            if (opNode.TargetFilePattern.Contains('/'))
             {
-                var step = createFileSteps.First();
-                int lastSlashIndex = opNode.TargetFilePattern.LastIndexOf('/');
-                var creatingFile = opNode.TargetFilePattern[(lastSlashIndex + 1)..];
-                if (string.IsNullOrWhiteSpace(creatingFile))
+                string? creatingFileDir = opNode.TargetFilePattern[..lastSlashIndex] + '/';
+                string? creatingFileDirFullPath = files.FirstOrDefault(x => Regex.IsMatch(x, creatingFileDir));
+                if (string.IsNullOrWhiteSpace(creatingFileDirFullPath))
                 {
-                    throw new Exception($"\"{opNode.NodeTitle}\"没有匹配到需要创建的文件名:{opNode.TargetFilePattern}");
+                    LoggerHelper.LogCritical($"当前操作{opNode.NodeTitle}不执行, 因为工作目录{selectedOp.WorkingDir}中没有找到需要创建文件:{opNode.TargetFilePattern}");
                 }
-                string creatingFilePath;
-                if (opNode.TargetFilePattern.Contains('/'))
-                {
-                    string? creatingFileDir = opNode.TargetFilePattern[..lastSlashIndex] + '/';
-                    string? creatingFileDirFullPath = files.FirstOrDefault(x => Regex.IsMatch(x, creatingFileDir));
-                    if (string.IsNullOrWhiteSpace(creatingFileDirFullPath))
-                    {
-                        LoggerHelper.LogCritical($"当前操作{opNode.NodeTitle}不执行, 因为工作目录{selectedOp.WorkingDir}中没有找到需要创建文件:{opNode.TargetFilePattern}");
-                    }
-                    creatingFileDirFullPath = creatingFileDirFullPath?[..creatingFileDirFullPath.LastIndexOf('/')];
-                    creatingFilePath = $"{creatingFileDirFullPath}/{creatingFile}";
-                }
-                else
-                {
-                    creatingFilePath = Path.Combine(selectedOp.WorkingDir, opNode.TargetFilePattern);
-                }
-                
-                if (!File.Exists(creatingFilePath))
-                {
-                    File.Create(creatingFilePath).Close();
-                }
-                targetFiles = [creatingFilePath];
+                creatingFileDirFullPath = creatingFileDirFullPath?[..creatingFileDirFullPath.LastIndexOf('/')];
+                creatingFilePath = $"{creatingFileDirFullPath}/{creatingFile}";
             }
             else
             {
-                targetFiles = files.Where(x => Regex.IsMatch(x, opNode.TargetFilePattern, RegexOptions.IgnoreCase));
+                creatingFilePath = Path.Combine(selectedOp.WorkingDir, opNode.TargetFilePattern);
             }
-            if (!targetFiles.Any())
+
+            if (!File.Exists(creatingFilePath) && !dryRun)
             {
-                throw new Exception($"没有找到文件:{opNode.TargetFilePattern}");
+                File.Create(creatingFilePath).Close();
             }
+            targetFiles = [creatingFilePath];
+        }
+        else
+        {
+            targetFiles = files.Where(x => Regex.IsMatch(x, opNode.TargetFilePattern, RegexOptions.IgnoreCase));
+        }
+        if (!targetFiles.Any())
+        {
+            throw new Exception($"没有找到文件:{opNode.TargetFilePattern}");
+        }
+        return targetFiles;
+    }
+
+    /// <summary>
+    /// 解析目标文件所属项目的命名空间(供NAMESPACE变量使用; 真实执行与预览共用)
+    /// </summary>
+    void ResolveFileNamespace(string targetFile, IEnumerable<string> files)
+    {
+        var csprojFile = GetFileProjectFile(targetFile, files);
+        if (!string.IsNullOrWhiteSpace(csprojFile))
+        {
+            var targetFileDir = targetFile[..(targetFile.LastIndexOf('/') + 1)];
+            ResolveTargetFileNamespace(targetFileDir, csprojFile);
+        }
+    }
+
+    // string file, string value, string operationTitle, OperationType operationType, string appendedLinePattern = ""
+    /// <summary>执行用户选择的操作(所有子命令)</summary>
+    /// <param name="selectedOp">待执行的操作</param>
+    /// <param name="dryRun">true表示预览: 不创建文件也不写入文件, 其余逻辑与真实执行完全相同</param>
+    async IAsyncEnumerable<StepModificationResult> ExecuteOperationCoreAsync(Operation selectedOp, bool dryRun)
+    {
+        await ResolveOperationVariablesAsync(selectedOp);
+
+        // 预览时文件不落盘, 同一个文件的多个步骤需要基于前一步的结果继续计算, 才能与真实执行一致
+        Dictionary<string, string> simulatedContents = [];
+        var files = GetWorkingDirFiles(selectedOp);
+        foreach (var opNode in selectedOp.Nodes)
+        {
+            var targetFiles = ResolveTargetFiles(selectedOp, opNode, files, dryRun);
             foreach (var targetFile in targetFiles)
             {
-                #region 解析文件的命名空间
-                var csprojFile = GetFileProjectFile(targetFile, files);
-
-                if (!string.IsNullOrWhiteSpace(csprojFile))
-                {
-                    var csprojDir = csprojFile[..(csprojFile.LastIndexOf('/') + 1)];
-                    var targetFileDir = targetFile[..(targetFile.LastIndexOf('/') + 1)];
-                    ResolveTargetFileNamespace(targetFileDir, csprojFile);
-                }
-                #endregion
+                ResolveFileNamespace(targetFile, files);
                 opNode.NodeTitle = ResolveGlobalVariables(opNode.NodeTitle);
                 opNode.TargetFilePattern = ResolveGlobalVariables(opNode.TargetFilePattern);
                 foreach (var step in opNode.Steps)
                 {
                     step.Value = ResolveGlobalVariables(step.Value);
-                    opLog = await ModifyAsync(targetFile, opNode.NodeTitle, step.Value, step.LinePattern, step.OperationType);
-                    yield return opLog;
+
+                    bool isNewFile = !File.Exists(targetFile);
+                    string originContent;
+                    if (simulatedContents.TryGetValue(targetFile, out var simulatedContent))
+                    {
+                        originContent = simulatedContent;
+                    }
+                    else if (isNewFile)
+                    {
+                        // 预览Create操作时目标文件还没有创建, 内容视为空(与真实执行时创建出的空文件等价)
+                        originContent = string.Empty;
+                    }
+                    else
+                    {
+                        originContent = await File.ReadAllTextAsync(targetFile);
+                    }
+
+                    var (newContent, changed, opLog) = ComputeModification(targetFile, opNode.NodeTitle, step.Value, step.LinePattern, step.OperationType, originContent);
+                    if (changed)
+                    {
+                        if (dryRun)
+                        {
+                            simulatedContents[targetFile] = newContent;
+                        }
+                        else
+                        {
+                            await File.WriteAllTextAsync(targetFile, newContent);
+                        }
+                    }
+                    LoggerHelper.LogInformation(opLog);
+
+                    yield return new StepModificationResult
+                    {
+                        File = targetFile,
+                        NodeTitle = opNode.NodeTitle,
+                        OperationType = step.OperationType,
+                        Changed = changed,
+                        IsNewFile = isNewFile,
+                        OriginContent = originContent,
+                        NewContent = newContent,
+                        Log = opLog
+                    };
                 }
                 // "NAMESPACE"变量值每个文件需要实时解析, 不删除会导致下个文件会提前被解析出当前值
                 _variables.Remove("NAMESPACE");
             }
         }
     }
-    static async Task<string> ModifyAsync(string file, string operationTitle, string value, string appendedLinePattern, OperationType operationType)
+    /// <summary>
+    /// 计算一个操作步骤作用在指定内容上的结果(纯计算, 不读写文件; 真实执行与预览共用, 保证二者结果一致)
+    /// </summary>
+    /// <param name="file">目标文件(仅用于日志)</param>
+    /// <param name="operationTitle">操作标题(仅用于日志)</param>
+    /// <param name="value">要写入的内容</param>
+    /// <param name="appendedLinePattern">定位行的正则表达式</param>
+    /// <param name="operationType">操作方式</param>
+    /// <param name="content">改动前的内容</param>
+    /// <returns>NewContent-改动后的内容(无需改动时为原内容); Changed-是否需要改动; Log-操作日志</returns>
+    static (string NewContent, bool Changed, string Log) ComputeModification(string file, string operationTitle, string value, string appendedLinePattern, OperationType operationType, string content)
     {
         // 在实际使用 value 前替换换行占位符
         value = SpaceConstants.ReplaceBreakPlaceholders(value);
         StringBuilder operationLog = new();
-        var content = await File.ReadAllTextAsync(file);
         if ((operationType == OperationType.Append || operationType == OperationType.Prepend) && content.Contains(value))
         {
             operationLog.AppendLine($"- 已\"{operationTitle}\", 无需操作 ({file})");
+            return (content, false, operationLog.ToString());
         }
         else
         {
@@ -1272,7 +1497,7 @@ public class FileHelper(AiService aiService, CommandExecutionContext executionCo
                 if (value == content)
                 {
                     operationLog.AppendLine($"- 已\"{operationTitle}\", 无需操作 ({file})");
-                    return operationLog.ToString();
+                    return (content, false, operationLog.ToString());
                 }
                 newContent = value;
             }
@@ -1281,7 +1506,7 @@ public class FileHelper(AiService aiService, CommandExecutionContext executionCo
                 if (!string.IsNullOrWhiteSpace(value) && content.Contains(value))
                 {
                     operationLog.AppendLine($"- 已\"{operationTitle}\", 无需操作 ({file})");
-                    return operationLog.ToString();
+                    return (content, false, operationLog.ToString());
                 }
                 newContent = Regex.Replace(content, appendedLinePattern, value);
             }
@@ -1335,13 +1560,78 @@ public class FileHelper(AiService aiService, CommandExecutionContext executionCo
                 newContent = string.Join(Environment.NewLine, lines);
             }
 
-            await File.WriteAllTextAsync(file, newContent);
             operationLog.AppendLine($"√ 操作成功: \"{operationTitle}\" ({file})");
+            return (newContent, true, operationLog.ToString());
         }
-        string operationLogResult = operationLog.ToString();
-        LoggerHelper.LogInformation(operationLogResult);
-        return operationLogResult;
     }
+    /// <summary>
+    /// 收集LinePattern在指定内容中的所有匹配(纯计算, 不读写文件)
+    /// 匹配方式与<see cref="ComputeModification"/>中对应操作类型的分支完全一致, 保证预览出的匹配就是真实执行时用到的匹配
+    /// </summary>
+    /// <param name="content">目标文件当前的内容</param>
+    /// <param name="linePattern">定位行的正则表达式</param>
+    /// <param name="operationType">操作方式</param>
+    /// <returns>MatchScope-匹配范围; Matches-所有匹配项; Note-匹配行为的补充说明</returns>
+    static (string MatchScope, List<LinePatternMatch> Matches, string Note) CollectLinePatternMatches(string content, string linePattern, OperationType operationType)
+    {
+        if (operationType == OperationType.Override || operationType == OperationType.Create)
+        {
+            return (LinePatternMatchScopes.None, [], $"{operationType}操作直接写入整个文件, 不使用LinePattern");
+        }
+        if (string.IsNullOrWhiteSpace(linePattern))
+        {
+            return (LinePatternMatchScopes.None, [], "没有配置LinePattern, 内容将被追加到文件末尾");
+        }
+
+        List<LinePatternMatch> matches = [];
+        if (operationType == OperationType.Replace)
+        {
+            // Replace是在整个文件内容上执行Regex.Replace, 匹配可以跨行, 并且所有匹配都会被替换
+            foreach (Match match in Regex.Matches(content, linePattern))
+            {
+                matches.Add(new LinePatternMatch
+                {
+                    LineNumber = content[..match.Index].Count(x => x == '\n') + 1,
+                    Text = match.Value,
+                    IsAnchor = true
+                });
+            }
+            return (LinePatternMatchScopes.Content, matches, matches.Count > 1 ? $"Replace会替换全部{matches.Count}处匹配" : string.Empty);
+        }
+
+        // Append/Prepend是按行匹配: 内容按'\n'分割并去掉行尾空白后逐行匹配
+        var lines = content.Split('\n').Select(x => x.TrimEnd()).ToList();
+        for (int i = 0; i < lines.Count; i++)
+        {
+            if (Regex.IsMatch(lines[i], linePattern))
+            {
+                matches.Add(new LinePatternMatch { LineNumber = i + 1, Text = lines[i] });
+            }
+        }
+        if (matches.Count == 0)
+        {
+            return (LinePatternMatchScopes.Line, matches, string.Empty);
+        }
+
+        // 真实执行取最后一个匹配行作为定位锚点
+        var anchorLine = lines.LastOrDefault(x => Regex.IsMatch(x, linePattern));
+        if (string.IsNullOrWhiteSpace(anchorLine))
+        {
+            return (LinePatternMatchScopes.Line, matches, "匹配到的行是空白行, 真实执行会因为找不到定位行而失败");
+        }
+        // 真实执行是用行内容(而不是行号)反查插入位置, 存在内容完全相同的行时定位到的是第一个
+        int anchorLineNumber = lines.IndexOf(anchorLine) + 1;
+        var anchorMatch = matches.FirstOrDefault(x => x.LineNumber == anchorLineNumber);
+        if (anchorMatch is not null)
+        {
+            anchorMatch.IsAnchor = true;
+        }
+        string note = anchorLineNumber == matches[matches.Count - 1].LineNumber
+            ? string.Empty
+            : $"存在内容完全相同的行, 真实执行会定位到第{anchorLineNumber}行(而不是最后一个匹配行)";
+        return (LinePatternMatchScopes.Line, matches, note);
+    }
+
     enum OperationType
     {
         Append,

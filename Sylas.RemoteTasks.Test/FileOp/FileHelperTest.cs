@@ -4,6 +4,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 using Sylas.RemoteTasks.App.RemoteHostModule.Anything;
 using Sylas.RemoteTasks.Database.SyncBase;
+using Sylas.RemoteTasks.Utils;
 using Sylas.RemoteTasks.Utils.CommandExecutor;
 using Sylas.RemoteTasks.Utils.Constants;
 using Sylas.RemoteTasks.Utils.Template;
@@ -762,6 +763,259 @@ namespace Sylas.RemoteTasks.Test.FileOp
             input = "a{br}b{br:2}c";
             afterBreak = SpaceConstants.ReplaceBreakPlaceholders(input);
             Assert.Equal("a\nb\n\nc", afterBreak);
+        }
+
+        /// <summary>
+        /// 改动预览一致性测试: 预览不会修改任何文件, 且预览出的改动结果与真实执行后的文件内容完全一致
+        /// </summary>
+        [Fact]
+        public async Task FileExecutor_PreviewIsConsistentWithRealExecutionTest()
+        {
+            #region 准备阶段
+            string testDir = $"unit-test-preview-dir-{DateTime.Now:yyyyMMddHHmmss}";
+            if (Directory.Exists(testDir))
+            {
+                Directory.Delete(testDir, true);
+            }
+            Directory.CreateDirectory(testDir);
+
+            string composeOriginTxt = """
+                services:
+                  api:
+                    image: api:1.0
+                    ports:
+                      - 8080:80
+                  redis:
+                    image: redis:6.0
+                
+                """;
+            string composeFile = $"{testDir}/docker-compose.yaml";
+            await File.WriteAllTextAsync(composeFile, composeOriginTxt);
+
+            string settingsOriginTxt = """
+                {
+                  "Logging": {
+                    "LogLevel": {
+                      "Default": "Information"
+                    }
+                  },
+                  "AllowedHosts": "*"
+                }
+                
+                """;
+            string settingsFile = $"{testDir}/appsettings.json";
+            await File.WriteAllTextAsync(settingsFile, settingsOriginTxt);
+
+            // 前两个节点作用于同一个文件, 且第二个节点定位的内容只有在第一个节点执行后才存在, 用于验证预览时后续步骤能基于前一个步骤的结果继续计算
+            string opCmd = """
+                ## 预览一致性验证(${SlnDir})
+                ### 给api服务追加依赖
+                TargetFilePattern: docker-compose\.yaml$
+                OperationType: Append
+                LinePattern: ports:
+                Value: {sp:4}depends_on: [redis]
+
+                ### api服务补充mysql依赖
+                TargetFilePattern: docker-compose\.yaml$
+                OperationType: Replace
+                LinePattern: depends_on: \[redis\]
+                Value: depends_on: [redis, mysql]
+
+                ### 调整日志级别
+                TargetFilePattern: appsettings\.json$
+                OperationType: Replace
+                LinePattern: "Default": "Information"
+                Value: "Default": "Warning"
+                """;
+            opCmd = TmplHelper.ResolveExpressionValue(opCmd, new Dictionary<string, string> { { "SlnDir", testDir } })?.ToString() ?? throw new Exception("模板解析结果为空");
+            #endregion
+
+            #region 预览
+            List<FileModificationPreview> previews;
+            using (var previewScope = fixture.ServiceProvider.CreateScope())
+            {
+                var previewExecutor = previewScope.ServiceProvider.GetRequiredKeyedService<ICommandExecutor>(nameof(FileHelper)) as FileHelper ?? throw new Exception("FileHelper执行器为空");
+                previews = await previewExecutor.PreviewAsync(opCmd);
+            }
+            foreach (var preview in previews)
+            {
+                outputHelper.WriteLine($"[{preview.OperationType}] {preview.NodeTitle} -> {preview.File} changed:{preview.Changed} hunks:{preview.Hunks.Count}");
+            }
+
+            // 预览不能修改文件
+            Assert.Equal(composeOriginTxt, await File.ReadAllTextAsync(composeFile));
+            Assert.Equal(settingsOriginTxt, await File.ReadAllTextAsync(settingsFile));
+            // 每个步骤都必须真的算出了改动(第二个步骤能算出改动就证明它看到了第一个步骤的结果), 否则后面的一致性断言没有意义
+            Assert.Equal(3, previews.Count);
+            Assert.All(previews, x => Assert.True(x.Changed && x.Hunks.Count > 0, $"步骤未计算出改动: {x.NodeTitle}"));
+            Assert.All(previews, x => Assert.Contains("√ 操作成功", x.Log));
+            #endregion
+
+            #region 真实执行并对比
+            using (var executeScope = fixture.ServiceProvider.CreateScope())
+            {
+                var executor = executeScope.ServiceProvider.GetRequiredKeyedService<ICommandExecutor>(nameof(FileHelper));
+                await foreach (var commandResult in executor.ExecuteAsync(opCmd))
+                {
+                    outputHelper.WriteLine($"执行完毕: {commandResult.Message}");
+                }
+            }
+
+            // appsettings.json只有一个步骤, 它的预览差异应与真实执行前后的差异完全一致
+            string settingsRealTxt = await File.ReadAllTextAsync(settingsFile);
+            var settingsPreview = previews.Single(x => x.File.EndsWith("appsettings.json"));
+            Assert.Equal(
+                JsonConvert.SerializeObject(DiffHelper.BuildHunks(settingsOriginTxt, settingsRealTxt)),
+                JsonConvert.SerializeObject(settingsPreview.Hunks));
+
+            // docker-compose.yaml的两个步骤都已生效(第二个步骤依赖第一个步骤的产物)
+            string composeRealTxt = await File.ReadAllTextAsync(composeFile);
+            Assert.Contains("depends_on: [redis, mysql]", composeRealTxt);
+            #endregion
+
+            #region 幂等验证: 执行过后再预览, 已经是目标状态的步骤应报无改动
+            using (var previewAgainScope = fixture.ServiceProvider.CreateScope())
+            {
+                var previewExecutor = previewAgainScope.ServiceProvider.GetRequiredKeyedService<ICommandExecutor>(nameof(FileHelper)) as FileHelper ?? throw new Exception("FileHelper执行器为空");
+                var previewsAgain = await previewExecutor.PreviewAsync(opCmd);
+                // 两个Replace步骤的目标值都已存在, 真实执行会跳过, 预览也必须跳过
+                // (第一个Append步骤的产物已被第二个步骤改写, 本身不幂等, 不参与断言)
+                foreach (var previewAgain in previewsAgain.Where(x => x.OperationType == "Replace"))
+                {
+                    Assert.False(previewAgain.Changed, $"步骤应已是目标状态: {previewAgain.NodeTitle}");
+                    Assert.Empty(previewAgain.Hunks);
+                }
+            }
+            #endregion
+
+            Directory.Delete(testDir, true);
+        }
+
+        /// <summary>
+        /// 正则匹配预览测试: 预览不会修改任何文件, 列出的匹配与真实执行的匹配语义一致(按行匹配的锚点位置, 全文匹配的替换范围), 且正则无效或匹配不到时不会中断整个预览
+        /// </summary>
+        [Fact]
+        public async Task FileExecutor_PreviewLinePatternMatchesTest()
+        {
+            #region 准备阶段
+            string testDir = $"unit-test-matches-dir-{DateTime.Now:yyyyMMddHHmmss}";
+            if (Directory.Exists(testDir))
+            {
+                Directory.Delete(testDir, true);
+            }
+            Directory.CreateDirectory(testDir);
+
+            string composeOriginTxt = """
+                services:
+                  api:
+                    image: api:1.0
+                    ports:
+                      - 8080:80
+                  redis:
+                    image: redis:6.0
+                
+                """;
+            string composeFile = $"{testDir}/docker-compose.yaml";
+            await File.WriteAllTextAsync(composeFile, composeOriginTxt);
+
+            // 第二个节点定位的内容只有在第一个节点执行后才存在, 用于验证预览时后续步骤能基于前一个步骤的结果继续匹配
+            string validOpCmd = """
+                ## 正则匹配预览验证(${SlnDir})
+                ### 给api服务追加依赖
+                TargetFilePattern: docker-compose\.yaml$
+                OperationType: Append
+                LinePattern: ports:
+                Value: {sp:4}depends_on: [redis]
+
+                ### api服务补充mysql依赖
+                TargetFilePattern: docker-compose\.yaml$
+                OperationType: Replace
+                LinePattern: depends_on: \[redis\]
+                Value: depends_on: [redis, mysql]
+                """;
+            // 后两个节点是调试正则时的常见错误: 正则本身无效、正则有效但匹配不到内容; 它们都不能中断整个预览
+            string opCmd = validOpCmd + """
+                
+
+                ### 无效的正则
+                TargetFilePattern: docker-compose\.yaml$
+                OperationType: Append
+                LinePattern: [unclosed
+                Value: {sp:4}restart: always
+
+                ### 匹配不到的正则
+                TargetFilePattern: docker-compose\.yaml$
+                OperationType: Append
+                LinePattern: ^nonexistent-anchor$
+                Value: {sp:4}restart: always
+                """;
+            var tmplVariables = new Dictionary<string, string> { { "SlnDir", testDir } };
+            validOpCmd = TmplHelper.ResolveExpressionValue(validOpCmd, tmplVariables)?.ToString() ?? throw new Exception("模板解析结果为空");
+            opCmd = TmplHelper.ResolveExpressionValue(opCmd, tmplVariables)?.ToString() ?? throw new Exception("模板解析结果为空");
+            #endregion
+
+            #region 预览正则匹配
+            List<LinePatternMatchPreview> previews;
+            using (var previewScope = fixture.ServiceProvider.CreateScope())
+            {
+                var previewExecutor = previewScope.ServiceProvider.GetRequiredKeyedService<ICommandExecutor>(nameof(FileHelper)) as FileHelper ?? throw new Exception("FileHelper执行器为空");
+                previews = await previewExecutor.PreviewLinePatternMatchesAsync(opCmd);
+            }
+            foreach (var preview in previews)
+            {
+                outputHelper.WriteLine($"[{preview.OperationType}] {preview.NodeTitle} scope:{preview.MatchScope} matches:{preview.Matches.Count} error:{preview.Error}");
+                foreach (var match in preview.Matches)
+                {
+                    outputHelper.WriteLine($"    L{match.LineNumber}{(match.IsAnchor ? "(锚点)" : "")}: {match.Text}");
+                }
+            }
+
+            // 预览只读取文件, 不能修改文件
+            Assert.Equal(composeOriginTxt, await File.ReadAllTextAsync(composeFile));
+            // 每个步骤都有一条记录, 正则有问题的步骤也不例外
+            Assert.Equal(4, previews.Count);
+
+            // Append是按行匹配, 锚点是最后一个匹配行
+            var appendPreview = previews[0];
+            Assert.Equal("Line", appendPreview.MatchScope);
+            Assert.Empty(appendPreview.Error);
+            var anchor = Assert.Single(appendPreview.Matches);
+            Assert.True(anchor.IsAnchor, "按行匹配唯一的匹配行应该就是锚点行");
+            Assert.Equal("    ports:", anchor.Text);
+
+            // Replace是在整个文件内容上匹配; 这里能匹配到就证明预览时看到了第一个步骤的结果
+            var replacePreview = previews[1];
+            Assert.Equal("Content", replacePreview.MatchScope);
+            Assert.Empty(replacePreview.Error);
+            Assert.Single(replacePreview.Matches);
+            Assert.All(replacePreview.Matches, x => Assert.True(x.IsAnchor, "Replace的每一处匹配都会被替换"));
+
+            // 无效的正则只影响它自己所在的步骤
+            Assert.Contains("正则表达式无效", previews[2].Error);
+            // 正则有效但匹配不到内容时要明确提示, 因为真实执行会失败
+            Assert.Empty(previews[3].Matches);
+            Assert.Contains("没有匹配到任何内容", previews[3].Error);
+            #endregion
+
+            #region 真实执行并对比匹配位置
+            using (var executeScope = fixture.ServiceProvider.CreateScope())
+            {
+                var executor = executeScope.ServiceProvider.GetRequiredKeyedService<ICommandExecutor>(nameof(FileHelper));
+                // 只执行两个有效的节点(无效节点会让真实执行中断)
+                await foreach (var commandResult in executor.ExecuteAsync(validOpCmd))
+                {
+                    outputHelper.WriteLine($"执行完毕: {commandResult.Message}");
+                }
+            }
+
+            string composeRealTxt = await File.ReadAllTextAsync(composeFile);
+            var realLines = composeRealTxt.Split('\n').Select(x => x.TrimEnd()).ToList();
+            // 预览标注的锚点行位置就是真实执行时的定位行: Append把内容插到锚点行的下一行(LineNumber从1开始, 因此下一行的索引正好是LineNumber)
+            Assert.Equal(anchor.Text, realLines[anchor.LineNumber - 1]);
+            Assert.Contains("depends_on: [redis, mysql]", realLines[anchor.LineNumber]);
+            #endregion
+
+            Directory.Delete(testDir, true);
         }
     }
 }

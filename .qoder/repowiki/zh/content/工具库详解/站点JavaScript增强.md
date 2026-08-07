@@ -24,6 +24,11 @@
 - 简化anything.js中的命令执行逻辑，提升了代码组织性和可维护性
 - 改进了消息处理和超时控制机制
 - 优化了VDS配置器的用户体验，支持拖拽排序和模态框拖拽
+- **新增动态行宽计算功能，提升输出渲染性能**
+- **实现进度条原地更新优化，减少DOM操作开销**
+- **引入msgPannelCache Map缓存机制，优化DOM元素查找**
+- **采用<pre>元素替代多个div，改善内存管理和文本复制体验**
+- **使用WeakMap存储charsPerLineCache，避免内存泄漏**
 
 ## 目录
 1. [简介](#简介)
@@ -42,7 +47,7 @@
 
 项目的核心特色在于其JavaScript增强架构，通过统一的工具函数和组件化设计，实现了高度可复用的前端功能模块。这些模块不仅提升了用户体验，还为后续的功能扩展奠定了坚实的基础。
 
-**最新更新**：新增多行文本CSS处理、增强错误处理机制、改进搜索栏生成逻辑，以及拖拽模态框功能。
+**最新更新**：新增多行文本CSS处理、增强错误处理机制、改进搜索栏生成逻辑，以及拖拽模态框功能。**最新重大更新**：anything.js输出渲染系统全面重构，包含动态行宽计算、进度条优化、输出缓存和内存管理改进。
 
 ## 项目结构
 
@@ -64,11 +69,11 @@ end
 ```
 
 **图表来源**
-- [site.js:1-1872](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1872)
+- [site.js:1-1874](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1874)
 - [_Layout.cshtml:1-842](file://Sylas.RemoteTasks.App/Views/Shared/_Layout.cshtml#L1-L842)
 
 **章节来源**
-- [site.js:1-1872](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1872)
+- [site.js:1-1874](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1874)
 - [site.css:1-178](file://Sylas.RemoteTasks.App/wwwroot/css/site.css#L1-L178)
 - [_Layout.cshtml:1-842](file://Sylas.RemoteTasks.App/Views/Shared/_Layout.cshtml#L1-L842)
 
@@ -138,7 +143,7 @@ Common->>User : 显示最终结果
 ```
 
 **图表来源**
-- [anything.js:1-762](file://Sylas.RemoteTasks.App/wwwroot/js/anything.js#L1-L762)
+- [anything.js:1-800](file://Sylas.RemoteTasks.App/wwwroot/js/anything.js#L1-L800)
 - [site.js:1522-1619](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1522-L1619)
 
 ### 3. 可视化配置器
@@ -338,7 +343,7 @@ F --> H[绑定事件处理]
 **章节来源**
 - [site.js:603-613](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L603-L613)
 
-### 2. 任务执行模块 (anything.js)
+### 2. 任务执行模块 (anything.js) - 重大重构
 
 #### 实时命令执行（重构后）
 该模块现已重构为使用通用的SSE处理函数，简化了命令执行逻辑：
@@ -350,9 +355,6 @@ F --> H[绑定事件处理]
 - 错误处理和重试
 - **新增** 通用消息处理函数
 - **新增** 多行文本字段支持（properties和commands）
-
-**章节来源**
-- [anything.js:1-762](file://Sylas.RemoteTasks.App/wwwroot/js/anything.js#L1-L762)
 
 #### 命令卡片系统
 每个任务都以卡片形式展示，支持复杂的交互操作：
@@ -372,6 +374,39 @@ stateDiagram-v2
 
 **章节来源**
 - [anything.js:455-536](file://Sylas.RemoteTasks.App/wwwroot/js/anything.js#L455-L536)
+
+#### 输出渲染系统（重大重构）
+
+**新增** 高性能输出渲染系统，包含多项性能优化：
+
+```mermaid
+flowchart TD
+A[命令执行开始] --> B[msgPannelCache缓存检查]
+B --> C[getOutputPre获取/pre元素]
+C --> D[estimateCharsPerLine计算行宽]
+D --> E[processBarPattern检测进度条]
+E --> F{是否进度条}
+F --> |是| G[原地更新文本节点]
+F --> |否| H[创建新文本节点]
+G --> I[DocumentFragment批量渲染]
+H --> I
+I --> J[滚动到底部]
+J --> K[缓存DOM元素]
+```
+
+**图表来源**
+- [anything.js:40-146](file://Sylas.RemoteTasks.App/wwwroot/js/anything.js#L40-L146)
+
+**关键优化特性：**
+
+1. **动态行宽计算**：`estimateCharsPerLine`函数根据容器宽度动态计算每行字符数，替代硬编码的50字符限制
+2. **进度条原地更新**：检测到进度条时直接更新最后一个文本节点，避免频繁DOM操作
+3. **输出缓存机制**：`msgPannelCache` Map缓存DOM元素，避免重复查找
+4. **内存管理优化**：使用单个`<pre>`元素替代多个`<div>`，改善内存使用和文本复制体验
+5. **WeakMap缓存**：`charsPerLineCache`使用WeakMap存储行宽计算结果，避免内存泄漏
+
+**章节来源**
+- [anything.js:40-146](file://Sylas.RemoteTasks.App/wwwroot/js/anything.js#L40-L146)
 
 ### 3. 可视化配置器 (vds-configurator.js)
 
@@ -488,11 +523,22 @@ O[makeModalDraggable] --> C
 - 仅对标记的字段生成下拉框
 - 优化事件绑定和处理
 
+### 8. 输出渲染性能优化（重大重构）
+
+**重大重构优化**：
+- **动态行宽计算**：`estimateCharsPerLine`函数根据容器实际宽度计算最优行宽，避免固定宽度导致的文本截断
+- **进度条原地更新**：通过正则表达式检测进度条，直接更新文本节点而非重新渲染整个DOM
+- **DOM元素缓存**：`msgPannelCache` Map缓存命令面板元素，避免重复查询
+- **内存优化**：使用单个`<pre>`元素承载所有输出，替代多个`<div>`元素
+- **WeakMap缓存**：`charsPerLineCache`使用WeakMap存储行宽计算结果，自动清理不再使用的缓存
+- **DocumentFragment批量渲染**：使用DocumentFragment一次性插入多个节点，减少重排重绘
+
 **章节来源**
 - [site.js:1522-1619](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1522-L1619)
 - [site.js:10-94](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L10-L94)
 - [site.js:292-294](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L292-L294)
 - [site.js:603-613](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L603-L613)
+- [anything.js:40-146](file://Sylas.RemoteTasks.App/wwwroot/js/anything.js#L40-L146)
 
 ## 故障排除指南
 
@@ -533,6 +579,12 @@ O[makeModalDraggable] --> C
 - 验证条件判断逻辑
 - 确认DOM元素正确生成
 
+**输出渲染问题（重大重构后）：**
+- 检查msgPannelCache缓存是否正确工作
+- 验证estimateCharsPerLine函数计算准确性
+- 确认progress bar正则表达式匹配正常
+- 检查<pre>元素的样式和滚动行为
+
 ### 2. 调试技巧
 
 **开发工具使用：**
@@ -565,9 +617,16 @@ O[makeModalDraggable] --> C
 - 验证条件判断逻辑
 - 监控DOM元素生成
 
+**输出渲染调试（重大重构后）：**
+- 检查msgPannelCache Map缓存状态
+- 验证charsPerLineCache WeakMap缓存
+- 监控DOM元素数量和内存使用
+- 检查进度条检测正则表达式匹配
+- 验证DocumentFragment批量渲染性能
+
 **章节来源**
 - [site.js:828-882](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L828-L882)
-- [anything.js:1-762](file://Sylas.RemoteTasks.App/wwwroot/js/anything.js#L1-L762)
+- [anything.js:1-800](file://Sylas.RemoteTasks.App/wwwroot/js/anything.js#L1-L800)
 
 ## 结论
 
@@ -603,10 +662,18 @@ O[makeModalDraggable] --> C
 - **新增makeModalDraggable函数，支持模态框拖拽**
 - **新增多行文本CSS处理，优化文本显示**
 
+**重大重构成果：**
+- **动态行宽计算系统**：`estimateCharsPerLine`函数根据容器宽度动态计算最优行宽，替代硬编码限制
+- **进度条原地更新优化**：通过正则表达式检测进度条，直接更新文本节点而非重新渲染DOM
+- **输出缓存机制**：`msgPannelCache` Map缓存DOM元素，避免重复查询开销
+- **内存管理改进**：使用单个`<pre>`元素替代多个`<div>`，改善内存使用和文本复制体验
+- **WeakMap性能优化**：`charsPerLineCache`使用WeakMap存储行宽计算结果，自动清理缓存避免内存泄漏
+- **DocumentFragment批量渲染**：一次性插入多个节点，减少重排重绘开销
+
 **改进成果：**
 - **增强错误处理机制，增加null检查**
 - **优化搜索栏生成逻辑，提升用户体验**
 - **改进SSE处理性能，使用异步生成器**
 - **增强拖拽功能性能，使用requestAnimationFrame**
 
-该项目为类似的企业级应用开发提供了优秀的参考模板，展示了如何通过精心设计的前端架构来提升用户体验和开发效率。
+该项目为类似的企业级应用开发提供了优秀的参考模板，展示了如何通过精心设计的前端架构来提升用户体验和开发效率。**最新的输出渲染系统重构更是将性能优化推向了新的高度，为大量文本输出的应用场景提供了卓越的解决方案。**

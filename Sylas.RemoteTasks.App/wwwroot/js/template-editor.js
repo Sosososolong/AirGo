@@ -383,7 +383,9 @@ const TemplateEditor = {
                         </div>
                         <div class="modal-footer py-2">
                             <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
-                            <button type="button" class="btn btn-info btn-sm" id="previewTemplateBtn">预览解析结果</button>
+                            <button type="button" class="btn btn-info btn-sm" id="previewTemplateBtn">预览模板解析</button>
+                            <button type="button" class="btn btn-info btn-sm" id="previewMatchesBtn">预览正则匹配</button>
+                            <button type="button" class="btn btn-warning btn-sm" id="previewChangesBtn">预览改动</button>
                             <button type="button" class="btn btn-primary btn-sm" id="applyTemplateBtn">应用到命令</button>
                         </div>
                     </div>
@@ -454,6 +456,16 @@ const TemplateEditor = {
         // 预览按钮
         document.getElementById('previewTemplateBtn').onclick = async () => {
             await this.previewTemplate(editorTextarea.value);
+        };
+
+        // 预览正则匹配按钮(只读取文件, 用于验证LinePattern是否有效)
+        document.getElementById('previewMatchesBtn').onclick = async (e) => {
+            await this.previewMatches(editorTextarea.value, e.currentTarget);
+        };
+
+        // 预览改动按钮(试运行, 不会修改任何文件)
+        document.getElementById('previewChangesBtn').onclick = async (e) => {
+            await this.previewChanges(editorTextarea.value, e.currentTarget);
         };
 
         // 应用按钮
@@ -854,13 +866,39 @@ const TemplateEditor = {
      */
     async previewTemplate(templateContent) {
         try {
-            const response = await fetch('/Hosts/ResolveCommandSettting', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: this.settingId, cmdTxt: templateContent })
-            });
-            const result = await response.json();
-            
+            const body = JSON.stringify({ id: this.settingId, cmdTxt: templateContent });
+            let result;
+            if (typeof httpRequestAsync === 'function') {
+                // 统一请求方法会自动携带token并处理401/404, 该接口需要鉴权(CustomBaseController上的Authorize)
+                result = await httpRequestAsync('/Hosts/ResolveCommandSettting', null, 'POST', body, 'application/json');
+                // token过期等情况统一方法已经给出提示, 这里不再弹预览框
+                if (!result) {
+                    return;
+                }
+            } else {
+                const token = typeof getAccessToken === 'function' ? getAccessToken() : '';
+                const response = await fetch('/Hosts/ResolveCommandSettting', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'authorization': `Bearer ${token}`
+                    },
+                    body
+                });
+                if (response.status === 401) {
+                    alert('身份已过期, 请重新登录');
+                    return;
+                }
+                result = await response.json();
+            }
+
+            // 后端统一响应格式为 { code, errMsg, data }, code===1 表示成功
+            const succeed = result.code === 1;
+            const previewText = String(succeed ? (result.data ?? '') : (result.errMsg || '解析失败'));
+            // 解析结果是纯文本, 转义后放入pre, 避免其中的HTML(如xml/html模板片段)被浏览器渲染
+            const previewHtmlText = previewText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
             const previewHtml = `
                 <div class="modal fade" id="previewModal" tabindex="-1">
                     <div class="modal-dialog modal-lg">
@@ -870,7 +908,7 @@ const TemplateEditor = {
                                 <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="modal"></button>
                             </div>
                             <div class="modal-body">
-                                <pre class="bg-light p-3 rounded" style="white-space: pre-wrap; max-height: 400px; overflow-y: auto;">${result.succeed ? result.data : result.message}</pre>
+                                <pre class="p-3 rounded" style="white-space: pre-wrap; max-height: 400px; overflow-y: auto; background-color: #f8f9fa; color: #212529;">${previewHtmlText}</pre>
                             </div>
                         </div>
                     </div>
@@ -886,6 +924,298 @@ const TemplateEditor = {
             console.error('预览失败:', e);
             alert('预览失败: ' + e.message);
         }
+    },
+
+    /**
+     * HTML转义, 避免文件内容中的标签被浏览器渲染
+     */
+    escapeHtml(text) {
+        return String(text ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    },
+
+    /**
+     * 请求预览接口(统一处理token), 返回后端的 { code, errMsg, data } 响应; 返回 null 表示请求未完成(比如登录已过期)
+     * @param {string} url - 预览接口地址
+     * @param {string} templateContent - 当前编辑器中的命令模板
+     */
+    async postPreviewAsync(url, templateContent) {
+        const body = JSON.stringify({ id: this.settingId, cmdTxt: templateContent });
+        if (typeof httpRequestAsync === 'function') {
+            // 统一请求方法会自动携带token并处理401/404, 该接口需要鉴权(CustomBaseController上的Authorize)
+            return await httpRequestAsync(url, null, 'POST', body, 'application/json');
+        }
+        const token = typeof getAccessToken === 'function' ? getAccessToken() : '';
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'authorization': `Bearer ${token}`
+            },
+            body
+        });
+        if (response.status === 401) {
+            alert('身份已过期, 请重新登录');
+            return null;
+        }
+        return await response.json();
+    },
+
+    /**
+     * 预览命令执行后的文件改动(试运行: 后端与真实执行共用同一套计算逻辑, 但不写入磁盘)
+     */
+    async previewChanges(templateContent, btn) {
+        const originBtnHtml = btn ? btn.innerHTML : '';
+        try {
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 计算中...';
+            }
+            const result = await this.postPreviewAsync('/Hosts/PreviewCommandChanges', templateContent);
+            if (!result) {
+                return;
+            }
+
+            // 后端统一响应格式为 { code, errMsg, data }, code===1 表示成功
+            const bodyHtml = result.code === 1
+                ? this.renderChangesPreview(result.data)
+                : `<div class="alert alert-danger mb-0">${this.escapeHtml(result.errMsg || '预览失败')}</div>`;
+
+            const previewHtml = `
+                <div class="modal fade" id="changesPreviewModal" tabindex="-1">
+                    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                        <div class="modal-content">
+                            <div class="modal-header py-2" style="cursor: move; user-select: none;">
+                                <h6 class="modal-title">🔍 改动预览 <span class="badge bg-secondary">未写入磁盘</span></h6>
+                                <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body" style="background-color: #ffffff; color: #212529;">${bodyHtml}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const oldPreview = document.getElementById('changesPreviewModal');
+            if (oldPreview) oldPreview.remove();
+
+            document.body.insertAdjacentHTML('beforeend', previewHtml);
+            const changesModalEl = document.getElementById('changesPreviewModal');
+            new bootstrap.Modal(changesModalEl).show();
+            makeModalDraggable(changesModalEl);
+        } catch (e) {
+            console.error('预览改动失败:', e);
+            alert('预览改动失败: ' + e.message);
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originBtnHtml;
+            }
+        }
+    },
+
+    /**
+     * 渲染改动预览列表
+     * @param {Array} previews - FileModificationPreview 集合
+     */
+    renderChangesPreview(previews) {
+        if (!previews || previews.length === 0) {
+            return '<div class="alert alert-warning mb-0">没有匹配到任何目标文件或操作步骤, 请检查 TargetFilePattern 与 WorkingDir</div>';
+        }
+
+        const changedCount = previews.filter(p => p.changed).length;
+        const summary = `<div class="mb-2 small text-muted">共 ${previews.length} 个步骤, 其中 ${changedCount} 个会产生改动, ${previews.length - changedCount} 个已是目标状态(真实执行时会跳过)</div>`;
+
+        const items = previews.map((preview, index) => {
+            const badgeClass = preview.changed ? 'bg-warning text-dark' : 'bg-secondary';
+            const newFileBadge = preview.isNewFile ? '<span class="badge bg-success ms-1">新建文件</span>' : '';
+            const bodyHtml = preview.changed
+                ? this.renderHunks(preview.hunks)
+                : `<div class="px-2 py-2 small text-muted">无改动(已是目标状态)</div>`;
+            return `
+                <div class="card mb-2">
+                    <div class="card-header py-1 px-2 d-flex justify-content-between align-items-center" style="background-color: #e9ecef; color: #212529;">
+                        <div class="text-truncate">
+                            <span class="badge ${badgeClass}">${this.escapeHtml(preview.operationType)}</span>
+                            <span class="small fw-bold ms-1">${this.escapeHtml(preview.nodeTitle)}</span>
+                            ${newFileBadge}
+                        </div>
+                        <span class="small text-muted text-truncate ms-2" title="${this.escapeHtml(preview.file)}">#${index + 1} ${this.escapeHtml(preview.file)}</span>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="px-2 pt-1 small" style="color: #6c757d;">${this.escapeHtml(preview.log)}</div>
+                        ${bodyHtml}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        return summary + items;
+    },
+
+    /**
+     * 渲染差异块(只展示改动行及其上下文)
+     */
+    renderHunks(hunks) {
+        if (!hunks || hunks.length === 0) {
+            return '<div class="px-2 py-2 small text-muted">内容未发生行级变化</div>';
+        }
+        return hunks.map(hunk => {
+            const rows = hunk.lines.map(line => {
+                let bg = '#ffffff';
+                let sign = ' ';
+                if (line.kind === 'add') {
+                    bg = '#e6ffed';
+                    sign = '+';
+                } else if (line.kind === 'del') {
+                    bg = '#ffeef0';
+                    sign = '-';
+                }
+                return `<tr style="background-color: ${bg};">
+                    <td class="text-end px-1" style="width: 48px; color: #adb5bd; background-color: transparent; user-select: none;">${line.originLineNumber ?? ''}</td>
+                    <td class="text-end px-1" style="width: 48px; color: #adb5bd; background-color: transparent; user-select: none;">${line.newLineNumber ?? ''}</td>
+                    <td class="px-1" style="width: 16px; color: #6c757d; background-color: transparent; user-select: none;">${sign}</td>
+                    <td class="px-1" style="white-space: pre-wrap; word-break: break-all; color: #212529; background-color: transparent;">${this.escapeHtml(line.text)}</td>
+                </tr>`;
+            }).join('');
+            return `
+                <div class="px-2 py-1 small font-monospace" style="color: #6c757d;">@@ -${hunk.originStart},${hunk.originCount} +${hunk.newStart},${hunk.newCount} @@</div>
+                <table class="table table-sm mb-1 font-monospace" style="font-size: 12px; table-layout: fixed; width: 100%;">
+                    <tbody>${rows}</tbody>
+                </table>
+            `;
+        }).join('');
+    },
+
+    /**
+     * 预览LinePattern正则匹配到的内容(只读取文件, 用于验证正则是否有效)
+     */
+    async previewMatches(templateContent, btn) {
+        const originBtnHtml = btn ? btn.innerHTML : '';
+        try {
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 匹配中...';
+            }
+            const result = await this.postPreviewAsync('/Hosts/PreviewLinePatternMatches', templateContent);
+            if (!result) {
+                return;
+            }
+
+            const bodyHtml = result.code === 1
+                ? this.renderMatchesPreview(result.data)
+                : `<div class="alert alert-danger mb-0">${this.escapeHtml(result.errMsg || '匹配失败')}</div>`;
+
+            const previewHtml = `
+                <div class="modal fade" id="matchesPreviewModal" tabindex="-1">
+                    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                        <div class="modal-content">
+                            <div class="modal-header py-2" style="cursor: move; user-select: none;">
+                                <h6 class="modal-title">🔎 正则匹配预览 <span class="badge bg-secondary">只读取文件</span></h6>
+                                <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body" style="background-color: #ffffff; color: #212529;">${bodyHtml}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const oldPreview = document.getElementById('matchesPreviewModal');
+            if (oldPreview) oldPreview.remove();
+
+            document.body.insertAdjacentHTML('beforeend', previewHtml);
+            const matchesModalEl = document.getElementById('matchesPreviewModal');
+            new bootstrap.Modal(matchesModalEl).show();
+            makeModalDraggable(matchesModalEl);
+        } catch (e) {
+            console.error('预览正则匹配失败:', e);
+            alert('预览正则匹配失败: ' + e.message);
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originBtnHtml;
+            }
+        }
+    },
+
+    /**
+     * 渲染正则匹配预览列表
+     * @param {Array} previews - LinePatternMatchPreview 集合
+     */
+    renderMatchesPreview(previews) {
+        if (!previews || previews.length === 0) {
+            return '<div class="alert alert-warning mb-0">没有匹配到任何目标文件或操作步骤, 请检查 TargetFilePattern 与工作目录</div>';
+        }
+
+        const failedCount = previews.filter(p => p.error).length;
+        const summary = failedCount > 0
+            ? `<div class="mb-2 small" style="color: #dc3545;">共 ${previews.length} 个步骤, 其中 ${failedCount} 个的正则有问题(无效或没有匹配到内容)</div>`
+            : `<div class="mb-2 small text-muted">共 ${previews.length} 个步骤, 正则均匹配正常</div>`;
+
+        const items = previews.map((preview, index) => {
+            const badgeClass = preview.error ? 'bg-danger' : 'bg-secondary';
+            const matchCountBadge = preview.matchScope === 'None'
+                ? '<span class="badge bg-light text-dark ms-1">不使用LinePattern</span>'
+                : `<span class="badge ${preview.matches.length > 0 ? 'bg-success' : 'bg-danger'} ms-1">${preview.matches.length} 处匹配</span>`;
+            const patternHtml = preview.matchScope === 'None'
+                ? ''
+                : `<div class="px-2 pt-1 small font-monospace" style="color: #0d6efd; white-space: pre-wrap; word-break: break-all;">LinePattern: ${this.escapeHtml(preview.linePattern)}</div>`;
+            const errorHtml = preview.error
+                ? `<div class="mx-2 my-1 p-1 small" style="background-color: #f8d7da; color: #842029; border-radius: 4px;">${this.escapeHtml(preview.error)}</div>`
+                : '';
+            const noteHtml = preview.note
+                ? `<div class="px-2 pt-1 small" style="color: #997404;">${this.escapeHtml(preview.note)}</div>`
+                : '';
+            return `
+                <div class="card mb-2">
+                    <div class="card-header py-1 px-2 d-flex justify-content-between align-items-center" style="background-color: #e9ecef; color: #212529;">
+                        <div class="text-truncate">
+                            <span class="badge ${badgeClass}">${this.escapeHtml(preview.operationType)}</span>
+                            <span class="small fw-bold ms-1">${this.escapeHtml(preview.nodeTitle)}</span>
+                            ${matchCountBadge}
+                        </div>
+                        <span class="small text-muted text-truncate ms-2" title="${this.escapeHtml(preview.file)}">#${index + 1} ${this.escapeHtml(preview.file)}</span>
+                    </div>
+                    <div class="card-body p-0">
+                        ${patternHtml}
+                        ${errorHtml}
+                        ${noteHtml}
+                        ${this.renderMatchList(preview.matches, preview.matchScope)}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        return summary + items;
+    },
+
+    /**
+     * 渲染一个步骤的所有匹配项
+     * @param {Array} matches - LinePatternMatch 集合
+     * @param {string} matchScope - Line:按行匹配(Append/Prepend); Content:全文匹配(Replace); None:不使用LinePattern
+     */
+    renderMatchList(matches, matchScope) {
+        if (!matches || matches.length === 0) {
+            return '';
+        }
+        const isContentScope = matchScope === 'Content';
+        const rows = matches.map(match => {
+            const bg = match.isAnchor ? (isContentScope ? '#e7f1ff' : '#fff3cd') : '#ffffff';
+            const flag = match.isAnchor ? (isContentScope ? '替换' : '锚点') : '';
+            return `<tr style="background-color: ${bg};">
+                <td class="text-end px-1" style="width: 48px; color: #adb5bd; background-color: transparent; user-select: none;">${match.lineNumber}</td>
+                <td class="text-center px-1 small" style="width: 40px; color: #997404; background-color: transparent; user-select: none;">${flag}</td>
+                <td class="px-1" style="white-space: pre-wrap; word-break: break-all; color: #212529; background-color: transparent;">${this.escapeHtml(match.text)}</td>
+            </tr>`;
+        }).join('');
+        const tip = isContentScope
+            ? '在整个文件内容上匹配(可跨行), 标注"替换"的匹配都会被替换; 行号为匹配内容的起始行'
+            : '按行匹配, 标注"锚点"的行是真实执行时用来定位的行';
+        return `
+            <div class="px-2 py-1 small" style="color: #6c757d;">${tip}</div>
+            <table class="table table-sm mb-1 font-monospace" style="font-size: 12px; table-layout: fixed; width: 100%;">
+                <tbody>${rows}</tbody>
+            </table>
+        `;
     },
 
     /**

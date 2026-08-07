@@ -702,5 +702,84 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             }
             return RequestResult<string>.Success(commandResolved);
         }
+
+        /// <summary>
+        /// 预览前的准备工作: 解析命令模板、校验执行器类型、设置环境变量并获取执行器
+        /// 与<see cref="ExecuteAsync"/>保持一致, 以保证预览结果与真实执行一致
+        /// </summary>
+        /// <param name="dto">dto.Id:命令所属AnythingSetting的Id; dto.CmdTxt:要预览的命令脚本</param>
+        /// <returns>FileHelper-文件处理执行器(为null表示准备失败); ResolvedCmd-已解析的命令; ErrMsg-失败原因</returns>
+        async Task<(FileHelper? FileHelper, string ResolvedCmd, string ErrMsg)> PrepareFileHelperPreviewAsync(CommandResolveDto dto)
+        {
+            // 与执行时使用同一个模板解析入口
+            var resolvedResult = await ResolveCommandSettingAsync(dto);
+            if (resolvedResult.Code != 1 || string.IsNullOrWhiteSpace(resolvedResult.Data))
+            {
+                return (null, string.Empty, string.IsNullOrWhiteSpace(resolvedResult.ErrMsg) ? "解析命令失败" : resolvedResult.ErrMsg);
+            }
+
+            var anythingInfo = await GetAnythingInfoBySettingIdAsync(dto.Id);
+            if (!string.Equals(anythingInfo.CommandExecutor, nameof(FileHelper), StringComparison.OrdinalIgnoreCase))
+            {
+                return (null, string.Empty, $"只有{nameof(FileHelper)}执行器的命令支持预览, 当前执行器: {anythingInfo.CommandExecutor}");
+            }
+
+            // 与执行时一样从 DI 获取执行器并设置环境变量(Razor模板依赖执行上下文的环境变量)
+            commandExecutionContext.EnvironmentVariables = anythingInfo.Properties;
+            if (serviceProvider.GetKeyedService<ICommandExecutor>(nameof(FileHelper)) is not FileHelper fileHelper)
+            {
+                return (null, string.Empty, $"无法创建{nameof(FileHelper)}执行器");
+            }
+            return (fileHelper, resolvedResult.Data, string.Empty);
+        }
+
+        /// <summary>
+        /// 预览FileHelper命令的执行结果: 不修改任何文件, 只返回每个步骤改动前后的对比
+        /// </summary>
+        /// <param name="dto">dto.Id:命令所属AnythingSetting的Id; dto.CmdTxt:要预览的命令脚本</param>
+        /// <returns></returns>
+        public async Task<RequestResult<List<FileModificationPreview>>> PreviewFileChangesAsync(CommandResolveDto dto)
+        {
+            var (fileHelper, resolvedCmd, errMsg) = await PrepareFileHelperPreviewAsync(dto);
+            if (fileHelper is null)
+            {
+                return RequestResult<List<FileModificationPreview>>.Error(errMsg);
+            }
+            try
+            {
+                var previews = await fileHelper.PreviewAsync(resolvedCmd);
+                return RequestResult<List<FileModificationPreview>>.Success(previews);
+            }
+            catch (Exception ex)
+            {
+                // 命令配置有问题时(比如缺少工作目录、定位行没有匹配到)要让前端看到具体原因, 而不是一个500
+                logger.LogError(ex, "预览FileHelper命令改动失败");
+                return RequestResult<List<FileModificationPreview>>.Error(ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// 预览FileHelper命令中LinePattern正则匹配到的内容: 只读取文件, 用于验证正则是否有效
+        /// </summary>
+        /// <param name="dto">dto.Id:命令所属AnythingSetting的Id; dto.CmdTxt:要预览的命令脚本</param>
+        /// <returns></returns>
+        public async Task<RequestResult<List<LinePatternMatchPreview>>> PreviewLinePatternMatchesAsync(CommandResolveDto dto)
+        {
+            var (fileHelper, resolvedCmd, errMsg) = await PrepareFileHelperPreviewAsync(dto);
+            if (fileHelper is null)
+            {
+                return RequestResult<List<LinePatternMatchPreview>>.Error(errMsg);
+            }
+            try
+            {
+                var previews = await fileHelper.PreviewLinePatternMatchesAsync(resolvedCmd);
+                return RequestResult<List<LinePatternMatchPreview>>.Success(previews);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "预览FileHelper命令正则匹配失败");
+                return RequestResult<List<LinePatternMatchPreview>>.Error(ex.Message);
+            }
+        }
     }
 }

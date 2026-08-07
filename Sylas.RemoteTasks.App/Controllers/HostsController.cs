@@ -232,6 +232,26 @@ namespace Sylas.RemoteTasks.App.Controllers
         }
 
         /// <summary>
+        /// 预览一个FileHelper命令的改动(不修改任何文件)
+        /// </summary>
+        /// <param name="dto">dto.Id:命令所属AnythingSetting的Id; dto.CmdTxt:要预览的命令脚本</param>
+        /// <returns>每个操作步骤对每个目标文件的改动前后对比</returns>
+        public async Task<RequestResult<List<FileModificationPreview>>> PreviewCommandChangesAsync([FromBody] CommandResolveDto dto)
+        {
+            return await anythingService.PreviewFileChangesAsync(dto);
+        }
+
+        /// <summary>
+        /// 预览一个FileHelper命令中LinePattern正则匹配到的内容(只读取文件, 用于验证正则是否有效)
+        /// </summary>
+        /// <param name="dto">dto.Id:命令所属AnythingSetting的Id; dto.CmdTxt:要预览的命令脚本</param>
+        /// <returns>每个操作步骤在每个目标文件中的所有匹配</returns>
+        public async Task<RequestResult<List<LinePatternMatchPreview>>> PreviewLinePatternMatchesAsync([FromBody] CommandResolveDto dto)
+        {
+            return await anythingService.PreviewLinePatternMatchesAsync(dto);
+        }
+
+        /// <summary>
         /// 获取服务器基本信息和一些应用信息
         /// </summary>
         /// <returns></returns>
