@@ -152,7 +152,11 @@ FuncName(参数1) => [0]
 | `Override` / `Create` | `Value == content` |
 | `Replace` | `Value` 非空白且 `content.Contains(Value)` |
 
-`Replace` 的 `Value` 含 `$1` 等替换语法时，`Contains` 永远不成立，幂等必须由 `LinePattern` 的负向断言保证。
+`Replace` 的 `Value` 含 `$1` 等替换语法时，`Contains` 永远不成立，幂等必须由 `LinePattern` 的负向断言保证。断言方向跟插入方向一致：向后插入用负向先行 `(?!...)`，向前插入用负向后行 `(?<!...)`。
+
+> .NET 正则**支持变长后行断言**（`(?<!\[Attr\][ \t]*\r?\n[ \t]*)` 合法），这是它区别于大多数正则引擎的特性，可以直接用。断言内的换行写 `\r?\n` 以同时兼容 CRLF 与 LF。
+
+`Append` / `Prepend` 以及不带捕获组的 `Replace` 靠 `Contains(Value)` 就能天然幂等，不需要额外断言。
 
 ## 预览与真实执行的一致性
 

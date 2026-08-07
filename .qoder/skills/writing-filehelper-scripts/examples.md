@@ -27,7 +27,31 @@ Value: $1{br}{sp:4}depends_on:{br}{sp:6}- mysql{br}{sp:6}- redis
 不能写成 `Append`：那样只会在最后一个匹配行后插入一次。
 也不能省掉负向断言：`Replace` 的幂等判断是 `content.Contains(Value)`，而 `Value` 含 `$1` 时永远不成立，重复执行会重复插入。
 
-## 2. 定位到某一行后面插入（Append）
+## 2. 在每个匹配位置的**上方**插入内容（Replace + 变长后行断言）
+
+需求：给所有以 `Service` 结尾的公开类声明行上方加一行特性，一个文件里可能有多个，脚本会在构建流程里反复执行。
+
+```
+## 给服务类添加注册特性(D:/code/MyApp/)
+
+### 给Service结尾的类添加ServiceRegister
+TargetFilePattern: \.cs$
+OperationType: Replace
+LinePattern: (?<!\[ServiceRegister\][ \t]*\r?\n[ \t]*)(    public class \w+Service\b)
+Value: {sp:4}[ServiceRegister]{br}$1
+```
+
+与上一个示例的区别就在断言方向：
+
+| 片段 | 作用 |
+|---|---|
+| `(?<!\[ServiceRegister\][ \t]*\r?\n[ \t]*)` | 因为新内容插在锚点**前面**，所以断言写在锚点**左边**：上一行已是该特性时不再匹配。C# 支持这种变长后行断言 |
+| `(    public class \w+Service\b)` | 捕获整行供 `$1` 回填；`\b` 排除 `OrderServiceTests`、`ServiceCollection` 这类更长的标识符 |
+| `Value` 首行 `{sp:4}` | 首行缩进会被 Trim，必须用占位符补回来 |
+
+心算验证：第二遍执行时，`    public class OrderService` 上一行已是 `    [ServiceRegister]`，后行断言命中 → 不匹配 → 不重复插入。
+
+## 3. 定位到某一行后面插入（Append）
 
 需求：给 csproj 添加包引用、给 `_Imports.razor` 追加全局 using。
 
@@ -53,7 +77,7 @@ LinePattern:
 - 第二个节点 `LinePattern` 留空 = 追加到文件末尾。
 - `Value` 首行的 4 个空格缩进只能用 `{sp:4}` 表达。
 
-## 3. 一个节点里做多个操作（`|||`）
+## 4. 一个节点里做多个操作（`|||`）
 
 需求：同一批 Program.cs 既要在 using 区加引用，又要在 `builder.Build()` 之前注册服务。
 
@@ -69,7 +93,7 @@ LinePattern: using |||builder.Build()
 `Append using MudBlazor.Services;` 到最后一个 `using ` 行之后，
 `Prepend builder.Services.AddMudServices();` 到 `builder.Build()` 行之前。
 
-## 4. 整个文件重写（Override）
+## 5. 整个文件重写（Override）
 
 需求：把布局文件初始化成固定内容。多行 `Value` 直接换行书写即可（只有首行受 Trim 影响）。
 
@@ -85,7 +109,7 @@ Value: @inherits LayoutComponentBase
 <MudDialogProvider />
 ```
 
-## 5. 新建文件（Create）
+## 6. 新建文件（Create）
 
 ```
 ### 新增服务接口文件
@@ -106,7 +130,7 @@ public interface IOrderService
 - 一个节点只能有一个 `Create` 步骤。
 - `{NAMESPACE}` 会按目标文件所属 csproj 与子目录实时算出。
 
-## 6. 简单替换（Replace，不带捕获组）
+## 7. 简单替换（Replace，不带捕获组）
 
 ```
 ### index.html/App.razor将lang=en替换为lang=zh-cn
@@ -118,7 +142,7 @@ Value: lang="zh-cn"
 
 `Value` 不含 `$1`，所以 `content.Contains("lang=\"zh-cn\"")` 能生效，天然幂等。
 
-## 7. 函数变量与全局变量
+## 8. 函数变量与全局变量
 
 ```
 ## 生成服务代码(D:/code/MySln/)
