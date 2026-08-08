@@ -844,11 +844,15 @@ async function httpRequestAsync(url, spinnerEle = null, method = 'POST', body = 
         if (contentType) {
             headers['Content-Type'] = contentType
         }
-        const response = await fetch(url, {
+        const fetchOptions = {
             method: method,
-            headers: headers,
-            body: body
-        })
+            headers: headers
+        }
+        // GET/HEAD请求不允许携带body, 否则fetch会直接抛出TypeError
+        if (body && !/^(GET|HEAD)$/i.test(method)) {
+            fetchOptions.body = body
+        }
+        const response = await fetch(url, fetchOptions)
 
         if (!response.ok) {
             if (response.status === 401) {
@@ -1168,25 +1172,19 @@ async function deleteData(eventTrigger) {
     let response = null;
     showSpinner();
     try {
-        response = await $.ajax({
-            url: url,
-            method: method,
-            data: "\"" + dataId + "\"",
-            contentType: 'application/json',
-            dataType: 'json',
-        });
-    } catch (e) {
-        showErrorBox('操作失败');
-        console.log(e);
+        response = await httpRequestAsync(url, null, method, "\"" + dataId + "\"", 'application/json');
     } finally {
         closeSpinner();
     }
 
-    if (response && response.succeed) {
+    if (!response) {
+        return;
+    }
+    if (response.code === 1 || response.succeed) {
         window.table = table;
         showMsgBox('操作成功', () => table.loadData());
     } else {
-        showErrorBox(response.message, '错误提示', [{ class: 'error', content: '关闭' }]);
+        showErrorBox(response.message || response.errMsg || '操作失败', '错误提示', [{ class: 'error', content: '关闭' }]);
     }
 }
 /**
@@ -1558,7 +1556,11 @@ async function sendSseRequestCommon(url, requestBody, requestTitle, spinnerEle, 
         }
 
         // 使用默认或自定义的消息处理函数
-        const handler = msgHandler || msgsHandler;
+        const handler = msgHandler || commandResultHandler;
+        // 重置"是否往容器里写过内容"的标记: 同一个容器可能被多次执行复用(或残留上一次超时中断的标记), 会影响"操作成功"的判定
+        if (msgContainer) {
+            delete msgContainer.dataset.sseWritten;
+        }
         
         let msgNotFoundCount = 0;
         let pendingRender = false;
@@ -1618,68 +1620,135 @@ async function sendSseRequestCommon(url, requestBody, requestTitle, spinnerEle, 
     }
 }
 
-let lastMsg = '';
 let globalMsgContainer = {};
-function msgsHandler(data, requestTitle, showMsgEl) {
+
+// 进度条行的特征: [====>    ] 42.50 %
+const processBarPattern = /\[=*>\s*\]\s*(\d+(\.\d+)*)\s*%/;
+
+// 获取或创建输出用的pre元素: 容器最后一个元素是输出pre则复用, 否则新建(错误/成功消息插入后会自然新开一个)
+// 用单个pre+文本节点代替逐行span: DOM节点少, 且选中文本复制时能保留换行
+function getOutputPre(msgContainer, outputColor) {
+    const last = msgContainer.lastChild;
+    if (last && last.nodeType === Node.ELEMENT_NODE && last.tagName === 'PRE' && last.dataset.kind === 'output') {
+        return last;
+    }
+    const pre = document.createElement('pre');
+    pre.dataset.kind = 'output';
+    pre.style.cssText = `color:${outputColor}; margin:0 0 0 20px; padding:0; white-space:pre-wrap; word-break:break-all; font-family:inherit; font-size:inherit;`;
+    msgContainer.appendChild(pre);
+    return pre;
+}
+
+// 根据容器宽度估算一行能容纳的字符数, 让输出行在web端尽量完整显示
+// 按容器字体实测单个字符宽度; 容器宽度不变时复用缓存, 窗口缩放后自动重新计算
+const charsPerLineCache = new WeakMap();
+function estimateCharsPerLine(container) {
+    const width = container.clientWidth;
+    const cached = charsPerLineCache.get(container);
+    if (cached && cached.width === width && cached.chars > 0) {
+        return cached.chars;
+    }
+    // 用与容器相同字体的隐藏探针实测字符宽度(日志以ASCII为主, 用ASCII样本即可)
+    const probe = document.createElement('span');
+    probe.style.cssText = 'position:absolute; visibility:hidden; white-space:pre;';
+    probe.style.font = getComputedStyle(container).font;
+    const sample = 'a1_-.|'.repeat(10);
+    probe.textContent = sample;
+    container.appendChild(probe);
+    const charWidth = probe.offsetWidth / sample.length || 7;
+    probe.remove();
+    // 减1留出安全边距, 最小保底防止容器过窄时截断得太狠
+    const chars = Math.max(20, Math.floor(width / charWidth) - 1);
+    charsPerLineCache.set(container, { width, chars });
+    return chars;
+}
+
+/**
+ * sendSseRequestCommon默认的消息处理函数: 把一帧命令执行结果渲染到容器中
+ * @param {object} data - 一帧执行结果 { succeed, message, commandExecuteNo }
+ * @param {string} requestTitle - 请求标题, 作为错误/成功消息的前缀
+ * @param {HTMLElement} msgContainer - 显示消息的容器
+ * @param {string} outputColor - 命令输出的文字颜色, 默认灰色(绿色留给"执行成功"用)
+ * @returns {boolean} 是否是最后一条结果
+ */
+function commandResultHandler(data, requestTitle, msgContainer, outputColor = 'gray') {
     let isLastResult = false;
-    let msgItem = `<li>{{msgContent}}</li>`
-    let msgContent = ''
-    if (!data.succeed && data?.commandExecuteNo?.indexOf('-cmd-end') === -1) {
+    if (!msgContainer) {
+        return isLastResult;
+    }
+
+    // ✅ 使用 DocumentFragment 批量构建 DOM
+    const fragment = document.createDocumentFragment();
+    // 流结束帧: 后端在finally中固定以succeed=false发出, 不能当成执行失败
+    const isCmdEnd = !!data.commandExecuteNo && data.commandExecuteNo.endsWith('-cmd-end');
+    if (!data.succeed && !isCmdEnd) {
+        msgContainer.dataset.sseWritten = '1';
         const errMsg = data.message ? data.message : '操作失败';
         const errMsgLines = errMsg.split('\n');
-        msgContent += `<p style="color:red;">${requestTitle}: <p>`;
+        const titleP = document.createElement('p');
+        titleP.style.color = 'red';
+        titleP.textContent = `${requestTitle}:`;
+        fragment.appendChild(titleP);
+
         for (var i = 0; i < errMsgLines.length; i++) {
-            // 错误信息不截断, 全部打印出来便于排查问题(转义防止错误文本中的HTML被渲染)
-            const escapedErrLine = errMsgLines[i].replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            msgContent += `<p style="color:red;white-space:pre-wrap;">&nbsp;&nbsp;&nbsp;&nbsp;${escapedErrLine}</p>`
+            // 错误信息不截断, 全部打印出来便于排查问题(用textContent赋值, 错误文本中的HTML不会被渲染)
+            const p = document.createElement('p');
+            p.style.color = 'red';
+            p.style.whiteSpace = 'pre-wrap';
+            p.textContent = `    ${errMsgLines[i]}`;
+            fragment.appendChild(p);
         }
-    } else if (!data.message) {
-        if (data.commandExecuteNo.endsWith('-cmd-end')) {
-            isLastResult = true;
-        } else if (msgContent.length === 0) {
-            msgContent += `<p style="color:green;">${requestTitle}: 操作成功</p>`;
+    } else if (isCmdEnd) {
+        isLastResult = true;
+        // 整条命令从头到尾既没有输出也没有报错时才提示"操作成功", 这个判定只能等流结束后做:
+        // 命令输出的第一行常常是空行(比如npm/pnpm), 若在每一帧上判断, 容器此时还是空的, 就会在顶部打出假的成功消息
+        if (!msgContainer.dataset.sseWritten) {
+            const p = document.createElement('p');
+            p.style.color = 'green';
+            p.textContent = `${requestTitle}: 操作成功 ✓`;
+            fragment.appendChild(p);
         }
+        delete msgContainer.dataset.sseWritten;
     } else {
+        // 输出行(空字符串也是命令输出的一部分, 原样打出一个空行, 不能视为"没有输出")
+        msgContainer.dataset.sseWritten = '1';
+        const pre = getOutputPre(msgContainer, outputColor);
+        // 按容器宽度动态计算每行最大字符数
+        const maxLineChars = estimateCharsPerLine(msgContainer);
         const msgs = data.message.split('\n');
-        let msgHtml = msgItem.indexOf(requestTitle) > -1 ? requestTitle : '';
         for (var i = 0; i < msgs.length; i++) {
             let msg = msgs[i];
-            let currentMsgDiv = `<span style="color:green;">${msg}</span>`;
-            if (msg && msg.length > 50) {
-                msg = trimMsg(msg, 50);
+            if (msg && msg.length > maxLineChars) {
+                msg = trimMsg(msg, maxLineChars);
             }
-            const processBarPattern = /\[=*>\s*\]\s*(\d+(\.\d+)*)\s*%/;
-            const m = msg.match(processBarPattern);
-            if (m && m.length > 2) {
-                const last = msgItem.lastChild;
-                const lastHtml = last.outerHTML;
-                if (last && lastHtml.endsWith('%</div>') && !lastHtml.endsWith('100.00 %</div>')) {
-                    if (lastHtml.indexOf('100.00') > -1) {
-                        console.warn('remove 100%');
-                    }
-                    last.remove();
-                }
-            }
-            if (msg.length > 0) {
-                msgHtml += currentMsgDiv
-                lastMsg = msg;
+            const isProgress = processBarPattern.test(msg);
+            const lastNode = pre.lastChild;
+            // 进度条行: 原地更新最后一个进度文本节点, 而不是追加新行(已到100%的行保留)
+            if (isProgress && lastNode && lastNode.nodeType === Node.TEXT_NODE
+                && processBarPattern.test(lastNode.nodeValue) && lastNode.nodeValue.indexOf('100.00') === -1) {
+                lastNode.nodeValue = msg + '\n';
+            } else {
+                pre.appendChild(document.createTextNode(msg + '\n'));
             }
         }
-
-        msgContent += msgHtml;
+        msgContainer.scrollTop = msgContainer.scrollHeight;
     }
 
-    if (msgContent && msgContent.length > 0) {
-        msgItem = msgItem.replace('{{msgContent}}', msgContent)
-
-        const msgEl = document.createElement('ul')
-        msgEl.innerHTML = msgItem
-        if (showMsgEl) {
-            showMsgEl.appendChild(msgEl)
-        }
+    // ✅ 一次性追加到 DOM
+    if (fragment.childNodes.length > 0) {
+        msgContainer.appendChild(fragment);
+        msgContainer.scrollTop = msgContainer.scrollHeight;
     }
+    return isLastResult;
+}
 
-    return isLastResult
+/**
+ * 生成一个指定输出颜色的消息处理函数, 作为sendSseRequestCommon的msgHandler参数传入
+ * @param {string} outputColor - 命令输出的文字颜色
+ * @returns {(data: object, requestTitle: string, msgContainer: HTMLElement) => boolean}
+ */
+function createCommandResultHandler(outputColor) {
+    return (data, requestTitle, msgContainer) => commandResultHandler(data, requestTitle, msgContainer, outputColor);
 }
 
 /**

@@ -866,31 +866,10 @@ const TemplateEditor = {
      */
     async previewTemplate(templateContent) {
         try {
-            const body = JSON.stringify({ id: this.settingId, cmdTxt: templateContent });
-            let result;
-            if (typeof httpRequestAsync === 'function') {
-                // 统一请求方法会自动携带token并处理401/404, 该接口需要鉴权(CustomBaseController上的Authorize)
-                result = await httpRequestAsync('/Hosts/ResolveCommandSettting', null, 'POST', body, 'application/json');
-                // token过期等情况统一方法已经给出提示, 这里不再弹预览框
-                if (!result) {
-                    return;
-                }
-            } else {
-                const token = typeof getAccessToken === 'function' ? getAccessToken() : '';
-                const response = await fetch('/Hosts/ResolveCommandSettting', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'authorization': `Bearer ${token}`
-                    },
-                    body
-                });
-                if (response.status === 401) {
-                    alert('身份已过期, 请重新登录');
-                    return;
-                }
-                result = await response.json();
+            const result = await this.postPreviewAsync('/Hosts/ResolveCommandSettting', templateContent);
+            // token过期等情况统一方法已经给出提示, 这里不再弹预览框
+            if (!result) {
+                return;
             }
 
             // 后端统一响应格式为 { code, errMsg, data }, code===1 表示成功
@@ -940,25 +919,8 @@ const TemplateEditor = {
      */
     async postPreviewAsync(url, templateContent) {
         const body = JSON.stringify({ id: this.settingId, cmdTxt: templateContent });
-        if (typeof httpRequestAsync === 'function') {
-            // 统一请求方法会自动携带token并处理401/404, 该接口需要鉴权(CustomBaseController上的Authorize)
-            return await httpRequestAsync(url, null, 'POST', body, 'application/json');
-        }
-        const token = typeof getAccessToken === 'function' ? getAccessToken() : '';
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                'authorization': `Bearer ${token}`
-            },
-            body
-        });
-        if (response.status === 401) {
-            alert('身份已过期, 请重新登录');
-            return null;
-        }
-        return await response.json();
+        // 统一请求方法会自动携带token并处理401/404, 该接口需要鉴权(CustomBaseController上的Authorize)
+        return await httpRequestAsync(url, null, 'POST', body, 'application/json');
     },
 
     /**

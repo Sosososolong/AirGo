@@ -19,7 +19,7 @@ async function executeCommand(commandId, commandName, executeBtn) {
         executeBtn,                         // spinnerEle
         msgPannel,                          // msgContainer
         null,                               // onstart
-        commandResultHandler,               // 自定义消息处理函数
+        null,                               // 消息处理函数: 用site.js里的默认实现commandResultHandler(输出灰色)
         60 * 3                              // 超时 3 分钟
     );
 }
@@ -36,114 +36,6 @@ function getMsgPannel(commandName) {
 
 // 缓存 DOM 元素, 避免每次处理消息的时候都查找一次msgPanel(显示消息的容器, 将消息放进去)
 const msgPannelCache = new Map();
-
-// 获取或创建输出用的pre元素: 面板最后一个元素是输出pre则复用, 否则新建(错误/成功消息插入后会自然新开一个)
-// 用单个pre+文本节点代替逐行div: DOM节点少, 且选中文本复制时能保留换行
-function getOutputPre(msgPannel) {
-    const last = msgPannel.lastChild;
-    if (last && last.nodeType === Node.ELEMENT_NODE && last.tagName === 'PRE' && last.dataset.kind === 'output') {
-        return last;
-    }
-    const pre = document.createElement('pre');
-    pre.dataset.kind = 'output';
-    pre.style.cssText = 'color:gray; margin:0 0 0 20px; padding:0; white-space:pre-wrap; word-break:break-all; font-family:inherit; font-size:inherit;';
-    msgPannel.appendChild(pre);
-    return pre;
-}
-
-const processBarPattern = /\[=*>\s*\]\s*(\d+(\.\d+)*)\s*%/;
-
-// 根据容器宽度估算一行能容纳的字符数(代替硬编码的50), 让输出行在web端尽量完整显示
-// 按容器字体实测单个字符宽度; 容器宽度不变时复用缓存, 窗口缩放后自动重新计算
-const charsPerLineCache = new WeakMap();
-function estimateCharsPerLine(container) {
-    const width = container.clientWidth;
-    const cached = charsPerLineCache.get(container);
-    if (cached && cached.width === width && cached.chars > 0) {
-        return cached.chars;
-    }
-    // 用与容器相同字体的隐藏探针实测字符宽度(日志以ASCII为主, 用ASCII样本即可)
-    const probe = document.createElement('span');
-    probe.style.cssText = 'position:absolute; visibility:hidden; white-space:pre;';
-    probe.style.font = getComputedStyle(container).font;
-    const sample = 'a1_-.|'.repeat(10);
-    probe.textContent = sample;
-    container.appendChild(probe);
-    const charWidth = probe.offsetWidth / sample.length || 7;
-    probe.remove();
-    // 减1留出安全边距, 最小保底防止容器过窄时截断得太狠
-    const chars = Math.max(20, Math.floor(width / charWidth) - 1);
-    charsPerLineCache.set(container, { width, chars });
-    return chars;
-}
-
-function commandResultHandler(data, commandName, msgPannel) {
-    let isLastResult = false;
-    console.log('command name', commandName)
-    if (!msgPannel) {
-        return isLastResult;
-    }
-
-    // ✅ 使用 DocumentFragment 批量构建 DOM
-    const fragment = document.createDocumentFragment();
-    if (!data.succeed && data?.commandExecuteNo?.indexOf('-cmd-end') === -1) {
-        const errMsg = data.message ? data.message : '操作失败';
-        const errMsgLines = errMsg.split('\n');
-        //msgPannel.innerHTML += `<p style="color:red;">${commandName}: <p>`;
-        const titleP = document.createElement('p');
-        titleP.style.color = 'red';
-        titleP.textContent = `${commandName}:`;
-        fragment.appendChild(titleP);
-
-        for (var i = 0; i < errMsgLines.length; i++) {
-            // 错误信息不截断, 全部打印出来便于排查问题
-            const p = document.createElement('p');
-            p.style.color = 'red';
-            p.style.whiteSpace = 'pre-wrap';
-            p.textContent = `    ${errMsgLines[i]}`;
-            fragment.appendChild(p);
-        }
-    } else if (!data.message) {
-        if (data.commandExecuteNo && data.commandExecuteNo.endsWith('-cmd-end')) {
-            isLastResult = true;
-        } else if (msgPannel.innerHTML.length === 0) {
-            // msgPannel.innerHTML += `<p style="color:green;">${commandName}: 操作成功 ✓</p>`;
-            const p = document.createElement('p');
-            p.style.color = 'green';
-            p.textContent = `${commandName}: 操作成功 ✓`;
-            fragment.appendChild(p);
-        }
-    } else {
-        const pre = getOutputPre(msgPannel);
-        // 按容器宽度动态计算每行最大字符数, 替代硬编码的50
-        const maxLineChars = estimateCharsPerLine(msgPannel);
-        const msgs = data.message.split('\n');
-        for (var i = 0; i < msgs.length; i++) {
-            let msg = msgs[i];
-            if (msg && msg.length > maxLineChars) {
-                msg = trimMsg(msg, maxLineChars);
-            }
-            const isProgress = processBarPattern.test(msg);
-            const lastNode = pre.lastChild;
-            // 进度条行: 原地更新最后一个进度文本节点, 而不是追加新行(已到100%的行保留, 与旧逻辑一致)
-            if (isProgress && lastNode && lastNode.nodeType === Node.TEXT_NODE
-                && processBarPattern.test(lastNode.nodeValue) && lastNode.nodeValue.indexOf('100.00') === -1) {
-                lastNode.nodeValue = msg + '\n';
-            } else {
-                pre.appendChild(document.createTextNode(msg + '\n'));
-            }
-        }
-        msgPannel.scrollTop = msgPannel.scrollHeight;
-    }
-
-    // msgPannel.innerHTML += msgHtml;
-    // ✅ 一次性追加到 DOM
-    if (fragment.childNodes.length > 0) {
-        msgPannel.appendChild(fragment);
-        msgPannel.scrollTop = msgPannel.scrollHeight;
-    }
-    return isLastResult;
-}
 
 async function executeCommands(trigger) {
     const commandCheckboxes = document.querySelectorAll('.command-checkbox:checked');

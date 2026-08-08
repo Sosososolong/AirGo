@@ -186,16 +186,24 @@
                     let currentSelect = $(this);
 
                     $('#myLoadingModal').modal('show');
-                    var result = await $.ajax({
-                        type: "post",
-                        url: "ChangingProject",
-                        data: { "target": currentSelect.attr("target-type"), "value": currentSelect.val() },
-                        dataType: "json",
-                        xhrFields: {
-                            withCredentials: true  // 请求头会带上origin字段，配合服务端Access-Control-Allow-Origin设置的值与之对应即可实现跨域
-                        },
-                    });
+                    // ChangingProject通过Request.Form取参, 所以body必须是表单编码
+                    var result = await httpRequestAsync(
+                        '/Home/ChangingProject',
+                        null,
+                        'POST',
+                        new URLSearchParams({
+                            "target": currentSelect.attr("target-type"),
+                            "value": currentSelect.val()
+                        }),
+                        'application/x-www-form-urlencoded');
                     $('#myLoadingModal').modal('hide');
+                    if (!result) {
+                        return;
+                    }
+                    if (result.code !== 1) {
+                        showErrorBox(result.msg || '切换项目失败');
+                        return;
+                    }
 
                     if (currentSelect.attr("target-type") == 'type') { // 如果项目类型的改变的话, 重新加载该类型下项目路径
                         $('.projects-select').last().empty();

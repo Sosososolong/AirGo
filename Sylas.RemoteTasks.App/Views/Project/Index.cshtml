@@ -33,15 +33,7 @@
 @* @section Scripts{ *@
     <script>
         $("#generate_project").click(async (e) => {
-            var logined = await $.ajax({
-                type: "post",
-                url: "GeneratProject",
-                data: {},
-                dataType: "json",
-                xhrFields: {
-                    withCredentials: true
-                },
-            });
+            var logined = await httpRequestAsync('/Project/GeneratProject', null, 'POST');
         })
 
         $("#switching_database").click(async (e) => {
@@ -51,33 +43,30 @@
             let dbType = databaseArr[1];
             let path = document.getElementById('directories').value;
 
-            let result = await $.ajax({
-                type: "get",
-                url: `Project/ChangeConnectionString?slnDir=${path}&host=${host}&databaseType=${dbType}`,
-                data: {},
-                dataType: "json",
-                xhrFields: {
-                    withCredentials: true
-                },
-            });
-            if (result.isSuccess) {
+            let result = await httpRequestAsync(
+                `/Project/ChangeConnectionString?slnDir=${encodeURIComponent(path)}&host=${encodeURIComponent(host)}&databaseType=${encodeURIComponent(dbType)}`,
+                null,
+                'GET');
+            if (!result) {
+                return;
+            }
+            // ChangeConnectionString返回OperationResult, 字段为succeed/message
+            if (result.succeed) {
                 showMsgBox('操作成功')
             } else {
-                showErrorBox(result.errMsg)
+                showErrorBox(result.message)
             }
         })
 
         // 获取解决方案目录和子目录
         async function getProjectDirectories(path) {
-            let directoriesResponse = await $.ajax({
-                type: "get",
-                url: `Project/GetChildDirectories?path=${(path ? path : '')}`,
-                data: {},
-                dataType: "json",
-                xhrFields: {
-                    withCredentials: true
-                },
-            });
+            let directoriesResponse = await httpRequestAsync(
+                `/Project/GetChildDirectories?path=${encodeURIComponent(path ? path : '')}`,
+                null,
+                'GET');
+            if (!directoriesResponse || !directoriesResponse.succeed) {
+                return;
+            }
             let data = directoriesResponse.data;
             // 获取到数据后，将选项填充到 <select> 元素中
             const selectElement = document.getElementById('directories');

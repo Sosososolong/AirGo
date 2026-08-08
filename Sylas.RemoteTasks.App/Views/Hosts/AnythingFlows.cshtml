@@ -70,7 +70,6 @@
                     const taskEl = anythingItems[i];
 
                     const anythingId = taskEl.getAttribute("data-id")
-                    const commandName = taskEl.textContent
                     const anythingResponse = await httpRequestPagedDataAsync(
                         "/Hosts/AnythingSettingAndInfo?id=" + anythingId, "POST", 1, 1,
                         null,
@@ -92,11 +91,11 @@
                         await sendSseRequestCommon(
                             '/Hosts/ExecuteCommand',            // url
                             requestBody,                        // requestBody
-                            commandName,                        // requestTitle
+                            cmd.name,                           // requestTitle: 按单条命令区分, 消息前缀和消息队列的key都以命令为粒度
                             li,                                 // spinnerEle
                             li,                                 // msgContainer
                             null,                               // onstart
-                            null,                               // 自定义消息处理函数
+                            createCommandResultHandler('green'),// 消息处理函数: 沿用流程面板原来的绿色输出
                             60 * 3                              // 超时 3 分钟
                         );
                     }

@@ -187,15 +187,16 @@
             formSerial["type"] = type;
             formSerial["myDbContextName"] = $('input[name="myDbContextName"]').val();
 
-            var result = await $.ajax({
-                type: "post",
-                url: "DbContextDoingSomething",
-                data: formSerial,
-                dataType: "json", // 对应请求头"Accept"的值，指定API返回的数据格式(比如text，html)，如果API不支持指定的格式将会返回API的默认格式的数据或者返回406(Not Acceptable)状态码
-                xhrFields: {
-                    withCredentials: true  // 请求头会带上origin字段，配合服务端Access-Control-Allow-Origin设置的值与之对应即可实现跨域
-                },
-            });
+            // DbContextDoingSomething通过Request.Form取参, 所以body必须是表单编码
+            var result = await httpRequestAsync(
+                '/Home/DbContextDoingSomething',
+                null,
+                'POST',
+                new URLSearchParams(formSerial),
+                'application/x-www-form-urlencoded');
+            if (!result) {
+                return;
+            }
             if (result.code === 1) {
                 alert("操作成功");
                 location.reload(true);
@@ -222,15 +223,16 @@
                         </div>`);
 
                 $('select[name="foreignKeyTable"]').change(async function () {
-                    let result = await $.ajax({
-                        type: "post",
-                        url: "GetEntityProperties",
-                        data: { "entityNameOfForeignKeyTable": $(this).val() },
-                        dataType: "json", // 对应请求头"Accept"的值，指定API返回的数据格式(比如text，html)，如果API不支持指定的格式将会返回API的默认格式的数据或者返回406(Not Acceptable)状态码
-                        xhrFields: {
-                            withCredentials: true  // 请求头会带上origin字段，配合服务端Access-Control-Allow-Origin设置的值与之对应即可实现跨域
-                        },
-                    });
+                    // GetEntityProperties通过Request.Form取参, 且成功时返回的code为0, 所以不能用code判断成败
+                    let result = await httpRequestAsync(
+                        '/Home/GetEntityProperties',
+                        null,
+                        'POST',
+                        new URLSearchParams({ "entityNameOfForeignKeyTable": $(this).val() }),
+                        'application/x-www-form-urlencoded');
+                    if (!result) {
+                        return;
+                    }
 
                     let foreignKeyTableColumns = result.data;
                     $('.chooseForeignKeyDiv').remove();
@@ -280,26 +282,21 @@
                 return;
             }
             
-            $.ajax({
-                type: "post",
-                url: "DbContextBuildRelationship",
-                data: formData,
-                dataType: "json", // 对应请求头"Accept"的值，指定API返回的数据格式(比如text，html)，如果API不支持指定的格式将会返回API的默认格式的数据或者返回406(Not Acceptable)状态码
-                xhrFields: {
-                    withCredentials: true  // 请求头会带上origin字段，配合服务端Access-Control-Allow-Origin设置的值与之对应即可实现跨域
-                },
-                success: function (result) {
-                    if (result.code === 0) {
-                        alert(result.msg)
-                    } else {
-                        alert("操作成功")
-                    }
-                },
-                error: function (result) {
-                    alert(result.responseText.substring(0, result.responseText.indexOf("\r\n")));       
-                    console.log(result.responseText);
-                }
-            });
+            // DbContextBuildRelationship通过Request.Form取参, 所以body必须是表单编码
+            let result = await httpRequestAsync(
+                '/Home/DbContextBuildRelationship',
+                null,
+                'POST',
+                new URLSearchParams(formData),
+                'application/x-www-form-urlencoded');
+            if (!result) {
+                return;
+            }
+            if (result.code === 0) {
+                alert(result.msg)
+            } else {
+                alert("操作成功")
+            }
 
             
         })

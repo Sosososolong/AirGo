@@ -1314,22 +1314,19 @@ const VdsConfigurator = {
         const url = this.currentPageId ? '/LowCode/UpdatePage' : '/LowCode/AddPage';
         
         try {
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'authorization': `Bearer ${getAccessToken()}`
-                },
-                body: formData
-            });
-            
-            const result = await response.json();
-            if (result.succeed) {
+            // contentType传空, 让浏览器自己为FormData生成multipart边界
+            const result = await httpRequestAsync(url, null, 'POST', formData, '');
+            if (!result) {
+                return;
+            }
+            // AddPage/UpdatePage可能返回OperationResult(succeed)或RequestResult(code), 两种格式都兼容
+            if (result.code === 1 || result.succeed) {
                 showResultBox(result);
                 this.modal.hide();
                 // 刷新列表
                 tables['vdsPageTable'].loadData();
             } else {
-                showErrorBox(result.message || '保存失败');
+                showErrorBox(result.message || result.errMsg || '保存失败');
             }
         } catch (e) {
             showErrorBox('请求失败: ' + e.message);
