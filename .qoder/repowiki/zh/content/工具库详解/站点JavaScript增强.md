@@ -1,7 +1,7 @@
 # 站点JavaScript增强
 
 <cite>
-**本文档引用的文件**
+**本文引用的文件**
 - [site.js](file://Sylas.RemoteTasks.App/wwwroot/js/site.js)
 - [anything.js](file://Sylas.RemoteTasks.App/wwwroot/js/anything.js)
 - [flow.js](file://Sylas.RemoteTasks.App/wwwroot/js/flow.js)
@@ -16,19 +16,13 @@
 
 ## 更新摘要
 **变更内容**
-- 新增多行文本CSS处理（white-space:pre-line），增强文本显示效果
-- 增强错误处理机制，增加null检查和健壮性
-- 改进搜索栏生成逻辑，优化条件判断和用户体验
-- 新增拖拽模态框功能，支持Bootstrap模态框的拖拽操作
-- 重构SSE请求处理逻辑，新增sendSseRequestCommon通用函数和readSSEStream异步生成器
-- 简化anything.js中的命令执行逻辑，提升了代码组织性和可维护性
-- 改进了消息处理和超时控制机制
-- 优化了VDS配置器的用户体验，支持拖拽排序和模态框拖拽
-- **新增动态行宽计算功能，提升输出渲染性能**
-- **实现进度条原地更新优化，减少DOM操作开销**
-- **引入msgPannelCache Map缓存机制，优化DOM元素查找**
-- **采用<pre>元素替代多个div，改善内存管理和文本复制体验**
-- **使用WeakMap存储charsPerLineCache，避免内存泄漏**
+- **重大重构HTTP请求处理系统**：新增统一的`httpRequestAsync`函数替代jQuery $.ajax()，提供标准化的HTTP请求处理
+- **集中化SSE消息处理**：创建`commandResultHandler`函数统一管理SSE消息处理逻辑
+- **性能优化输出渲染系统**：实现动态行宽计算、进度条原地更新、DOM元素缓存等优化
+- **增强多行文本支持**：新增`white-space:pre-line` CSS处理，提升文本显示效果
+- **拖拽模态框功能**：新增通用的Bootstrap模态框拖拽功能
+- **改进搜索栏生成逻辑**：优化条件判断，仅对标记字段生成下拉框
+- **内存管理优化**：使用WeakMap存储缓存，避免内存泄漏
 
 ## 目录
 1. [简介](#简介)
@@ -47,7 +41,7 @@
 
 项目的核心特色在于其JavaScript增强架构，通过统一的工具函数和组件化设计，实现了高度可复用的前端功能模块。这些模块不仅提升了用户体验，还为后续的功能扩展奠定了坚实的基础。
 
-**最新更新**：新增多行文本CSS处理、增强错误处理机制、改进搜索栏生成逻辑，以及拖拽模态框功能。**最新重大更新**：anything.js输出渲染系统全面重构，包含动态行宽计算、进度条优化、输出缓存和内存管理改进。
+**最新更新**：完成了HTTP请求处理和SSE消息处理系统的重大重构，新增了统一的`httpRequestAsync`函数和集中的`commandResultHandler`函数，显著提升了前端架构的一致性和可维护性。**最新重大更新**：实现了性能优化的输出渲染系统，包含动态行宽计算、进度条原地更新、DOM元素缓存和内存管理改进。
 
 ## 项目结构
 
@@ -69,17 +63,46 @@ end
 ```
 
 **图表来源**
-- [site.js:1-1874](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1874)
-- [_Layout.cshtml:1-842](file://Sylas.RemoteTasks.App/Views/Shared/_Layout.cshtml#L1-L842)
+- [site.js:1-1943](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1943)
+- [_Layout.cshtml:1-848](file://Sylas.RemoteTasks.App/Views/Shared/_Layout.cshtml#L1-L848)
 
 **章节来源**
-- [site.js:1-1874](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1874)
+- [site.js:1-1943](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1943)
 - [site.css:1-178](file://Sylas.RemoteTasks.App/wwwroot/css/site.css#L1-L178)
-- [_Layout.cshtml:1-842](file://Sylas.RemoteTasks.App/Views/Shared/_Layout.cshtml#L1-L842)
+- [_Layout.cshtml:1-848](file://Sylas.RemoteTasks.App/Views/Shared/_Layout.cshtml#L1-L848)
 
 ## 核心组件
 
-### 1. 数据表格管理引擎
+### 1. 统一HTTP请求处理系统（重构后）
+
+**新增** 统一的`httpRequestAsync`函数，替代了原有的jQuery $.ajax()调用，提供标准化的HTTP请求处理：
+
+```mermaid
+flowchart TD
+A[用户操作] --> B[httpRequestAsync]
+B --> C[添加遮罩层]
+C --> D[获取访问令牌]
+D --> E[发送fetch请求]
+E --> F{响应状态}
+F --> |成功| G[解析JSON数据]
+F --> |失败| H[显示错误信息]
+G --> I[返回数据]
+H --> J[错误处理]
+```
+
+**图表来源**
+- [site.js:828-886](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L828-L886)
+
+**关键特性：**
+- 统一的请求拦截和错误处理
+- 自动身份验证令牌管理
+- 标准化的响应格式处理
+- 完善的错误提示机制
+
+**章节来源**
+- [site.js:828-886](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L828-L886)
+
+### 2. 数据表格管理引擎
 
 项目的核心是强大的数据表格管理功能，通过`createTable`函数实现了完整的CRUD操作：
 
@@ -119,9 +142,9 @@ TableManager --> SearchFormBuilder : "创建"
 **图表来源**
 - [site.js:123-766](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L123-L766)
 
-### 2. 实时命令执行系统
+### 3. 实时命令执行系统（重构后）
 
-anything.js模块提供了完整的命令执行和监控功能，现已重构为使用通用的SSE处理函数：
+anything.js模块现已重构为使用统一的SSE处理函数，简化了命令执行逻辑：
 
 ```mermaid
 sequenceDiagram
@@ -143,10 +166,10 @@ Common->>User : 显示最终结果
 ```
 
 **图表来源**
-- [anything.js:1-800](file://Sylas.RemoteTasks.App/wwwroot/js/anything.js#L1-L800)
-- [site.js:1522-1619](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1522-L1619)
+- [anything.js:1-692](file://Sylas.RemoteTasks.App/wwwroot/js/anything.js#L1-L692)
+- [site.js:1520-1621](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1520-L1621)
 
-### 3. 可视化配置器
+### 4. 可视化配置器
 
 vds-configurator.js提供了直观的VDS页面配置功能：
 
@@ -164,9 +187,9 @@ K --> L[格式化验证]
 ```
 
 **图表来源**
-- [vds-configurator.js:1-1352](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1352)
+- [vds-configurator.js:1-1349](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1349)
 
-### 4. 拖拽模态框功能
+### 5. 拖拽模态框功能（新增）
 
 **新增** 通用的拖拽模态框功能，支持Bootstrap模态框的拖拽操作：
 
@@ -227,76 +250,70 @@ I --> A
 ```
 
 **图表来源**
-- [_Layout.cshtml:1-842](file://Sylas.RemoteTasks.App/Views/Shared/_Layout.cshtml#L1-L842)
+- [_Layout.cshtml:1-848](file://Sylas.RemoteTasks.App/Views/Shared/_Layout.cshtml#L1-L848)
 - [Index.cshtml:1-376](file://Sylas.RemoteTasks.App/Views/LowCode/Index.cshtml#L1-L376)
 - [AnythingInfos.cshtml:1-11](file://Sylas.RemoteTasks.App/Views/Hosts/AnythingInfos.cshtml#L1-L11)
 
 **章节来源**
-- [_Layout.cshtml:1-842](file://Sylas.RemoteTasks.App/Views/Shared/_Layout.cshtml#L1-L842)
+- [_Layout.cshtml:1-848](file://Sylas.RemoteTasks.App/Views/Shared/_Layout.cshtml#L1-L848)
 - [Index.cshtml:1-376](file://Sylas.RemoteTasks.App/Views/LowCode/Index.cshtml#L1-L376)
 - [AnythingInfos.cshtml:1-11](file://Sylas.RemoteTasks.App/Views/Hosts/AnythingInfos.cshtml#L1-L11)
 
 ## 详细组件分析
 
-### 1. 核心工具库 (site.js)
+### 1. 核心工具库 (site.js) - 重大重构
 
-#### 数据表格管理器
-数据表格管理器是整个系统的基础设施，提供了完整的数据操作能力：
+#### 统一HTTP请求处理（重构后）
+
+**重构** 全新的`httpRequestAsync`函数，完全替代了jQuery $.ajax()：
 
 **关键特性：**
-- 动态表单生成
-- 数据源自动解析
-- 关键字搜索
-- 分页导航
-- 自定义数据视图
-- **新增多行文本CSS处理**：支持`white-space:pre-line`保持换行格式
+- 基于原生fetch API的现代HTTP请求处理
+- 统一的错误处理和状态码处理
+- 自动身份验证令牌管理
+- 标准化的响应格式处理
+- 完善的加载状态管理
 
 **章节来源**
-- [site.js:123-766](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L123-L766)
+- [site.js:828-886](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L828-L886)
 
-#### HTTP请求处理
-统一的HTTP请求处理机制确保了数据交互的一致性和可靠性：
+#### 集中化SSE消息处理（重构后）
+
+**重构** 新的`commandResultHandler`函数，提供统一的SSE消息处理：
 
 ```mermaid
 flowchart TD
-A[用户操作] --> B[httpRequestAsync]
-B --> C[添加遮罩层]
-C --> D[获取访问令牌]
-D --> E[发送请求]
-E --> F{响应状态}
-F --> |成功| G[解析JSON数据]
-F --> |失败| H[显示错误信息]
-G --> I[返回数据]
-H --> J[错误处理]
+A[SSE消息接收] --> B[commandResultHandler]
+B --> C{消息类型判断}
+C --> |错误消息| D[红色错误显示]
+C --> |成功消息| E[绿色成功显示]
+C --> |输出消息| F[灰色输出显示]
+D --> G[DocumentFragment批量渲染]
+E --> G
+F --> H[动态行宽计算]
+H --> I[进度条检测]
+I --> J{是否进度条}
+J --> |是| K[原地更新文本节点]
+J --> |否| L[创建新文本节点]
+K --> M[滚动到底部]
+L --> M
+G --> N[DOM元素缓存]
+N --> O[内存管理优化]
 ```
 
 **图表来源**
-- [site.js:828-882](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L828-L882)
+- [site.js:1674-1743](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1674-L1743)
+
+**关键优化特性：**
+
+1. **动态行宽计算**：`estimateCharsPerLine`函数根据容器宽度动态计算每行字符数
+2. **进度条原地更新**：检测到进度条时直接更新最后一个文本节点，避免频繁DOM操作
+3. **输出缓存机制**：`msgPannelCache` Map缓存DOM元素，避免重复查找
+4. **内存管理优化**：使用单个`<pre>`元素替代多个`<div>`，改善内存使用和文本复制体验
+5. **WeakMap缓存**：`charsPerLineCache`使用WeakMap存储行宽计算结果，避免内存泄漏
 
 **章节来源**
-- [site.js:828-882](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L828-L882)
-
-#### SSE请求处理系统（重构后）
-
-**新增** 通用SSE请求处理函数，提供统一的SSE流处理机制：
-
-```mermaid
-flowchart TD
-A[SSE请求发起] --> B[sendSseRequestCommon]
-B --> C[验证访问令牌]
-C --> D[建立SSE连接]
-D --> E[异步流读取]
-E --> F[消息队列处理]
-F --> G[批量渲染优化]
-G --> H[超时控制]
-H --> I[完成处理]
-```
-
-**图表来源**
-- [site.js:1522-1619](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1522-L1619)
-
-**章节来源**
-- [site.js:1522-1619](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1522-L1619)
+- [site.js:1674-1743](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1674-L1743)
 
 #### 拖拽模态框功能（新增）
 
@@ -346,38 +363,21 @@ F --> H[绑定事件处理]
 ### 2. 任务执行模块 (anything.js) - 重大重构
 
 #### 实时命令执行（重构后）
-该模块现已重构为使用通用的SSE处理函数，简化了命令执行逻辑：
+
+该模块现已重构为使用统一的SSE处理函数，简化了命令执行逻辑：
 
 **核心功能：**
-- SSE流式数据接收
-- 命令状态跟踪
-- 实时进度显示
-- 错误处理和重试
-- **新增** 通用消息处理函数
+- 复用`sendSseRequestCommon`通用函数
+- 统一的错误处理和超时控制
+- 简化的命令执行流程
 - **新增** 多行文本字段支持（properties和commands）
 
-#### 命令卡片系统
-每个任务都以卡片形式展示，支持复杂的交互操作：
-
-```mermaid
-stateDiagram-v2
-[*] --> 未展开
-未展开 --> 已展开 : 点击标题
-已展开 --> 正在执行 : 执行命令
-正在执行 --> 执行完成 : 命令结束
-执行完成 --> 已展开 : 继续操作
-已展开 --> 未展开 : 折叠卡片
-```
-
-**图表来源**
-- [anything.js:455-536](file://Sylas.RemoteTasks.App/wwwroot/js/anything.js#L455-L536)
-
 **章节来源**
-- [anything.js:455-536](file://Sylas.RemoteTasks.App/wwwroot/js/anything.js#L455-L536)
+- [anything.js:1-692](file://Sylas.RemoteTasks.App/wwwroot/js/anything.js#L1-L692)
 
 #### 输出渲染系统（重大重构）
 
-**新增** 高性能输出渲染系统，包含多项性能优化：
+**重构** 高性能输出渲染系统，包含多项性能优化：
 
 ```mermaid
 flowchart TD
@@ -399,7 +399,7 @@ J --> K[缓存DOM元素]
 
 **关键优化特性：**
 
-1. **动态行宽计算**：`estimateCharsPerLine`函数根据容器宽度动态计算每行字符数，替代硬编码的50字符限制
+1. **动态行宽计算**：`estimateCharsPerLine`函数根据容器宽度动态计算每行字符数
 2. **进度条原地更新**：检测到进度条时直接更新最后一个文本节点，避免频繁DOM操作
 3. **输出缓存机制**：`msgPannelCache` Map缓存DOM元素，避免重复查找
 4. **内存管理优化**：使用单个`<pre>`元素替代多个`<div>`，改善内存使用和文本复制体验
@@ -411,6 +411,7 @@ J --> K[缓存DOM元素]
 ### 3. 可视化配置器 (vds-configurator.js)
 
 #### 模态框配置系统
+
 提供了完整的VDS页面配置功能：
 
 **配置选项：**
@@ -436,11 +437,12 @@ E --> F[释放鼠标时恢复状态]
 - [vds-configurator.js:21-23](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L21-L23)
 
 **章节来源**
-- [vds-configurator.js:1-1352](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1352)
+- [vds-configurator.js:1-1349](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1349)
 
 ### 4. 流程组件 (flow.js)
 
 #### Web Components实现
+
 flow.js展示了现代Web Components的实现方式：
 
 **特性：**
@@ -476,28 +478,32 @@ O[makeModalDraggable] --> C
 
 **图表来源**
 - [libman.json:1-14](file://Sylas.RemoteTasks.App/libman.json#L1-L14)
-- [_Layout.cshtml:1-842](file://Sylas.RemoteTasks.App/Views/Shared/_Layout.cshtml#L1-L842)
+- [_Layout.cshtml:1-848](file://Sylas.RemoteTasks.App/Views/Shared/_Layout.cshtml#L1-L848)
 
 **章节来源**
 - [libman.json:1-14](file://Sylas.RemoteTasks.App/libman.json#L1-L14)
-- [_Layout.cshtml:1-842](file://Sylas.RemoteTasks.App/Views/Shared/_Layout.cshtml#L1-L842)
+- [_Layout.cshtml:1-848](file://Sylas.RemoteTasks.App/Views/Shared/_Layout.cshtml#L1-L848)
 
 ## 性能考虑
 
 ### 1. 模块化加载优化
+
 项目采用了按需加载的策略，通过`type="module"`确保脚本的正确执行和缓存优化。
 
 ### 2. 内存管理
+
 - 使用弱引用避免内存泄漏
 - 及时清理定时器和事件监听器
 - 合理的DOM元素复用
 
 ### 3. 网络请求优化
+
 - 统一的请求拦截和错误处理
 - 适当的超时控制
 - 缓存策略的应用
 
 ### 4. SSE性能优化（重构后）
+
 **重构后改进**：
 - 异步生成器流式读取，减少内存占用
 - 批量渲染优化，使用requestAnimationFrame
@@ -505,6 +511,7 @@ O[makeModalDraggable] --> C
 - 超时检测机制，防止无限等待
 
 ### 5. 拖拽性能优化（新增）
+
 **新增功能优化**：
 - 使用requestAnimationFrame优化拖拽渲染
 - GPU加速变换，提升拖拽流畅度
@@ -512,12 +519,14 @@ O[makeModalDraggable] --> C
 - 自动重置拖拽状态，避免内存泄漏
 
 ### 6. 多行文本处理优化（新增）
+
 **新增功能优化**：
 - CSS `white-space:pre-line`保持换行格式
 - 避免不必要的DOM操作
 - 优化文本渲染性能
 
 ### 7. 搜索栏生成优化（改进）
+
 **改进功能优化**：
 - 条件判断减少不必要的DOM操作
 - 仅对标记的字段生成下拉框
@@ -534,7 +543,7 @@ O[makeModalDraggable] --> C
 - **DocumentFragment批量渲染**：使用DocumentFragment一次性插入多个节点，减少重排重绘
 
 **章节来源**
-- [site.js:1522-1619](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1522-L1619)
+- [site.js:1520-1621](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1520-L1621)
 - [site.js:10-94](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L10-L94)
 - [site.js:292-294](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L292-L294)
 - [site.js:603-613](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L603-L613)
@@ -561,7 +570,7 @@ O[makeModalDraggable] --> C
 
 **SSE处理问题（重构后）：**
 - 检查sendSseRequestCommon函数调用
-- 验证消息处理函数正确性
+- 验证commandResultHandler函数正确性
 - 确认超时设置合理
 
 **拖拽模态框问题（新增）：**
@@ -625,8 +634,8 @@ O[makeModalDraggable] --> C
 - 验证DocumentFragment批量渲染性能
 
 **章节来源**
-- [site.js:828-882](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L828-L882)
-- [anything.js:1-800](file://Sylas.RemoteTasks.App/wwwroot/js/anything.js#L1-L800)
+- [site.js:828-886](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L828-L886)
+- [anything.js:1-692](file://Sylas.RemoteTasks.App/wwwroot/js/anything.js#L1-L692)
 
 ## 结论
 
@@ -649,18 +658,18 @@ O[makeModalDraggable] --> C
 - 实时通信技术应用
 - 自定义Web Components实现
 - 响应式设计和主题系统
-- **通用SSE处理函数，提升可复用性**
+- **统一HTTP请求处理，提升一致性**
+- **集中化SSE消息处理，增强可维护性**
 - **多行文本CSS处理，增强显示效果**
 - **条件优化的搜索栏生成，提升性能**
 - **拖拽模态框功能，增强交互体验**
 
 **重构成果：**
-- 新增sendSseRequestCommon通用函数，统一SSE请求处理
-- 简化anything.js中的命令执行逻辑
-- 提升代码组织性和可维护性
-- 改进性能和错误处理机制
-- **新增makeModalDraggable函数，支持模态框拖拽**
-- **新增多行文本CSS处理，优化文本显示**
+- **新增统一的httpRequestAsync函数，替代jQuery $.ajax()**
+- **创建集中的commandResultHandler函数，统一SSE消息处理**
+- **实现性能优化的输出渲染系统**
+- **新增多行文本CSS处理和拖拽模态框功能**
+- **改进搜索栏生成逻辑，提升用户体验**
 
 **重大重构成果：**
 - **动态行宽计算系统**：`estimateCharsPerLine`函数根据容器宽度动态计算最优行宽，替代硬编码限制
@@ -676,4 +685,4 @@ O[makeModalDraggable] --> C
 - **改进SSE处理性能，使用异步生成器**
 - **增强拖拽功能性能，使用requestAnimationFrame**
 
-该项目为类似的企业级应用开发提供了优秀的参考模板，展示了如何通过精心设计的前端架构来提升用户体验和开发效率。**最新的输出渲染系统重构更是将性能优化推向了新的高度，为大量文本输出的应用场景提供了卓越的解决方案。**
+该项目为类似的企业级应用开发提供了优秀的参考模板，展示了如何通过精心设计的前端架构来提升用户体验和开发效率。**最新的HTTP请求处理和SSE消息处理系统重构更是将前端架构的一致性和可维护性推向了新的高度，为复杂的前端应用场景提供了卓越的解决方案。**

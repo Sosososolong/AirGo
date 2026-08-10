@@ -13,6 +13,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Sylas.RemoteTasks.Utils.CommandExecutor
@@ -373,31 +374,59 @@ namespace Sylas.RemoteTasks.Utils.CommandExecutor
             using Process p = new() { StartInfo = startInfo };
             p.Start();
 
-            // 先异步读取错误输出, 避免错误缓冲区写满导致死锁
-            var errorTask = p.StandardError.ReadToEndAsync();
-            while (!p.StandardOutput.EndOfStream)
+            // stdout和stderr都用事件逐行读取推入同一个队列, 按到达顺序输出:
+            // 原实现用ReadToEndAsync读stderr, 要等进程退出才一次性倒出来, 导致子进程(docker/git/turbo等)写到
+            // stderr的输出全部排在脚本自身stdout之后, 日志顺序错乱(如部署日志先打印DEPLOY COMPLETE, 之后才出现docker日志)
+            var outputQueue = new ConcurrentQueue<string>();
+            var outputSignal = new SemaphoreSlim(0);
+            var endedStreamCount = 0;
+
+            void OnOutputLine(object sender, DataReceivedEventArgs e)
             {
-                string line = await p.StandardOutput.ReadLineAsync();
-                yield return RemoveAnsiEscapeSequences(line);
-            }
-            string error = await errorTask;
-            // netstandard2.1没有WaitForExitAsync; 此时输出流已读完, 进程基本已结束, 同步等待不会阻塞
-            p.WaitForExit();
-            if (!string.IsNullOrWhiteSpace(error))
-            {
-                error = RemoveAnsiEscapeSequences(error);
-                // 很多程序(如docker/git/pip)会把正常的进度信息写到stderr, 不能仅凭stderr有内容就判定失败, 以退出码为准
-                if (p.ExitCode == 0)
+                // Data为null表示该输出流已结束
+                if (e.Data is null)
                 {
-                    yield return error.Trim();
+                    Interlocked.Increment(ref endedStreamCount);
                 }
                 else
                 {
-                    // 以[ERR]开头, ExecuteAsync会将其识别为失败的CommandResult
-                    yield return $"[ERR] {error.Trim()}";
+                    outputQueue.Enqueue(RemoveAnsiEscapeSequences(e.Data));
+                }
+                // 每次变化(新行/流结束)都通知消费者; 迭代器被提前释放时信号量可能已销毁
+                try
+                {
+                    outputSignal.Release();
+                }
+                catch (ObjectDisposedException)
+                {
                 }
             }
-            else if (p.ExitCode != 0)
+            p.OutputDataReceived += OnOutputLine;
+            p.ErrorDataReceived += OnOutputLine;
+            p.BeginOutputReadLine();
+            p.BeginErrorReadLine();
+
+            // 按到达顺序消费: 两条流的行交错输出, 直到两条流都结束且队列排空
+            while (true)
+            {
+                await outputSignal.WaitAsync().ConfigureAwait(false);
+                while (outputQueue.TryDequeue(out var line))
+                {
+                    yield return line;
+                }
+                if (Volatile.Read(ref endedStreamCount) >= 2)
+                {
+                    // 唤醒信号和新行入队可能交错, 确认流结束后再排空一次, 避免丢失最后一行
+                    while (outputQueue.TryDequeue(out var line))
+                    {
+                        yield return line;
+                    }
+                    break;
+                }
+            }
+            // netstandard2.1没有WaitForExitAsync; 此时两个输出流已结束, 进程基本已结束, 同步等待不会阻塞
+            p.WaitForExit();
+            if (p.ExitCode != 0)
             {
                 yield return $"[ERR] 脚本执行失败, 退出码: {p.ExitCode}";
             }

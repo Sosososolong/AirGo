@@ -50,7 +50,7 @@ namespace Sylas.RemoteTasks.App.Controllers
             }
             var anythingInfo = await anythingService.GetAnythingInfoBySettingIdAsync(id);
 
-            return RequestResult<object>.Success(new { anythingSetting = anythingDetails, anythingInfo = anythingInfo });
+            return RequestResult<object>.Success(new { anythingSetting = anythingDetails, anythingInfo });
         }
 
         /// <summary>

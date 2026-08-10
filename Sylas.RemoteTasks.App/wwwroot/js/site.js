@@ -1476,28 +1476,40 @@ const frequency = 200;
 async function* readSSEStream(response) {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
-    
+    // 网络分块不保证按帧切分, 大帧(如vite的chunk列表)可能跨在两个chunk之间;
+    // 后端每帧是完整的一行JSON+\n(JsonConvert会把字符串里的换行转义成\n两个字符),
+    // 所以按真实换行符切行, 不完整的行留在缓冲区等下一个chunk拼齐
+    let buffer = '';
+
     try {
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-            
-            // 解码二进制为文本
-            const text = decoder.decode(value, { stream: true });
-            
-            // 解析 JSON（一次可能返回多条）
-            const jsonList = text.match(/\{.+\}\n?/g);
-            if (!jsonList) {
-                console.warn('无法解析 JSON:', text);
-                continue;
-            }
-            
-            for (const json of jsonList) {
-                try {
-                    yield JSON.parse(json);
-                } catch (e) {
-                    console.warn('JSON 解析失败:', json);
+
+            buffer += decoder.decode(value, { stream: true });
+
+            let newlineIndex;
+            while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+                const line = buffer.slice(0, newlineIndex).trim();
+                buffer = buffer.slice(newlineIndex + 1);
+                if (!line) {
+                    continue;
                 }
+                try {
+                    yield JSON.parse(line);
+                } catch (e) {
+                    console.warn('JSON 解析失败:', line);
+                }
+            }
+        }
+
+        // 流结束时冲刷缓冲区: 处理最后一帧末尾没带换行的情况
+        const rest = buffer.trim();
+        if (rest) {
+            try {
+                yield JSON.parse(rest);
+            } catch (e) {
+                console.warn('JSON 解析失败:', rest);
             }
         }
     } finally {

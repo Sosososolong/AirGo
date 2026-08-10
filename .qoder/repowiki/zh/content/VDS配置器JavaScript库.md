@@ -1,7 +1,7 @@
 # VDS配置器JavaScript库
 
 <cite>
-**本文档引用的文件**
+**本文引用的文件**
 - [vds-configurator.js](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js)
 - [site.js](file://Sylas.RemoteTasks.App/wwwroot/js/site.js)
 - [LowCodeController.cs](file://Sylas.RemoteTasks.App/Controllers/LowCodeController.cs)
@@ -9,14 +9,16 @@
 - [Index.cshtml](file://Sylas.RemoteTasks.App/Views/LowCode/Index.cshtml)
 - [Render.cshtml](file://Sylas.RemoteTasks.App/Views/LowCode/Render.cshtml)
 - [RepositoryBase.cs](file://Sylas.RemoteTasks.App/Infrastructure/RepositoryBase.cs)
+- [OperationResult.cs](file://Sylas.RemoteTasks.Common/Dtos/OperationResult.cs)
+- [RequestResult.cs](file://Sylas.RemoteTasks.Common/Dtos/RequestResult.cs)
 </cite>
 
 ## 更新摘要
 **变更内容**
-- 增强搜索徽章逻辑，支持数据源字段的'可筛选'和普通字段的'可搜索'区分
-- 新增条件搜索属性判断机制，实现更精确的搜索控制
-- 优化字段类型配置系统，提供更清晰的搜索功能标识
-- 改进数据源字段的搜索配置逻辑，支持searchable和searchedByKeywords属性
+- vds-configurator.js表单提交已更新为使用集中式HTTP客户端，提升了稳定性和一致性
+- 改进了FormData处理和响应格式兼容性，支持OperationResult和RequestResult两种模式
+- 增强了错误处理机制，提供更友好的用户反馈
+- 优化了数据验证和保存流程
 
 ## 目录
 1. [简介](#简介)
@@ -33,7 +35,7 @@
 
 VDS配置器JavaScript库是一个强大的可视化配置工具，专为Sylas.RemoteTasks远程任务管理系统设计。该库提供了直观的图形界面，允许用户轻松创建和编辑VDS（Virtual Data Sheet）页面配置，而无需编写复杂的代码。
 
-**更新** VDS配置器经过重大功能增强，新增了精细化的搜索徽章逻辑和条件搜索属性判断机制。新版本能够智能区分数据源字段的'可筛选'和普通字段的'可搜索'功能，并提供更精确的搜索控制能力。
+**更新** VDS配置器经过重大功能增强，新增了精细化的搜索徽章逻辑和条件搜索属性判断机制。新版本能够智能区分数据源字段的'可筛选'和普通字段的'可搜索'功能，并提供更精确的搜索控制能力。同时，表单提交系统已全面升级，采用集中式HTTP客户端，显著提升了稳定性和一致性。
 
 该库的核心功能包括：
 - 可视化的VDS页面配置界面
@@ -43,6 +45,8 @@ VDS配置器JavaScript库是一个强大的可视化配置工具，专为Sylas.R
 - **增强** 搜索徽章逻辑系统
 - **改进** 条件搜索属性判断
 - **优化** 数据源字段搜索配置
+- **全新** 集中式HTTP客户端支持
+- **兼容** OperationResult和RequestResult双响应格式
 - 完整的CRUD操作支持
 
 ## 项目结构
@@ -61,6 +65,7 @@ subgraph "后端层"
 CTRL[LowCodeController.cs]
 REPO[RepositoryBase.cs]
 MODEL[VdsPage.cs]
+DTO[OperationResult/RequestResult]
 end
 subgraph "数据库层"
 DB[(数据库)]
@@ -72,16 +77,17 @@ SITE --> CTRL
 CTRL --> REPO
 REPO --> MODEL
 REPO --> DB
+CTRL --> DTO
 ```
 
 **图表来源**
-- [vds-configurator.js:1-1352](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1352)
-- [site.js:1-1872](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1872)
+- [vds-configurator.js:1-1349](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1349)
+- [site.js:828-915](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L828-L915)
 - [LowCodeController.cs:1-163](file://Sylas.RemoteTasks.App/Controllers/LowCodeController.cs#L1-L163)
 
 **章节来源**
-- [vds-configurator.js:1-1352](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1352)
-- [site.js:1-1872](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1872)
+- [vds-configurator.js:1-1349](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1349)
+- [site.js:1-1943](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1943)
 
 ## 核心组件
 
@@ -135,7 +141,7 @@ VdsConfigurator --> Field : manages
 ```
 
 **图表来源**
-- [vds-configurator.js:5-1352](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L5-L1352)
+- [vds-configurator.js:5-1349](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L5-L1349)
 
 ### 数据表渲染引擎
 
@@ -149,9 +155,9 @@ participant SiteJS as site.js
 participant Controller as LowCodeController
 participant DB as 数据库
 User->>VdsConfig : 配置VDS页面
-VdsConfig->>Controller : 保存配置
+VdsConfig->>Controller : 保存配置(集中式HTTP客户端)
 Controller->>DB : 存储VDS配置
-Controller-->>VdsConfig : 返回保存结果
+Controller-->>VdsConfig : 返回OperationResult/RequestResult
 VdsConfig-->>User : 显示成功消息
 User->>SiteJS : 访问VDS页面
 SiteJS->>Controller : 请求数据
@@ -163,12 +169,12 @@ SiteJS-->>User : 显示数据表格
 ```
 
 **图表来源**
-- [vds-configurator.js:1283-1337](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1283-L1337)
+- [vds-configurator.js:1283-1334](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1283-L1334)
 - [site.js:123-761](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L123-L761)
 
 **章节来源**
-- [vds-configurator.js:1-1352](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1352)
-- [site.js:1-1872](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1872)
+- [vds-configurator.js:1-1349](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1349)
+- [site.js:1-1943](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1943)
 
 ## 架构概览
 
@@ -191,6 +197,7 @@ VALIDATION[数据验证]
 BUTTONSYS[按钮系统]
 ACTIONSYS[操作系统]
 SEARCHLOGIC[搜索逻辑]
+HTTPCLIENT[集中式HTTP客户端]
 ENDSUBGRAPH
 subgraph "数据访问层"
 REPO[仓储层]
@@ -212,10 +219,12 @@ CONFIG --> VALIDATION
 CONFIG --> BUTTONSYS
 CONFIG --> ACTIONSYS
 CONFIG --> SEARCHLOGIC
+CONFIG --> HTTPCLIENT
 TABLE --> REPO
 VALIDATION --> REPO
 BUTTONSYS --> REPO
 ACTIONSYS --> REPO
+HTTPCLIENT --> REPO
 REPO --> MODEL
 REPO --> FILTER
 MODEL --> SQL
@@ -513,13 +522,84 @@ SKIPKEY --> RENDERFORM
 - [site.js:603-613](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L603-L613)
 
 **章节来源**
-- [site.js:1-1872](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1872)
+- [site.js:1-1943](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1943)
+
+### 集中式HTTP客户端
+
+**新增** 集中式HTTP客户端提供了统一的网络请求处理能力：
+
+#### HTTP请求处理流程
+
+集中式HTTP客户端负责处理所有网络请求，提供统一的错误处理和响应格式：
+
+```mermaid
+flowchart TD
+REQUEST["发起HTTP请求"] --> AUTH["身份验证检查"]
+AUTH --> TOKEN{"有访问令牌?"}
+TOKEN --> |否| REDIRECT["重定向到登录页面"]
+TOKEN --> |是| HEADER["设置请求头"]
+HEADER --> FETCH["执行fetch请求"]
+FETCH --> RESPONSE{"响应状态码"}
+RESPONSE --> |200| PARSE["解析响应数据"]
+RESPONSE --> |401| LOGIN["身份过期处理"]
+RESPONSE --> |404| NOTFOUND["接口不存在处理"]
+RESPONSE --> |其他| ERROR["错误处理"]
+PARSE --> FORMAT["格式化响应数据"]
+FORMAT --> RETURN["返回结果"]
+```
+
+**图表来源**
+- [site.js:828-886](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L828-L886)
+
+#### FormData处理优化
+
+**更新** 改进了FormData处理机制，支持空值清理和文件缓存：
+
+```mermaid
+sequenceDiagram
+participant Form as 表单
+participant Check as checkFormData函数
+participant Cache as 文件缓存
+participant Client as HTTP客户端
+Form->>Check : 提交FormData
+Check->>Check : 遍历表单字段
+Check->>Check : 删除空值字段
+Check->>Cache : 检查缓存文件
+Cache-->>Check : 返回缓存文件
+Check->>Client : 发送带文件的请求
+Client-->>Form : 返回响应
+```
+
+**图表来源**
+- [site.js:934-952](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L934-L952)
+
+#### 响应格式兼容性
+
+**新增** 支持OperationResult和RequestResult两种响应格式：
+
+```mermaid
+flowchart TD
+RESPONSE["接收响应"] --> CHECKCODE{"检查code字段"}
+CHECKCODE --> |存在| REQUESTRESULT["RequestResult格式"]
+CHECKCODE --> |不存在| OPERATIONRESULT["OperationResult格式"]
+REQUESTRESULT --> SUCCESS{"code === 1?"}
+OPERATIONRESULT --> SUCCEED{"succeed === true?"}
+SUCCESS --> |是| DATA["返回data字段"]
+SUCCESS --> |否| ERROR["显示错误信息"]
+SUCCEED --> |是| MSG["显示成功消息"]
+SUCCEED --> |否| ERRMSG["显示错误消息"]
+```
+
+**图表来源**
+- [vds-configurator.js:1322-1330](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1322-L1330)
+- [OperationResult.cs:8-52](file://Sylas.RemoteTasks.Common/Dtos/OperationResult.cs#L8-L52)
+- [RequestResult.cs:6-65](file://Sylas.RemoteTasks.Common/Dtos/RequestResult.cs#L6-L65)
 
 ### 控制器层
 
 #### LowCodeController功能
 
-LowCodeController提供了完整的VDS页面管理API：
+LowCodeController提供了完整的VDS页面管理API，支持多种响应格式：
 
 ```mermaid
 classDiagram
@@ -547,14 +627,28 @@ class VdsPage {
 +IsEnabled : boolean
 +OrderNo : int
 }
+class OperationResult {
++Succeed : bool
++Message : string
++Data : IEnumerable~string~
+}
+class RequestResult~T~ {
++Code : int
++ErrMsg : string
++Data : T
+}
 LowCodeController --> RepositoryBase~VdsPage~ : uses
 RepositoryBase~VdsPage~ --> VdsPage : manages
+LowCodeController --> OperationResult : returns
+LowCodeController --> RequestResult~T~ : returns
 ```
 
 **图表来源**
 - [LowCodeController.cs:1-163](file://Sylas.RemoteTasks.App/Controllers/LowCodeController.cs#L1-L163)
 - [RepositoryBase.cs:1-233](file://Sylas.RemoteTasks.App/Infrastructure/RepositoryBase.cs#L1-L233)
 - [VdsPage.cs:1-64](file://Sylas.RemoteTasks.App/LowCode/VdsPage.cs#L1-L64)
+- [OperationResult.cs:1-52](file://Sylas.RemoteTasks.Common/Dtos/OperationResult.cs#L1-L52)
+- [RequestResult.cs:1-65](file://Sylas.RemoteTasks.Common/Dtos/RequestResult.cs#L1-L65)
 
 **章节来源**
 - [LowCodeController.cs:1-163](file://Sylas.RemoteTasks.App/Controllers/LowCodeController.cs#L1-L163)
@@ -574,6 +668,7 @@ MODAL[模态框拖拽]
 BUTTONSYS[按钮系统]
 ACTIONSYS[操作系统]
 SEARCHBADGE[搜索徽章系统]
+HTTPCLIENT[集中式HTTP客户端]
 ENDSUBGRAPH
 subgraph "第三方库"
 BOOTSTRAP[Bootstrap]
@@ -594,17 +689,19 @@ VDS --> MODAL
 VDS --> BUTTONSYS
 VDS --> ACTIONSYS
 VDS --> SEARCHBADGE
+VDS --> HTTPCLIENT
 SITE --> BOOTSTRAP
 SITE --> JQUERY
 SITE --> FETCH
 SITE --> API
+SITE --> HTTPCLIENT
 API --> DB
 AUTH --> DB
 ```
 
 **图表来源**
-- [vds-configurator.js:1-1352](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1352)
-- [site.js:1-1872](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1872)
+- [vds-configurator.js:1-1349](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1349)
+- [site.js:1-1943](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1943)
 
 ### 后端依赖关系
 
@@ -638,8 +735,8 @@ CONTROLLER --> CONFIG
 - [RepositoryBase.cs:1-233](file://Sylas.RemoteTasks.App/Infrastructure/RepositoryBase.cs#L1-L233)
 
 **章节来源**
-- [vds-configurator.js:1-1352](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1352)
-- [site.js:1-1872](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1872)
+- [vds-configurator.js:1-1349](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1349)
+- [site.js:1-1943](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1943)
 - [LowCodeController.cs:1-163](file://Sylas.RemoteTasks.App/Controllers/LowCodeController.cs#L1-L163)
 
 ## 性能考虑
@@ -654,6 +751,8 @@ CONTROLLER --> CONFIG
 6. **按钮模板生成优化**：智能模板缓存和增量更新
 7. **搜索徽章优化**：智能徽章显示逻辑减少DOM操作
 8. **条件搜索判断优化**：高效的属性检查机制
+9. **集中式HTTP客户端优化**：统一请求处理，减少重复代码
+10. **FormData处理优化**：智能空值清理和文件缓存
 
 ### 后端性能优化
 
@@ -662,6 +761,7 @@ CONTROLLER --> CONFIG
 3. **连接池管理**：数据库连接池优化
 4. **查询优化**：SQL查询优化和索引使用
 5. **搜索条件优化**：基于属性的精确搜索判断
+6. **响应格式优化**：支持多种响应格式，提升兼容性
 
 ## 故障排除指南
 
@@ -706,6 +806,17 @@ CONTROLLER --> CONFIG
 3. 确认普通字段的searchedByKeywords属性
 4. 检查搜索表单生成逻辑
 
+#### 表单提交失败
+
+**症状**：VDS配置保存失败
+**原因**：集中式HTTP客户端错误或响应格式不兼容
+**解决方案**：
+1. 检查网络连接和身份验证
+2. 确认后端API正常响应
+3. 验证OperationResult和RequestResult格式兼容性
+4. 检查FormData数据处理是否正确
+5. 查看浏览器控制台错误信息
+
 #### 数据加载超时
 
 **症状**：数据表格加载缓慢或超时
@@ -715,6 +826,7 @@ CONTROLLER --> CONFIG
 2. 优化查询条件
 3. 实现分页加载
 4. 增加重试机制
+5. 检查集中式HTTP客户端配置
 
 #### 字段配置错误
 
@@ -726,12 +838,12 @@ CONTROLLER --> CONFIG
 3. 使用内置验证功能
 
 **章节来源**
-- [vds-configurator.js:1-1352](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1352)
-- [site.js:1-1872](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1872)
+- [vds-configurator.js:1-1349](file://Sylas.RemoteTasks.App/wwwroot/js/vds-configurator.js#L1-L1349)
+- [site.js:1-1943](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1943)
 
 ## 结论
 
-VDS配置器JavaScript库是一个功能强大、设计精良的可视化配置工具。经过重大功能增强后，该库在保持核心功能的同时，显著提升了搜索功能的智能化程度和用户体验。
+VDS配置器JavaScript库是一个功能强大、设计精良的可视化配置工具。经过重大功能增强后，该库在保持核心功能的同时，显著提升了搜索功能的智能化程度和用户体验。最新的更新进一步增强了系统的稳定性和一致性。
 
 ### 主要优势
 
@@ -742,6 +854,8 @@ VDS配置器JavaScript库是一个功能强大、设计精良的可视化配置�
 5. **可靠性**：完善的错误处理和验证机制
 6. **智能化搜索**：增强的搜索徽章逻辑和条件判断
 7. **精确控制**：区分数据源字段的'可筛选'和普通字段的'可搜索'
+8. **稳定通信**：集中式HTTP客户端确保稳定的网络通信
+9. **格式兼容**：支持OperationResult和RequestResult双响应格式
 
 ### 技术亮点
 
@@ -753,5 +867,8 @@ VDS配置器JavaScript库是一个功能强大、设计精良的可视化配置�
 - **增强** 智能搜索徽章系统
 - **改进** 条件搜索属性判断机制
 - **优化** 数据源字段搜索配置
+- **全新** 集中式HTTP客户端架构
+- **兼容** 多种响应格式处理
+- **优化** FormData数据处理机制
 
-该库为Sylas.RemoteTasks系统的低代码开发提供了坚实的技术基础，是现代Web应用开发的最佳实践范例。经过功能增强后，VDS配置器成为了更加智能、易用且功能强大的工具，为开发者提供了更好的配置体验和用户搜索体验。
+该库为Sylas.RemoteTasks系统的低代码开发提供了坚实的技术基础，是现代Web应用开发的最佳实践范例。经过功能增强后，VDS配置器成为了更加智能、易用且功能强大的工具，为开发者提供了更好的配置体验和用户搜索体验。集中式HTTP客户端的引入进一步提升了系统的稳定性和可维护性，使得网络请求处理更加统一和可靠。
