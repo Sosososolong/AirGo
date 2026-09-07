@@ -23,6 +23,7 @@
 - **拖拽模态框功能**：新增通用的Bootstrap模态框拖拽功能
 - **改进搜索栏生成逻辑**：优化条件判断，仅对标记字段生成下拉框
 - **内存管理优化**：使用WeakMap存储缓存，避免内存泄漏
+- **🔥 SSE流处理器重大增强**：改进了网络分块处理的健壮性，维护缓冲区字符串并按实际换行符分割，正确处理跨多个网络数据包的大型JSON响应
 
 ## 目录
 1. [简介](#简介)
@@ -41,7 +42,7 @@
 
 项目的核心特色在于其JavaScript增强架构，通过统一的工具函数和组件化设计，实现了高度可复用的前端功能模块。这些模块不仅提升了用户体验，还为后续的功能扩展奠定了坚实的基础。
 
-**最新更新**：完成了HTTP请求处理和SSE消息处理系统的重大重构，新增了统一的`httpRequestAsync`函数和集中的`commandResultHandler`函数，显著提升了前端架构的一致性和可维护性。**最新重大更新**：实现了性能优化的输出渲染系统，包含动态行宽计算、进度条原地更新、DOM元素缓存和内存管理改进。
+**最新更新**：完成了HTTP请求处理和SSE消息处理系统的重大重构，新增了统一的`httpRequestAsync`函数和集中的`commandResultHandler`函数，显著提升了前端架构的一致性和可维护性。**最新重大更新**：实现了性能优化的输出渲染系统，包含动态行宽计算、进度条原地更新、DOM元素缓存和内存管理改进。**🔥 SSE流处理器重大增强**：改进了网络分块处理的健壮性，能够正确处理跨多个网络数据包的大型JSON响应（如Vite的chunk列表）。
 
 ## 项目结构
 
@@ -63,11 +64,11 @@ end
 ```
 
 **图表来源**
-- [site.js:1-1943](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1943)
+- [site.js:1-1955](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1955)
 - [_Layout.cshtml:1-848](file://Sylas.RemoteTasks.App/Views/Shared/_Layout.cshtml#L1-L848)
 
 **章节来源**
-- [site.js:1-1943](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1943)
+- [site.js:1-1955](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1-L1955)
 - [site.css:1-178](file://Sylas.RemoteTasks.App/wwwroot/css/site.css#L1-L178)
 - [_Layout.cshtml:1-848](file://Sylas.RemoteTasks.App/Views/Shared/_Layout.cshtml#L1-L848)
 
@@ -276,6 +277,43 @@ I --> A
 
 **章节来源**
 - [site.js:828-886](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L828-L886)
+
+#### 🚀 SSE流处理器重大增强（新增）
+
+**重大增强** 全新的`readSSEStream`函数，实现了健壮的SSE流处理：
+
+```mermaid
+flowchart TD
+A[SSE响应接收] --> B[readSSEStream异步生成器]
+B --> C[TextDecoder解码]
+C --> D[维护缓冲区字符串]
+D --> E{查找换行符}
+E --> |找到| F[按\n分割帧]
+E --> |未找到| G[等待下一个chunk]
+F --> H[JSON.parse解析]
+H --> I[yield JSON数据]
+G --> C
+I --> J{流结束?}
+J --> |否| C
+J --> |是| K[flush缓冲区]
+K --> L[处理最后帧]
+L --> M[释放reader锁]
+```
+
+**图表来源**
+- [site.js:1476-1518](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1476-L1518)
+
+**关键增强特性：**
+
+1. **网络分块处理**：维护缓冲区字符串，正确处理跨多个网络数据包的大型JSON响应
+2. **智能换行符分割**：按实际换行符(`\n`)分割帧，而非依赖网络边界
+3. **大型响应支持**：特别优化处理Vite的chunk列表等大型JSON响应
+4. **增强的错误处理**：包含更好的控制台警告显示问题行内容
+5. **流结束处理**：在流结束时正确刷新缓冲区以处理不以换行符结尾的最终帧
+6. **内存安全**：确保reader锁的正确释放，防止内存泄漏
+
+**章节来源**
+- [site.js:1476-1518](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1476-L1518)
 
 #### 集中化SSE消息处理（重构后）
 
@@ -502,13 +540,16 @@ O[makeModalDraggable] --> C
 - 适当的超时控制
 - 缓存策略的应用
 
-### 4. SSE性能优化（重构后）
+### 4. 🚀 SSE性能优化（重大增强）
 
-**重构后改进**：
-- 异步生成器流式读取，减少内存占用
-- 批量渲染优化，使用requestAnimationFrame
-- 消息队列处理，避免频繁DOM操作
-- 超时检测机制，防止无限等待
+**重大增强后改进**：
+- **异步生成器流式读取**：使用async generator实现高效的流式数据处理
+- **网络分块缓冲**：维护缓冲区字符串，正确处理跨网络包的大响应
+- **智能换行符分割**：按实际换行符(`\n`)分割帧，不依赖网络边界
+- **批量渲染优化**：使用requestAnimationFrame进行批量渲染
+- **消息队列处理**：避免频繁的DOM操作
+- **超时检测机制**：防止无限等待
+- **内存安全**：确保reader锁的正确释放
 
 ### 5. 拖拽性能优化（新增）
 
@@ -537,12 +578,13 @@ O[makeModalDraggable] --> C
 **重大重构优化**：
 - **动态行宽计算**：`estimateCharsPerLine`函数根据容器实际宽度计算最优行宽，避免固定宽度导致的文本截断
 - **进度条原地更新**：通过正则表达式检测进度条，直接更新文本节点而非重新渲染整个DOM
-- **DOM元素缓存**：`msgPannelCache` Map缓存命令面板元素，避免重复查询
+- **输出缓存机制**：`msgPannelCache` Map缓存DOM元素，避免重复查询开销
 - **内存优化**：使用单个`<pre>`元素承载所有输出，替代多个`<div>`元素
 - **WeakMap缓存**：`charsPerLineCache`使用WeakMap存储行宽计算结果，自动清理不再使用的缓存
-- **DocumentFragment批量渲染**：使用DocumentFragment一次性插入多个节点，减少重排重绘
+- **DocumentFragment批量渲染**：一次性插入多个节点，减少重排重绘开销
 
 **章节来源**
+- [site.js:1476-1518](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1476-L1518)
 - [site.js:1520-1621](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1520-L1621)
 - [site.js:10-94](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L10-L94)
 - [site.js:292-294](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L292-L294)
@@ -568,10 +610,12 @@ O[makeModalDraggable] --> C
 - 检查服务器端推送配置
 - 验证客户端事件处理
 
-**SSE处理问题（重构后）：**
-- 检查sendSseRequestCommon函数调用
-- 验证commandResultHandler函数正确性
-- 确认超时设置合理
+**🚀 SSE处理问题（重大增强后）：**
+- 检查readSSEStream函数的缓冲区处理
+- 验证换行符分割逻辑
+- 确认大型JSON响应的正确处理
+- 检查流结束时的缓冲区刷新
+- 验证reader锁的正确释放
 
 **拖拽模态框问题（新增）：**
 - 检查makeModalDraggable函数调用
@@ -606,10 +650,12 @@ O[makeModalDraggable] --> C
 - 记录异步操作的状态变化
 - 监控内存使用情况
 
-**SSE调试（重构后）：**
-- 监控消息队列长度
-- 检查超时计数器
-- 验证异步生成器流状态
+**🚀 SSE调试（重大增强后）：**
+- 监控缓冲区大小和增长情况
+- 检查换行符分割频率
+- 验证大型JSON响应的解析过程
+- 监控流结束时的缓冲区处理
+- 检查reader锁释放情况
 
 **拖拽调试（新增）：**
 - 检查鼠标事件坐标
@@ -635,6 +681,7 @@ O[makeModalDraggable] --> C
 
 **章节来源**
 - [site.js:828-886](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L828-L886)
+- [site.js:1476-1518](file://Sylas.RemoteTasks.App/wwwroot/js/site.js#L1476-L1518)
 - [anything.js:1-692](file://Sylas.RemoteTasks.App/wwwroot/js/anything.js#L1-L692)
 
 ## 结论
@@ -671,13 +718,12 @@ O[makeModalDraggable] --> C
 - **新增多行文本CSS处理和拖拽模态框功能**
 - **改进搜索栏生成逻辑，提升用户体验**
 
-**重大重构成果：**
-- **动态行宽计算系统**：`estimateCharsPerLine`函数根据容器宽度动态计算最优行宽，替代硬编码限制
-- **进度条原地更新优化**：通过正则表达式检测进度条，直接更新文本节点而非重新渲染DOM
-- **输出缓存机制**：`msgPannelCache` Map缓存DOM元素，避免重复查询开销
-- **内存管理改进**：使用单个`<pre>`元素替代多个`<div>`，改善内存使用和文本复制体验
-- **WeakMap性能优化**：`charsPerLineCache`使用WeakMap存储行宽计算结果，自动清理缓存避免内存泄漏
-- **DocumentFragment批量渲染**：一次性插入多个节点，减少重排重绘开销
+**🚀 重大增强成果：**
+- **健壮的SSE流处理器**：`readSSEStream`函数实现了网络分块的智能处理，维护缓冲区字符串并按实际换行符分割
+- **大型响应支持**：正确处理跨多个网络数据包的大型JSON响应（如Vite的chunk列表）
+- **增强的错误处理**：包含更好的控制台警告显示问题行内容
+- **流结束处理**：在流结束时正确刷新缓冲区以处理不以换行符结尾的最终帧
+- **内存安全保证**：确保reader锁的正确释放，防止内存泄漏
 
 **改进成果：**
 - **增强错误处理机制，增加null检查**
@@ -685,4 +731,4 @@ O[makeModalDraggable] --> C
 - **改进SSE处理性能，使用异步生成器**
 - **增强拖拽功能性能，使用requestAnimationFrame**
 
-该项目为类似的企业级应用开发提供了优秀的参考模板，展示了如何通过精心设计的前端架构来提升用户体验和开发效率。**最新的HTTP请求处理和SSE消息处理系统重构更是将前端架构的一致性和可维护性推向了新的高度，为复杂的前端应用场景提供了卓越的解决方案。**
+该项目为类似的企业级应用开发提供了优秀的参考模板，展示了如何通过精心设计的前端架构来提升用户体验和开发效率。**最新的SSE流处理器重大增强更是将前端在处理复杂网络场景时的健壮性和可靠性推向了新的高度，为大型JSON响应和复杂网络条件下的实时通信提供了卓越的解决方案。**
