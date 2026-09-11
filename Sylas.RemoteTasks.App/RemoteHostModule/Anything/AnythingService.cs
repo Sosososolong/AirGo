@@ -639,6 +639,7 @@ namespace Sylas.RemoteTasks.App.RemoteHostModule.Anything
             {
                 SettingId = anythingSettingDetails.Id,
                 CommandExecutor = executorName,
+                ExecutorArgs = args,
                 Title = anythingSettingDetails.Title,
                 Properties = properties,
                 Commands = anythingSettingDetails.Commands

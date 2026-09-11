@@ -1,0 +1,330 @@
+/* Tab 栏 */
+.am-tabs {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.25rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.am-tabs .nav-link {
+    color: #5f6872;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.am-tabs .nav-link.active {
+    color: #0d6efd;
+    background-color: transparent;
+    border-bottom-color: #0d6efd;
+    font-weight: 600;
+}
+
+.am-tab-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.4rem;
+    margin-left: 0.35rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 0.45rem;
+    background: #e9ecef;
+    color: #5f6872;
+    font-size: 12px;
+    line-height: 1.2;
+}
+
+/* 卡片 */
+.am-card {
+    margin-bottom: 0.5rem;
+    overflow: hidden;
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    background: #fff;
+    transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.am-card-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+}
+
+.am-card.expanded {
+    border-color: rgba(13, 110, 253, 0.25);
+    background: rgba(232, 244, 255, 0.78);
+    box-shadow: 0 0.5rem 1.25rem rgba(13, 110, 253, 0.08);
+    backdrop-filter: blur(8px);
+}
+
+.am-executor-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    background: #6c757d;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: 0.02em;
+}
+
+.am-executor-badge[data-type="FileHelper"] {
+    background: #fd7e14;
+}
+
+.am-executor-badge[data-type="SystemCmd"] {
+    background: #0d6efd;
+}
+
+.am-executor-badge[data-type="HttpExecutor"] {
+    background: #198754;
+}
+
+.am-executor-badge[data-type="DatabaseExecutor"] {
+    background: #6f42c1;
+}
+
+.am-executor-badge[data-type="SshHelper"] {
+    background: #0aa2c0;
+}
+
+/* 命令项 */
+.am-command-item {
+    position: relative;
+    margin-bottom: 10px;
+    padding: 10px 30px 0 10px;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    background-color: #eee;
+}
+
+.am-command-item.single {
+    position: relative;
+}
+
+.am-command-resolved {
+    max-height: 200px;
+    overflow: auto;
+    padding-bottom: 10px;
+    color: gray;
+    font-size: 12px;
+}
+
+.am-command-state {
+    margin-left: 30px;
+    color: green;
+    font-size: 12px;
+}
+
+.am-command-executing {
+    border-color: #0d6efd;
+    animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        border-color: rgba(13, 110, 253, 0.35);
+        box-shadow: 0 0 0 0 rgba(13, 110, 253, 0), inset 0 0 0 rgba(13, 110, 253, 0);
+    }
+    50% {
+        border-color: rgba(13, 110, 253, 0.95);
+        box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.12), inset 0 0 18px rgba(13, 110, 253, 0.08);
+    }
+}
+
+.am-command-done::before,
+.am-command-queued::before {
+    position: absolute;
+    left: 10px;
+    top: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.am-command-done::before {
+    content: "✓";
+    background: #198754;
+    color: #fff;
+}
+
+.am-command-queued::before {
+    content: attr(data-order);
+    background: #adb5bd;
+    color: #fff;
+}
+
+/* 环境变量面板 */
+.am-env-panel {
+    padding: 15px;
+    border-left: 4px solid #17a2b8;
+    border-radius: 5px;
+    background: linear-gradient(135deg, #e8f4f8 0%, #f0f7fa 100%);
+    box-shadow: 0 0.25rem 0.75rem rgba(23, 162, 184, 0.12);
+}
+
+.am-env-resolved {
+    max-height: 120px;
+    overflow: auto;
+    padding: 10px;
+    border: 1px solid #bee5eb;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.7);
+    color: #0c5460;
+    font-size: 12px;
+}
+
+/* 排序与删除操作 */
+.am-order-arrow {
+    position: absolute;
+    right: 5px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.am-order-arrow.up {
+    bottom: 20px;
+}
+
+.am-order-arrow.down {
+    bottom: -5px;
+}
+
+.am-remove-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    cursor: pointer;
+    font-size: 8px;
+}
+
+/* 工具按钮 */
+.am-clear-output-btn {
+    padding: 0.15rem 0.45rem;
+    border: 1px solid #adb5bd;
+    border-radius: 0.25rem;
+    background: transparent;
+    color: #6c757d;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.am-clear-output-btn:hover {
+    border-color: #6c757d;
+    background: #f1f3f5;
+    color: #343a40;
+}
+
+.am-quick-edit-btn {
+    padding: 0.35rem 0.75rem;
+    border: 1px solid #fd7e14;
+    border-radius: 0.35rem;
+    background: #fd7e14;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.am-quick-edit-btn:hover {
+    border-color: #dc6502;
+    background: #dc6502;
+    color: #fff;
+}
+
+/* 暗黑模式 */
+.bg-black .am-card {
+    border-color: #3b4148;
+    background: #202429;
+    color: #e9ecef;
+}
+
+.bg-black .am-card.expanded {
+    border-color: rgba(79, 149, 255, 0.45);
+    background: rgba(28, 43, 58, 0.88);
+    box-shadow: 0 0.5rem 1.25rem rgba(0, 0, 0, 0.28);
+}
+
+.bg-black .am-command-item {
+    border-color: #3b4148;
+    background-color: #292e33;
+    color: #e9ecef;
+}
+
+.bg-black .am-env-panel {
+    border-left-color: #2fb7cb;
+    background: linear-gradient(135deg, #17343a 0%, #1d292f 100%);
+    box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.3);
+    color: #d7f4f8;
+}
+
+.bg-black .am-env-resolved {
+    border-color: #39656d;
+    background: rgba(9, 24, 28, 0.72);
+    color: #b9e8ef;
+}
+
+.bg-black .am-command-resolved {
+    color: #c4c9ce;
+}
+
+.bg-black .am-command-state {
+    color: #69db7c;
+}
+
+.bg-black .am-executor-badge {
+    filter: brightness(0.82) saturate(0.9);
+}
+
+.bg-black .am-tabs {
+    border-bottom-color: #3b4148;
+}
+
+.bg-black .am-tabs .nav-link {
+    color: #adb5bd;
+}
+
+.bg-black .am-tabs .nav-link.active {
+    color: #7db1ff;
+    border-bottom-color: #4f95ff;
+}
+
+.bg-black .am-tab-badge {
+    background: #343a40;
+    color: #ced4da;
+}
+
+.bg-black .am-clear-output-btn {
+    border-color: #596168;
+    color: #c4c9ce;
+}
+
+.bg-black .am-clear-output-btn:hover {
+    border-color: #8a939b;
+    background: #343a40;
+    color: #fff;
+}
+
+/* 隐藏滚动条并保留滚动能力 */
+.am-scrollable-nobar {
+    overflow: -moz-scrollbars-none;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.am-scrollable-nobar::-webkit-scrollbar {
+    display: none;
+}

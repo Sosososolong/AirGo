@@ -64,6 +64,12 @@ namespace Sylas.RemoteTasks.App.Controllers
         }
 
         /// <summary>
+        /// 新版 Anything 管理页面，覆盖 AnythingInfos 全部功能并增强交互（Tab筛选、卡片升级、执行体验优化）
+        /// </summary>
+        [AllowAnonymous]
+        public IActionResult AnythingManager() => View();
+
+        /// <summary>
         /// 查询命令执行器列表
         /// </summary>
         /// <param name="search"></param>

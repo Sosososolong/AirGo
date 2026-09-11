@@ -16,7 +16,15 @@
 - [ApiTestSuite.cs](file://Sylas.RemoteTasks.App/ApiTester/Models/Entities/ApiTestSuite.cs)
 - [HttpRequestPipeline.cs](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/HttpRequestPipeline.cs)
 - [Index.cshtml](file://Sylas.RemoteTasks.App/Views/ApiTester/Index.cshtml)
+- [Sylas.RemoteTasks.App.csproj](file://Sylas.RemoteTasks.App/Sylas.RemoteTasks.App.csproj)
 </cite>
+
+## 更新摘要
+**所做更改**
+- 更新了YamlDotNet依赖版本信息（从16.2.1升级到18.1.0）
+- 增强了SwaggerImportService的YAML处理功能说明
+- 更新了依赖关系分析章节
+- 添加了新版本特性的兼容性说明
 
 ## 目录
 1. [简介](#简介)
@@ -32,6 +40,8 @@
 
 ## 简介
 本系统是一个面向后端的API测试套件管理工具，提供集合、接口、环境变量与变量、测试套件的CRUD能力，支持从Swagger/OpenAPI导入接口定义，具备模板变量解析、请求头/参数合并、鉴权注入、响应提取、断言校验、批量执行与历史记录持久化等能力。前端采用MVC视图+静态资源组织，后端基于ASP.NET Core Web应用，通过控制器暴露REST接口，服务层编排业务逻辑，仓储层封装数据库访问，HTTP管道负责实际网络请求与结果处理。
+
+**更新** 系统已升级YamlDotNet依赖至18.1.0版本，增强了YAML格式的解析能力和性能优化，改进了对复杂YAML结构的处理能力。
 
 ## 项目结构
 - 应用入口与依赖注入：Program.cs 统一注册控制器、SignalR、HttpClient、仓储、服务、后台服务等。
@@ -78,7 +88,7 @@ Repo --> DB["数据库(多表)"]
 - 服务层：
   - ApiTesterService：负责集合、接口、环境、变量、测试套件的增删改查与Swagger导入；维护集合接口计数；支持导入导出自有JSON格式。
   - RequestProxyService：构建有效Headers/Auth/Validators，映射为共享层Spec，调用HTTP管道，持久化变量与历史，支持批量顺序执行并共享上下文变量。
-  - SwaggerImportService：自动识别JSON/YAML，解析paths、parameters、requestBody，生成集合与接口默认值。
+  - SwaggerImportService：自动识别JSON/YAML，解析paths、parameters、requestBody，生成集合与接口默认值。**已升级YamlDotNet至18.1.0版本，提供更强大的YAML解析能力**。
   - VariableExtractorService：按激活环境持久化提取的变量，存在则更新，不存在则新增。
 - 仓储层：集中持有6个实体的RepositoryBase实例，并提供按集合/环境查询、批量排序更新、级联删除、切换激活环境等便捷方法。
 - HTTP管道：模板解析、URL拼接、鉴权注入、Body构建、发送、响应读取、变量提取、断言校验，输出结构化结果。
@@ -269,10 +279,12 @@ Ctrl-->>C : JSON响应
 
 ### 服务：SwaggerImportService
 - 职责：从URL拉取或解析本地内容（JSON/YAML），生成集合与接口列表。
+- **更新** 已升级YamlDotNet至18.1.0版本，提供更强大的YAML解析能力。
 - 关键点：
   - FetchFromUrlAsync：超时控制与字符串拉取。
   - Parse：自动识别JSON/YAML，解析info、servers/host/basePath、paths、parameters、requestBody，生成默认示例Body与类型。
   - SchemaToSample：简单schema→示例值生成，支持object/array/基本类型与$ref引用。
+  - **YAML处理增强**：使用新的DeserializerBuilder和SerializerBuilder，支持更复杂的YAML结构和更好的性能。
 
 章节来源
 - [SwaggerImportService.cs:1-280](file://Sylas.RemoteTasks.App/ApiTester/Services/SwaggerImportService.cs#L1-L280)
@@ -414,9 +426,11 @@ API_COLLECTIONS ||--o{ API_TEST_SUITES : "拥有"
 - ApiTesterController依赖ApiTesterService、RequestProxyService、SwaggerImportService。
 - RequestProxyService依赖IHttpRequestPipeline、ApiTesterRepository、VariableExtractorService、IDatabaseProvider。
 - ApiTesterService依赖ApiTesterRepository、SwaggerImportService。
-- SwaggerImportService依赖IHttpClientFactory与YAML/JSON库。
+- SwaggerImportService依赖IHttpClientFactory与**YamlDotNet 18.1.0**与JSON库。
 - VariableExtractorService依赖ApiTesterRepository。
 - ApiTesterRepository依赖IDatabaseProvider与RepositoryBase<T>。
+
+**更新** YamlDotNet依赖已从16.2.1升级到18.1.0版本，提供了更好的YAML解析性能和更丰富的特性支持。
 
 ```mermaid
 graph LR
@@ -435,6 +449,7 @@ Proxy --> Repo
 Proxy --> VarExt
 Service --> Repo
 ImportSvc --> Repo
+ImportSvc --> YamlDotNet["YamlDotNet 18.1.0"]
 ```
 
 图表来源 
@@ -446,9 +461,11 @@ ImportSvc --> Repo
 - [VariableExtractorService.cs:1-58](file://Sylas.RemoteTasks.App/ApiTester/Services/VariableExtractorService.cs#L1-L58)
 - [ApiTesterRepository.cs:1-93](file://Sylas.RemoteTasks.App/ApiTester/Repositories/ApiTesterRepository.cs#L1-L93)
 - [HttpRequestPipeline.cs:1-534](file://Sylas.RemoteTasks.Utils/CommandExecutor/Http/HttpRequestPipeline.cs#L1-L534)
+- [Sylas.RemoteTasks.App.csproj:44](file://Sylas.RemoteTasks.App/Sylas.RemoteTasks.App.csproj#L44)
 
 章节来源
 - [Program.cs:13-98](file://Sylas.RemoteTasks.App/Program.cs#L13-L98)
+- [Sylas.RemoteTasks.App.csproj:44](file://Sylas.RemoteTasks.App/Sylas.RemoteTasks.App.csproj#L44)
 
 ## 性能考量
 - 批量排序更新：UpdateEndpointsOrderAsync仅更新OrderNo字段，减少不必要的数据变更。
@@ -457,6 +474,7 @@ ImportSvc --> Repo
 - HTTP超时：HttpRequestPipeline设置合理超时，避免阻塞。
 - 模板解析：TmplHelper2内置时间表达式，减少预处理开销。
 - 变量上下文：批量执行共享上下文，减少重复解析与查询。
+- **YAML解析优化**：YamlDotNet 18.1.0版本提供了更好的解析性能和内存使用优化。
 
 [本节为通用指导，不直接分析具体文件]
 
@@ -464,7 +482,7 @@ ImportSvc --> Repo
 - 请求失败：检查HttpRequestPipeline中的异常日志与Error字段；确认URL、鉴权、Body类型是否正确。
 - 变量未生效：确认激活环境已设置；检查VariableExtractorService是否成功持久化；查看历史记录的extractedVars。
 - 校验失败：检查ValidatorResults中的Passed与Actual值；确认Expected模板解析正确。
-- Swagger导入失败：确认Content或Url提供；检查YAML/JSON解析；查看日志中的警告信息。
+- **Swagger导入失败**：确认Content或Url提供；检查YAML/JSON解析；查看日志中的警告信息；**注意YamlDotNet版本兼容性**。
 - 历史未落库：检查IDatabaseProvider.InsertDataAsync调用是否抛出异常；确认表名与字段映射。
 
 章节来源
@@ -473,13 +491,15 @@ ImportSvc --> Repo
 - [SwaggerImportService.cs:96-110](file://Sylas.RemoteTasks.App/ApiTester/Services/SwaggerImportService.cs#L96-L110)
 
 ## 结论
-本系统以清晰的层次结构与职责划分，实现了完整的API测试套件管理能力。通过Swagger导入、模板变量、鉴权注入、响应提取与断言校验，满足日常接口调试与回归测试需求。批量执行与历史持久化提升了效率与可追溯性。建议后续扩展更多校验规则、增强错误诊断与可视化报告。
+本系统以清晰的层次结构与职责划分，实现了完整的API测试套件管理能力。通过Swagger导入、模板变量、鉴权注入、响应提取与断言校验，满足日常接口调试与回归测试需求。批量执行与历史持久化提升了效率与可追溯性。**随着YamlDotNet依赖升级到18.1.0版本，系统现在能够更高效地处理复杂的YAML格式Swagger文档，提供更好的解析性能和稳定性**。建议后续扩展更多校验规则、增强错误诊断与可视化报告。
 
 [本节为总结，不直接分析具体文件]
 
 ## 附录
 - 部署说明参考README.md中的Docker命令。
 - 前端execute函数支持简单参数传递与复杂表单ID列表，详见README.md。
+- **依赖版本**：YamlDotNet 18.1.0，提供更好的YAML解析支持和性能优化。
 
 章节来源
 - [README.md:1-43](file://README.md#L1-L43)
+- [Sylas.RemoteTasks.App.csproj:44](file://Sylas.RemoteTasks.App/Sylas.RemoteTasks.App.csproj#L44)
